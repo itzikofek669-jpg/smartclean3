@@ -1,5 +1,4 @@
 import React, { useState, useEffect, useRef } from 'react';
-import BottomTabBar from '../lib/BottomTabBar';
 import {
   View, Text, StyleSheet, FlatList, TouchableOpacity, TextInput,
   Modal, SafeAreaView, StatusBar, ActivityIndicator,
@@ -253,8 +252,6 @@ export default function MessagesScreen() {
         onClose={() => setActiveChatId('')}
       />
 
-      {/* ── תפריט ניווט תחתון ── */}
-      <BottomTabBar />
 
     </SafeAreaView>
   );

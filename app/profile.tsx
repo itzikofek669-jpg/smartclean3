@@ -1,5 +1,4 @@
 import React, { useEffect, useRef, useState } from 'react';
-import BottomTabBar from '../lib/BottomTabBar';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity,
   SafeAreaView, StatusBar, ActivityIndicator, Alert, Modal, Switch, Share, Linking,
@@ -2066,8 +2065,6 @@ export default function ProfileScreen() {
         </SafeAreaView>
       </Modal>
 
-      {/* ── תפריט ניווט תחתון ── */}
-      <BottomTabBar />
 
     </SafeAreaView>
   );

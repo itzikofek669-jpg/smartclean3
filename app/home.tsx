@@ -1,7 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import * as NavigationBar from 'expo-navigation-bar';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import BottomTabBar from '../lib/BottomTabBar';
 import {
   View, Text, StyleSheet, FlatList, TouchableOpacity,
   TextInput, ScrollView, Modal, SafeAreaView, StatusBar,
@@ -2576,8 +2575,6 @@ export default function HomeScreen() {
         </SafeAreaView>
       </Modal>
 
-      {/* ── תפריט ניווט תחתון ── */}
-      <BottomTabBar />
 
     </SafeAreaView>
   );
