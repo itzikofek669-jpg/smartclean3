@@ -8,7 +8,7 @@ import { useRouter } from 'expo-router';
 import { signInWithEmailAndPassword, sendPasswordResetEmail, GoogleAuthProvider, FacebookAuthProvider, signInWithCredential } from 'firebase/auth';
 import * as SecureStore from 'expo-secure-store';
 import * as WebBrowser from 'expo-web-browser';
-import { useAuthRequest, makeRedirectUri } from 'expo-auth-session';
+import { useAuthRequest, makeRedirectUri, exchangeCodeAsync } from 'expo-auth-session';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { auth, db } from '../lib/firebase';
 import { useLanguage } from '../lib/LanguageContext';
@@ -17,8 +17,14 @@ import { Lang } from '../lib/translations';
 WebBrowser.maybeCompleteAuthSession();
 
 // ─── 🔑 מפתחות OAuth ──────────────────────────────────────────────────────────
-const GOOGLE_WEB_CLIENT_ID = '36464693633-955h1o688don3gtrvvf0sm1to0kio5dm.apps.googleusercontent.com';
-const FACEBOOK_APP_ID = '293492306044443';
+const GOOGLE_CLIENT_ID     = '36464693633-j0r6i7472iv75hh772g7ss9vacitsh1v.apps.googleusercontent.com';
+const GOOGLE_CLIENT_SECRET = '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';
+const FACEBOOK_APP_ID      = '293492306044443';
+
+const GOOGLE_DISCOVERY = {
+  authorizationEndpoint: 'https://accounts.google.com/o/oauth2/v2/auth',
+  tokenEndpoint:         'https://oauth2.googleapis.com/token',
+};
 // ──────────────────────────────────────────────────────────────────────────────
 
 const C = {
@@ -67,43 +73,45 @@ export default function LoginScreen() {
   const [rememberMe,    setRememberMe]    = useState(false);
   const [showLangMenu,  setShowLangMenu]  = useState(false);
 
-  // ─── Google auth session ─────────────────────────────────────────────────
+  // ─── Google auth session (Desktop client + PKCE code flow) ──────────────
   const googleRedirect = makeRedirectUri({ scheme: 'cleantouch' });
   const [, googleResponse, googlePrompt] = useAuthRequest(
     {
-      clientId: GOOGLE_WEB_CLIENT_ID,
-      redirectUri: googleRedirect,
-      scopes: ['openid', 'profile', 'email'],
-      responseType: 'id_token',
-      usePKCE: false,          // implicit flow אינו תומך ב-PKCE
-      extraParams: { nonce: 'nonce' },
+      clientId:     GOOGLE_CLIENT_ID,
+      redirectUri:  googleRedirect,
+      scopes:       ['openid', 'profile', 'email'],
+      responseType: 'code',
     },
-    { authorizationEndpoint: 'https://accounts.google.com/o/oauth2/v2/auth' }
+    GOOGLE_DISCOVERY
   );
 
   useEffect(() => {
-    if (googleResponse?.type === 'success') {
-      const idToken = googleResponse.params?.id_token;
-      if (!idToken) {
-        Alert.alert('שגיאה', 'לא התקבל token מ-Google. נסה שוב.');
-        return;
-      }
-      const credential = GoogleAuthProvider.credential(idToken);
-      setSocialLoading('google');
-      signInWithCredential(auth, credential)
-        .then(async (res) => {
-          await ensureUserProfile(res.user.uid, res.user.displayName || 'משתמש', res.user.email || '');
-        })
-        .catch((e: any) => {
-          const msg = e?.code === 'auth/account-exists-with-different-credential'
-            ? 'כתובת האימייל הזו כבר רשומה בשיטה אחרת'
-            : 'כניסה עם Google נכשלה — נסה שוב';
-          Alert.alert('שגיאה', msg);
-        })
-        .finally(() => setSocialLoading(null));
-    } else if (googleResponse?.type === 'error') {
-      Alert.alert('שגיאה', googleResponse.error?.message || 'כניסה עם Google נכשלה');
+    if (googleResponse?.type !== 'success') {
+      if (googleResponse?.type === 'error')
+        Alert.alert('שגיאה', googleResponse.error?.message || 'כניסה עם Google נכשלה');
+      return;
     }
+    const { code } = googleResponse.params;
+    setSocialLoading('google');
+    exchangeCodeAsync(
+      { clientId: GOOGLE_CLIENT_ID, clientSecret: GOOGLE_CLIENT_SECRET,
+        redirectUri: googleRedirect, code },
+      GOOGLE_DISCOVERY
+    )
+      .then(async tokenResult => {
+        const idToken = tokenResult.idToken;
+        if (!idToken) throw new Error('no id_token');
+        const credential = GoogleAuthProvider.credential(idToken);
+        const res = await signInWithCredential(auth, credential);
+        await ensureUserProfile(res.user.uid, res.user.displayName || 'משתמש', res.user.email || '');
+      })
+      .catch((e: any) => {
+        const msg = e?.code === 'auth/account-exists-with-different-credential'
+          ? 'כתובת האימייל הזו כבר רשומה בשיטה אחרת'
+          : 'כניסה עם Google נכשלה — נסה שוב';
+        Alert.alert('שגיאה', msg);
+      })
+      .finally(() => setSocialLoading(null));
   }, [googleResponse]);
 
   // ─── Facebook auth session ───────────────────────────────────────────────
