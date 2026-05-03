@@ -116,7 +116,8 @@ export default function LoginScreen() {
   }, [googleResponse]);
 
   // ─── Facebook auth session ───────────────────────────────────────────────
-  const fbRedirect = makeRedirectUri({ scheme: 'cleantouch' });
+  // Facebook דורש https:// URI — משתמשים בפרוקסי של Expo
+  const fbRedirect = makeRedirectUri({ useProxy: true });
   const [, fbResponse, fbPrompt] = useAuthRequest(
     {
       clientId: FACEBOOK_APP_ID,
