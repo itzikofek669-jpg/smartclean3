@@ -17,9 +17,10 @@ import { Lang } from '../lib/translations';
 WebBrowser.maybeCompleteAuthSession();
 
 // ─── 🔑 מפתחות OAuth ──────────────────────────────────────────────────────────
-const GOOGLE_CLIENT_ID     = '36464693633-j0r6i7472iv75hh772g7ss9vacitsh1v.apps.googleusercontent.com';
-const GOOGLE_CLIENT_SECRET = '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';
-const FACEBOOK_APP_ID      = '293492306044443';
+// Android client — נוצר ב-Google Cloud Console עם package name + SHA-1
+// !! להחליף אחרי יצירת Android client ב-Google Cloud Console !!
+const GOOGLE_CLIENT_ID = 'REPLACE_WITH_ANDROID_CLIENT_ID.apps.googleusercontent.com';
+const FACEBOOK_APP_ID  = '293492306044443';
 
 const GOOGLE_DISCOVERY = {
   authorizationEndpoint: 'https://accounts.google.com/o/oauth2/v2/auth',
@@ -73,8 +74,8 @@ export default function LoginScreen() {
   const [rememberMe,    setRememberMe]    = useState(false);
   const [showLangMenu,  setShowLangMenu]  = useState(false);
 
-  // ─── Google auth session (Desktop client + PKCE code flow) ──────────────
-  const googleRedirect = makeRedirectUri({ scheme: 'cleantouch' });
+  // ─── Google auth session (Android client + PKCE code flow) ──────────────
+  const googleRedirect = makeRedirectUri({ native: 'com.itzik669.cleantouch:/oauth2redirect' });
   const [, googleResponse, googlePrompt] = useAuthRequest(
     {
       clientId:     GOOGLE_CLIENT_ID,
@@ -94,7 +95,7 @@ export default function LoginScreen() {
     const { code } = googleResponse.params;
     setSocialLoading('google');
     exchangeCodeAsync(
-      { clientId: GOOGLE_CLIENT_ID, clientSecret: GOOGLE_CLIENT_SECRET,
+      { clientId: GOOGLE_CLIENT_ID,
         redirectUri: googleRedirect, code },
       GOOGLE_DISCOVERY
     )

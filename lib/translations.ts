@@ -300,7 +300,6 @@ const he = {
   // Reminder
   reminderScheduled: '🔔 תזכורת נוספה ליום לפני הניקיון',
   // Cancel booking
-  cancelBookingBtn:     'ביטול הזמנה',
   cancelBookingConfirm: 'האם אתה בטוח שברצונך לבטל את ההזמנה?',
   cancelBookingYes:     'כן, בטל',
   cancelledStatus:      '🚫 בוטל',
@@ -355,11 +354,6 @@ const he = {
   whatsNextTitle:      'מה הלאה?',
   addressTooShort:     'כתובת קצרה מדי — הכנס/י כתובת מלאה',
   addressNoNumber:     'הכנס/י מספר בית בכתובת',
-  cancelConfirmTitle:  'ביטול הזמנה',
-  cancelConfirmMsg:    'האם אתה בטוח שברצונך לבטל?',
-  cancelRefundPolicy:  'ביטול עד 24 שעות לפני — החזר מלא. לאחר מכן — אין החזר.',
-  cancelKeepBooking:   'שמור הזמנה',
-  cancelConfirmBtn:    'בטל הזמנה',
 
   // Report
   reportBtn:              '🚨 דיווח',
@@ -461,6 +455,11 @@ const he = {
   urgentNoCleaner:    'אין בקשות דחופות כרגע',
   urgentPushTitle:    '⚡ ניקוי דחוף ליד!',
   urgentPushBody:     'לקוח מחפש מנקה — לחץ לפרטים',
+
+  // Exit app
+  exitTitle:   'יציאה מהאפליקציה',
+  exitMsg:     'האם אתה בטוח שברצונך לצאת?',
+  exitConfirm: 'צא',
 };
 
 const en: typeof he = {
@@ -622,7 +621,6 @@ const en: typeof he = {
   idVerifyTitle: 'Identity Verification', idVerifyUpload: 'Upload ID', idVerifyDone: '✅ Identity Verified',
   idVerifyInfo: 'Photo is only seen by us — to build client trust', badgeIdVerified: '🪪 ID Verified',
   reminderScheduled: '🔔 Reminder set for the day before cleaning',
-  cancelBookingBtn:     'Cancel Booking',
   cancelBookingConfirm: 'Are you sure you want to cancel this booking?',
   cancelBookingYes:     'Yes, Cancel',
   cancelledStatus:      '🚫 Cancelled',
@@ -669,11 +667,6 @@ const en: typeof he = {
   whatsNextTitle:      "What's Next?",
   addressTooShort:     'Address is too short — please enter a full address',
   addressNoNumber:     'Please include a house number in the address',
-  cancelConfirmTitle:  'Cancel Booking',
-  cancelConfirmMsg:    'Are you sure you want to cancel?',
-  cancelRefundPolicy:  'Cancel 24h before — full refund. After that — no refund.',
-  cancelKeepBooking:   'Keep Booking',
-  cancelConfirmBtn:    'Cancel Booking',
 
   reportBtn:              '🚨 Report',
   reportTitle:            'Report a Problem',
@@ -771,6 +764,11 @@ const en: typeof he = {
   urgentNoCleaner:    'No express requests right now',
   urgentPushTitle:    '⚡ Express Cleaning Nearby!',
   urgentPushBody:     'A client is looking for a cleaner — tap for details',
+
+  // Exit app
+  exitTitle:   'Exit App',
+  exitMsg:     'Are you sure you want to exit?',
+  exitConfirm: 'Exit',
 };
 
 const ru: typeof he = {
@@ -932,7 +930,6 @@ const ru: typeof he = {
   idVerifyTitle: 'Проверка личности', idVerifyUpload: 'Загрузить удостоверение', idVerifyDone: '✅ Личность подтверждена',
   idVerifyInfo: 'Фото видно только нам — для доверия клиентов', badgeIdVerified: '🪪 Удостоверен',
   reminderScheduled: '🔔 Напоминание добавлено на день раньше',
-  cancelBookingBtn:     'Отменить заказ',
   cancelBookingConfirm: 'Вы уверены, что хотите отменить заказ?',
   cancelBookingYes:     'Да, отменить',
   cancelledStatus:      '🚫 Отменён',
@@ -979,11 +976,6 @@ const ru: typeof he = {
   whatsNextTitle:      'Что дальше?',
   addressTooShort:     'Адрес слишком короткий — введите полный адрес',
   addressNoNumber:     'Укажите номер дома в адресе',
-  cancelConfirmTitle:  'Отмена заказа',
-  cancelConfirmMsg:    'Вы уверены, что хотите отменить?',
-  cancelRefundPolicy:  'Отмена за 24ч — полный возврат. После — без возврата.',
-  cancelKeepBooking:   'Оставить заказ',
-  cancelConfirmBtn:    'Отменить заказ',
 
   reportBtn:              '🚨 Жалоба',
   reportTitle:            'Сообщить о проблеме',
@@ -1080,6 +1072,11 @@ const ru: typeof he = {
   urgentNoCleaner:    'Срочных запросов пока нет',
   urgentPushTitle:    '⚡ Срочная уборка рядом!',
   urgentPushBody:     'Клиент ищет уборщика — нажмите для деталей',
+
+  // Exit app
+  exitTitle:   'Выход из приложения',
+  exitMsg:     'Вы уверены, что хотите выйти?',
+  exitConfirm: 'Выйти',
 };
 
 const ar: typeof he = {
@@ -1241,7 +1238,6 @@ const ar: typeof he = {
   idVerifyTitle: 'التحقق من الهوية', idVerifyUpload: 'رفع بطاقة الهوية', idVerifyDone: '✅ الهوية موثقة',
   idVerifyInfo: 'الصورة مرئية لنا فقط — لبناء ثقة العملاء', badgeIdVerified: '🪪 موثق الهوية',
   reminderScheduled: '🔔 تمت إضافة تذكير لليوم السابق',
-  cancelBookingBtn:     'إلغاء الحجز',
   cancelBookingConfirm: 'هل أنت متأكد أنك تريد إلغاء الحجز؟',
   cancelBookingYes:     'نعم، إلغاء',
   cancelledStatus:      '🚫 ملغى',
@@ -1288,11 +1284,6 @@ const ar: typeof he = {
   whatsNextTitle:      'ماذا بعد؟',
   addressTooShort:     'العنوان قصير جداً — أدخل عنواناً كاملاً',
   addressNoNumber:     'يرجى تضمين رقم المنزل في العنوان',
-  cancelConfirmTitle:  'إلغاء الحجز',
-  cancelConfirmMsg:    'هل أنت متأكد أنك تريد الإلغاء؟',
-  cancelRefundPolicy:  'إلغاء قبل 24 ساعة — استرداد كامل. بعد ذلك — لا استرداد.',
-  cancelKeepBooking:   'الإبقاء على الحجز',
-  cancelConfirmBtn:    'إلغاء الحجز',
 
   reportBtn:              '🚨 إبلاغ',
   reportTitle:            'الإبلاغ عن مشكلة',
@@ -1389,6 +1380,11 @@ const ar: typeof he = {
   urgentNoCleaner:    'لا توجد طلبات عاجلة الآن',
   urgentPushTitle:    '⚡ تنظيف عاجل قريب!',
   urgentPushBody:     'عميل يبحث عن منظف — انقر للتفاصيل',
+
+  // Exit app
+  exitTitle:   'الخروج من التطبيق',
+  exitMsg:     'هل أنت متأكد من الخروج؟',
+  exitConfirm: 'خروج',
 };
 
 const fr: typeof he = {
@@ -1492,7 +1488,6 @@ const fr: typeof he = {
   idVerifyTitle: "Vérification d'identité", idVerifyUpload: "Télécharger pièce d'identité", idVerifyDone: '✅ Identité vérifiée',
   idVerifyInfo: 'Photo visible uniquement par nous — pour la confiance', badgeIdVerified: '🪪 Identité vérifiée',
   reminderScheduled: '🔔 Rappel ajouté pour la veille',
-  cancelBookingBtn:     'Annuler la réservation',
   cancelBookingConfirm: 'Êtes-vous sûr de vouloir annuler cette réservation ?',
   cancelBookingYes:     'Oui, annuler',
   cancelledStatus:      '🚫 Annulé',
@@ -1539,11 +1534,6 @@ const fr: typeof he = {
   whatsNextTitle:      'Et ensuite ?',
   addressTooShort:     'Adresse trop courte — entrez une adresse complète',
   addressNoNumber:     'Veuillez inclure un numéro de rue dans l\'adresse',
-  cancelConfirmTitle:  'Annuler la réservation',
-  cancelConfirmMsg:    'Êtes-vous sûr de vouloir annuler?',
-  cancelRefundPolicy:  'Annulation 24h avant — remboursement complet. Après — aucun remboursement.',
-  cancelKeepBooking:   'Garder la réservation',
-  cancelConfirmBtn:    'Annuler la réservation',
 
   reportBtn:              '🚨 Signaler',
   reportTitle:            'Signaler un problème',
@@ -1640,6 +1630,11 @@ const fr: typeof he = {
   urgentNoCleaner:    'Aucune demande express pour le moment',
   urgentPushTitle:    '⚡ Nettoyage express proche!',
   urgentPushBody:     'Un client cherche un nettoyeur — appuyez pour les détails',
+
+  // Exit app
+  exitTitle:   'Quitter l\'application',
+  exitMsg:     'Êtes-vous sûr de vouloir quitter ?',
+  exitConfirm: 'Quitter',
 };
 
 const hi: typeof he = {
@@ -1743,7 +1738,6 @@ const hi: typeof he = {
   idVerifyTitle: 'पहचान सत्यापन', idVerifyUpload: 'ID कार्ड अपलोड करें', idVerifyDone: '✅ पहचान सत्यापित',
   idVerifyInfo: 'फ़ोटो केवल हमें दिखती है — ग्राहकों का विश्वास बनाने के लिए', badgeIdVerified: '🪪 ID सत्यापित',
   reminderScheduled: '🔔 एक दिन पहले का रिमाइंडर जोड़ा गया',
-  cancelBookingBtn:     'बुकिंग रद्द करें',
   cancelBookingConfirm: 'क्या आप वाकई इस बुकिंग को रद्द करना चाहते हैं?',
   cancelBookingYes:     'हाँ, रद्द करें',
   cancelledStatus:      '🚫 रद्द',
@@ -1790,11 +1784,6 @@ const hi: typeof he = {
   whatsNextTitle:      'आगे क्या?',
   addressTooShort:     'पता बहुत छोटा है — पूरा पता दर्ज करें',
   addressNoNumber:     'पते में मकान नंबर शामिल करें',
-  cancelConfirmTitle:  'बुकिंग रद्द करें',
-  cancelConfirmMsg:    'क्या आप वाकई रद्द करना चाहते हैं?',
-  cancelRefundPolicy:  '24 घंटे पहले रद्द — पूर्ण वापसी। बाद में — कोई वापसी नहीं।',
-  cancelKeepBooking:   'बुकिंग रखें',
-  cancelConfirmBtn:    'बुकिंग रद्द करें',
 
   reportBtn:              '🚨 रिपोर्ट',
   reportTitle:            'समस्या की रिपोर्ट करें',
@@ -1891,6 +1880,11 @@ const hi: typeof he = {
   urgentNoCleaner:    'अभी कोई अर्जेंट अनुरोध नहीं',
   urgentPushTitle:    '⚡ नजदीक अर्जेंट सफाई!',
   urgentPushBody:     'एक ग्राहक सफाईकर्मी खोज रहा है — विवरण के लिए टैप करें',
+
+  // Exit app
+  exitTitle:   'ऐप से बाहर निकलें',
+  exitMsg:     'क्या आप वाकई बाहर निकलना चाहते हैं?',
+  exitConfirm: 'बाहर निकलें',
 };
 
 const translations = { he, en, ru, ar, fr, hi };
