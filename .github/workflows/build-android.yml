@@ -45,6 +45,9 @@ jobs:
         env:
           GRADLE_OPTS: "-Dorg.gradle.jvmargs=-Xmx4g"
 
+      - name: Print debug SHA-1
+        run: keytool -list -v -keystore ~/.android/debug.keystore -alias androiddebugkey -storepass android -keypass android 2>/dev/null | grep SHA1
+
       - name: Find and upload APK
         run: find android/app/build/outputs/apk -name "*.apk" | head -5
 
