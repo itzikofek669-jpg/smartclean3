@@ -14,6 +14,7 @@ import {
 import { auth, db } from '../lib/firebase';
 import { useLanguage } from '../lib/LanguageContext';
 import { Lang } from '../lib/translations';
+import { useTheme } from '../lib/ThemeContext';
 
 
 const C = {
@@ -132,6 +133,7 @@ export default function ProfileScreen() {
   const router = useRouter();
   const { tab, requestId } = useLocalSearchParams<{ tab?: string; requestId?: string }>();
   const { t, setLang } = useLanguage();
+  const { dark, toggleDark } = useTheme();
 
   const uid    = auth.currentUser?.uid || '';
 
@@ -1161,21 +1163,23 @@ export default function ProfileScreen() {
   };
 
   return (
-    <SafeAreaView style={s.wrap}>
-      <StatusBar barStyle="light-content" backgroundColor={C.blueDark} />
+    <SafeAreaView style={[s.wrap, dark && { backgroundColor: '#0F172A' }]}>
+      <StatusBar barStyle="light-content" backgroundColor={dark ? '#0F172A' : C.blueDark} />
 
-      <View style={s.header}>
+      <View style={[s.header, dark && { backgroundColor: '#0F172A' }]}>
         <TouchableOpacity onPress={() => router.back()} style={s.backBtn}>
           <Text style={{ color: C.white, fontSize: 20 }}>←</Text>
         </TouchableOpacity>
         <Text style={s.headerTitle}>{t.myProfileTitle}</Text>
-        <View style={{ width: 36 }} />
+        <TouchableOpacity onPress={toggleDark} style={{ backgroundColor: 'rgba(255,255,255,0.15)', borderRadius: 10, paddingHorizontal: 9, paddingVertical: 6, alignItems: 'center', justifyContent: 'center', width: 36 }}>
+          <Text style={{ fontSize: 16 }}>{dark ? '☀️' : '🌙'}</Text>
+        </TouchableOpacity>
       </View>
 
       {loading ? (
         <View style={s.loader}><ActivityIndicator size="large" color={C.blue} /></View>
       ) : (
-        <ScrollView contentContainerStyle={{ paddingBottom: 40 }}>
+        <ScrollView contentContainerStyle={{ paddingBottom: 40 }} style={dark ? { backgroundColor: '#0F172A' } : undefined}>
 
           {/* Hero */}
           <View style={s.hero}>

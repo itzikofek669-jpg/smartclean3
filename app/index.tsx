@@ -5,11 +5,21 @@ import {
   ActivityIndicator,
 } from 'react-native';
 import { useRouter } from 'expo-router';
-import { signInWithEmailAndPassword, sendPasswordResetEmail } from 'firebase/auth';
+import { signInWithEmailAndPassword, sendPasswordResetEmail, GoogleAuthProvider, FacebookAuthProvider, signInWithCredential } from 'firebase/auth';
 import * as SecureStore from 'expo-secure-store';
-import { auth } from '../lib/firebase';
+import * as WebBrowser from 'expo-web-browser';
+import { useAuthRequest, makeRedirectUri } from 'expo-auth-session';
+import { doc, getDoc, setDoc } from 'firebase/firestore';
+import { auth, db } from '../lib/firebase';
 import { useLanguage } from '../lib/LanguageContext';
 import { Lang } from '../lib/translations';
+
+WebBrowser.maybeCompleteAuthSession();
+
+// ─── 🔑 מפתחות OAuth ──────────────────────────────────────────────────────────
+const GOOGLE_WEB_CLIENT_ID = '36464693633-955h1o688don3gtrvvf0sm1to0kio5dm.apps.googleusercontent.com';
+const FACEBOOK_APP_ID = '293492306044443';
+// ──────────────────────────────────────────────────────────────────────────────
 
 const C = {
   blue:     '#185FA5',
@@ -32,22 +42,113 @@ const LANGS: { code: Lang; flag: string; label: string; nativeName: string }[] =
   { code: 'hi', flag: '🇮🇳', label: 'हिं', nativeName: 'हिन्दी'  },
 ];
 
+// ─── יוצר פרופיל ב-Firestore למשתמש חדש שנכנס ברשת חברתית ─────────────────
+async function ensureUserProfile(uid: string, name: string, email: string) {
+  const ref = doc(db, 'users', uid);
+  const snap = await getDoc(ref);
+  if (!snap.exists()) {
+    await setDoc(ref, {
+      name, email,
+      role: 'client',
+      createdAt: new Date().toISOString(),
+      socialLogin: true,
+    });
+  }
+}
+
 export default function LoginScreen() {
   const router = useRouter();
   const { t, lang, setLang } = useLanguage();
 
-  const [email,          setEmail]          = useState('');
-  const [password,       setPassword]       = useState('');
-  const [loading,        setLoading]        = useState(false);
-  const [rememberMe,     setRememberMe]     = useState(false);
-  const [showLangMenu,   setShowLangMenu]   = useState(false);
+  const [email,         setEmail]         = useState('');
+  const [password,      setPassword]      = useState('');
+  const [loading,       setLoading]       = useState(false);
+  const [socialLoading, setSocialLoading] = useState<'google'|'facebook'|null>(null);
+  const [rememberMe,    setRememberMe]    = useState(false);
+  const [showLangMenu,  setShowLangMenu]  = useState(false);
 
-  const handleGoogleLogin = () => {
-    Alert.alert('Google Login', 'כניסה עם Google תהיה זמינה בגרסה הסופית של האפליקציה.');
+  // ─── Google auth session ─────────────────────────────────────────────────
+  const googleRedirect = makeRedirectUri({ scheme: 'cleantouch' });
+  const [, googleResponse, googlePrompt] = useAuthRequest(
+    {
+      clientId: GOOGLE_WEB_CLIENT_ID,
+      redirectUri: googleRedirect,
+      scopes: ['openid', 'profile', 'email'],
+      responseType: 'id_token',
+      usePKCE: false,          // implicit flow אינו תומך ב-PKCE
+      extraParams: { nonce: 'nonce' },
+    },
+    { authorizationEndpoint: 'https://accounts.google.com/o/oauth2/v2/auth' }
+  );
+
+  useEffect(() => {
+    if (googleResponse?.type === 'success') {
+      const idToken = googleResponse.params?.id_token;
+      if (!idToken) {
+        Alert.alert('שגיאה', 'לא התקבל token מ-Google. נסה שוב.');
+        return;
+      }
+      const credential = GoogleAuthProvider.credential(idToken);
+      setSocialLoading('google');
+      signInWithCredential(auth, credential)
+        .then(async (res) => {
+          await ensureUserProfile(res.user.uid, res.user.displayName || 'משתמש', res.user.email || '');
+        })
+        .catch((e: any) => {
+          const msg = e?.code === 'auth/account-exists-with-different-credential'
+            ? 'כתובת האימייל הזו כבר רשומה בשיטה אחרת'
+            : 'כניסה עם Google נכשלה — נסה שוב';
+          Alert.alert('שגיאה', msg);
+        })
+        .finally(() => setSocialLoading(null));
+    } else if (googleResponse?.type === 'error') {
+      Alert.alert('שגיאה', googleResponse.error?.message || 'כניסה עם Google נכשלה');
+    }
+  }, [googleResponse]);
+
+  // ─── Facebook auth session ───────────────────────────────────────────────
+  const fbRedirect = makeRedirectUri({ scheme: 'cleantouch' });
+  const [, fbResponse, fbPrompt] = useAuthRequest(
+    {
+      clientId: FACEBOOK_APP_ID,
+      redirectUri: fbRedirect,
+      scopes: ['public_profile', 'email'],
+      responseType: 'token',
+    },
+    { authorizationEndpoint: 'https://www.facebook.com/dialog/oauth' }
+  );
+
+  useEffect(() => {
+    if (fbResponse?.type === 'success') {
+      const token = fbResponse.params?.access_token;
+      if (!token) {
+        Alert.alert('שגיאה', 'לא התקבל token מ-Facebook. נסה שוב.');
+        return;
+      }
+      const credential = FacebookAuthProvider.credential(token);
+      setSocialLoading('facebook');
+      signInWithCredential(auth, credential)
+        .then(async (res) => {
+          await ensureUserProfile(res.user.uid, res.user.displayName || 'משתמש', res.user.email || '');
+        })
+        .catch((e: any) => {
+          const msg = e?.code === 'auth/account-exists-with-different-credential'
+            ? 'כתובת האימייל הזו כבר רשומה בשיטה אחרת'
+            : 'כניסה עם Facebook נכשלה — נסה שוב';
+          Alert.alert('שגיאה', msg);
+        })
+        .finally(() => setSocialLoading(null));
+    } else if (fbResponse?.type === 'error') {
+      Alert.alert('שגיאה', fbResponse.error?.message || 'כניסה עם Facebook נכשלה');
+    }
+  }, [fbResponse]);
+
+  const handleGoogleLogin = async () => {
+    await googlePrompt();
   };
 
-  const handleFacebookLogin = () => {
-    Alert.alert('Facebook Login', 'כניסה עם Facebook תהיה זמינה בגרסה הסופית של האפליקציה.');
+  const handleFacebookLogin = async () => {
+    await fbPrompt();
   };
 
   const currentLang = LANGS.find(l => l.code === lang) || LANGS[0];
@@ -70,7 +171,6 @@ export default function LoginScreen() {
     setLoading(true);
     try {
       await signInWithEmailAndPassword(auth, email.trim(), password);
-      // שמור "זכור אותי" רק אם מסומן
       if (rememberMe) {
         await SecureStore.setItemAsync('remember_email', email.trim());
         await SecureStore.setItemAsync('remember_pass',  password);
@@ -91,7 +191,6 @@ export default function LoginScreen() {
     }
   };
 
-
   return (
     <SafeAreaView style={s.wrap}>
       <StatusBar barStyle="dark-content" backgroundColor={C.white} />
@@ -108,7 +207,7 @@ export default function LoginScreen() {
 
         {/* Card */}
         <ScrollView style={s.card} contentContainerStyle={{ padding: 28, paddingTop: 20, paddingBottom: 40 }} keyboardShouldPersistTaps="handled">
-          {/* Language button — between logo and title */}
+          {/* Language button */}
           <View style={{ alignItems: 'center', marginBottom: 16 }}>
             <TouchableOpacity style={s.langBtn} onPress={() => setShowLangMenu(true)}>
               <Text style={s.langBtnFlag}>{currentLang.flag}</Text>
@@ -116,15 +215,28 @@ export default function LoginScreen() {
               <Text style={s.langBtnArrow}>▼</Text>
             </TouchableOpacity>
           </View>
-          {/* Social login buttons — זה לצד זה */}
+
+          {/* Social login buttons */}
           <View style={s.socialRow}>
-            <TouchableOpacity style={s.socialBtnGoogle} onPress={handleGoogleLogin}>
-              <Text style={s.googleIcon}>G</Text>
+            <TouchableOpacity
+              style={[s.socialBtnGoogle, socialLoading === 'google' && { opacity: 0.7 }]}
+              onPress={handleGoogleLogin}
+              disabled={!!socialLoading}
+            >
+              {socialLoading === 'google'
+                ? <ActivityIndicator size="small" color="#4285F4" />
+                : <Text style={s.googleIcon}>G</Text>}
               <Text style={s.socialBtnTextGoogle}>Google</Text>
             </TouchableOpacity>
 
-            <TouchableOpacity style={s.socialBtnFacebook} onPress={handleFacebookLogin}>
-              <Text style={s.facebookIcon}>f</Text>
+            <TouchableOpacity
+              style={[s.socialBtnFacebook, socialLoading === 'facebook' && { opacity: 0.7 }]}
+              onPress={handleFacebookLogin}
+              disabled={!!socialLoading}
+            >
+              {socialLoading === 'facebook'
+                ? <ActivityIndicator size="small" color="#fff" />
+                : <Text style={s.facebookIcon}>f</Text>}
               <Text style={s.socialBtnTextFacebook}>Facebook</Text>
             </TouchableOpacity>
           </View>
@@ -225,13 +337,11 @@ const s = StyleSheet.create({
   title:        { fontSize: 32, fontWeight: '900', color: C.white, letterSpacing: -1 },
   subtitle:     { fontSize: 13, color: 'rgba(255,255,255,0.7)', marginTop: 4 },
 
-  // Single language button
   langBtn:      { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 14, backgroundColor: C.blueLight, borderRadius: 20, paddingHorizontal: 16, paddingVertical: 8, borderWidth: 1.5, borderColor: C.border },
   langBtnFlag:  { fontSize: 18 },
   langBtnLabel: { fontSize: 14, fontWeight: '700', color: C.blue },
   langBtnArrow: { fontSize: 10, color: C.sub, marginLeft: 2 },
 
-  // Language menu modal
   langOverlay:      { flex: 1, backgroundColor: 'rgba(0,0,0,0.55)', justifyContent: 'center', alignItems: 'center', padding: 32 },
   langMenu:         { backgroundColor: C.white, borderRadius: 20, width: '100%', maxWidth: 320, overflow: 'hidden' },
   langMenuTitle:    { fontSize: 15, fontWeight: '900', color: C.text, padding: 18, paddingBottom: 12, textAlign: 'center', borderBottomWidth: 1, borderBottomColor: C.border },
@@ -252,17 +362,14 @@ const s = StyleSheet.create({
   divider:      { flexDirection: 'row', alignItems: 'center', marginVertical: 20, gap: 12 },
   dividerLine:  { flex: 1, height: 1, backgroundColor: C.border },
   dividerText:  { fontSize: 13, color: C.sub, fontWeight: '600' },
-  // Remember me
   rememberRow:      { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 18, paddingHorizontal: 2 },
   checkbox:         { width: 22, height: 22, borderRadius: 6, borderWidth: 2, borderColor: C.blue, backgroundColor: C.white, alignItems: 'center', justifyContent: 'center' },
   checkboxChecked:  { backgroundColor: C.blue, borderColor: C.blue },
   checkmark:        { color: C.white, fontSize: 13, fontWeight: '900', lineHeight: 16 },
   rememberText:     { fontSize: 13, color: C.text, fontWeight: '600', flex: 1, textAlign: 'right' },
-
-  registerBtn:  { borderRadius: 14, padding: 16, alignItems: 'center', borderWidth: 1.5, borderColor: C.blue },
+  registerBtn:  { borderRadius: 14, padding: 16, alignItems: 'center', borderWidth: 1.5, borderColor: C.blue, marginBottom: 12 },
   registerBtnText: { fontSize: 16, fontWeight: '700', color: C.blue },
 
-  // Social buttons
   socialRow:         { flexDirection: 'row', gap: 12, marginBottom: 16 },
   socialBtnGoogle:   { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, borderRadius: 12, paddingVertical: 11, paddingHorizontal: 8, borderWidth: 1.5, borderColor: '#DADCE0', backgroundColor: C.white, elevation: 2 },
   socialBtnFacebook: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, borderRadius: 12, paddingVertical: 11, paddingHorizontal: 8, backgroundColor: '#1877F2' },

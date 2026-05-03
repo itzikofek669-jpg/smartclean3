@@ -14,11 +14,13 @@ import MapView, { Marker, Callout, Circle } from 'react-native-maps';
 import * as Location from 'expo-location';
 import { useRouter } from 'expo-router';
 import { signOut } from 'firebase/auth';
+import * as SecureStore from 'expo-secure-store';
 import { collection, addDoc, getDocs, query, where, doc, getDoc, setDoc, onSnapshot, orderBy, updateDoc, arrayUnion } from 'firebase/firestore';
 import { auth, db } from '../lib/firebase';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { useLanguage } from '../lib/LanguageContext';
 import { Lang } from '../lib/translations';
+import { useTheme } from '../lib/ThemeContext';
 
 
 const W = Dimensions.get('window').width;
@@ -1373,9 +1375,10 @@ function ChatModal({ cleaner, visible, onClose }: any) {
 // ─── Cleaner card ─────────────────────────────────────────────────────────────
 function CleanerCard({ cleaner, selected, onSelect, onProfile, onBook, onChat, isPending }: any) {
   const { t } = useLanguage();
+  const { dark } = useTheme();
   const isSel = selected === cleaner.id;
   return (
-    <TouchableOpacity style={[s.card, isSel && s.cardSel]} onPress={() => onSelect(isSel ? null : cleaner.id)} onLongPress={() => onProfile(cleaner)} activeOpacity={0.85}>
+    <TouchableOpacity style={[s.card, isSel && s.cardSel, dark && { backgroundColor: '#1E293B', borderColor: '#334155' }]} onPress={() => onSelect(isSel ? null : cleaner.id)} onLongPress={() => onProfile(cleaner)} activeOpacity={0.85}>
       <View style={s.cardTop}>
         <TouchableOpacity onPress={() => onProfile(cleaner)}>
           <View style={[s.avatar, !cleaner.available && { opacity: 0.75 }]}>
@@ -1392,13 +1395,13 @@ function CleanerCard({ cleaner, selected, onSelect, onProfile, onBook, onChat, i
         </TouchableOpacity>
         <View style={{ flex: 1, gap: 3 }}>
           <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-            <TouchableOpacity onPress={() => onProfile(cleaner)}><Text style={s.cardName}>{cleaner.name} ›</Text></TouchableOpacity>
-            <View style={s.priceTag}><Text style={s.priceText}>₪{cleaner.price}</Text><Text style={s.priceSub}>{t.perHour}</Text></View>
+            <TouchableOpacity onPress={() => onProfile(cleaner)}><Text style={[s.cardName, dark && { color: '#93C5FD' }]}>{cleaner.name} ›</Text></TouchableOpacity>
+            <View style={[s.priceTag, dark && { backgroundColor: '#1E3A5F' }]}><Text style={[s.priceText, dark && { color: '#93C5FD' }]}>₪{cleaner.price}</Text><Text style={s.priceSub}>{t.perHour}</Text></View>
           </View>
-          <Text style={s.cardCity}>📍 {t.cities[cleaner.city] || cleaner.city}</Text>
+          <Text style={[s.cardCity, dark && { color: '#94A3B8' }]}>📍 {t.cities[cleaner.city] || cleaner.city}</Text>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5, flexWrap: 'wrap' }}>
             <Stars rating={cleaner.rating} size={11} />
-            <Text style={s.ratingVal}>{cleaner.rating}</Text>
+            <Text style={[s.ratingVal, dark && { color: '#F1F5F9' }]}>{cleaner.rating}</Text>
             <TouchableOpacity onPress={() => onProfile(cleaner)}><Text style={s.reviewsLink}>({cleaner.reviews} {t.reviewsSuffix})</Text></TouchableOpacity>
             <View style={[s.availPill, !cleaner.available && s.availPillOff]}>
               <Text style={[s.availPillText, !cleaner.available && { color: C.textSub }]}>{cleaner.available ? t.availPill : t.notAvailPill}</Text>
@@ -1465,11 +1468,14 @@ function CleanerCard({ cleaner, selected, onSelect, onProfile, onBook, onChat, i
 export default function HomeScreen() {
   const router   = useRouter();
   const { t, setLang } = useLanguage();
+  const { dark, toggleDark } = useTheme();
   const insets   = useSafeAreaInsets();
   const mapRef      = useRef<MapView>(null);
   const flatListRef = useRef<FlatList>(null);
   const [region,     setRegion]     = useState('all');
   const [search,     setSearch]     = useState('');
+  const [searchSugg, setSearchSugg] = useState<{label:string; icon:string}[]>([]);
+  const [showSearchSugg, setShowSearchSugg] = useState(false);
   const [selected,   setSelected]   = useState<string | null>(null);
   const [profile,    setProfile]    = useState<any>(null);
   const [booking,    setBooking]    = useState<any>(null);
@@ -1529,6 +1535,7 @@ export default function HomeScreen() {
   useEffect(() => {
     const sub = BackHandler.addEventListener('hardwareBackPress', () => {
       // סגור תפריט/מודל פתוח תחילה
+      if (showSearchSugg || search.trim()) { setSearch(''); setSearchSugg([]); setShowSearchSugg(false); return true; }
       if (drawer)        { setDrawer(false);       return true; }
       if (profile)       { setProfile(null);        return true; }
       if (booking)       { setBooking(null);         return true; }
@@ -1555,7 +1562,7 @@ export default function HomeScreen() {
       return true;
     });
     return () => sub.remove();
-  }, [drawer, profile, booking, chatWith, filterVisible, urgentOpen, photoViewerOpen, reportOpen]);
+  }, [drawer, profile, booking, chatWith, filterVisible, urgentOpen, photoViewerOpen, reportOpen, search, showSearchSugg]);
 
   const handleSendUrgent = async () => {
     if (!urgentAddress.trim() || urgentAddress.trim().length < 5)
@@ -1758,6 +1765,28 @@ export default function HomeScreen() {
     ...CLEANERS,
     ...realCleaners.filter(r => !CLEANERS.some(c => c.id === r.id)),
   ];
+
+  // ── Search autocomplete ────────────────────────────────────────────────────
+  const handleSearchChange = (text: string) => {
+    setSearch(text);
+    if (text.length < 1) { setSearchSugg([]); setShowSearchSugg(false); return; }
+    const sq = text.toLowerCase();
+    const cities  = Array.from(new Set(ALL_CLEANERS.map(c => String(c.city || ''))))
+      .filter(c => c.toLowerCase().includes(sq))
+      .slice(0, 5)
+      .map(c => ({ label: c, icon: '📍' }));
+    const names   = ALL_CLEANERS
+      .filter(c => String(c.name || '').toLowerCase().includes(sq))
+      .slice(0, 3)
+      .map(c => ({ label: String(c.name), icon: '🧹' }));
+    const types   = Array.from(new Set(ALL_CLEANERS.flatMap(c => Array.isArray(c.types) ? c.types : [])))
+      .filter(tp => String(tp).toLowerCase().includes(sq))
+      .slice(0, 3)
+      .map(tp => ({ label: String(tp), icon: '🔧' }));
+    const combined = [...cities, ...names, ...types].slice(0, 8);
+    setSearchSugg(combined);
+    setShowSearchSugg(combined.length > 0);
+  };
 
   // ── פילטר ראשי ──────────────────────────────────────────────────────────────
   let filtered = [...ALL_CLEANERS];
@@ -2095,15 +2124,22 @@ export default function HomeScreen() {
   const handleLogout = () => {
     Alert.alert(t.logoutConfirm, t.logoutMsg, [
       { text: t.cancel, style: 'cancel' },
-      { text: t.logoutConfirm, style: 'destructive', onPress: () => signOut(auth) },
+      {
+        text: t.logoutConfirm, style: 'destructive', onPress: async () => {
+          await SecureStore.deleteItemAsync('remember_email').catch(() => {});
+          await SecureStore.deleteItemAsync('remember_pass').catch(() => {});
+          await signOut(auth);
+          router.replace('/');
+        }
+      },
     ]);
   };
 
   return (
-    <SafeAreaView style={s.wrap}>
-      <StatusBar barStyle="light-content" backgroundColor={C.blueDark} />
+    <SafeAreaView style={[s.wrap, dark && { backgroundColor: '#0F172A' }]}>
+      <StatusBar barStyle="light-content" backgroundColor={dark ? '#0F172A' : C.blueDark} />
 
-      <View style={{ backgroundColor: C.blueDark, flexShrink: 0 }}>
+      <View style={{ backgroundColor: dark ? '#0F172A' : C.blueDark, flexShrink: 0 }}>
         <View style={s.header}>
           <View style={s.headerLogoRow}>
             <View style={{ flexDirection: 'row', gap: 6, alignItems: 'center' }}>
@@ -2139,9 +2175,14 @@ export default function HomeScreen() {
               )}
             </View>
 
-            <TouchableOpacity onPress={() => setDrawer(true)} style={s.hamburgerBtn}>
-              <Text style={s.hamburgerText}>≡</Text>
-            </TouchableOpacity>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+              <TouchableOpacity onPress={toggleDark} style={s.darkModeToggle}>
+                <Text style={{ fontSize: 16 }}>{dark ? '☀️' : '🌙'}</Text>
+              </TouchableOpacity>
+              <TouchableOpacity onPress={() => setDrawer(true)} style={s.hamburgerBtn}>
+                <Text style={s.hamburgerText}>≡</Text>
+              </TouchableOpacity>
+            </View>
           </View>
           {/* Free platform banner */}
           <View style={s.freeBanner}>
@@ -2184,13 +2225,37 @@ export default function HomeScreen() {
               <Text style={{ color: 'rgba(255,255,255,0.7)', fontSize: 11 }}>›</Text>
             </TouchableOpacity>
           )}
-          <View style={s.searchWrap}>
-            <Text style={{ fontSize: 14, color: 'rgba(255,255,255,0.7)' }}>🔍</Text>
-            <TextInput style={s.searchInput} placeholder={t.searchPlaceholder} value={search} onChangeText={setSearch} placeholderTextColor="rgba(255,255,255,0.5)" textAlign="right" />
-            {search.length > 0 && (
-              <TouchableOpacity onPress={() => setSearch('')}>
-                <Text style={{ color: 'rgba(255,255,255,0.7)', fontSize: 16 }}>✕</Text>
-              </TouchableOpacity>
+          <View style={{ zIndex: 999, elevation: 999 }}>
+            <View style={s.searchWrap}>
+              <Text style={{ fontSize: 14, color: 'rgba(255,255,255,0.7)' }}>🔍</Text>
+              <TextInput
+                style={s.searchInput}
+                placeholder={t.searchPlaceholder}
+                value={search}
+                onChangeText={handleSearchChange}
+                placeholderTextColor="rgba(255,255,255,0.5)"
+                textAlign="right"
+                onBlur={() => setTimeout(() => setShowSearchSugg(false), 180)}
+              />
+              {search.length > 0 && (
+                <TouchableOpacity onPress={() => { setSearch(''); setSearchSugg([]); setShowSearchSugg(false); }}>
+                  <Text style={{ color: 'rgba(255,255,255,0.7)', fontSize: 16 }}>✕</Text>
+                </TouchableOpacity>
+              )}
+            </View>
+            {showSearchSugg && searchSugg.length > 0 && (
+              <View style={s.searchDropdown}>
+                {searchSugg.map((item, idx) => (
+                  <TouchableOpacity
+                    key={idx}
+                    style={[s.searchSuggItem, idx < searchSugg.length - 1 && { borderBottomWidth: 1, borderBottomColor: C.grayBorder }]}
+                    onPress={() => { setSearch(item.label); setShowSearchSugg(false); }}
+                  >
+                    <Text style={{ fontSize: 14, marginLeft: 6 }}>{item.icon}</Text>
+                    <Text style={s.searchSuggText}>{item.label}</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
             )}
           </View>
         </View>
@@ -2229,7 +2294,7 @@ export default function HomeScreen() {
         </View>
         <FlatList
           ref={flatListRef}
-          style={s.list} data={filtered} keyExtractor={i => i.id}
+          style={[s.list, dark && { backgroundColor: '#1E293B' }]} data={filtered} keyExtractor={i => i.id}
           contentContainerStyle={{ padding: 10, gap: 10 }}
           showsVerticalScrollIndicator={false}
           onScrollToIndexFailed={() => {}}
@@ -2718,8 +2783,11 @@ const s = StyleSheet.create({
   nearbyBtnActive:   { backgroundColor: C.white },
   nearbyBtnText:     { fontSize: 14, color: C.white, fontWeight: '700' },
   nearbyBtnTextActive: { color: C.blue },
-  searchWrap:   { flexDirection: 'row', alignItems: 'center', backgroundColor: 'rgba(255,255,255,0.15)', borderRadius: 12, paddingHorizontal: 12, height: 40, gap: 8 },
-  searchInput:  { flex: 1, fontSize: 13, color: C.white, padding: 0 },
+  searchWrap:      { flexDirection: 'row', alignItems: 'center', backgroundColor: 'rgba(255,255,255,0.15)', borderRadius: 12, paddingHorizontal: 12, height: 40, gap: 8 },
+  searchInput:     { flex: 1, fontSize: 13, color: C.white, padding: 0 },
+  searchDropdown:  { position: 'absolute', top: 44, left: 0, right: 0, backgroundColor: C.white, borderRadius: 14, elevation: 12, shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.18, shadowRadius: 10, zIndex: 9999, overflow: 'hidden' },
+  searchSuggItem:  { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 14, paddingVertical: 11 },
+  searchSuggText:  { flex: 1, fontSize: 14, color: C.textDark, textAlign: 'right', fontWeight: '500' },
   tabsBar:      { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingHorizontal: 12, gap: 6, height: 50, minWidth: '100%' },
   tab:          { paddingHorizontal: 12, paddingVertical: 7, borderRadius: 20, backgroundColor: 'rgba(255,255,255,0.12)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.2)' },
   tabActive:    { backgroundColor: C.white, borderColor: C.white },
@@ -2764,6 +2832,7 @@ const s = StyleSheet.create({
   insuranceBtn:     { marginTop: 8, backgroundColor: '#EFF6FF', borderRadius: 10, paddingVertical: 8, paddingHorizontal: 14, alignItems: 'center', borderWidth: 1, borderColor: '#BFDBFE' },
   insuranceBtnText: { fontSize: 12, fontWeight: '700', color: '#1D4ED8' },
   urgentHeaderBtn:  { backgroundColor: '#7C3AED', borderRadius: 10, paddingHorizontal: 10, paddingVertical: 6 },
+  darkModeToggle:   { backgroundColor: 'rgba(255,255,255,0.15)', borderRadius: 10, paddingHorizontal: 9, paddingVertical: 6, alignItems: 'center', justifyContent: 'center' },
   urgentHeaderBtnText: { fontSize: 13, color: C.white, fontWeight: '900' },
   empty:        { textAlign: 'center', color: C.textSub, fontSize: 14, marginTop: 40 },
   modalHeader:  { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: C.blueDark, padding: 16 },
