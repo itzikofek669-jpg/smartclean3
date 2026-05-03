@@ -29,19 +29,19 @@ jobs:
       - name: Install dependencies
         run: npm install
 
-      - name: Remove expo-dev-client (standalone build)
-        run: npm uninstall expo-dev-client --save
+      - name: Install expo-dev-client (dev build)
+        run: npm install expo-dev-client --save
 
       - name: Prebuild Android (generate native code)
         run: npx expo prebuild --platform android --no-install
         env:
           EXPO_NO_GIT_STATUS: 1
 
-      - name: Build APK
+      - name: Build Dev APK
         run: |
           cd android
           chmod +x gradlew
-          ./gradlew assembleRelease --no-daemon
+          ./gradlew assembleDebug --no-daemon
         env:
           GRADLE_OPTS: "-Dorg.gradle.jvmargs=-Xmx4g"
 
@@ -51,6 +51,6 @@ jobs:
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: SmartClean-APK
-          path: android/app/build/outputs/apk/release/*.apk
-          retention-days: 7
+          name: SmartClean-DEV-APK
+          path: android/app/build/outputs/apk/debug/*.apk
+          retention-days: 30

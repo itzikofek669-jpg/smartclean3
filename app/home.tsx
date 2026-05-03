@@ -1489,6 +1489,7 @@ export default function HomeScreen() {
 
   // תפקיד המשתמש
   const [myRole,         setMyRole]         = useState<'client' | 'cleaner'>('client');
+  const [cleanerPendingCount, setCleanerPendingCount] = useState(0);
 
   // Unread messages
   const [unreadCount,    setUnreadCount]    = useState(0);
@@ -1895,7 +1896,12 @@ export default function HomeScreen() {
       if (snap.exists()) {
         const data = snap.data();
         if (data?.blockedUntilReview) setIsBlocked(true);
-        if (data?.role === 'cleaner') setMyRole('cleaner');
+        if (data?.role === 'cleaner') {
+          setMyRole('cleaner');
+          // טען הזמנות ממתינות עבור מנקה
+          getDocs(query(collection(db, 'bookings'), where('cleanerId', '==', uid), where('status', '==', 'pending')))
+            .then(s => setCleanerPendingCount(s.size)).catch(() => {});
+        }
       }
     }).catch(() => {});
 
@@ -2142,6 +2148,25 @@ export default function HomeScreen() {
             <Text style={s.freeBannerTitle}>{t.freeBannerTitle}</Text>
             <Text style={s.freeBannerSub}>{t.freeBannerSub}</Text>
           </View>
+
+          {/* באנר הזמנות ממתינות למנקה */}
+          {myRole === 'cleaner' && cleanerPendingCount > 0 && (
+            <TouchableOpacity
+              style={{ backgroundColor: '#F59E0B', borderRadius: 12, padding: 12, marginBottom: 8, flexDirection: 'row', alignItems: 'center', gap: 10 }}
+              onPress={() => router.push('/profile')}
+            >
+              <Text style={{ fontSize: 20 }}>📋</Text>
+              <View style={{ flex: 1 }}>
+                <Text style={{ color: '#fff', fontSize: 14, fontWeight: '900' }}>
+                  יש לך {cleanerPendingCount} הזמנ{cleanerPendingCount === 1 ? 'ה' : 'ות'} ממתינ{cleanerPendingCount === 1 ? 'ה' : 'ות'} לאישור!
+                </Text>
+                <Text style={{ color: 'rgba(255,255,255,0.85)', fontSize: 12 }}>לחץ לאישור ›</Text>
+              </View>
+              <Text style={{ fontSize: 22, backgroundColor: '#DC2626', borderRadius: 12, paddingHorizontal: 8, paddingVertical: 2, color: '#fff', fontWeight: '900' }}>
+                {cleanerPendingCount}
+              </Text>
+            </TouchableOpacity>
+          )}
 
           {/* Rebook alert */}
           {rebookAlert && (

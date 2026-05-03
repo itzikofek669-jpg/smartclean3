@@ -5,7 +5,7 @@ import { onAuthStateChanged, signInWithEmailAndPassword } from 'firebase/auth';
 import * as SecureStore from 'expo-secure-store';
 import * as Notifications from 'expo-notifications';
 import Constants from 'expo-constants';
-import { doc, updateDoc, getDoc, collection, query, where, getDocs } from 'firebase/firestore';
+import { doc, updateDoc } from 'firebase/firestore';
 import { auth, db } from '../lib/firebase';
 import { LanguageProvider } from '../lib/LanguageContext';
 import { ThemeProvider } from '../lib/ThemeContext';
@@ -96,26 +96,7 @@ export default function RootLayout() {
           if (user.email === ADMIN_EMAIL) {
             router.replace('/admin');
           } else {
-            // בדוק אם מנקה עם הזמנות ממתינות
-            (async () => {
-              try {
-                const userDoc = await getDoc(doc(db, 'users', user.uid));
-                const role = userDoc.data()?.role;
-                if (role === 'cleaner') {
-                  const q = query(
-                    collection(db, 'bookings'),
-                    where('cleanerId', '==', user.uid),
-                    where('status', '==', 'pending')
-                  );
-                  const snap = await getDocs(q);
-                  if (!snap.empty) {
-                    router.replace('/profile');
-                    return;
-                  }
-                }
-              } catch (_) {}
-              router.replace('/home');
-            })();
+            router.replace('/home');
           }
         }
         if (user) registerPushToken(user.uid);
