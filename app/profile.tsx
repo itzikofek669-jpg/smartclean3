@@ -2,7 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity,
   SafeAreaView, StatusBar, ActivityIndicator, Alert, Modal, Switch, Share, Linking,
-  TextInput, KeyboardAvoidingView, Platform,
+  TextInput, KeyboardAvoidingView, Platform, BackHandler,
 } from 'react-native';
 import { Image } from 'expo-image';
 import * as ImagePicker from 'expo-image-picker';
@@ -91,7 +91,7 @@ function RateModal({ booking, visible, isCleaner, onClose, onSubmit }: any) {
   const { t } = useLanguage();
   const [stars, setStars] = useState(0);
   return (
-    <Modal visible={visible} transparent animationType="fade">
+    <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
       <View style={rm.backdrop}>
         <View style={rm.card}>
           <Text style={rm.title}>{isCleaner ? t.rateCleanerLbl : t.rateTitle}</Text>
@@ -134,6 +134,14 @@ export default function ProfileScreen() {
   const { t, setLang } = useLanguage();
 
   const uid    = auth.currentUser?.uid || '';
+
+  useEffect(() => {
+    const sub = BackHandler.addEventListener('hardwareBackPress', () => {
+      router.back();
+      return true;
+    });
+    return () => sub.remove();
+  }, []);
 
   const [userName,     setUserName]     = useState('');
   const [userEmail,    setUserEmail]    = useState('');
@@ -1420,24 +1428,6 @@ export default function ProfileScreen() {
                     </View>
                   </View>
 
-                  {/* פרטיות טלפון */}
-                  <View style={{ marginBottom: 16 }}>
-                    <Text style={s.sectionTitle}>📱 {t.phonePrivacyTitle}</Text>
-                    <View style={s.phoneToggleRow}>
-                      <View style={{ flex: 1 }}>
-                        <Text style={s.phoneToggleLabel}>{t.showPhoneLabel}</Text>
-                        <Text style={s.phoneToggleSub}>
-                          {showPhone ? '✅ מספרך מוצג ללקוחות' : t.phoneHiddenLabel}
-                        </Text>
-                      </View>
-                      <Switch
-                        value={showPhone}
-                        onValueChange={toggleShowPhone}
-                        trackColor={{ false: C.blueBorder, true: C.blue }}
-                        thumbColor={showPhone ? C.white : '#f4f3f4'}
-                      />
-                    </View>
-                  </View>
 
                   {/* אימות זהות */}
                   <View style={{ marginBottom: 16 }}>
@@ -1631,26 +1621,6 @@ export default function ProfileScreen() {
             </View>
           )}
 
-          {/* פרטיות טלפון (לקוח) */}
-          {!isCleaner && (
-            <View style={s.section}>
-              <Text style={s.sectionTitle}>📱 {t.phonePrivacyTitle}</Text>
-              <View style={s.phoneToggleRow}>
-                <View style={{ flex: 1 }}>
-                  <Text style={s.phoneToggleLabel}>{t.showPhoneLabel}</Text>
-                  <Text style={s.phoneToggleSub}>
-                    {showPhone ? '✅ מספרך מוצג ללקוחות' : t.phoneHiddenLabel}
-                  </Text>
-                </View>
-                <Switch
-                  value={showPhone}
-                  onValueChange={toggleShowPhone}
-                  trackColor={{ false: C.blueBorder, true: C.blue }}
-                  thumbColor={showPhone ? C.white : '#f4f3f4'}
-                />
-              </View>
-            </View>
-          )}
 
           {/* אימות זהות (לקוח) */}
           {!isCleaner && (
@@ -1722,7 +1692,7 @@ export default function ProfileScreen() {
       />
 
       {/* Cleaner Chat Modal */}
-      <Modal visible={chatOpen} animationType="slide" presentationStyle="pageSheet">
+      <Modal visible={chatOpen} animationType="slide" presentationStyle="pageSheet" onRequestClose={() => { setChatOpen(false); if (chatUnsubRef.current) chatUnsubRef.current(); }}>
         <SafeAreaView style={{ flex: 1, backgroundColor: C.bluePale }}>
           <View style={s.header}>
             <TouchableOpacity onPress={() => { setChatOpen(false); if (chatUnsubRef.current) chatUnsubRef.current(); }} style={s.backBtn}>
@@ -1763,7 +1733,7 @@ export default function ProfileScreen() {
       </Modal>
 
       {/* Photo Viewer Modal */}
-      <Modal visible={photoViewerOpen} transparent animationType="fade">
+      <Modal visible={photoViewerOpen} transparent animationType="fade" onRequestClose={() => setPhotoViewerOpen(false)}>
         <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.93)', justifyContent: 'center', alignItems: 'center' }}>
           <TouchableOpacity
             style={{ position: 'absolute', top: 50, right: 20, zIndex: 10, backgroundColor: 'rgba(255,255,255,0.2)', borderRadius: 20, padding: 8 }}

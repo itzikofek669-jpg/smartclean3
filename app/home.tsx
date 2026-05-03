@@ -5,8 +5,9 @@ import {
   View, Text, StyleSheet, FlatList, TouchableOpacity,
   TextInput, ScrollView, Modal, SafeAreaView, StatusBar,
   Alert, Dimensions, Animated, Platform, Linking, Switch,
-  KeyboardAvoidingView,
+  KeyboardAvoidingView, ActivityIndicator, BackHandler,
 } from 'react-native';
+import { SafeAreaView as SafeAreaViewCtx } from 'react-native-safe-area-context';
 import { Image } from 'expo-image';
 
 import MapView, { Marker, Callout, Circle } from 'react-native-maps';
@@ -21,6 +22,9 @@ import { Lang } from '../lib/translations';
 
 
 const W = Dimensions.get('window').width;
+const NAV_BAR_HEIGHT = Platform.OS === 'android'
+  ? Math.max(0, Dimensions.get('screen').height - Dimensions.get('window').height - (StatusBar.currentHeight || 0))
+  : 0;
 
 const C = {
   blue:       '#185FA5',
@@ -351,6 +355,18 @@ function Stars({ rating, size = 13 }: { rating: number; size?: number }) {
   );
 }
 
+// ─── BackHandler בתוך Modal ───────────────────────────────────────────────────
+function ModalBackHandler({ onBack }: { onBack: () => void }) {
+  useEffect(() => {
+    const sub = BackHandler.addEventListener('hardwareBackPress', () => {
+      onBack();
+      return true;
+    });
+    return () => sub.remove();
+  }, []);
+  return null;
+}
+
 // ─── Drawer ──────────────────────────────────────────────────────────────────
 function DrawerMenu({ visible, onClose, onProfile, onLogout, onMessages, onReport, onSupport }: any) {
   const { t, lang, setLang } = useLanguage();
@@ -367,7 +383,8 @@ function DrawerMenu({ visible, onClose, onProfile, onLogout, onMessages, onRepor
   }, [visible]);
 
   return (
-    <Modal visible={visible} transparent animationType="none">
+    <Modal visible={visible} transparent animationType="none" onRequestClose={onClose}>
+      <ModalBackHandler onBack={onClose} />
       <TouchableOpacity style={ds.backdrop} onPress={onClose} activeOpacity={1} />
       <Animated.View style={[ds.panel, { transform: [{ translateX: slideAnim }] }]}>
         {/* header */}
@@ -447,7 +464,7 @@ function ReviewsModal({ cleaner, visible, onClose }: any) {
   const { t } = useLanguage();
   if (!cleaner) return null;
   return (
-    <Modal visible={visible} animationType="slide" presentationStyle="pageSheet">
+    <Modal visible={visible} animationType="slide" presentationStyle="pageSheet" onRequestClose={onClose}>
       <SafeAreaView style={{ flex: 1, backgroundColor: C.bluePale }}>
         <View style={s.modalHeader}>
           <TouchableOpacity onPress={onClose} style={s.closeBtn}><Text style={{ color: C.white, fontSize: 18 }}>✕</Text></TouchableOpacity>
@@ -481,7 +498,7 @@ function CleanerProfile({ cleaner, visible, onClose, onBook, onChat }: any) {
   const [showReviews, setShowReviews] = useState(false);
   if (!cleaner) return null;
   return (
-    <Modal visible={visible} animationType="slide" presentationStyle="pageSheet">
+    <Modal visible={visible} animationType="slide" presentationStyle="pageSheet" onRequestClose={onClose}>
       <SafeAreaView style={{ flex: 1, backgroundColor: C.bluePale }}>
         <View style={s.profileHeader}>
           <TouchableOpacity onPress={onClose} style={s.closeBtn}><Text style={{ color: C.white, fontSize: 18 }}>←</Text></TouchableOpacity>
@@ -674,9 +691,17 @@ function AnimatedStarPicker({ value, onChange }: { value: number; onChange: (v: 
   );
 }
 
-// ─── Address Autocomplete ────────────────────────────────────────────────────
-const GMAPS_KEY = 'AIzaSyDgFAy6_0c9X_lN6JV4j6fWfCyn4vCcDdA';
+// ─── Hourglass Animation ─────────────────────────────────────────────────────
+function HourglassIcon() {
+  const [flip, setFlip] = useState(false);
+  useEffect(() => {
+    const t = setInterval(() => setFlip(f => !f), 700);
+    return () => clearInterval(t);
+  }, []);
+  return <Text style={{ fontSize: 22 }}>{flip ? '⌛' : '⏳'}</Text>;
+}
 
+// ─── Address Autocomplete (OpenStreetMap Nominatim — חינמי, ללא מפתח) ─────────
 function AddressAutocomplete({ value, onChange, placeholder, onFocus }: {
   value: string; onChange: (v: string) => void; placeholder?: string; onFocus?: () => void;
 }) {
@@ -689,21 +714,27 @@ function AddressAutocomplete({ value, onChange, placeholder, onFocus }: {
     if (text.length < 2) { setSuggestions([]); setShowSugg(false); return; }
     debounceRef.current = setTimeout(async () => {
       try {
-        const url = `https://maps.googleapis.com/maps/api/place/autocomplete/json?input=${encodeURIComponent(text)}&language=he&components=country:il&key=${GMAPS_KEY}`;
-        const res = await fetch(url);
+        const url = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(text)}&format=json&countrycodes=il&limit=6&addressdetails=1&accept-language=he`;
+        const res = await fetch(url, {
+          headers: { 'User-Agent': 'CleanTouchApp/1.0' },
+        });
         const json = await res.json();
-        if (json.status === 'OK') {
-          setSuggestions(json.predictions.map((p: any) => ({
-            id: p.place_id,
-            main: p.structured_formatting?.main_text ?? p.description,
-            secondary: p.structured_formatting?.secondary_text ?? '',
-          })));
+        if (json && json.length > 0) {
+          setSuggestions(json.map((p: any, i: number) => {
+            const addr = p.address || {};
+            const road    = addr.road || addr.pedestrian || '';
+            const houseNo = addr.house_number || '';
+            const city    = addr.city || addr.town || addr.village || addr.municipality || '';
+            const main    = road ? (houseNo ? `${road} ${houseNo}` : road) : p.display_name.split(',')[0];
+            const secondary = city || p.display_name.split(',').slice(1, 3).join(',').trim();
+            return { id: String(i), main, secondary };
+          }));
           setShowSugg(true);
         } else {
           setSuggestions([]); setShowSugg(false);
         }
       } catch { setSuggestions([]); setShowSugg(false); }
-    }, 350);
+    }, 500);
   };
 
   const handleChange = (text: string) => {
@@ -954,9 +985,15 @@ function BookingModal({ cleaner, visible, onClose, onBookingCreated }: any) {
         busySlots: arrayUnion({ from: busyFromISO, until: busyUntilISO }),
       }, { merge: true }).catch(() => {});
       try {
-        const cleanerDoc = await getDoc(doc(db, 'users', cleaner.id));
+        const cleanerUid = cleaner.uid || cleaner.id;
+        const cleanerDoc = await getDoc(doc(db, 'users', cleanerUid));
         const pushToken = cleanerDoc.data()?.pushToken;
-        if (pushToken) await sendPushNotification(pushToken, '📅 הזמנה חדשה!', `${clientName} הזמין/ה אותך ל-${hours} שעות`);
+        if (pushToken) await sendPushNotification(
+          pushToken,
+          '📅 הזמנה חדשה!',
+          `${clientName} הזמין/ה אותך ל-${hours} שעות ב-${bookingDate.toLocaleDateString('he-IL')}`,
+          { type: 'new_booking', bookingId: bookingRef.id, tab: 'bookings' }
+        );
       } catch (_) {}
       // ── Bit payment message in chat ────────────────────────────────────
       if (payment === 'bit') {
@@ -1024,7 +1061,7 @@ function BookingModal({ cleaner, visible, onClose, onBookingCreated }: any) {
   // ── מסך הצלחה ──
   if (showSuccess && bookedDetails) {
     return (
-      <Modal visible={visible} animationType="slide" presentationStyle="pageSheet">
+      <Modal visible={visible} animationType="slide" presentationStyle="pageSheet" onRequestClose={handleClose}>
         <SafeAreaView style={{ flex: 1, backgroundColor: '#F0FDF4' }}>
           <ScrollView contentContainerStyle={{ flexGrow: 1, alignItems: 'center', justifyContent: 'center', padding: 28, gap: 20 }}>
             {/* אנימציית צ'קמארק */}
@@ -1056,7 +1093,7 @@ function BookingModal({ cleaner, visible, onClose, onBookingCreated }: any) {
 
             {/* מה הלאה */}
             <View style={{ backgroundColor: '#EFF6FF', borderRadius: 16, padding: 18, width: '100%', gap: 10, borderWidth: 1, borderColor: '#BFDBFE' }}>
-              <Text style={{ fontSize: 15, fontWeight: '800', color: '#1D4ED8', marginBottom: 4 }}>📋 מה הלאה?</Text>
+              <Text style={{ fontSize: 15, fontWeight: '800', color: '#1D4ED8', marginBottom: 4 }}>📋 {t.whatsNextTitle}</Text>
               <Text style={{ fontSize: 14, color: '#1E40AF', lineHeight: 22 }}>1️⃣  {t.nextStep1}</Text>
               <Text style={{ fontSize: 14, color: '#1E40AF', lineHeight: 22 }}>2️⃣  {t.nextStep2}</Text>
               <Text style={{ fontSize: 14, color: '#1E40AF', lineHeight: 22 }}>3️⃣  {t.nextStep3}</Text>
@@ -1084,7 +1121,7 @@ function BookingModal({ cleaner, visible, onClose, onBookingCreated }: any) {
   }
 
   return (
-    <Modal visible={visible} animationType="slide" presentationStyle="pageSheet">
+    <Modal visible={visible} animationType="slide" presentationStyle="pageSheet" onRequestClose={handleClose}>
       <SafeAreaView style={{ flex: 1, backgroundColor: C.bluePale }}>
         <View style={s.modalHeader}>
           <TouchableOpacity onPress={handleClose} style={s.closeBtn}><Text style={{ color: C.white, fontSize: 18 }}>✕</Text></TouchableOpacity>
@@ -1278,54 +1315,57 @@ function ChatModal({ cleaner, visible, onClose }: any) {
 
   if (!cleaner) return null;
   return (
-    <Modal visible={visible} animationType="slide" presentationStyle="pageSheet">
-      <SafeAreaView style={{ flex: 1, backgroundColor: C.bluePale }}>
+    <Modal visible={visible} animationType="slide" presentationStyle="pageSheet" onRequestClose={onClose}>
+      <SafeAreaViewCtx style={{ flex: 1, backgroundColor: C.bluePale }}>
         <View style={s.modalHeader}>
           <TouchableOpacity onPress={onClose} style={s.closeBtn}><Text style={{ color: C.white, fontSize: 18 }}>✕</Text></TouchableOpacity>
           <Text style={s.modalTitle}>{t.chatWithPrefix}{cleaner.name}</Text>
           <View style={{ width: 36 }} />
         </View>
-        <ScrollView ref={scrollRef} contentContainerStyle={{ padding: 16, gap: 8 }}>
-          {messages.length === 0 && (
-            <View style={{ alignItems: 'flex-start' }}>
-              <View style={[s.bubble, s.bubbleCleaner]}>
-                <Text style={{ color: C.white, fontSize: 14 }}>{t.greetingPrefix}{cleaner.name}{t.greetingSuffix}</Text>
+        <KeyboardAvoidingView style={{ flex: 1 }} behavior="padding">
+          <ScrollView ref={scrollRef} contentContainerStyle={{ padding: 16, gap: 8 }}>
+            {messages.length === 0 && (
+              <View style={{ alignItems: 'flex-start' }}>
+                <View style={[s.bubble, s.bubbleCleaner]}>
+                  <Text style={{ color: C.white, fontSize: 14 }}>{t.greetingPrefix}{cleaner.name}{t.greetingSuffix}</Text>
+                </View>
               </View>
-            </View>
-          )}
-          {messages.map(m => {
-            if (m.type === 'bit_payment') {
+            )}
+            {messages.map(m => {
+              if (m.type === 'bit_payment') {
+                return (
+                  <View key={m.id} style={{ alignItems: 'flex-start' }}>
+                    <View style={s.bitCard}>
+                      <Text style={s.bitCardTitle}>💙 בקשת תשלום</Text>
+                      <Text style={s.bitCardAmount}>₪{m.amount}</Text>
+                      <TouchableOpacity
+                        style={s.bitBtn}
+                        onPress={() => Linking.openURL(m.bitLink).catch(() =>
+                          Alert.alert('ביט', 'אפליקציית ביט לא מותקנת במכשיר')
+                        )}
+                      >
+                        <Text style={s.bitBtnText}>שלם בביט 💙</Text>
+                      </TouchableOpacity>
+                    </View>
+                  </View>
+                );
+              }
               return (
-                <View key={m.id} style={{ alignItems: 'flex-start' }}>
-                  <View style={s.bitCard}>
-                    <Text style={s.bitCardTitle}>💙 בקשת תשלום</Text>
-                    <Text style={s.bitCardAmount}>₪{m.amount}</Text>
-                    <TouchableOpacity
-                      style={s.bitBtn}
-                      onPress={() => Linking.openURL(m.bitLink).catch(() =>
-                        Alert.alert('ביט', 'אפליקציית ביט לא מותקנת במכשיר')
-                      )}
-                    >
-                      <Text style={s.bitBtnText}>שלם בביט 💙</Text>
-                    </TouchableOpacity>
+                <View key={m.id} style={{ alignItems: m.fromUid === clientUid ? 'flex-end' : 'flex-start' }}>
+                  <View style={[s.bubble, m.fromUid === clientUid ? s.bubbleClient : s.bubbleCleaner]}>
+                    <Text style={{ color: m.fromUid === clientUid ? C.textDark : C.white, fontSize: 14 }}>{m.text}</Text>
                   </View>
                 </View>
               );
-            }
-            return (
-              <View key={m.id} style={{ alignItems: m.fromUid === clientUid ? 'flex-end' : 'flex-start' }}>
-                <View style={[s.bubble, m.fromUid === clientUid ? s.bubbleClient : s.bubbleCleaner]}>
-                  <Text style={{ color: m.fromUid === clientUid ? C.textDark : C.white, fontSize: 14 }}>{m.text}</Text>
-                </View>
-              </View>
-            );
-          })}
-        </ScrollView>
-        <View style={s.chatRow}>
-          <TouchableOpacity style={s.sendBtn} onPress={send}><Text style={{ color: C.white, fontSize: 18 }}>▶</Text></TouchableOpacity>
-          <TextInput style={s.chatInput} placeholder={t.chatPlaceholder} value={text} onChangeText={setText} placeholderTextColor={C.textSub} textAlign="right" onSubmitEditing={send} />
-        </View>
-      </SafeAreaView>
+            })}
+          </ScrollView>
+          <View style={s.chatRow}>
+            <TouchableOpacity style={s.sendBtn} onPress={send}><Text style={{ color: C.white, fontSize: 18 }}>◀</Text></TouchableOpacity>
+            <TextInput style={s.chatInput} placeholder={t.chatPlaceholder} value={text} onChangeText={setText} placeholderTextColor={C.textSub} textAlign="right" onSubmitEditing={send} />
+          </View>
+          <View style={{ height: NAV_BAR_HEIGHT, backgroundColor: C.white }} />
+        </KeyboardAvoidingView>
+      </SafeAreaViewCtx>
     </Modal>
   );
 }
@@ -1397,16 +1437,19 @@ function CleanerCard({ cleaner, selected, onSelect, onProfile, onBook, onChat, i
               <Text style={s.actionBtnText} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7}>{t.profileBtn}</Text>
             </TouchableOpacity>
             <TouchableOpacity style={s.actionBtn} onPress={() => onChat(cleaner)}>
-              <Text style={s.actionBtnText} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7}>{t.chatBtnShort}</Text>
+              <Text style={{ fontSize: 26 }}>{t.chatBtnShort}</Text>
             </TouchableOpacity>
             <TouchableOpacity
               style={[s.actionBtnPrimary, (isPending || !cleaner.available) && { backgroundColor: '#94A3B8' }]}
               disabled={isPending || !cleaner.available}
               onPress={() => !isPending && cleaner.available && onBook(cleaner)}
             >
-              <Text style={s.actionBtnPrimaryText} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.6}>
-                {isPending ? '⏳ ממתין לתשובה' : cleaner.available ? t.bookBtnShort : t.notAvailBtn}
-              </Text>
+              {isPending
+                ? <HourglassIcon />
+                : <Text style={s.actionBtnPrimaryText} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.6}>
+                    {cleaner.available ? t.bookBtnShort : t.notAvailBtn}
+                  </Text>
+              }
             </TouchableOpacity>
           </View>
           <TouchableOpacity style={s.insuranceBtn} onPress={() => Linking.openURL('https://www.bitui.co.il')}>
@@ -1479,6 +1522,39 @@ export default function HomeScreen() {
   const [urgentWaiting,   setUrgentWaiting]   = useState(false);
   const [urgentRequestId, setUrgentRequestId] = useState<string|null>(null);
   const [urgentFoundName, setUrgentFoundName] = useState('');
+
+  // ── כפתור חזרה אנדרואיד ──────────────────────────────────────────────────────
+  const lastBackPress = useRef(0);
+  useEffect(() => {
+    const sub = BackHandler.addEventListener('hardwareBackPress', () => {
+      // סגור תפריט/מודל פתוח תחילה
+      if (drawer)        { setDrawer(false);       return true; }
+      if (profile)       { setProfile(null);        return true; }
+      if (booking)       { setBooking(null);         return true; }
+      if (chatWith)      { setChatWith(null);        return true; }
+      if (filterVisible) { setFilterVisible(false); return true; }
+      if (urgentOpen)    { setUrgentOpen(false);    return true; }
+      if (photoViewerOpen){ setPhotoViewerOpen(false); return true; }
+      if (reportOpen)    { setReportOpen(false);    return true; }
+
+      // שתי לחיצות לצאת
+      const now = Date.now();
+      if (now - lastBackPress.current < 2000) {
+        Alert.alert(
+          t.exitTitle || 'יציאה מהאפליקציה',
+          t.exitMsg   || 'האם אתה בטוח שברצונך לצאת?',
+          [
+            { text: t.cancelKeepBooking || 'ביטול', style: 'cancel' },
+            { text: t.exitConfirm       || 'צא', style: 'destructive', onPress: () => BackHandler.exitApp() },
+          ]
+        );
+      } else {
+        lastBackPress.current = now;
+      }
+      return true;
+    });
+    return () => sub.remove();
+  }, [drawer, profile, booking, chatWith, filterVisible, urgentOpen, photoViewerOpen, reportOpen]);
 
   const handleSendUrgent = async () => {
     if (!urgentAddress.trim() || urgentAddress.trim().length < 5)
@@ -2035,7 +2111,7 @@ export default function HomeScreen() {
                 <Text style={s.msgIconText}>💬</Text>
                 {unreadCount > 0 && (
                   <View style={s.msgBadge}>
-                    <Text style={s.msgBadgeText}>{unreadCount > 9 ? '9+' : unreadCount}</Text>
+                    <Text style={s.msgBadgeText}>{unreadCount > 99 ? '99+' : unreadCount}</Text>
                   </View>
                 )}
               </TouchableOpacity>
@@ -2155,7 +2231,7 @@ export default function HomeScreen() {
         onClose={() => setBooking(null)}
         onBookingCreated={(cleanerId: string) => {
           setPendingCleanerIds(prev => new Set([...prev, cleanerId]));
-          setBooking(null);
+          // לא סוגרים כאן — מסך ההצלחה יסגור בעצמו
         }}
       />
       <ChatModal      cleaner={chatWith} visible={!!chatWith} onClose={() => setChatWith(null)} />
@@ -2170,7 +2246,8 @@ export default function HomeScreen() {
       />
 
       {/* Advanced Filter Modal */}
-      <Modal visible={filterVisible} animationType="slide" presentationStyle="pageSheet">
+      <Modal visible={filterVisible} animationType="slide" presentationStyle="pageSheet" onRequestClose={() => setFilterVisible(false)}>
+        <ModalBackHandler onBack={() => setFilterVisible(false)} />
         <SafeAreaView style={{ flex: 1, backgroundColor: C.bluePale }}>
           <View style={s.modalHeader}>
             <TouchableOpacity onPress={() => setFilterVisible(false)} style={s.closeBtn}>
@@ -2656,9 +2733,9 @@ const s = StyleSheet.create({
   payChip:      { backgroundColor: C.grayBg, borderRadius: 8, paddingHorizontal: 8, paddingVertical: 4, borderWidth: 1, borderColor: C.grayBorder },
   payChipText:  { fontSize: 10, fontWeight: '600', color: C.textDark },
   actionBtn:         { flex: 1, backgroundColor: C.blueLight, borderRadius: 10, paddingVertical: 10, paddingHorizontal: 4, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: C.blueBorder, minHeight: 40 },
-  actionBtnText:     { fontSize: 12, fontWeight: '700', color: C.blue, textAlign: 'center' },
+  actionBtnText:     { fontSize: 14, fontWeight: '700', color: C.blue, textAlign: 'center' },
   actionBtnPrimary:  { flex: 1, backgroundColor: C.blue, borderRadius: 10, paddingVertical: 10, paddingHorizontal: 4, alignItems: 'center', justifyContent: 'center', minHeight: 40 },
-  actionBtnPrimaryText: { fontSize: 12, fontWeight: '700', color: C.white, textAlign: 'center' },
+  actionBtnPrimaryText: { fontSize: 14, fontWeight: '800', color: C.white, textAlign: 'center' },
   insuranceBtn:     { marginTop: 8, backgroundColor: '#EFF6FF', borderRadius: 10, paddingVertical: 8, paddingHorizontal: 14, alignItems: 'center', borderWidth: 1, borderColor: '#BFDBFE' },
   insuranceBtnText: { fontSize: 12, fontWeight: '700', color: '#1D4ED8' },
   urgentHeaderBtn:  { backgroundColor: '#7C3AED', borderRadius: 10, paddingHorizontal: 10, paddingVertical: 6 },

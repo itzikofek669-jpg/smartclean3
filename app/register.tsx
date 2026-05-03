@@ -1,9 +1,14 @@
 import React, { useState } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity, StyleSheet,
-  SafeAreaView, StatusBar, KeyboardAvoidingView, Platform,
+  StatusBar, KeyboardAvoidingView, Platform, Dimensions,
   Alert, ScrollView, Modal, ActivityIndicator,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+
+const NAV_BAR_HEIGHT = Platform.OS === 'android'
+  ? Math.max(0, Dimensions.get('screen').height - Dimensions.get('window').height - (StatusBar.currentHeight || 0))
+  : 0;
 import { Image } from 'expo-image';
 import { Image as RNImage } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
@@ -654,6 +659,7 @@ export default function RegisterScreen() {
 
       </KeyboardAvoidingView>
       <TermsModal visible={showTerms} onClose={() => setShowTerms(false)} closeLabel={t.closeBtn} title={t.termsLinkLabel} />
+      <View style={{ height: NAV_BAR_HEIGHT }} />
     </SafeAreaView>
   );
 }

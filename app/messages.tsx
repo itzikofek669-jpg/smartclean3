@@ -1,9 +1,10 @@
 import React, { useState, useEffect, useRef } from 'react';
 import {
   View, Text, StyleSheet, FlatList, TouchableOpacity, TextInput,
-  Modal, SafeAreaView, StatusBar, ActivityIndicator,
-  ScrollView, KeyboardAvoidingView, Platform,
+  Modal, StatusBar, ActivityIndicator,
+  ScrollView, KeyboardAvoidingView, Platform, Dimensions, BackHandler,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import {
   collection, query, where, onSnapshot, orderBy,
@@ -11,6 +12,11 @@ import {
 } from 'firebase/firestore';
 import { auth, db } from '../lib/firebase';
 import { useLanguage } from '../lib/LanguageContext';
+
+// חישוב מדויק של גובה navigation bar של אנדרואיד
+const NAV_BAR_HEIGHT = Platform.OS === 'android'
+  ? Math.max(0, Dimensions.get('screen').height - Dimensions.get('window').height - (StatusBar.currentHeight || 0))
+  : 0;
 
 const C = {
   blue:       '#185FA5',
@@ -95,8 +101,17 @@ function InlineChatModal({ chatId, otherUid, otherName, visible, onClose }: any)
     } catch (_) {}
   };
 
+  useEffect(() => {
+    if (!visible) return;
+    const sub = BackHandler.addEventListener('hardwareBackPress', () => {
+      onClose();
+      return true;
+    });
+    return () => sub.remove();
+  }, [visible]);
+
   return (
-    <Modal visible={visible} animationType="slide" presentationStyle="pageSheet">
+    <Modal visible={visible} animationType="slide" presentationStyle="pageSheet" onRequestClose={onClose}>
       <SafeAreaView style={{ flex: 1, backgroundColor: C.bluePale }}>
         <View style={cs.header}>
           <TouchableOpacity onPress={onClose} style={cs.closeBtn}>
@@ -121,7 +136,7 @@ function InlineChatModal({ chatId, otherUid, otherName, visible, onClose }: any)
           </ScrollView>
           <View style={cs.inputRow}>
             <TouchableOpacity style={cs.sendBtn} onPress={send}>
-              <Text style={{ color: C.white, fontSize: 18 }}>▶</Text>
+              <Text style={{ color: C.white, fontSize: 18 }}>◀</Text>
             </TouchableOpacity>
             <TextInput
               style={cs.input}
@@ -133,6 +148,7 @@ function InlineChatModal({ chatId, otherUid, otherName, visible, onClose }: any)
               onSubmitEditing={send}
             />
           </View>
+          <View style={{ height: NAV_BAR_HEIGHT, backgroundColor: C.white }} />
         </KeyboardAvoidingView>
       </SafeAreaView>
     </Modal>
@@ -162,6 +178,15 @@ export default function MessagesScreen() {
   const [activeChatId,  setActiveChatId]  = useState('');
   const [activeOtherUid,setActiveOtherUid]= useState('');
   const [activeOtherName,setActiveOtherName]= useState('');
+
+  useEffect(() => {
+    const sub = BackHandler.addEventListener('hardwareBackPress', () => {
+      if (activeChatId) { setActiveChatId(''); return true; }
+      router.back();
+      return true;
+    });
+    return () => sub.remove();
+  }, [activeChatId]);
 
   useEffect(() => {
     if (!uid) { setLoading(false); return; }

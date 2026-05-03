@@ -1,9 +1,14 @@
 import React, { useEffect, useRef, useState } from 'react';
 import {
-  View, Text, StyleSheet, SafeAreaView, StatusBar,
+  View, Text, StyleSheet, StatusBar,
   TouchableOpacity, TextInput, FlatList, KeyboardAvoidingView,
-  Platform, Animated, Keyboard, Linking,
+  Platform, Animated, Keyboard, Linking, BackHandler, Dimensions,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+
+const NAV_BAR_HEIGHT = Platform.OS === 'android'
+  ? Math.max(0, Dimensions.get('screen').height - Dimensions.get('window').height - (StatusBar.currentHeight || 0))
+  : 0;
 import { collection, query, where, orderBy, limit, getDocs, onSnapshot, doc, getDoc } from 'firebase/firestore';
 import { db, auth } from '../lib/firebase';
 import { useRouter } from 'expo-router';
@@ -661,6 +666,14 @@ export default function SupportScreen() {
   const router = useRouter();
   const flatRef = useRef<FlatList>(null);
 
+  useEffect(() => {
+    const sub = BackHandler.addEventListener('hardwareBackPress', () => {
+      router.back();
+      return true;
+    });
+    return () => sub.remove();
+  }, []);
+
   const [messages,  setMessages]  = useState<Message[]>([]);
   const [input,     setInput]     = useState('');
   const [typing,    setTyping]    = useState(false);
@@ -908,6 +921,7 @@ export default function SupportScreen() {
             <Text style={s.sendBtnText}>▶</Text>
           </TouchableOpacity>
         </View>
+        <View style={{ height: NAV_BAR_HEIGHT, backgroundColor: C.white }} />
       </KeyboardAvoidingView>
     </SafeAreaView>
   );
