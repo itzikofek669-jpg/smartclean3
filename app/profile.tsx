@@ -1626,25 +1626,6 @@ export default function ProfileScreen() {
           )}
 
 
-          {/* אימות זהות (לקוח) */}
-          {!isCleaner && (
-            <View style={s.section}>
-              <Text style={s.sectionTitle}>🪪 {t.idVerifyTitle}</Text>
-              <View style={[s.referralCard, { gap: 12 }]}>
-                <Text style={{ fontSize: 12, color: C.textSub, lineHeight: 18 }}>{t.idVerifyInfo}</Text>
-                {idVerified ? (
-                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: '#DCFCE7', borderRadius: 12, padding: 12 }}>
-                    <Text style={{ fontSize: 24 }}>🪪</Text>
-                    <Text style={{ fontSize: 15, fontWeight: '900', color: '#15803D' }}>{t.idVerifyDone}</Text>
-                  </View>
-                ) : (
-                  <TouchableOpacity style={s.startBtn} onPress={pickIdPhoto}>
-                    <Text style={s.startBtnText}>{t.idVerifyUpload}</Text>
-                  </TouchableOpacity>
-                )}
-              </View>
-            </View>
-          )}
 
           {/* שפה מועדפת (לקוח) */}
           {!isCleaner && (
