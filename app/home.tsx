@@ -964,6 +964,9 @@ function BookingModal({ cleaner, visible, onClose, onBookingCreated }: any) {
   const [serviceType,   setServiceType]   = useState<string>('');
   const [showSuccess,   setShowSuccess]   = useState(false);
   const [bookedDetails, setBookedDetails] = useState<{ name: string; hours: number; total: number } | null>(null);
+  const [showWaiting,   setShowWaiting]   = useState(false);
+  const [pendingBookingId, setPendingBookingId] = useState<string | null>(null);
+  const [cancellingBooking, setCancellingBooking] = useState(false);
 
   // Dynamic pricing: if cleaner has servicePricing, use it; else use cleaner.price
   const effectivePrice = cleaner
@@ -977,6 +980,11 @@ function BookingModal({ cleaner, visible, onClose, onBookingCreated }: any) {
   const handleBook = async () => {
     if (!address.trim() || address.trim().length < 5) return Alert.alert(t.error, t.addressTooShort);
     if (!/\d/.test(address)) return Alert.alert(t.error, t.addressNoNumber);
+
+    // ── עבור מיד למסך המתנה ──────────────────────────────────────────────
+    setBookedDetails({ name: cleaner.name, hours, total });
+    setShowWaiting(true);
+
     setSaving(true);
     try {
       const clientUid = auth.currentUser?.uid || '';
@@ -1009,6 +1017,20 @@ function BookingModal({ cleaner, visible, onClose, onBookingCreated }: any) {
         pricePerHour: effectivePrice,
         busyFrom: busyFromISO,
         busyUntil: busyUntilISO,
+      });
+
+      // ── שמור bookingId והאזן לשינוי סטטוס ───────────────────────────────
+      setPendingBookingId(bookingRef.id);
+      setSaving(false);
+
+      // ── האזן לשינוי סטטוס (אישור מנקה) ──────────────────────────────────
+      const unsubBooking = onSnapshot(doc(db, 'bookings', bookingRef.id), (snap) => {
+        const status = snap.data()?.status;
+        if (status === 'confirmed' || status === 'active') {
+          unsubBooking();
+          setShowWaiting(false);
+          setShowSuccess(true);
+        }
       });
       // הוסף ל-busySlots של המנקה
       await setDoc(doc(db, 'users', cleaner.id), {
@@ -1073,20 +1095,101 @@ function BookingModal({ cleaner, visible, onClose, onBookingCreated }: any) {
           }
         }
       } catch (_) {}
-    } catch (_) {}
-    setSaving(false);
+    } catch (_) {
+      setSaving(false);
+    }
     onBookingCreated?.(cleaner.id);
-    setBookedDetails({ name: cleaner.name, hours, total });
-    setShowSuccess(true);
   };
 
   const handleClose = () => {
     setAddress(''); setHours(2);
     setBookingDate(new Date()); setStartHour(9); setRecurring('once');
     setServiceType(''); setShowSuccess(false); setBookedDetails(null);
+    setShowWaiting(false); setPendingBookingId(null);
+    onClose();
+  };
+
+  // ── ביטול הזמנה ממסך המתנה ──────────────────────────────────────────────
+  const handleCancelPending = async () => {
+    if (!pendingBookingId) return;
+    setCancellingBooking(true);
+    try {
+      await updateDoc(doc(db, 'bookings', pendingBookingId), { status: 'cancelled' });
+    } catch (_) {}
+    setCancellingBooking(false);
+    setShowWaiting(false);
+    setPendingBookingId(null);
+    setBookedDetails(null);
     onClose();
   };
   if (!cleaner) return null;
+
+  // ── מסך המתנה לאישור ──
+  if (showWaiting && bookedDetails) {
+    return (
+      <Modal visible={visible} animationType="slide" presentationStyle="pageSheet" onRequestClose={handleCancelPending}>
+        <SafeAreaView style={{ flex: 1, backgroundColor: '#FFF7ED' }}>
+          <ScrollView contentContainerStyle={{ flexGrow: 1, alignItems: 'center', justifyContent: 'center', padding: 28, gap: 20 }}>
+
+            {/* אנימציית המתנה */}
+            <View style={{ width: 110, height: 110, borderRadius: 55, backgroundColor: '#FED7AA', alignItems: 'center', justifyContent: 'center', borderWidth: 3, borderColor: '#FB923C' }}>
+              <Text style={{ fontSize: 60 }}>⏳</Text>
+            </View>
+
+            <Text style={{ fontSize: 24, fontWeight: '900', color: '#92400E', textAlign: 'center' }}>
+              ממתין לאישור המנקה...
+            </Text>
+            <Text style={{ fontSize: 14, color: '#B45309', textAlign: 'center', lineHeight: 22 }}>
+              ההזמנה נשלחה למנקה.{'\n'}ברגע שיאשר — תקבל/י עדכון
+            </Text>
+
+            {/* כרטיס פרטי הזמנה */}
+            <View style={{ backgroundColor: '#fff', borderRadius: 18, padding: 20, width: '100%', gap: 12, borderWidth: 1, borderColor: '#FED7AA', elevation: 3 }}>
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+                <Text style={{ color: '#6B7280', fontSize: 14 }}>מנקה</Text>
+                <Text style={{ fontWeight: '800', color: '#1C1917', fontSize: 14 }}>🧹 {bookedDetails.name}</Text>
+              </View>
+              <View style={{ height: 1, backgroundColor: '#FED7AA' }} />
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+                <Text style={{ color: '#6B7280', fontSize: 14 }}>שעות</Text>
+                <Text style={{ fontWeight: '800', color: '#1C1917', fontSize: 14 }}>⏱️ {bookedDetails.hours} שעות</Text>
+              </View>
+              <View style={{ height: 1, backgroundColor: '#FED7AA' }} />
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+                <Text style={{ color: '#6B7280', fontSize: 14 }}>סה"כ</Text>
+                <Text style={{ fontWeight: '900', color: '#EA580C', fontSize: 18 }}>₪{bookedDetails.total}</Text>
+              </View>
+              <View style={{ height: 1, backgroundColor: '#FED7AA' }} />
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+                <Text style={{ color: '#6B7280', fontSize: 14 }}>כתובת</Text>
+                <Text style={{ fontWeight: '700', color: '#1C1917', fontSize: 13, maxWidth: '60%', textAlign: 'right' }}>{address}</Text>
+              </View>
+            </View>
+
+            {/* כפתור ביטול */}
+            <TouchableOpacity
+              style={{ backgroundColor: cancellingBooking ? '#D1D5DB' : '#FEE2E2', borderRadius: 14, paddingVertical: 15, width: '100%', alignItems: 'center', borderWidth: 1.5, borderColor: '#FCA5A5' }}
+              onPress={handleCancelPending}
+              disabled={cancellingBooking}
+            >
+              <Text style={{ fontSize: 16, fontWeight: '800', color: cancellingBooking ? '#9CA3AF' : '#DC2626' }}>
+                {cancellingBooking ? 'מבטל...' : '✕ בטל הזמנה'}
+              </Text>
+            </TouchableOpacity>
+
+            {/* כפתור ההזמנות שלי */}
+            <TouchableOpacity
+              style={{ backgroundColor: '#fff', borderRadius: 14, paddingVertical: 13, width: '100%', alignItems: 'center', borderWidth: 1, borderColor: '#D1D5DB' }}
+              onPress={() => { handleClose(); router.push('/profile'); }}
+            >
+              <Text style={{ fontSize: 14, fontWeight: '700', color: '#6B7280' }}>📋 ההזמנות שלי</Text>
+            </TouchableOpacity>
+
+          </ScrollView>
+        </SafeAreaView>
+      </Modal>
+    );
+  }
 
   // ── מסך הצלחה ──
   if (showSuccess && bookedDetails) {
