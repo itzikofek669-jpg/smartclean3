@@ -19,7 +19,7 @@ WebBrowser.maybeCompleteAuthSession();
 // ─── 🔑 מפתחות OAuth ──────────────────────────────────────────────────────────
 // Android OAuth client (Google Cloud Console → Credentials → Android)
 // Package: com.itzik669.cleantouch  |  SHA-1: מ-GitHub Actions
-const GOOGLE_CLIENT_ID = 'ANDROID_CLIENT_ID_HERE.apps.googleusercontent.com';
+const GOOGLE_CLIENT_ID = '36464693633-42ctbqufvbch9tn0falcsq2gpof4g7rg.apps.googleusercontent.com';
 
 const GOOGLE_DISCOVERY = {
   authorizationEndpoint: 'https://accounts.google.com/o/oauth2/v2/auth',
