@@ -5,7 +5,7 @@ import {
   ActivityIndicator,
 } from 'react-native';
 import { useRouter } from 'expo-router';
-import { signInWithEmailAndPassword, sendPasswordResetEmail, GoogleAuthProvider, FacebookAuthProvider, signInWithCredential } from 'firebase/auth';
+import { signInWithEmailAndPassword, sendPasswordResetEmail, GoogleAuthProvider, signInWithCredential } from 'firebase/auth';
 import * as SecureStore from 'expo-secure-store';
 import * as WebBrowser from 'expo-web-browser';
 import { useAuthRequest, makeRedirectUri, exchangeCodeAsync } from 'expo-auth-session';
@@ -17,10 +17,9 @@ import { Lang } from '../lib/translations';
 WebBrowser.maybeCompleteAuthSession();
 
 // ─── 🔑 מפתחות OAuth ──────────────────────────────────────────────────────────
-// Android client — נוצר ב-Google Cloud Console עם package name + SHA-1
-// !! להחליף אחרי יצירת Android client ב-Google Cloud Console !!
-const GOOGLE_CLIENT_ID = 'REPLACE_WITH_ANDROID_CLIENT_ID.apps.googleusercontent.com';
-const FACEBOOK_APP_ID  = '293492306044443';
+// Android OAuth client (Google Cloud Console → Credentials → Android)
+// Package: com.itzik669.cleantouch  |  SHA-1: מ-GitHub Actions
+const GOOGLE_CLIENT_ID = 'ANDROID_CLIENT_ID_HERE.apps.googleusercontent.com';
 
 const GOOGLE_DISCOVERY = {
   authorizationEndpoint: 'https://accounts.google.com/o/oauth2/v2/auth',
@@ -70,7 +69,7 @@ export default function LoginScreen() {
   const [email,         setEmail]         = useState('');
   const [password,      setPassword]      = useState('');
   const [loading,       setLoading]       = useState(false);
-  const [socialLoading, setSocialLoading] = useState<'google'|'facebook'|null>(null);
+  const [socialLoading, setSocialLoading] = useState<'google'|null>(null);
   const [rememberMe,    setRememberMe]    = useState(false);
   const [showLangMenu,  setShowLangMenu]  = useState(false);
 
@@ -115,50 +114,8 @@ export default function LoginScreen() {
       .finally(() => setSocialLoading(null));
   }, [googleResponse]);
 
-  // ─── Facebook auth session ───────────────────────────────────────────────
-  // Facebook דורש https:// URI — משתמשים בפרוקסי של Expo
-  const fbRedirect = makeRedirectUri({ useProxy: true });
-  const [, fbResponse, fbPrompt] = useAuthRequest(
-    {
-      clientId: FACEBOOK_APP_ID,
-      redirectUri: fbRedirect,
-      scopes: ['public_profile', 'email'],
-      responseType: 'token',
-    },
-    { authorizationEndpoint: 'https://www.facebook.com/dialog/oauth' }
-  );
-
-  useEffect(() => {
-    if (fbResponse?.type === 'success') {
-      const token = fbResponse.params?.access_token;
-      if (!token) {
-        Alert.alert('שגיאה', 'לא התקבל token מ-Facebook. נסה שוב.');
-        return;
-      }
-      const credential = FacebookAuthProvider.credential(token);
-      setSocialLoading('facebook');
-      signInWithCredential(auth, credential)
-        .then(async (res) => {
-          await ensureUserProfile(res.user.uid, res.user.displayName || 'משתמש', res.user.email || '');
-        })
-        .catch((e: any) => {
-          const msg = e?.code === 'auth/account-exists-with-different-credential'
-            ? 'כתובת האימייל הזו כבר רשומה בשיטה אחרת'
-            : 'כניסה עם Facebook נכשלה — נסה שוב';
-          Alert.alert('שגיאה', msg);
-        })
-        .finally(() => setSocialLoading(null));
-    } else if (fbResponse?.type === 'error') {
-      Alert.alert('שגיאה', fbResponse.error?.message || 'כניסה עם Facebook נכשלה');
-    }
-  }, [fbResponse]);
-
   const handleGoogleLogin = async () => {
     await googlePrompt();
-  };
-
-  const handleFacebookLogin = async () => {
-    await fbPrompt();
   };
 
   const currentLang = LANGS.find(l => l.code === lang) || LANGS[0];
@@ -229,25 +186,14 @@ export default function LoginScreen() {
           {/* Social login buttons */}
           <View style={s.socialRow}>
             <TouchableOpacity
-              style={[s.socialBtnGoogle, socialLoading === 'google' && { opacity: 0.7 }]}
+              style={[s.socialBtnGoogle, { width: '100%' }, socialLoading === 'google' && { opacity: 0.7 }]}
               onPress={handleGoogleLogin}
               disabled={!!socialLoading}
             >
               {socialLoading === 'google'
                 ? <ActivityIndicator size="small" color="#4285F4" />
                 : <Text style={s.googleIcon}>G</Text>}
-              <Text style={s.socialBtnTextGoogle}>Google</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={[s.socialBtnFacebook, socialLoading === 'facebook' && { opacity: 0.7 }]}
-              onPress={handleFacebookLogin}
-              disabled={!!socialLoading}
-            >
-              {socialLoading === 'facebook'
-                ? <ActivityIndicator size="small" color="#fff" />
-                : <Text style={s.facebookIcon}>f</Text>}
-              <Text style={s.socialBtnTextFacebook}>Facebook</Text>
+              <Text style={s.socialBtnTextGoogle}>המשך עם Google</Text>
             </TouchableOpacity>
           </View>
 
