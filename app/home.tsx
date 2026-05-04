@@ -934,8 +934,8 @@ function SpinnerPicker({ value, onChange, values, display }: {
   );
 }
 
-function TimeWheelPicker({ value, onChange }: { value: number; onChange: (v: number) => void }) {
-  const timeValues: number[] = Array.from({ length: 34 }, (_, i) => 7 + i * 0.5);
+function TimeWheelPicker({ value, onChange, minHour = 7 }: { value: number; onChange: (v: number) => void; minHour?: number }) {
+  const timeValues: number[] = Array.from({ length: 34 }, (_, i) => 7 + i * 0.5).filter(h => h >= minHour);
   const display = (v: number) => {
     const hh = String(Math.floor(v)).padStart(2, '0');
     const mm = v % 1 === 0.5 ? '30' : '00';
@@ -965,6 +965,24 @@ function BookingModal({ cleaner, visible, onClose, onBookingCreated }: any) {
   const [showSuccess,   setShowSuccess]   = useState(false);
   const [bookedDetails, setBookedDetails] = useState<{ name: string; hours: number; total: number } | null>(null);
   const [showWaiting,   setShowWaiting]   = useState(false);
+
+  // ── חישוב שעה מינימלית (היום בלבד) ──────────────────────────────────────
+  const isToday = bookingDate.toDateString() === new Date().toDateString();
+  const calcMinHour = () => {
+    if (!isToday) return 7;
+    const now = new Date();
+    // עגל למעלה ל-30 הדקות הבאות + חצי שעה מרווח
+    const mins = now.getHours() * 60 + now.getMinutes();
+    const nextSlotMins = Math.ceil((mins + 30) / 30) * 30; // slot הבא עם 30 דקות קדימה
+    return Math.max(7, nextSlotMins / 60);
+  };
+  const minHour = calcMinHour();
+
+  // ── כשמשנים תאריך — עדכן שעה אם צריך ──────────────────────────────────
+  useEffect(() => {
+    const mh = calcMinHour();
+    if (startHour < mh) setStartHour(mh);
+  }, [bookingDate]);
   const [pendingBookingId, setPendingBookingId] = useState<string | null>(null);
   const [cancellingBooking, setCancellingBooking] = useState(false);
 
@@ -980,6 +998,13 @@ function BookingModal({ cleaner, visible, onClose, onBookingCreated }: any) {
   const handleBook = async () => {
     if (!address.trim() || address.trim().length < 5) return Alert.alert(t.error, t.addressTooShort);
     if (!/\d/.test(address)) return Alert.alert(t.error, t.addressNoNumber);
+
+    // ── ולידציה: שעה לא בעבר ─────────────────────────────────────────────
+    const selectedDateTime = new Date(bookingDate);
+    selectedDateTime.setHours(Math.floor(startHour), startHour % 1 === 0.5 ? 30 : 0, 0, 0);
+    if (selectedDateTime <= new Date()) {
+      return Alert.alert(t.error, 'לא ניתן להזמין לשעה שכבר עברה — בחר שעה עתידית');
+    }
 
     // ── עבור מיד למסך המתנה ──────────────────────────────────────────────
     setBookedDetails({ name: cleaner.name, hours, total });
@@ -1295,7 +1320,12 @@ function BookingModal({ cleaner, visible, onClose, onBookingCreated }: any) {
 
             {/* Time */}
             <Text style={s.fieldLabel}>🕐 {t.timeLabel}</Text>
-            <TimeWheelPicker value={startHour} onChange={setStartHour} />
+            {isToday && (
+              <Text style={{ fontSize: 12, color: '#EF4444', marginBottom: 4, textAlign: 'right' }}>
+                ⚠️ ניתן להזמין מ-{String(Math.floor(minHour)).padStart(2,'0')}:{minHour % 1 === 0.5 ? '30' : '00'} ומעלה
+              </Text>
+            )}
+            <TimeWheelPicker value={startHour} onChange={setStartHour} minHour={minHour} />
 
             {/* Recurring */}
             <Text style={s.fieldLabel}>🔁 {t.recurringLabel}</Text>
