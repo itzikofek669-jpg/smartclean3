@@ -2,30 +2,14 @@ import React, { useState, useEffect } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity, StyleSheet,
   SafeAreaView, StatusBar, KeyboardAvoidingView, Platform, Alert, ScrollView, Modal, Image,
-  ActivityIndicator,
 } from 'react-native';
 import { useRouter } from 'expo-router';
-import { signInWithEmailAndPassword, sendPasswordResetEmail, GoogleAuthProvider, signInWithCredential } from 'firebase/auth';
+import { signInWithEmailAndPassword, sendPasswordResetEmail } from 'firebase/auth';
 import * as SecureStore from 'expo-secure-store';
-import * as WebBrowser from 'expo-web-browser';
-import { useAuthRequest, makeRedirectUri, exchangeCodeAsync } from 'expo-auth-session';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { auth, db } from '../lib/firebase';
 import { useLanguage } from '../lib/LanguageContext';
 import { Lang } from '../lib/translations';
-
-WebBrowser.maybeCompleteAuthSession();
-
-// ─── 🔑 מפתחות OAuth ──────────────────────────────────────────────────────────
-// Android OAuth client (Google Cloud Console → Credentials → Android)
-// Package: com.itzik669.cleantouch  |  SHA-1: מ-GitHub Actions
-const GOOGLE_CLIENT_ID = '36464693633-42ctbqufvbch9tn0falcsq2gpof4g7rg.apps.googleusercontent.com';
-
-const GOOGLE_DISCOVERY = {
-  authorizationEndpoint: 'https://accounts.google.com/o/oauth2/v2/auth',
-  tokenEndpoint:         'https://oauth2.googleapis.com/token',
-};
-// ──────────────────────────────────────────────────────────────────────────────
 
 const C = {
   blue:     '#185FA5',
@@ -69,54 +53,8 @@ export default function LoginScreen() {
   const [email,         setEmail]         = useState('');
   const [password,      setPassword]      = useState('');
   const [loading,       setLoading]       = useState(false);
-  const [socialLoading, setSocialLoading] = useState<'google'|null>(null);
   const [rememberMe,    setRememberMe]    = useState(false);
   const [showLangMenu,  setShowLangMenu]  = useState(false);
-
-  // ─── Google auth session (Android client + PKCE code flow) ──────────────
-  const googleRedirect = makeRedirectUri({ native: 'com.itzik669.cleantouch:/oauth2redirect' });
-  const [, googleResponse, googlePrompt] = useAuthRequest(
-    {
-      clientId:     GOOGLE_CLIENT_ID,
-      redirectUri:  googleRedirect,
-      scopes:       ['openid', 'profile', 'email'],
-      responseType: 'code',
-    },
-    GOOGLE_DISCOVERY
-  );
-
-  useEffect(() => {
-    if (googleResponse?.type !== 'success') {
-      if (googleResponse?.type === 'error')
-        Alert.alert('שגיאה', googleResponse.error?.message || 'כניסה עם Google נכשלה');
-      return;
-    }
-    const { code } = googleResponse.params;
-    setSocialLoading('google');
-    exchangeCodeAsync(
-      { clientId: GOOGLE_CLIENT_ID,
-        redirectUri: googleRedirect, code },
-      GOOGLE_DISCOVERY
-    )
-      .then(async tokenResult => {
-        const idToken = tokenResult.idToken;
-        if (!idToken) throw new Error('no id_token');
-        const credential = GoogleAuthProvider.credential(idToken);
-        const res = await signInWithCredential(auth, credential);
-        await ensureUserProfile(res.user.uid, res.user.displayName || 'משתמש', res.user.email || '');
-      })
-      .catch((e: any) => {
-        const msg = e?.code === 'auth/account-exists-with-different-credential'
-          ? 'כתובת האימייל הזו כבר רשומה בשיטה אחרת'
-          : 'כניסה עם Google נכשלה — נסה שוב';
-        Alert.alert('שגיאה', msg);
-      })
-      .finally(() => setSocialLoading(null));
-  }, [googleResponse]);
-
-  const handleGoogleLogin = async () => {
-    await googlePrompt();
-  };
 
   const currentLang = LANGS.find(l => l.code === lang) || LANGS[0];
 
@@ -181,27 +119,6 @@ export default function LoginScreen() {
               <Text style={s.langBtnLabel}>{currentLang.nativeName}</Text>
               <Text style={s.langBtnArrow}>▼</Text>
             </TouchableOpacity>
-          </View>
-
-          {/* Social login buttons */}
-          <View style={s.socialRow}>
-            <TouchableOpacity
-              style={[s.socialBtnGoogle, { width: '100%' }, socialLoading === 'google' && { opacity: 0.7 }]}
-              onPress={handleGoogleLogin}
-              disabled={!!socialLoading}
-            >
-              {socialLoading === 'google'
-                ? <ActivityIndicator size="small" color="#4285F4" />
-                : <Text style={s.googleIcon}>G</Text>}
-              <Text style={s.socialBtnTextGoogle}>המשך עם Google</Text>
-            </TouchableOpacity>
-          </View>
-
-          {/* Divider */}
-          <View style={s.divider}>
-            <View style={s.dividerLine} />
-            <Text style={s.dividerText}>{t.orDivider}</Text>
-            <View style={s.dividerLine} />
           </View>
 
           <View style={s.field}>
