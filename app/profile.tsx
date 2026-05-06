@@ -9,12 +9,14 @@ import * as ImagePicker from 'expo-image-picker';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import {
   doc, getDoc, setDoc, updateDoc, addDoc,
-  collection, query, where, getDocs, orderBy, arrayRemove, arrayUnion, onSnapshot,
+  collection, query, where, orderBy, arrayRemove, arrayUnion, onSnapshot,
 } from 'firebase/firestore';
 import { auth, db } from '../lib/firebase';
 import { useLanguage } from '../lib/LanguageContext';
 import { Lang } from '../lib/translations';
 import { useTheme } from '../lib/ThemeContext';
+import AccessibilityModal from '../lib/AccessibilityModal';
+import { MaterialIcons } from '@expo/vector-icons';
 
 
 const C = {
@@ -132,8 +134,9 @@ const rm = StyleSheet.create({
 export default function ProfileScreen() {
   const router = useRouter();
   const { tab, requestId } = useLocalSearchParams<{ tab?: string; requestId?: string }>();
-  const { t, setLang } = useLanguage();
-  const { dark, toggleDark } = useTheme();
+  const { t, setLang, flipSide, setFlipSide } = useLanguage();
+  const { dark } = useTheme();
+  const [a11yOpen, setA11yOpen] = useState(false);
 
   const uid    = auth.currentUser?.uid || '';
 
@@ -300,7 +303,8 @@ export default function ProfileScreen() {
   };
 
   useEffect(() => {
-    async function load() {
+    // ── טעינת נתוני פרופיל (חד-פעמי) ──────────────────────────────────────
+    (async () => {
       try {
         const snap = await getDoc(doc(db, 'users', uid));
         if (snap.exists()) {
@@ -310,66 +314,47 @@ export default function ProfileScreen() {
           setUserRole(d.role        || '');
           setPhotoB64(d.photoB64    || null);
           setWorkAreas(d.workAreas  || []);
-          // Load availability — support both old boolean format and new {active,start,end}
           const rawAvail = d.availability || {};
           const parsedAvail: Record<string, { active: boolean; start: number; end: number }> = {};
           for (const key of ['sun','mon','tue','wed','thu','fri','sat']) {
             const v = rawAvail[key];
-            if (v && typeof v === 'object') {
-              parsedAvail[key] = { active: v.active ?? false, start: v.start ?? 9, end: v.end ?? 18 };
-            } else {
-              parsedAvail[key] = { active: !!v, start: 9, end: 18 };
-            }
+            parsedAvail[key] = (v && typeof v === 'object')
+              ? { active: v.active ?? false, start: v.start ?? 9, end: v.end ?? 18 }
+              : { active: !!v, start: 9, end: 18 };
           }
           setAvailability(parsedAvail);
           setShowPhone(d.showPhone !== false);
           setPortfolio(d.portfolio || []);
           setIdVerified(d.identityVerified === true);
-          const savedLang = (d.preferredLang || 'he') as Lang;
-          setPrefLang(savedLang);
+          setPrefLang((d.preferredLang || 'he') as Lang);
           setUserPhone(d.phone || '');
-          // Referral code — generate if missing
           let code = d.referralCode || '';
           if (!code) {
             code = Math.random().toString(36).substring(2, 8).toUpperCase();
-            try { await setDoc(doc(db, 'users', uid), { referralCode: code }, { merge: true }); } catch (_) {}
+            setDoc(doc(db, 'users', uid), { referralCode: code }, { merge: true }).catch(() => {});
           }
           setReferralCode(code);
         }
-        // Client bookings
-        const qClient = query(
-          collection(db, 'bookings'),
-          where('clientUid', '==', uid),
-          orderBy('createdAt', 'desc'),
-        );
-        const bSnap = await getDocs(qClient);
-        setBookings(bSnap.docs.map(d => ({ id: d.id, ...d.data() })));
+      } catch (_) {}
+      finally { setLoading(false); }
+    })();
 
-        // Cleaner incoming bookings
-        const qCleaner = query(
-          collection(db, 'bookings'),
-          where('cleanerId', '==', uid),
-          orderBy('createdAt', 'desc'),
-        );
-        const cSnap = await getDocs(qCleaner);
-        setIncomingBks(cSnap.docs.map(d => ({ id: d.id, ...d.data() })));
-      } catch (_) {
-      } finally {
-        setLoading(false);
-      }
-    }
-    load().then(() => {
-      // Fallback: if referralCode still empty after load, generate locally
-      setReferralCode(prev => {
-        if (prev) return prev;
-        const code = Math.random().toString(36).substring(2, 8).toUpperCase();
-        setDoc(doc(db, 'users', uid), { referralCode: code }, { merge: true }).catch(() => {});
-        return code;
-      });
-    });
+    // ── הזמנות לקוח — בזמן אמת ─────────────────────────────────────────────
+    const unsubClient = onSnapshot(
+      query(collection(db, 'bookings'), where('clientUid', '==', uid), orderBy('createdAt', 'desc')),
+      snap => setBookings(snap.docs.map(d => ({ id: d.id, ...d.data() }))),
+      () => {},
+    );
 
-    // האזן לבקשות דחופות פתוחות (למנקים בלבד — נטענות בזמן אמת)
-    let prevUrgentCount = -1; // -1 = first load (don't auto-switch on initial load)
+    // ── הזמנות נכנסות למנקה — בזמן אמת ────────────────────────────────────
+    const unsubCleaner = onSnapshot(
+      query(collection(db, 'bookings'), where('cleanerId', '==', uid), orderBy('createdAt', 'desc')),
+      snap => setIncomingBks(snap.docs.map(d => ({ id: d.id, ...d.data() }))),
+      () => {},
+    );
+
+    // ── בקשות דחופות — בזמן אמת ────────────────────────────────────────────
+    let prevUrgentCount = -1;
     const urgentUnsub = onSnapshot(
       query(collection(db, 'urgentRequests'), where('status', '==', 'open')),
       snap => {
@@ -378,14 +363,12 @@ export default function ProfileScreen() {
           .map(d => ({ id: d.id, ...d.data() }))
           .filter((r: any) => r.expiresAt && new Date(r.expiresAt) > now);
         setUrgentRequests(reqs);
-        // אם הגיעה בקשה חדשה (לא הטעינה הראשונה) — עבור ללשונית דחוף אוטומטית
-        if (prevUrgentCount >= 0 && reqs.length > prevUrgentCount) {
-          setActiveTab('urgent');
-        }
+        if (prevUrgentCount >= 0 && reqs.length > prevUrgentCount) setActiveTab('urgent');
         prevUrgentCount = reqs.length;
       },
     );
-    return () => urgentUnsub();
+
+    return () => { unsubClient(); unsubCleaner(); urgentUnsub(); };
   }, [uid]);
 
   const pickImage = () => {
@@ -1171,9 +1154,15 @@ export default function ProfileScreen() {
           <Text style={{ color: C.white, fontSize: 20 }}>←</Text>
         </TouchableOpacity>
         <Text style={s.headerTitle}>{t.myProfileTitle}</Text>
-        <TouchableOpacity onPress={toggleDark} style={{ backgroundColor: 'rgba(255,255,255,0.15)', borderRadius: 10, paddingHorizontal: 9, paddingVertical: 6, alignItems: 'center', justifyContent: 'center', width: 36 }}>
-          <Text style={{ fontSize: 16 }}>{dark ? '☀️' : '🌙'}</Text>
+        <TouchableOpacity
+          onPress={() => setA11yOpen(true)}
+          style={{ backgroundColor: 'rgba(255,255,255,0.15)', borderRadius: 10, width: 36, height: 32, alignItems: 'center', justifyContent: 'center' }}
+          accessibilityRole="button"
+          accessibilityLabel={t.accessibilityTitle || 'נגישות'}
+        >
+          <MaterialIcons name="accessibility" size={22} color="#FFFFFF" />
         </TouchableOpacity>
+        <AccessibilityModal visible={a11yOpen} onClose={() => setA11yOpen(false)} />
       </View>
 
       {loading ? (
@@ -1240,12 +1229,14 @@ export default function ProfileScreen() {
                   <TouchableOpacity
                     key={tab}
                     style={[s.tabBtn, activeTab === tab && s.tabBtnActive,
-                      tab === 'urgent' && activeTab !== 'urgent' && urgentRequests.length > 0 && { borderColor: '#7C3AED', borderWidth: 2 }
+                      tab === 'urgent'   && activeTab !== 'urgent'   && urgentRequests.length > 0 && { borderColor: '#7C3AED', borderWidth: 2 },
+                      tab === 'bookings' && activeTab !== 'bookings' && incomingBks.filter((b: any) => b.status === 'pending').length > 0 && { borderColor: '#F59E0B', borderWidth: 2 },
                     ]}
                     onPress={() => setActiveTab(tab)}
                   >
                     <Text style={[s.tabBtnText, activeTab === tab && s.tabBtnTextActive]}>
-                      {tab === 'bookings' ? `📥 ${t.incomingBookings}`
+                      {tab === 'bookings'
+                        ? `📥 ${t.incomingBookings}${incomingBks.filter((b: any) => b.status === 'pending').length > 0 ? ` (${incomingBks.filter((b: any) => b.status === 'pending').length})` : ''}`
                         : tab === 'urgent' ? `${t.urgentTabLabel}${urgentRequests.length > 0 ? ` (${urgentRequests.length})` : ''}`
                         : tab === 'schedule' ? t.scheduleTitle
                         : `👤 ${t.myProfileTitle}`}
@@ -1618,7 +1609,7 @@ export default function ProfileScreen() {
               <View style={s.insuranceCard}>
                 <Text style={s.insuranceCardTitle}>{t.insuranceTitle}</Text>
                 <Text style={s.insuranceCardSub}>{t.insuranceSub}</Text>
-                <TouchableOpacity style={s.insuranceBtnLarge} onPress={() => Linking.openURL('https://www.bitui.co.il')}>
+                <TouchableOpacity style={s.insuranceBtnLarge} onPress={() => Alert.alert(t.insuranceBtn, t.insuranceSub)}>
                   <Text style={s.insuranceBtnLargeText}>{t.insuranceBtn}</Text>
                 </TouchableOpacity>
               </View>
@@ -1657,6 +1648,43 @@ export default function ProfileScreen() {
               </View>
             </View>
           )}
+
+          {/* מצב שמאלי */}
+          <View style={{ paddingHorizontal: 20, paddingTop: 4 }}>
+            <TouchableOpacity
+              style={{
+                flexDirection: 'row',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                backgroundColor: dark ? '#1E293B' : '#F0F9FF',
+                borderRadius: 14,
+                paddingHorizontal: 18,
+                paddingVertical: 14,
+                borderWidth: 1.5,
+                borderColor: flipSide ? '#2563EB' : (dark ? '#334155' : '#BFDBFE'),
+              }}
+              onPress={() => setFlipSide(!flipSide)}
+              activeOpacity={0.8}
+            >
+              <Text style={{ fontSize: 14, fontWeight: '700', color: dark ? '#F1F5F9' : '#1E3A5F', flex: 1 }}>
+                {t.leftHandedMode}
+              </Text>
+              {/* Toggle switch */}
+              <View style={{
+                width: 48, height: 27, borderRadius: 14,
+                backgroundColor: flipSide ? '#2563EB' : (dark ? '#475569' : '#CBD5E1'),
+                justifyContent: 'center',
+                paddingHorizontal: 3,
+              }}>
+                <View style={{
+                  width: 21, height: 21, borderRadius: 11,
+                  backgroundColor: '#FFFFFF',
+                  alignSelf: flipSide ? 'flex-end' : 'flex-start',
+                  shadowColor: '#000', shadowOpacity: 0.2, shadowRadius: 2, elevation: 2,
+                }} />
+              </View>
+            </TouchableOpacity>
+          </View>
 
           {/* כפתור דיווח — סוף הדף */}
           <View style={{ paddingHorizontal: 20, paddingTop: 8, paddingBottom: 32 }}>

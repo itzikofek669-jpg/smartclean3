@@ -20,7 +20,8 @@ import { auth, db } from '../lib/firebase';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { useLanguage } from '../lib/LanguageContext';
 import { Lang } from '../lib/translations';
-import { useTheme } from '../lib/ThemeContext';
+import AccessibilityModal from '../lib/AccessibilityModal';
+import { MaterialIcons } from '@expo/vector-icons';
 
 
 const W = Dimensions.get('window').width;
@@ -398,25 +399,66 @@ function ModalBackHandler({ onBack }: { onBack: () => void }) {
 }
 
 // ─── Drawer ──────────────────────────────────────────────────────────────────
+const PANEL_W = 270;
+
 function DrawerMenu({ visible, onClose, onProfile, onLogout, onMessages, onReport, onSupport }: any) {
-  const { t, lang, setLang } = useLanguage();
+  const { t, lang, setLang, flipSide, setFlipSide } = useLanguage();
   const [showLangs, setShowLangs] = useState(false);
-  const slideAnim = useRef(new Animated.Value(300)).current;
+
+  // ─── מיקום פיזי בפיקסלים — עוקף לגמרי את RTL right/left ───────────────────
+  // flipSide=false → פאנל בצד ימין פיזי:  left = W - PANEL_W
+  // flipSide=true  → פאנל בצד שמאל פיזי: left = 0
+  const panelLeft = flipSide ? 0 : W - PANEL_W;
+  // כיוון אנימציה: יוצא מחוץ למסך ואז נכנס ל-0
+  const offscreen  = flipSide ? -PANEL_W : PANEL_W;
+
+  const slideAnim = useRef(new Animated.Value(offscreen)).current;
 
   useEffect(() => {
+    const off = flipSide ? -PANEL_W : PANEL_W;
     if (visible) {
+      // תמיד נתחיל מחוץ למסך — מונע "תקיעות" אחרי החלפת שפה
+      slideAnim.setValue(off);
       Animated.spring(slideAnim, { toValue: 0, useNativeDriver: true, speed: 20, bounciness: 0 }).start();
     } else {
-      Animated.timing(slideAnim, { toValue: 300, useNativeDriver: true, duration: 200 }).start();
+      Animated.timing(slideAnim, { toValue: off, useNativeDriver: true, duration: 200 }).start();
       setShowLangs(false);
     }
-  }, [visible]);
+  }, [visible, flipSide]);
+
+  // Toggle row helper
+  const ToggleRow = ({ icon, label, value, onToggle }: { icon: string; label: string; value: boolean; onToggle: () => void }) => (
+    <TouchableOpacity
+      style={ds.item}
+      onPress={onToggle}
+      accessibilityRole="switch"
+      accessibilityState={{ checked: value }}
+      accessibilityLabel={label}
+    >
+      <Text style={ds.itemIcon}>{icon}</Text>
+      <Text style={[ds.itemText, { flex: 1 }]}>{label}</Text>
+      <View style={[ds.toggle, value && ds.toggleOn]}>
+        <View style={[ds.toggleThumb, value && ds.toggleThumbOn]} />
+      </View>
+    </TouchableOpacity>
+  );
 
   return (
     <Modal visible={visible} transparent animationType="none" onRequestClose={onClose}>
       <ModalBackHandler onBack={onClose} />
-      <TouchableOpacity style={ds.backdrop} onPress={onClose} activeOpacity={1} />
-      <Animated.View style={[ds.panel, { transform: [{ translateX: slideAnim }] }]}>
+      <TouchableOpacity
+        style={ds.backdrop}
+        onPress={onClose}
+        activeOpacity={1}
+        accessibilityLabel="סגור תפריט"
+        accessibilityRole="button"
+      />
+      {/* left מחושב בפיקסלים פיזיים — לא מושפע מ-RTL כלל */}
+      <Animated.View style={[
+        ds.panel,
+        { left: panelLeft },
+        { transform: [{ translateX: slideAnim }] },
+      ]}>
         {/* header */}
         <View style={ds.panelHeader}>
           <Image
@@ -426,16 +468,27 @@ function DrawerMenu({ visible, onClose, onProfile, onLogout, onMessages, onRepor
           />
         </View>
 
-        <ScrollView style={{ flex: 1 }}>
+        <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingBottom: NAV_BAR_HEIGHT + 24 }} accessibilityLabel="תפריט ניווט">
           {/* profile */}
-          <TouchableOpacity style={ds.item} onPress={() => { onClose(); onProfile(); }}>
+          <TouchableOpacity
+            style={ds.item}
+            onPress={() => { onClose(); onProfile(); }}
+            accessibilityRole="button"
+            accessibilityLabel={t.drawerProfile}
+          >
             <Text style={ds.itemIcon}>👤</Text>
             <Text style={ds.itemText}>{t.drawerProfile}</Text>
             <Text style={ds.itemArrow}>›</Text>
           </TouchableOpacity>
 
           {/* language */}
-          <TouchableOpacity style={ds.item} onPress={() => setShowLangs(v => !v)}>
+          <TouchableOpacity
+            style={ds.item}
+            onPress={() => setShowLangs(v => !v)}
+            accessibilityRole="button"
+            accessibilityLabel={t.drawerLanguage}
+            accessibilityState={{ expanded: showLangs }}
+          >
             <Text style={ds.itemIcon}>🌐</Text>
             <Text style={[ds.itemText, { flex: 1 }]}>{t.drawerLanguage}</Text>
             <Text style={ds.itemArrow}>{showLangs ? '▲' : '▼'}</Text>
@@ -448,6 +501,9 @@ function DrawerMenu({ visible, onClose, onProfile, onLogout, onMessages, onRepor
                   key={l.code}
                   style={[ds.langItem, lang === l.code && ds.langItemActive]}
                   onPress={() => { setLang(l.code); setShowLangs(false); }}
+                  accessibilityRole="radio"
+                  accessibilityState={{ checked: lang === l.code }}
+                  accessibilityLabel={l.nativeName}
                 >
                   <Text style={ds.langFlag}>{l.flag}</Text>
                   <Text style={[ds.langLabel, lang === l.code && { color: C.blue, fontWeight: '700' }]}>{l.label}</Text>
@@ -458,28 +514,60 @@ function DrawerMenu({ visible, onClose, onProfile, onLogout, onMessages, onRepor
           )}
 
           {/* messages */}
-          <TouchableOpacity style={ds.item} onPress={() => { onClose(); onMessages(); }}>
+          <TouchableOpacity
+            style={ds.item}
+            onPress={() => { onClose(); onMessages(); }}
+            accessibilityRole="button"
+            accessibilityLabel={t.drawerMessages}
+          >
             <Text style={ds.itemIcon}>💬</Text>
             <Text style={[ds.itemText, { flex: 1 }]}>{t.drawerMessages}</Text>
             <Text style={ds.itemArrow}>›</Text>
           </TouchableOpacity>
 
           {/* support chatbot */}
-          <TouchableOpacity style={ds.item} onPress={() => { onClose(); onSupport(); }}>
+          <TouchableOpacity
+            style={ds.item}
+            onPress={() => { onClose(); onSupport(); }}
+            accessibilityRole="button"
+            accessibilityLabel="תמיכה"
+          >
             <Text style={ds.itemIcon}>👨‍💼</Text>
             <Text style={[ds.itemText, { flex: 1 }]}>תמיכה</Text>
             <Text style={ds.itemArrow}>›</Text>
           </TouchableOpacity>
 
+          {/* ─── toggles ─────────────────────────────────────────── */}
+          <View style={ds.divider} />
+
+          <ToggleRow
+            icon="✋"
+            label={t.leftHandedMode}
+            value={flipSide}
+            onToggle={() => setFlipSide(!flipSide)}
+          />
+
+          <View style={ds.divider} />
+
           {/* report */}
-          <TouchableOpacity style={ds.item} onPress={onReport}>
+          <TouchableOpacity
+            style={ds.item}
+            onPress={onReport}
+            accessibilityRole="button"
+            accessibilityLabel={t.reportBtn}
+          >
             <Text style={ds.itemIcon}>🚨</Text>
             <Text style={[ds.itemText, { flex: 1, color: '#EF4444' }]}>{t.reportBtn}</Text>
             <Text style={ds.itemArrow}>›</Text>
           </TouchableOpacity>
 
           {/* logout */}
-          <TouchableOpacity style={[ds.item, { marginTop: 12 }]} onPress={() => { onClose(); onLogout(); }}>
+          <TouchableOpacity
+            style={[ds.item, { marginTop: 12 }]}
+            onPress={() => { onClose(); onLogout(); }}
+            accessibilityRole="button"
+            accessibilityLabel={t.drawerLogout}
+          >
             <Text style={ds.itemIcon}>🚪</Text>
             <Text style={[ds.itemText, { color: '#EF4444' }]}>{t.drawerLogout}</Text>
           </TouchableOpacity>
@@ -697,6 +785,45 @@ function CleanerProfile({ cleaner, visible, onClose, onBook, onChat }: any) {
       </SafeAreaView>
       <ReviewsModal cleaner={cleaner} visible={showReviews} onClose={() => setShowReviews(false)} />
     </Modal>
+  );
+}
+
+// ─── Toast ────────────────────────────────────────────────────────────────────
+function Toast({ msg, visible, type = 'success' }: { msg: string; visible: boolean; type?: 'success' | 'error' | 'info' }) {
+  const opacity = useRef(new Animated.Value(0)).current;
+  const translateY = useRef(new Animated.Value(20)).current;
+
+  useEffect(() => {
+    if (visible) {
+      Animated.parallel([
+        Animated.timing(opacity,     { toValue: 1, duration: 280, useNativeDriver: true }),
+        Animated.timing(translateY,  { toValue: 0, duration: 280, useNativeDriver: true }),
+      ]).start();
+    } else {
+      Animated.parallel([
+        Animated.timing(opacity,     { toValue: 0, duration: 220, useNativeDriver: true }),
+        Animated.timing(translateY,  { toValue: 20, duration: 220, useNativeDriver: true }),
+      ]).start();
+    }
+  }, [visible]);
+
+  const bg = type === 'error' ? '#EF4444' : type === 'info' ? '#2563EB' : '#10B981';
+  const icon = type === 'error' ? '✕' : type === 'info' ? 'ℹ️' : '✓';
+
+  return (
+    <Animated.View
+      pointerEvents="none"
+      style={{
+        position: 'absolute', bottom: 90, left: 20, right: 20, zIndex: 9999,
+        backgroundColor: bg, borderRadius: 14, paddingVertical: 14, paddingHorizontal: 18,
+        flexDirection: 'row', alignItems: 'center', gap: 10, elevation: 12,
+        shadowColor: '#000', shadowOpacity: 0.18, shadowRadius: 10,
+        opacity, transform: [{ translateY }],
+      }}
+    >
+      <Text style={{ fontSize: 16, color: '#fff' }}>{icon}</Text>
+      <Text style={{ flex: 1, fontSize: 14, fontWeight: '700', color: '#fff', textAlign: 'right' }}>{msg}</Text>
+    </Animated.View>
   );
 }
 
@@ -1536,10 +1663,17 @@ function ChatModal({ cleaner, visible, onClose }: any) {
 // ─── Cleaner card ─────────────────────────────────────────────────────────────
 function CleanerCard({ cleaner, selected, onSelect, onProfile, onBook, onChat, isPending }: any) {
   const { t } = useLanguage();
-  const { dark } = useTheme();
   const isSel = selected === cleaner.id;
   return (
-    <TouchableOpacity style={[s.card, isSel && s.cardSel, dark && { backgroundColor: '#1E293B', borderColor: '#334155' }]} onPress={() => onSelect(isSel ? null : cleaner.id)} onLongPress={() => onProfile(cleaner)} activeOpacity={0.85}>
+    <TouchableOpacity
+      style={[s.card, isSel && s.cardSel]}
+      onPress={() => onSelect(isSel ? null : cleaner.id)}
+      onLongPress={() => onProfile(cleaner)}
+      activeOpacity={0.85}
+      accessibilityRole="button"
+      accessibilityLabel={`${cleaner.name}${cleaner.rating ? `, דירוג ${cleaner.rating.toFixed(1)}` : ''}${cleaner.available ? ', זמין' : ', לא זמין'}`}
+      accessibilityHint="לחץ לפרטים נוספים, לחיצה ארוכה לפרופיל"
+    >
       <View style={s.cardTop}>
         <TouchableOpacity onPress={() => onProfile(cleaner)}>
           <View style={[s.avatar, !cleaner.available && { opacity: 0.75 }]}>
@@ -1556,13 +1690,13 @@ function CleanerCard({ cleaner, selected, onSelect, onProfile, onBook, onChat, i
         </TouchableOpacity>
         <View style={{ flex: 1, gap: 3 }}>
           <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-            <TouchableOpacity onPress={() => onProfile(cleaner)}><Text style={[s.cardName, dark && { color: '#93C5FD' }]}>{cleaner.name} ›</Text></TouchableOpacity>
-            <View style={[s.priceTag, dark && { backgroundColor: '#1E3A5F' }]}><Text style={[s.priceText, dark && { color: '#93C5FD' }]}>₪{cleaner.price}</Text><Text style={s.priceSub}>{t.perHour}</Text></View>
+            <TouchableOpacity onPress={() => onProfile(cleaner)}><Text style={s.cardName}>{cleaner.name} ›</Text></TouchableOpacity>
+            <View style={s.priceTag}><Text style={s.priceText}>₪{cleaner.price}</Text><Text style={s.priceSub}>{t.perHour}</Text></View>
           </View>
-          <Text style={[s.cardCity, dark && { color: '#94A3B8' }]}>📍 {t.cities[cleaner.city] || cleaner.city}</Text>
+          <Text style={s.cardCity}>📍 {t.cities[cleaner.city] || cleaner.city}</Text>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5, flexWrap: 'wrap' }}>
             <Stars rating={cleaner.rating} size={11} />
-            <Text style={[s.ratingVal, dark && { color: '#F1F5F9' }]}>{cleaner.rating}</Text>
+            <Text style={s.ratingVal}>{cleaner.rating}</Text>
             <TouchableOpacity onPress={() => onProfile(cleaner)}><Text style={s.reviewsLink}>({cleaner.reviews} {t.reviewsSuffix})</Text></TouchableOpacity>
             <View style={[s.availPill, !cleaner.available && s.availPillOff]}>
               <Text style={[s.availPillText, !cleaner.available && { color: C.textSub }]}>{cleaner.available ? t.availPill : t.notAvailPill}</Text>
@@ -1597,16 +1731,29 @@ function CleanerCard({ cleaner, selected, onSelect, onProfile, onBook, onChat, i
             {cleaner.payment.map((p: string) => <View key={p} style={s.payChip}><Text style={s.payChipText}>{PAY_ICONS[p]} {p === 'card' ? t.payCard : p === 'bit' ? t.payBit : t.payCash}</Text></View>)}
           </View>
           <View style={{ flexDirection: 'row', gap: 8 }}>
-            <TouchableOpacity style={s.actionBtn} onPress={() => onProfile(cleaner)}>
+            <TouchableOpacity
+              style={s.actionBtn}
+              onPress={() => onProfile(cleaner)}
+              accessibilityRole="button"
+              accessibilityLabel={`פרופיל של ${cleaner.name}`}
+            >
               <Text style={s.actionBtnText} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7}>{t.profileBtn}</Text>
             </TouchableOpacity>
-            <TouchableOpacity style={s.actionBtn} onPress={() => onChat(cleaner)}>
+            <TouchableOpacity
+              style={s.actionBtn}
+              onPress={() => onChat(cleaner)}
+              accessibilityRole="button"
+              accessibilityLabel={`פתח צ'אט עם ${cleaner.name}`}
+            >
               <Text style={{ fontSize: 26 }}>{t.chatBtnShort}</Text>
             </TouchableOpacity>
             <TouchableOpacity
               style={[s.actionBtnPrimary, (isPending || !cleaner.available) && { backgroundColor: '#94A3B8' }]}
               disabled={isPending || !cleaner.available}
               onPress={() => !isPending && cleaner.available && onBook(cleaner)}
+              accessibilityRole="button"
+              accessibilityLabel={isPending ? 'ממתין לאישור' : cleaner.available ? `הזמן את ${cleaner.name}` : 'לא זמין כרגע'}
+              accessibilityState={{ disabled: isPending || !cleaner.available }}
             >
               {isPending
                 ? <HourglassIcon />
@@ -1616,7 +1763,7 @@ function CleanerCard({ cleaner, selected, onSelect, onProfile, onBook, onChat, i
               }
             </TouchableOpacity>
           </View>
-          <TouchableOpacity style={s.insuranceBtn} onPress={() => Linking.openURL('https://www.bitui.co.il')}>
+          <TouchableOpacity style={s.insuranceBtn} onPress={() => Alert.alert(t.insuranceBtn, t.insuranceSub)}>
             <Text style={s.insuranceBtnText}>{t.insuranceBtn}</Text>
           </TouchableOpacity>
         </View>
@@ -1628,8 +1775,8 @@ function CleanerCard({ cleaner, selected, onSelect, onProfile, onBook, onChat, i
 // ─── Main screen ──────────────────────────────────────────────────────────────
 export default function HomeScreen() {
   const router   = useRouter();
-  const { t, setLang } = useLanguage();
-  const { dark, toggleDark } = useTheme();
+  const { t, setLang, flipSide } = useLanguage();
+  const [a11yOpen, setA11yOpen] = useState(false);
   const insets   = useSafeAreaInsets();
   const mapRef      = useRef<MapView>(null);
   const flatListRef = useRef<FlatList>(null);
@@ -1892,6 +2039,17 @@ export default function HomeScreen() {
   const [mandatoryStars,       setMandatoryStars]       = useState(0);
   const [mandatoryComment,     setMandatoryComment]     = useState('');
   const [mandatorySubmitting,  setMandatorySubmitting]  = useState(false);
+
+  // ── Toast ──────────────────────────────────────────────────────────────────
+  const [toastMsg,     setToastMsg]     = useState('');
+  const [toastVisible, setToastVisible] = useState(false);
+  const [toastType,    setToastType]    = useState<'success' | 'error' | 'info'>('success');
+  const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const showToast = (msg: string, type: 'success' | 'error' | 'info' = 'success') => {
+    if (toastTimer.current) clearTimeout(toastTimer.current);
+    setToastMsg(msg); setToastType(type); setToastVisible(true);
+    toastTimer.current = setTimeout(() => setToastVisible(false), 2800);
+  };
 
   const handleSendReport = async () => {
     if (!reportDesc.trim()) return;
@@ -2275,8 +2433,9 @@ export default function HomeScreen() {
       setPendingReviewBooking(null);
       setMandatoryStars(0);
       setMandatoryComment('');
+      showToast('✅ הביקורת נשלחה — תודה!');
     } catch (_) {
-      Alert.alert(t.error, 'שגיאה בשליחת הביקורת');
+      showToast(t.error + ' — שגיאה בשליחת הביקורת', 'error');
     } finally {
       setMandatorySubmitting(false);
     }
@@ -2297,19 +2456,30 @@ export default function HomeScreen() {
   };
 
   return (
-    <SafeAreaView style={[s.wrap, dark && { backgroundColor: '#0F172A' }]}>
-      <StatusBar barStyle="light-content" backgroundColor={dark ? '#0F172A' : C.blueDark} />
+    <SafeAreaView style={s.wrap}>
+      <StatusBar barStyle="light-content" backgroundColor={C.blueDark} />
 
-      <View style={{ backgroundColor: dark ? '#0F172A' : C.blueDark, flexShrink: 0 }}>
+      <View style={{ backgroundColor: C.blueDark, flexShrink: 0 }}>
         <View style={s.header}>
           <View style={s.headerLogoRow}>
-            <View style={{ flexDirection: 'row', gap: 6, alignItems: 'center' }}>
-              <Text style={s.headerSub}>{filtered.filter(c => c.available).length} {t.availSuffix}</Text>
+            {/* כפתור נגישות — צד שמאל */}
+            <TouchableOpacity
+              onPress={() => setA11yOpen(true)}
+              style={s.a11yBtn}
+              accessibilityRole="button"
+              accessibilityLabel={t.accessibilityTitle || 'נגישות'}
+            >
+              <MaterialIcons name="accessibility" size={22} color="#FFFFFF" />
+            </TouchableOpacity>
 
-              {/* אייקון הודעות עם badge */}
+            {/* כפתורי אמצע */}
+            <View style={{ flexDirection: 'row', gap: 8, alignItems: 'center' }}>
+              {/* הודעות */}
               <TouchableOpacity
                 onPress={() => router.push('/messages')}
                 style={s.msgIconBtn}
+                accessibilityRole="button"
+                accessibilityLabel={unreadCount > 0 ? `הודעות — ${unreadCount} חדשות` : 'הודעות'}
               >
                 <Text style={s.msgIconText}>💬</Text>
                 {unreadCount > 0 && (
@@ -2320,7 +2490,12 @@ export default function HomeScreen() {
               </TouchableOpacity>
 
               {myRole === 'client' && (
-                <TouchableOpacity onPress={() => setFilterVisible(true)} style={[s.urgentHeaderBtn, { backgroundColor: activeFilterCount > 0 ? C.white : 'rgba(255,255,255,0.15)' }]}>
+                <TouchableOpacity
+                  onPress={() => setFilterVisible(true)}
+                  style={[s.urgentHeaderBtn, { backgroundColor: activeFilterCount > 0 ? C.white : 'rgba(255,255,255,0.15)' }]}
+                  accessibilityRole="button"
+                  accessibilityLabel={activeFilterCount > 0 ? `${t.filterBtn} — ${activeFilterCount} פילטרים פעילים` : t.filterBtn}
+                >
                   <Text style={[s.urgentHeaderBtnText, { color: activeFilterCount > 0 ? C.blue : C.white }]}>
                     {t.filterBtn}{activeFilterCount > 0 ? ` (${activeFilterCount})` : ''}
                   </Text>
@@ -2336,14 +2511,16 @@ export default function HomeScreen() {
               )}
             </View>
 
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-              <TouchableOpacity onPress={toggleDark} style={s.darkModeToggle}>
-                <Text style={{ fontSize: 16 }}>{dark ? '☀️' : '🌙'}</Text>
-              </TouchableOpacity>
-              <TouchableOpacity onPress={() => setDrawer(true)} style={s.hamburgerBtn}>
-                <Text style={s.hamburgerText}>≡</Text>
-              </TouchableOpacity>
-            </View>
+            {/* כפתור תפריט — צד ימין */}
+            <TouchableOpacity
+              onPress={() => setDrawer(true)}
+              style={s.hamburgerBtn}
+              accessibilityRole="button"
+              accessibilityLabel="פתח תפריט"
+              accessibilityHint="פותח תפריט ניווט"
+            >
+              <Text style={s.hamburgerText}>≡</Text>
+            </TouchableOpacity>
           </View>
           {/* Free platform banner */}
           <View style={s.freeBanner}>
@@ -2455,7 +2632,7 @@ export default function HomeScreen() {
         </View>
         <FlatList
           ref={flatListRef}
-          style={[s.list, dark && { backgroundColor: '#1E293B' }]} data={filtered} keyExtractor={i => i.id}
+          style={s.list} data={filtered} keyExtractor={i => i.id}
           contentContainerStyle={{ padding: 10, gap: 10 }}
           showsVerticalScrollIndicator={false}
           onScrollToIndexFailed={() => {}}
@@ -2486,6 +2663,8 @@ export default function HomeScreen() {
         }}
       />
       <ChatModal      cleaner={chatWith} visible={!!chatWith} onClose={() => setChatWith(null)} />
+      <AccessibilityModal visible={a11yOpen} onClose={() => setA11yOpen(false)} />
+      <Toast msg={toastMsg} visible={toastVisible} type={toastType} />
       <DrawerMenu
         visible={drawer}
         onClose={() => setDrawer(false)}
@@ -2505,7 +2684,7 @@ export default function HomeScreen() {
               <Text style={{ color: C.white, fontSize: 18 }}>✕</Text>
             </TouchableOpacity>
             <Text style={s.modalTitle}>{t.filterTitle}</Text>
-            <TouchableOpacity onPress={() => { setFilterMinRating(0); setFilterMaxPrice(999); setFilterAvailOnly(false); setFilterTypes([]); setFilterCity(''); setRegion('all'); }} style={s.closeBtn}>
+            <TouchableOpacity onPress={() => { setFilterMinRating(0); setFilterMaxPrice(999); setFilterAvailOnly(false); setFilterTypes([]); setFilterCity(''); setRegion('all'); setFilterVisible(false); showToast(t.filterReset, 'info'); }} style={s.closeBtn}>
               <Text style={{ color: C.white, fontSize: 11, fontWeight: '700' }}>{t.filterReset}</Text>
             </TouchableOpacity>
           </View>
@@ -2910,25 +3089,31 @@ export default function HomeScreen() {
 
 // ─── Drawer styles ────────────────────────────────────────────────────────────
 const ds = StyleSheet.create({
-  backdrop:       { position: 'absolute', top: 0, bottom: 0, left: 0, right: 0, backgroundColor: 'rgba(0,0,0,0.45)' },
-  panel:          { position: 'absolute', top: 0, bottom: 0, right: 0, width: 270, backgroundColor: C.white, elevation: 20 },
-  panelHeader:    { backgroundColor: C.white, padding: 28, paddingTop: 50, alignItems: 'center', gap: 8, borderBottomWidth: 1, borderBottomColor: C.grayBorder },
-  panelLogo:      { fontSize: 40 },
-  panelAppName:   { fontSize: 20, fontWeight: '900', color: C.blueDark },
-  item:           { flexDirection: 'row', alignItems: 'center', padding: 18, borderBottomWidth: 1, borderBottomColor: C.grayBorder },
-  itemIcon:       { fontSize: 20, marginRight: 14 },
-  itemText:       { fontSize: 15, fontWeight: '600', color: C.textDark },
-  itemArrow:      { fontSize: 16, color: C.textSub, marginLeft: 'auto' },
-  langList:       { backgroundColor: C.bluePale, paddingVertical: 4 },
-  langItem:       { flexDirection: 'row', alignItems: 'center', paddingVertical: 12, paddingHorizontal: 24, gap: 12 },
-  langItemActive: { backgroundColor: C.blueLight },
-  langFlag:       { fontSize: 22 },
-  langLabel:      { fontSize: 14, fontWeight: '600', color: C.textDark, flex: 1 },
+  backdrop:        { position: 'absolute', top: 0, bottom: 0, left: 0, right: 0, backgroundColor: 'rgba(0,0,0,0.45)' },
+  // left מחושב בפיקסלים פיזיים ב-inline style — אין right/left כאן בכלל
+  panel:           { position: 'absolute', top: 0, bottom: 0, width: PANEL_W, backgroundColor: C.white, elevation: 20, shadowColor: '#000', shadowOpacity: 0.2, shadowRadius: 12 },
+  panelHeader:     { backgroundColor: C.white, padding: 28, paddingTop: 50, alignItems: 'center', gap: 8, borderBottomWidth: 1, borderBottomColor: C.grayBorder },
+  panelLogo:       { fontSize: 40 },
+  panelAppName:    { fontSize: 20, fontWeight: '900', color: C.blueDark },
+  item:            { flexDirection: 'row', alignItems: 'center', padding: 18, borderBottomWidth: 1, borderBottomColor: C.grayBorder },
+  itemIcon:        { fontSize: 20, marginRight: 14 },
+  itemText:        { fontSize: 15, fontWeight: '600', color: C.textDark },
+  itemArrow:       { fontSize: 16, color: C.textSub, marginLeft: 'auto' },
+  langList:        { backgroundColor: C.bluePale, paddingVertical: 4 },
+  langItem:        { flexDirection: 'row', alignItems: 'center', paddingVertical: 12, paddingHorizontal: 24, gap: 12 },
+  langItemActive:  { backgroundColor: C.blueLight },
+  langFlag:        { fontSize: 22 },
+  langLabel:       { fontSize: 14, fontWeight: '600', color: C.textDark, flex: 1 },
+  divider:         { height: 1, backgroundColor: C.grayBorder, marginVertical: 6 },
+  toggle:          { width: 44, height: 24, borderRadius: 12, backgroundColor: '#CBD5E1', justifyContent: 'center', paddingHorizontal: 3 },
+  toggleOn:        { backgroundColor: C.blue },
+  toggleThumb:     { width: 18, height: 18, borderRadius: 9, backgroundColor: '#FFFFFF', alignSelf: 'flex-start', elevation: 2 },
+  toggleThumbOn:   { alignSelf: 'flex-end' },
 });
 
 // ─── Main styles ──────────────────────────────────────────────────────────────
 const s = StyleSheet.create({
-  wrap:         { flex: 1, backgroundColor: C.bluePale, direction: 'ltr' },
+  wrap:         { flex: 1, backgroundColor: C.bluePale },
   header:       { backgroundColor: C.blueDark, paddingHorizontal: 14, paddingTop: Platform.OS === 'android' ? (StatusBar.currentHeight ?? 0) + 6 : 14, paddingBottom: 10 },
   headerLogoRow:{ marginBottom: 10, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   headerTitle:  { fontSize: 24, fontWeight: '900', color: C.white, letterSpacing: -0.5, flex: 1, textAlign: 'center' },
@@ -2994,6 +3179,7 @@ const s = StyleSheet.create({
   insuranceBtnText: { fontSize: 12, fontWeight: '700', color: '#1D4ED8' },
   urgentHeaderBtn:  { backgroundColor: '#7C3AED', borderRadius: 10, paddingHorizontal: 10, paddingVertical: 6 },
   darkModeToggle:   { backgroundColor: 'rgba(255,255,255,0.15)', borderRadius: 10, paddingHorizontal: 9, paddingVertical: 6, alignItems: 'center', justifyContent: 'center' },
+  a11yBtn:          { backgroundColor: 'rgba(255,255,255,0.15)', borderRadius: 10, width: 36, height: 32, alignItems: 'center', justifyContent: 'center' },
   urgentHeaderBtnText: { fontSize: 13, color: C.white, fontWeight: '900' },
   empty:        { textAlign: 'center', color: C.textSub, fontSize: 14, marginTop: 40 },
   modalHeader:  { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: C.blueDark, padding: 16 },

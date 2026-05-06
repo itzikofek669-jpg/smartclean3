@@ -26,6 +26,9 @@ export default function BottomTabBar() {
               if (!active) router.replace(tab.route);
             }}
             activeOpacity={0.7}
+            accessibilityRole="tab"
+            accessibilityLabel={tab.label}
+            accessibilityState={{ selected: active }}
           >
             <Text style={[s.icon, active && s.iconActive]}>{tab.icon}</Text>
             <Text style={[s.label, active && s.labelActive]}>{tab.label}</Text>

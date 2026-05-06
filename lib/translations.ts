@@ -431,8 +431,8 @@ const he = {
 
   // Insurance
   insuranceBtn:   '🛡️ ביטוח',
-  insuranceTitle: 'ביטוח CLEANTOUCH',
-  insuranceSub:   'הזמנות מוגנות — לחץ לפרטים',
+  insuranceTitle: 'ביטוח הזמנות',
+  insuranceSub:   'בעתיד תוכלו לבטח את ההזמנות שלכם דרך האפליקציה — בקרוב!',
 
   // Urgent cleaning
   urgentBtn:          '⚡ ניקוי דחוף',
@@ -457,9 +457,18 @@ const he = {
   urgentPushBody:     'לקוח מחפש מנקה — לחץ לפרטים',
 
   // Exit app
-  exitTitle:   'יציאה מהאפליקציה',
-  exitMsg:     'האם אתה בטוח שברצונך לצאת?',
-  exitConfirm: 'צא',
+  exitTitle:          'יציאה מהאפליקציה',
+  exitMsg:            'האם אתה בטוח שברצונך לצאת?',
+  exitConfirm:        'צא',
+  leftHandedMode:     '✋ מצב שמאלי — הפוך צד',
+  leftHandedSub:      'מזיז כפתורים לצד שמאל',
+  accessibilityTitle: 'נגישות',
+  accessibilityBtn:   '♿',
+  darkModeLabel:      'מצב לילה',
+  lightMode:          'מצב יום',
+  highContrastLabel:  'ניגודיות גבוהה',
+  highContrastSub:    'מגביר ניגוד צבעים לקריאה טובה יותר',
+  textSizeLabel:      'גודל טקסט',
 };
 
 const en: typeof he = {
@@ -741,8 +750,8 @@ const en: typeof he = {
 
   // Insurance
   insuranceBtn:   '🛡️ Insurance',
-  insuranceTitle: 'CLEANTOUCH Insurance',
-  insuranceSub:   'Bookings are protected — tap for details',
+  insuranceTitle: 'Booking Insurance',
+  insuranceSub:   'In the future you will be able to insure your bookings through the app — coming soon!',
 
   urgentBtn:          '⚡ Express Cleaning',
   urgentTitle:        'Express Cleaning Request',
@@ -766,9 +775,18 @@ const en: typeof he = {
   urgentPushBody:     'A client is looking for a cleaner — tap for details',
 
   // Exit app
-  exitTitle:   'Exit App',
-  exitMsg:     'Are you sure you want to exit?',
-  exitConfirm: 'Exit',
+  exitTitle:      'Exit App',
+  exitMsg:        'Are you sure you want to exit?',
+  exitConfirm:    'Exit',
+  leftHandedMode:     '✋ Left-Handed Mode — Flip Side',
+  leftHandedSub:      'Moves buttons to the left side',
+  accessibilityTitle: 'Accessibility',
+  accessibilityBtn:   '♿',
+  darkModeLabel:      'Dark Mode',
+  lightMode:          'Light Mode',
+  highContrastLabel:  'High Contrast',
+  highContrastSub:    'Increases color contrast for better readability',
+  textSizeLabel:      'Text Size',
 };
 
 const ru: typeof he = {
@@ -1049,8 +1067,8 @@ const ru: typeof he = {
 
   // Insurance
   insuranceBtn:   '🛡️ Страховка',
-  insuranceTitle: 'Страховка CLEANTOUCH',
-  insuranceSub:   'Заказы защищены — нажмите для деталей',
+  insuranceTitle: 'Страховка заказов',
+  insuranceSub:   'В будущем вы сможете застраховать заказы через приложение — скоро!',
 
   urgentBtn:          '⚡ Срочная уборка',
   urgentTitle:        'Срочный запрос на уборку',
@@ -1076,7 +1094,16 @@ const ru: typeof he = {
   // Exit app
   exitTitle:   'Выход из приложения',
   exitMsg:     'Вы уверены, что хотите выйти?',
-  exitConfirm: 'Выйти',
+  exitConfirm:    'Выйти',
+  leftHandedMode:     '✋ Левша — зеркало',
+  leftHandedSub:      'Кнопки переходят на левую сторону',
+  accessibilityTitle: 'Доступность',
+  accessibilityBtn:   '♿',
+  darkModeLabel:      'Тёмный режим',
+  lightMode:          'Светлый режим',
+  highContrastLabel:  'Высокий контраст',
+  highContrastSub:    'Усиливает контрастность для лучшей читаемости',
+  textSizeLabel:      'Размер текста',
 };
 
 const ar: typeof he = {
@@ -1357,8 +1384,8 @@ const ar: typeof he = {
 
   // Insurance
   insuranceBtn:   '🛡️ تأمين',
-  insuranceTitle: 'تأمين CLEANTOUCH',
-  insuranceSub:   'الحجوزات محمية — انقر للتفاصيل',
+  insuranceTitle: 'تأمين الحجوزات',
+  insuranceSub:   'في المستقبل ستتمكن من تأمين حجوزاتك عبر التطبيق — قريباً!',
 
   urgentBtn:          '⚡ تنظيف عاجل',
   urgentTitle:        'طلب تنظيف عاجل',
@@ -1384,7 +1411,16 @@ const ar: typeof he = {
   // Exit app
   exitTitle:   'الخروج من التطبيق',
   exitMsg:     'هل أنت متأكد من الخروج؟',
-  exitConfirm: 'خروج',
+  exitConfirm:    'خروج',
+  leftHandedMode:     '✋ وضع الأيسر — عكس الجانب',
+  leftHandedSub:      'تنقل الأزرار إلى الجانب الأيسر',
+  accessibilityTitle: 'إمكانية الوصول',
+  accessibilityBtn:   '♿',
+  darkModeLabel:      'الوضع الليلي',
+  lightMode:          'الوضع النهاري',
+  highContrastLabel:  'تباين عالٍ',
+  highContrastSub:    'يزيد تباين الألوان لقراءة أفضل',
+  textSizeLabel:      'حجم النص',
 };
 
 const fr: typeof he = {
@@ -1607,8 +1643,8 @@ const fr: typeof he = {
 
   // Insurance
   insuranceBtn:   '🛡️ Assurance',
-  insuranceTitle: 'Assurance CLEANTOUCH',
-  insuranceSub:   'Réservations protégées — appuyez pour les détails',
+  insuranceTitle: 'Assurance des réservations',
+  insuranceSub:   "À l'avenir, vous pourrez assurer vos réservations via l'application — bientôt !",
 
   urgentBtn:          '⚡ Nettoyage express',
   urgentTitle:        'Demande de nettoyage express',
@@ -1634,7 +1670,16 @@ const fr: typeof he = {
   // Exit app
   exitTitle:   'Quitter l\'application',
   exitMsg:     'Êtes-vous sûr de vouloir quitter ?',
-  exitConfirm: 'Quitter',
+  exitConfirm:    'Quitter',
+  leftHandedMode:     '✋ Mode gaucher — inverser',
+  leftHandedSub:      'Déplace les boutons à gauche',
+  accessibilityTitle: 'Accessibilité',
+  accessibilityBtn:   '♿',
+  darkModeLabel:      'Mode sombre',
+  lightMode:          'Mode clair',
+  highContrastLabel:  'Contraste élevé',
+  highContrastSub:    'Améliore le contraste pour une meilleure lisibilité',
+  textSizeLabel:      'Taille du texte',
 };
 
 const hi: typeof he = {
@@ -1857,8 +1902,8 @@ const hi: typeof he = {
 
   // Insurance
   insuranceBtn:   '🛡️ बीमा',
-  insuranceTitle: 'CLEANTOUCH बीमा',
-  insuranceSub:   'बुकिंग सुरक्षित है — विवरण के लिए टैप करें',
+  insuranceTitle: 'बुकिंग बीमा',
+  insuranceSub:   'भविष्य में आप ऐप के ज़रिए अपनी बुकिंग का बीमा कर सकेंगे — जल्द आ रहा है!',
 
   urgentBtn:          '⚡ अर्जेंट सफाई',
   urgentTitle:        'अर्जेंट सफाई अनुरोध',
@@ -1884,7 +1929,16 @@ const hi: typeof he = {
   // Exit app
   exitTitle:   'ऐप से बाहर निकलें',
   exitMsg:     'क्या आप वाकई बाहर निकलना चाहते हैं?',
-  exitConfirm: 'बाहर निकलें',
+  exitConfirm:    'बाहर निकलें',
+  leftHandedMode:     '✋ बाएं हाथ का मोड — पलटें',
+  leftHandedSub:      'बटन बाईं ओर ले जाता है',
+  accessibilityTitle: 'सुलभता',
+  accessibilityBtn:   '♿',
+  darkModeLabel:      'डार्क मोड',
+  lightMode:          'लाइट मोड',
+  highContrastLabel:  'उच्च कंट्रास्ट',
+  highContrastSub:    'बेहतर पठनीयता के लिए रंग कंट्रास्ट बढ़ाता है',
+  textSizeLabel:      'टेक्स्ट आकार',
 };
 
 const translations = { he, en, ru, ar, fr, hi };
