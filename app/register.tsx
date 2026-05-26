@@ -317,7 +317,7 @@ export default function RegisterScreen() {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
               token:        'e6v2dd4dayk5rhay',
-              name:         `🧹 CleanTouch — ${name.trim()}`,
+              name:         `🧹 A&M Clean — ${name.trim()}`,
               participants: normalized,
             }),
           });

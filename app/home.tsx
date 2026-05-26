@@ -219,15 +219,18 @@ const BADGE_COLORS: Record<string, { bg: string; color: string }> = {
   verified:     { bg: '#D1FAE5', color: '#059669' },
   newCleaner:   { bg: '#E0F2FE', color: '#0284C7' },
 };
-const PAY_ICONS: Record<string, string> = { card: '💳', bit: '📱', cash: '💵' };
+const PAY_ICONS:   Record<string, string> = { bit: '📱', cash: '💵', paybox: '💙' };
+const PAY_LABELS:  Record<string, string> = { bit: 'Bit', cash: 'מזומן', paybox: 'Paybox' };
+// card מוסר מהמערכת — לא מוצג
+const SHOWN_PAYMENTS = (payments: string[]) => payments.filter(p => ['bit','cash','paybox'].includes(p));
 
-const LANGS: { code: Lang; label: string; flag: string }[] = [
-  { code: 'he', label: 'עברית',    flag: '🇮🇱' },
-  { code: 'en', label: 'English',  flag: '🇬🇧' },
-  { code: 'ru', label: 'Русский',  flag: '🇷🇺' },
-  { code: 'ar', label: 'العربية', flag: '🇸🇦' },
-  { code: 'fr', label: 'Français', flag: '🇫🇷' },
-  { code: 'hi', label: 'हिन्दी',  flag: '🇮🇳' },
+const LANGS: { code: Lang; label: string; flag: string; nativeName: string }[] = [
+  { code: 'he', label: 'עברית',    flag: '🇮🇱', nativeName: 'עברית' },
+  { code: 'en', label: 'English',  flag: '🇬🇧', nativeName: 'English' },
+  { code: 'ru', label: 'Русский',  flag: '🇷🇺', nativeName: 'Русский' },
+  { code: 'ar', label: 'العربية', flag: '🇸🇦', nativeName: 'العربية' },
+  { code: 'fr', label: 'Français', flag: '🇫🇷', nativeName: 'Français' },
+  { code: 'hi', label: 'हिन्दी',  flag: '🇮🇳', nativeName: 'हिन्दी' },
 ];
 
 const NEARBY_KM = 30;
@@ -263,10 +266,26 @@ const CITY_COORDS: Record<string, { lat: number; lng: number }> = {
   'עמק יזרעאל':    { lat: 32.600, lng: 35.200 }, 'בית שמש':        { lat: 31.743, lng: 34.988 },
   'מעלה אדומים':   { lat: 31.773, lng: 35.296 }, 'אריאל':          { lat: 32.106, lng: 35.167 },
   'זכרון יעקב':    { lat: 32.568, lng: 34.953 }, 'פרדס חנה':       { lat: 32.471, lng: 34.964 },
-  'קריית שמונה':    { lat: 33.207, lng: 35.570 }, 'מגדל העמק':      { lat: 32.677, lng: 35.238 },
+  'מגדל העמק':      { lat: 32.677, lng: 35.238 },
   'שדרות':          { lat: 31.524, lng: 34.596 }, 'נתיבות':         { lat: 31.421, lng: 34.594 },
   'דימונה':         { lat: 31.069, lng: 35.033 }, 'ערד':            { lat: 31.258, lng: 35.214 },
   'מצפה רמון':     { lat: 30.612, lng: 34.803 }, 'אופקים':         { lat: 31.312, lng: 34.620 },
+  'נשר':              { lat: 32.772, lng: 35.031 }, 'נוף הגליל':       { lat: 32.706, lng: 35.318 },
+  'שפרעם':            { lat: 32.804, lng: 35.169 }, 'צפת':             { lat: 32.965, lng: 35.497 },
+  'בית שאן':          { lat: 32.498, lng: 35.499 }, 'יוקנעם':          { lat: 32.658, lng: 35.106 },
+  'סחנין':            { lat: 32.856, lng: 35.302 }, 'טמרה':            { lat: 32.862, lng: 35.197 },
+  'אום אל-פחם':       { lat: 32.526, lng: 35.152 }, 'מגד אל-כרום':    { lat: 32.908, lng: 35.255 },
+  'באקה אל-גרביה':   { lat: 32.418, lng: 35.042 }, 'כפר קאסם':       { lat: 32.116, lng: 34.977 },
+  'קלנסווה':          { lat: 32.284, lng: 34.978 }, 'טייבה':           { lat: 32.241, lng: 34.997 },
+  'אור עקיבא':        { lat: 32.508, lng: 34.921 }, 'פרדס חנה-כרכור': { lat: 32.471, lng: 34.968 },
+  'חדרה':             { lat: 32.435, lng: 34.919 }, 'כפר יונה':        { lat: 32.322, lng: 34.939 },
+  'קדימה-צורן':       { lat: 32.274, lng: 34.923 }, 'רמת השרון':       { lat: 32.146, lng: 34.840 },
+  'יהוד-מונוסון':    { lat: 32.030, lng: 34.888 }, 'גני תקווה':       { lat: 32.062, lng: 34.875 },
+  'שוהם':             { lat: 31.998, lng: 34.942 }, 'אזור':            { lat: 32.020, lng: 34.818 },
+  'מבשרת ציון':       { lat: 31.808, lng: 35.156 }, 'גבעת זאב':        { lat: 31.869, lng: 35.168 },
+  'ביתר עלית':        { lat: 31.697, lng: 35.120 }, 'מודיעין עלית':    { lat: 31.930, lng: 35.043 },
+  'רהט':              { lat: 31.393, lng: 34.754 }, 'ירוחם':           { lat: 30.987, lng: 34.930 },
+  'קיסריה':           { lat: 32.500, lng: 34.907 }, 'רעננה':           { lat: 32.184, lng: 34.871 },
 };
 const REGION_CENTER: Record<string, { lat: number; lng: number }> = {
   north:  { lat: 32.8,  lng: 35.2  },
@@ -326,7 +345,7 @@ async function createWhatsAppGroup(cleanerName: string, cleanerPhone: string, cl
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         token:        UM_TOKEN,
-        name:         `🧹 CleanTouch — ${cleanerName}`,
+        name:         `🧹 A&M Clean — ${cleanerName}`,
         participants: normalized,
       }),
     });
@@ -727,7 +746,7 @@ function CleanerProfile({ cleaner, visible, onClose, onBook, onChat }: any) {
           <View style={s.profileSection}>
             <Text style={s.profileSectionTitle}>{t.paymentLabel}</Text>
             <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
-              {cleaner.payment.map((p: string) => <View key={p} style={s.payPill}><Text style={s.payPillText}>{PAY_ICONS[p]} {p === 'card' ? t.payCard : p === 'bit' ? t.payBit : t.payCash}</Text></View>)}
+              {SHOWN_PAYMENTS(cleaner.payment).map((p: string) => <View key={p} style={s.payPill}><Text style={s.payPillText}>{PAY_ICONS[p] ?? '💵'} {PAY_LABELS[p] ?? p}</Text></View>)}
             </View>
           </View>
           <View style={s.profileSection}>
@@ -873,7 +892,7 @@ function AddressAutocomplete({ value, onChange, placeholder, onFocus }: {
       try {
         const url = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(text)}&format=json&countrycodes=il&limit=6&addressdetails=1&accept-language=he`;
         const res = await fetch(url, {
-          headers: { 'User-Agent': 'CleanTouchApp/1.0' },
+          headers: { 'User-Agent': 'A&M CleanApp/1.0' },
         });
         const json = await res.json();
         if (json && json.length > 0) {
@@ -1035,6 +1054,153 @@ function CalendarPicker({ visible, value, onChange, onClose }: {
   );
 }
 
+// ─── Multi-Date Calendar (בחירת מספר תאריכים להזמנה חוזרת) ──────────────────
+function MultiCalendarPicker({ selected, onChange, label }: {
+  selected: string[]; onChange: (dates: string[]) => void; label: string;
+}) {
+  const today = new Date(); today.setHours(0,0,0,0);
+  const [viewYear,  setViewYear]  = useState(today.getFullYear());
+  const [viewMonth, setViewMonth] = useState(today.getMonth());
+  const [open, setOpen] = useState(false);
+
+  const prevMonth = () => {
+    if (viewMonth === 0) { setViewMonth(11); setViewYear(y => y - 1); }
+    else setViewMonth(m => m - 1);
+  };
+  const nextMonth = () => {
+    if (viewMonth === 11) { setViewMonth(0); setViewYear(y => y + 1); }
+    else setViewMonth(m => m + 1);
+  };
+
+  const firstDay   = new Date(viewYear, viewMonth, 1).getDay();
+  const daysInMonth = new Date(viewYear, viewMonth + 1, 0).getDate();
+  const cells: (number | null)[] = [
+    ...Array(firstDay).fill(null),
+    ...Array.from({ length: daysInMonth }, (_, i) => i + 1),
+  ];
+  while (cells.length % 7 !== 0) cells.push(null);
+
+  const toggle = (day: number) => {
+    const key = `${viewYear}-${String(viewMonth+1).padStart(2,'0')}-${String(day).padStart(2,'0')}`;
+    if (selected.includes(key)) onChange(selected.filter(d => d !== key));
+    else onChange([...selected, key].sort());
+  };
+
+  const fmtDateKey = (key: string) => {
+    const [y, m, d] = key.split('-');
+    return `${d}/${m}/${y.slice(2)}`;
+  };
+
+  return (
+    <View>
+      {/* כפתור פתיחה */}
+      <TouchableOpacity
+        style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+          backgroundColor: open ? '#2563EB' : '#F1F5F9', borderRadius: 12, padding: 12,
+          borderWidth: 1, borderColor: open ? '#2563EB' : '#B5D4F4' }}
+        onPress={() => setOpen(o => !o)}
+      >
+        <Text style={{ fontSize: 13, fontWeight: '700', color: open ? '#fff' : '#042C53' }}>
+          📅 {label}{selected.length > 0 ? ` (${selected.length})` : ''}
+        </Text>
+        <Text style={{ fontSize: 16, color: open ? '#fff' : '#6B9DC2' }}>{open ? '▲' : '▼'}</Text>
+      </TouchableOpacity>
+
+      {/* תאריכים שנבחרו */}
+      {selected.length > 0 && (
+        <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 8 }}>
+          {selected.map(k => (
+            <TouchableOpacity key={k}
+              style={{ backgroundColor: '#EFF6FF', borderRadius: 20, paddingHorizontal: 10, paddingVertical: 4,
+                borderWidth: 1, borderColor: '#2563EB', flexDirection: 'row', alignItems: 'center', gap: 4 }}
+              onPress={() => onChange(selected.filter(d => d !== k))}
+            >
+              <Text style={{ fontSize: 12, color: '#2563EB', fontWeight: '700' }}>{fmtDateKey(k)}</Text>
+              <Text style={{ fontSize: 11, color: '#2563EB' }}>✕</Text>
+            </TouchableOpacity>
+          ))}
+          <TouchableOpacity
+            style={{ backgroundColor: '#FEE2E2', borderRadius: 20, paddingHorizontal: 10, paddingVertical: 4 }}
+            onPress={() => onChange([])}
+          >
+            <Text style={{ fontSize: 12, color: '#EF4444', fontWeight: '700' }}>נקה הכל</Text>
+          </TouchableOpacity>
+        </View>
+      )}
+
+      {/* לוח שנה */}
+      {open && (
+        <View style={{ backgroundColor: '#fff', borderRadius: 16, padding: 16, marginTop: 8,
+          borderWidth: 1, borderColor: '#E2EAF3',
+          shadowColor: '#000', shadowOpacity: 0.08, shadowRadius: 8, elevation: 4 }}>
+
+          {/* ניווט חודש */}
+          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+            <TouchableOpacity onPress={prevMonth} style={{ padding: 8 }}>
+              <Text style={{ fontSize: 22, color: '#2563EB', fontWeight: '900' }}>‹</Text>
+            </TouchableOpacity>
+            <Text style={{ fontSize: 15, fontWeight: '900', color: '#1E3A5F' }}>
+              {MONTHS_HE[viewMonth]} {viewYear}
+            </Text>
+            <TouchableOpacity onPress={nextMonth} style={{ padding: 8 }}>
+              <Text style={{ fontSize: 22, color: '#2563EB', fontWeight: '900' }}>›</Text>
+            </TouchableOpacity>
+          </View>
+
+          {/* שמות ימים */}
+          <View style={{ flexDirection: 'row', marginBottom: 4 }}>
+            {DAYS_HE.map(d => (
+              <View key={d} style={{ flex: 1, alignItems: 'center' }}>
+                <Text style={{ fontSize: 11, fontWeight: '700', color: '#94A3B8' }}>{d}</Text>
+              </View>
+            ))}
+          </View>
+
+          {/* גריד */}
+          {Array.from({ length: cells.length / 7 }, (_, row) => (
+            <View key={row} style={{ flexDirection: 'row', marginBottom: 2 }}>
+              {cells.slice(row * 7, row * 7 + 7).map((day, col) => {
+                if (!day) return <View key={col} style={{ flex: 1 }} />;
+                const cellDate = new Date(viewYear, viewMonth, day);
+                cellDate.setHours(0,0,0,0);
+                const isPast = cellDate < today;
+                const key = `${viewYear}-${String(viewMonth+1).padStart(2,'0')}-${String(day).padStart(2,'0')}`;
+                const isSel  = selected.includes(key);
+                const isToday2 = cellDate.getTime() === today.getTime();
+                return (
+                  <TouchableOpacity key={col} disabled={isPast}
+                    onPress={() => toggle(day)}
+                    style={{ flex: 1, aspectRatio: 1, alignItems: 'center', justifyContent: 'center',
+                      borderRadius: 100,
+                      backgroundColor: isSel ? '#2563EB' : isToday2 ? '#EFF6FF' : 'transparent',
+                      margin: 1 }}
+                  >
+                    <Text style={{ fontSize: 13, fontWeight: isSel || isToday2 ? '900' : '400',
+                      color: isPast ? '#CBD5E1' : isSel ? '#fff' : isToday2 ? '#2563EB' : '#1E3A5F' }}>
+                      {day}
+                    </Text>
+                    {isSel && (
+                      <View style={{ position: 'absolute', bottom: 2, width: 4, height: 4, borderRadius: 2, backgroundColor: '#93C5FD' }} />
+                    )}
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+          ))}
+
+          {/* כפתור סגירה */}
+          <TouchableOpacity onPress={() => setOpen(false)}
+            style={{ marginTop: 12, backgroundColor: '#2563EB', borderRadius: 12, padding: 11, alignItems: 'center' }}>
+            <Text style={{ color: '#fff', fontWeight: '700', fontSize: 14 }}>
+              {selected.length > 0 ? `✓ אישור (${selected.length} תאריכים)` : 'סגור'}
+            </Text>
+          </TouchableOpacity>
+        </View>
+      )}
+    </View>
+  );
+}
+
 // ─── Spinner Picker (+/−) ─────────────────────────────────────────────────────
 function SpinnerPicker({ value, onChange, values, display }: {
   value: number; onChange: (v: number) => void; values: number[]; display?: (v: number) => string;
@@ -1076,18 +1242,22 @@ function HoursWheelPicker({ value, onChange, values }: { value: number; onChange
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-function BookingModal({ cleaner, visible, onClose, onBookingCreated }: any) {
+function BookingModal({ cleaner, visible, onClose, onBookingCreated, existingBookings }: any) {
   const { t }  = useLanguage();
   const router = useRouter();
   const bookingScrollRef = useRef<ScrollView>(null);
   const [hours,         setHours]         = useState(2);
-  const [payment,       setPayment]       = useState('cash');
+  const defaultPayment = SHOWN_PAYMENTS(cleaner?.payment || []).includes('cash')
+    ? 'cash'
+    : (SHOWN_PAYMENTS(cleaner?.payment || [])[0] || 'cash');
+  const [payment,       setPayment]       = useState(defaultPayment);
   const [address,       setAddress]       = useState('');
   const [saving,        setSaving]        = useState(false);
   const [bookingDate,   setBookingDate]   = useState<Date>(new Date());
   const [showDatePicker,setShowDatePicker]= useState(false);
   const [startHour,     setStartHour]     = useState(9);
   const [recurring,     setRecurring]     = useState<'once' | 'weekly' | 'monthly'>('once');
+  const [recurringDates, setRecurringDates] = useState<string[]>([]);
   const [serviceType,   setServiceType]   = useState<string>('');
   const [showSuccess,   setShowSuccess]   = useState(false);
   const [bookedDetails, setBookedDetails] = useState<{ name: string; hours: number; total: number } | null>(null);
@@ -1112,6 +1282,7 @@ function BookingModal({ cleaner, visible, onClose, onBookingCreated }: any) {
   }, [bookingDate]);
   const [pendingBookingId, setPendingBookingId] = useState<string | null>(null);
   const [cancellingBooking, setCancellingBooking] = useState(false);
+  const unsubBookingRef = useRef<(() => void) | null>(null);
 
   // Dynamic pricing: if cleaner has servicePricing, use it; else use cleaner.price
   const effectivePrice = cleaner
@@ -1131,6 +1302,32 @@ function BookingModal({ cleaner, visible, onClose, onBookingCreated }: any) {
     selectedDateTime.setHours(Math.floor(startHour), startHour % 1 === 0.5 ? 30 : 0, 0, 0);
     if (selectedDateTime <= new Date()) {
       return Alert.alert(t.error, 'לא ניתן להזמין לשעה שכבר עברה — בחר שעה עתידית');
+    }
+
+    // ── ולידציה: אין הזמנה כפולה באותן שעות ──────────────────────────────
+    const propStart = selectedDateTime.getTime();
+    const propEnd   = propStart + hours * 3600000;
+    const overlapping = (existingBookings || []).find((b: any) => {
+      if (!['pending','confirmed','active','onway'].includes(b.status)) return false;
+      // חשב חלון של ההזמנה הקיימת
+      let bStart: number, bEnd: number;
+      if (b.busyFrom && b.busyUntil) {
+        bStart = new Date(b.busyFrom).getTime();
+        bEnd   = new Date(b.busyUntil).getTime();
+      } else if (b.bookingDate && b.startTime) {
+        const [bHH, bMM] = (b.startTime as string).split(':').map(Number);
+        const bDate = new Date(b.bookingDate);
+        bDate.setHours(bHH, bMM, 0, 0);
+        bStart = bDate.getTime();
+        bEnd   = bStart + (b.hours || 2) * 3600000;
+      } else return false;
+      return propStart < bEnd && propEnd > bStart;
+    });
+    if (overlapping) {
+      return Alert.alert(
+        t.error,
+        `כבר יש לך הזמנה פעילה בשעות אלה (${overlapping.startTime || ''} · ${overlapping.cleanerName || ''}).\nלא ניתן לקבוע שתי הזמנות חופפות.`
+      );
     }
 
     // ── עבור מיד למסך המתנה ──────────────────────────────────────────────
@@ -1162,9 +1359,10 @@ function BookingModal({ cleaner, visible, onClose, onBookingCreated }: any) {
         cleanerId: cleaner.id, cleanerName: cleaner.name,
         clientUid, clientName, hours, payment, paymentStatus, address, total,
         status: 'pending', createdAt: new Date().toISOString(),
-        bookingDate: bookingDate.toISOString().split('T')[0],
+        bookingDate: `${bookingDate.getFullYear()}-${String(bookingDate.getMonth()+1).padStart(2,'0')}-${String(bookingDate.getDate()).padStart(2,'0')}`,
         startTime: `${startHH}:${startMM}`,
         recurring,
+        recurringDates: recurring !== 'once' ? recurringDates : [],
         serviceType: serviceType || '',
         pricePerHour: effectivePrice,
         busyFrom: busyFromISO,
@@ -1174,14 +1372,25 @@ function BookingModal({ cleaner, visible, onClose, onBookingCreated }: any) {
       // ── שמור bookingId והאזן לשינוי סטטוס ───────────────────────────────
       setPendingBookingId(bookingRef.id);
       setSaving(false);
+      // עדכן existingBookings כדי שבדיקת חפיפה תעבוד מיידית
+      onBookingCreated?.(cleaner.id, {
+        id: bookingRef.id, status: 'pending', cleanerName: cleaner.name,
+        busyFrom: busyFromISO, busyUntil: busyUntilISO, hours,
+        startTime: `${startHH}:${startMM}`,
+      });
 
       // ── האזן לשינוי סטטוס (אישור מנקה) ──────────────────────────────────
-      const unsubBooking = onSnapshot(doc(db, 'bookings', bookingRef.id), (snap) => {
+      if (unsubBookingRef.current) unsubBookingRef.current();
+      unsubBookingRef.current = onSnapshot(doc(db, 'bookings', bookingRef.id), (snap) => {
         const status = snap.data()?.status;
         if (status === 'confirmed' || status === 'active') {
-          unsubBooking();
+          if (unsubBookingRef.current) { unsubBookingRef.current(); unsubBookingRef.current = null; }
           setShowWaiting(false);
           setShowSuccess(true);
+        }
+        if (status === 'cancelled') {
+          if (unsubBookingRef.current) { unsubBookingRef.current(); unsubBookingRef.current = null; }
+          setShowWaiting(false);
         }
       });
       // הוסף ל-busySlots של המנקה
@@ -1239,7 +1448,7 @@ function BookingModal({ cleaner, visible, onClose, onBookingCreated }: any) {
             await Notifs.scheduleNotificationAsync({
               content: {
                 title: `🧹 ניקיון מחר — ${cleaner.name}`,
-                body:  `מחר ב-${String(startHour).padStart(2,'0')}:00 · ${address}`,
+                body:  `מחר ב-${String(Math.floor(startHour)).padStart(2,'0')}:${startHour % 1 === 0.5 ? '30' : '00'} · ${address}`,
                 sound: true,
               },
               trigger: { date: reminderDate } as any,
@@ -1254,8 +1463,10 @@ function BookingModal({ cleaner, visible, onClose, onBookingCreated }: any) {
   };
 
   const handleClose = () => {
+    if (unsubBookingRef.current) { unsubBookingRef.current(); unsubBookingRef.current = null; }
     setAddress(''); setHours(2);
     setBookingDate(new Date()); setStartHour(9); setRecurring('once');
+    setRecurringDates([]);
     setServiceType(''); setShowSuccess(false); setBookedDetails(null);
     setShowWaiting(false); setPendingBookingId(null);
     onClose();
@@ -1264,6 +1475,7 @@ function BookingModal({ cleaner, visible, onClose, onBookingCreated }: any) {
   // ── ביטול הזמנה ממסך המתנה ──────────────────────────────────────────────
   const handleCancelPending = async () => {
     if (!pendingBookingId) return;
+    if (unsubBookingRef.current) { unsubBookingRef.current(); unsubBookingRef.current = null; }
     setCancellingBooking(true);
     try {
       await updateDoc(doc(db, 'bookings', pendingBookingId), { status: 'cancelled' });
@@ -1337,6 +1549,15 @@ function BookingModal({ cleaner, visible, onClose, onBookingCreated }: any) {
               <Text style={{ fontSize: 14, fontWeight: '700', color: '#6B7280' }}>📋 ההזמנות שלי</Text>
             </TouchableOpacity>
 
+            {/* כפתור חזרה למסך הבית */}
+            <TouchableOpacity
+              style={{ backgroundColor: '#fff', borderRadius: 14, paddingVertical: 13, width: '100%', alignItems: 'center', borderWidth: 1, borderColor: '#D1D5DB', flexDirection: 'row', justifyContent: 'center', gap: 8 }}
+              onPress={handleClose}
+            >
+              <Text style={{ fontSize: 17 }}>🏠</Text>
+              <Text style={{ fontSize: 15, fontWeight: '700', color: '#374151' }}>{t.backToHome || 'חזור למסך הבית'}</Text>
+            </TouchableOpacity>
+
           </ScrollView>
         </SafeAreaView>
       </Modal>
@@ -1392,12 +1613,13 @@ function BookingModal({ cleaner, visible, onClose, onBookingCreated }: any) {
               <Text style={{ fontSize: 16, fontWeight: '900', color: '#fff' }}>{t.viewMyBookings}</Text>
             </TouchableOpacity>
 
-            {/* כפתור סגירה */}
+            {/* כפתור חזרה למסך הבית */}
             <TouchableOpacity
-              style={{ backgroundColor: '#fff', borderRadius: 14, paddingVertical: 13, paddingHorizontal: 32, width: '100%', alignItems: 'center', borderWidth: 1, borderColor: '#D1D5DB' }}
+              style={{ backgroundColor: '#fff', borderRadius: 14, paddingVertical: 13, paddingHorizontal: 32, width: '100%', alignItems: 'center', borderWidth: 1, borderColor: '#D1D5DB', flexDirection: 'row', justifyContent: 'center', gap: 8 }}
               onPress={handleClose}
             >
-              <Text style={{ fontSize: 15, fontWeight: '700', color: '#6B7280' }}>{t.closeBtn}</Text>
+              <Text style={{ fontSize: 17 }}>🏠</Text>
+              <Text style={{ fontSize: 15, fontWeight: '700', color: '#374151' }}>{t.backToHome || 'חזור למסך הבית'}</Text>
             </TouchableOpacity>
           </ScrollView>
         </SafeAreaView>
@@ -1466,6 +1688,15 @@ function BookingModal({ cleaner, visible, onClose, onBookingCreated }: any) {
               ))}
             </View>
 
+            {/* Calendar for recurring dates */}
+            {recurring !== 'once' && (
+              <MultiCalendarPicker
+                selected={recurringDates}
+                onChange={setRecurringDates}
+                label={recurring === 'weekly' ? (t.recurWeekly || 'שבועי') : (t.recurMonthly || 'חודשי')}
+              />
+            )}
+
             {/* Service Type (if cleaner has servicePricing) */}
             {cleaner?.types?.length > 0 && (
               <>
@@ -1505,10 +1736,10 @@ function BookingModal({ cleaner, visible, onClose, onBookingCreated }: any) {
             {/* Payment */}
             <Text style={s.fieldLabel}>{t.paymentMethodLabel}</Text>
             <View style={s.payRow}>
-              {cleaner.payment.map((p: string) => (
+              {SHOWN_PAYMENTS(cleaner.payment).map((p: string) => (
                 <TouchableOpacity key={p} style={[s.payBtn, payment === p && s.payBtnActive]} onPress={() => setPayment(p)}>
-                  <Text style={s.payIcon}>{PAY_ICONS[p]}</Text>
-                  <Text style={[s.payLabel, payment === p && { color: C.blue }]}>{p === 'card' ? t.payCard : p === 'bit' ? t.payBit : t.payCash}</Text>
+                  <Text style={s.payIcon}>{PAY_ICONS[p] ?? '💵'}</Text>
+                  <Text style={[s.payLabel, payment === p && { color: C.blue }]}>{PAY_LABELS[p] ?? p}</Text>
                 </TouchableOpacity>
               ))}
             </View>
@@ -1569,14 +1800,19 @@ function ChatModal({ cleaner, visible, onClose }: any) {
         text: msg, from: 'client', fromUid: clientUid,
         createdAt: new Date().toISOString(),
       });
-      // Auto-reply — independent of metadata, always fires
-      const autoReplyText = 'תודה ששלחת הודעה, אחזור אלייך בהקדם האפשרי 🙏';
+      // Auto-reply — שולח רק פעם אחת ביום לכל שיחה
+      const todayKey = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
       setTimeout(async () => {
         try {
+          const chatDoc = await getDoc(doc(db, 'chats', chatId));
+          const lastAutoDate = chatDoc.data()?.lastAutoReplyDate || '';
+          if (lastAutoDate === todayKey) return; // כבר נשלח היום
           await addDoc(collection(db, 'chats', chatId, 'messages'), {
-            text: autoReplyText, from: 'cleaner', fromUid: otherUid,
+            text: 'תודה ששלחת הודעה, אחזור אלייך בהקדם האפשרי 🙏',
+            from: 'cleaner', fromUid: otherUid,
             createdAt: new Date().toISOString(), isAutoReply: true,
           });
+          await setDoc(doc(db, 'chats', chatId), { lastAutoReplyDate: todayKey }, { merge: true });
         } catch (_) {}
       }, 1500);
       // כתיבת metadata + unreadBy למנקה
@@ -1728,7 +1964,7 @@ function CleanerCard({ cleaner, selected, onSelect, onProfile, onBook, onChat, i
       {isSel && (
         <View style={s.cardExpanded}>
           <View style={{ flexDirection: 'row', gap: 5, flexWrap: 'wrap', marginBottom: 10 }}>
-            {cleaner.payment.map((p: string) => <View key={p} style={s.payChip}><Text style={s.payChipText}>{PAY_ICONS[p]} {p === 'card' ? t.payCard : p === 'bit' ? t.payBit : t.payCash}</Text></View>)}
+            {SHOWN_PAYMENTS(cleaner.payment).map((p: string) => <View key={p} style={s.payChip}><Text style={s.payChipText}>{PAY_ICONS[p] ?? '💵'} {PAY_LABELS[p] ?? p}</Text></View>)}
           </View>
           <View style={{ flexDirection: 'row', gap: 8 }}>
             <TouchableOpacity
@@ -1802,7 +2038,7 @@ export default function HomeScreen() {
   const [filterCity,     setFilterCity]     = useState('');
 
   // תפקיד המשתמש
-  const [myRole,         setMyRole]         = useState<'client' | 'cleaner'>('client');
+  const [myRole,         setMyRole]         = useState<'client' | 'cleaner' | null>(null);
   const [cleanerPendingCount, setCleanerPendingCount] = useState(0);
 
   // Unread messages
@@ -1957,35 +2193,20 @@ export default function HomeScreen() {
 
           notified.push(cd.id);
 
-          // מצא או צור קבוצה פרטית למנקה
-          const cleanerPhone = (cData.phone || cData.phoneNumber || cData.mobile || '').trim();
-          let groupId = cData.whatsappGroupId || '';
-
-          // אם אין Group ID ויש טלפון — צור קבוצה אוטומטית
-          if (!groupId && cleanerPhone) {
-            groupId = await createWhatsAppGroup(cData.name || 'מנקה', cleanerPhone, cd.id);
-          }
-
-          const waTarget = groupId || cleanerPhone;
-
-          if (waTarget) {
+          // שלח Push Notification למנקה
+          const pushToken = cData.pushToken || '';
+          if (pushToken) {
             const dateLabel = urgentDate === 'today' ? 'היום' : 'מחר';
             const msgTotal  = urgentHours * 80;
-            const waMsg =
-`⚡ *בקשת ניקוי דחוף!*
-
-👤 לקוח: ${clientName}
-📅 תאריך: ${dateLabel} (${dateStr})
-🕐 שעה: ${hh}:${mm}
-⏱️ משך: ${urgentHours} שעות
-📍 כתובת: ${urgentAddress.trim()}
-💰 תשלום: ₪${msgTotal}
-
-👇 *לאישור — פתח את האפליקציה ולחץ על "ניקיון דחוף"*`;
-            await sendWhatsAppMessage(waTarget, waMsg);
-            console.log('[WA →', groupId ? '🟢 קבוצה פרטית' : '📱 טלפון', cData.name, ']');
+            await sendPushNotification(
+              pushToken,
+              `⚡ ניקוי דחוף — ${dateLabel} ${hh}:${mm}`,
+              `📍 ${urgentAddress.trim()} · ⏱️ ${urgentHours} שעות · ₪${msgTotal}`,
+              { type: 'urgent', urgent: true, requestId: reqRef.id, tab: 'urgent' }
+            );
+            console.log('[PUSH → urgent]', cData.name);
           } else {
-            console.warn('[WA] אין קבוצה ואין טלפון למנקה:', cData.name);
+            console.warn('[PUSH] אין pushToken למנקה:', cData.name);
           }
         }
 
@@ -2031,6 +2252,10 @@ export default function HomeScreen() {
     setUrgentRequestId(null);
     setUrgentFoundName('');
   };
+
+  // ── פופאפ אישור הזמנה ──────────────────────────────────────────────────────
+  const [confirmedPopup,       setConfirmedPopup]       = useState<any>(null);
+  const seenConfirmedRef = useRef<Set<string>>(new Set());
 
   // Mandatory review
   const [isBlocked,            setIsBlocked]            = useState(false);
@@ -2249,9 +2474,13 @@ export default function HomeScreen() {
           // טען הזמנות ממתינות עבור מנקה
           getDocs(query(collection(db, 'bookings'), where('cleanerId', '==', uid), where('status', '==', 'pending')))
             .then(s => setCleanerPendingCount(s.size)).catch(() => {});
+        } else {
+          setMyRole('client');
         }
+      } else {
+        setMyRole('client');
       }
-    }).catch(() => {});
+    }).catch(() => { setMyRole('client'); });
 
     // Load client bookings for recurring rebook detection + mandatory review
     getDocs(query(collection(db, 'bookings'), where('clientUid', '==', uid), orderBy('createdAt', 'desc')))
@@ -2263,17 +2492,9 @@ export default function HomeScreen() {
           bks.filter((b: any) => ['pending','confirmed'].includes(b.status)).map((b: any) => b.cleanerId)
         );
         setPendingCleanerIds(pendingIds);
-        // Find bookings due for rebook
-        const nowMs = Date.now();
-        const dueRebook = bks.find((b: any) => {
-          if (b.status !== 'done') return false;
-          const finMs = new Date(b.finishedAt || b.createdAt).getTime();
-          const daysSince = (nowMs - finMs) / 86400000;
-          if (b.recurring === 'weekly'  && daysSince >= 6  && daysSince <= 9)  return true;
-          if (b.recurring === 'monthly' && daysSince >= 28 && daysSince <= 35) return true;
-          return false;
-        });
-        if (dueRebook) setRebookAlert(dueRebook);
+        // Show rebook card for any past done booking (most recent)
+        const lastDone = bks.find((b: any) => b.status === 'done');
+        if (lastDone) setRebookAlert(lastDone);
 
         // Check for pending mandatory reviews
         const pending = bks.filter((b: any) =>
@@ -2292,6 +2513,31 @@ export default function HomeScreen() {
           setShowMandatoryReview(true);
         }
       }).catch(() => {});
+  }, []);
+
+  // ── מאזין לאישור הזמנה ע"י מנקה → פופאפ ללקוח ─────────────────────────────
+  useEffect(() => {
+    const uid = auth.currentUser?.uid;
+    if (!uid) return;
+    const q = query(collection(db, 'bookings'), where('clientUid', '==', uid), orderBy('createdAt', 'desc'));
+    let initialLoad = true;
+    const unsub = onSnapshot(q, snap => {
+      snap.docs.forEach(d => {
+        const data = d.data();
+        // סימון ראשוני — לא מציגים פופאפ על הזמנות שכבר היו confirmed
+        if (initialLoad) {
+          if (data.status === 'confirmed') seenConfirmedRef.current.add(d.id);
+          return;
+        }
+        // זיהוי מעבר חדש ל-confirmed
+        if (data.status === 'confirmed' && !seenConfirmedRef.current.has(d.id)) {
+          seenConfirmedRef.current.add(d.id);
+          setConfirmedPopup({ id: d.id, ...data });
+        }
+      });
+      initialLoad = false;
+    }, () => {});
+    return () => unsub();
   }, []);
 
   // Load real cleaners from Firestore
@@ -2456,13 +2702,13 @@ export default function HomeScreen() {
   };
 
   return (
-    <SafeAreaView style={s.wrap}>
+    <SafeAreaView style={[s.wrap, { direction: flipSide ? 'rtl' : 'ltr' }]}>
       <StatusBar barStyle="light-content" backgroundColor={C.blueDark} />
 
       <View style={{ backgroundColor: C.blueDark, flexShrink: 0 }}>
         <View style={s.header}>
           <View style={s.headerLogoRow}>
-            {/* כפתור נגישות — צד שמאל */}
+            {/* כפתור נגישות */}
             <TouchableOpacity
               onPress={() => setA11yOpen(true)}
               style={s.a11yBtn}
@@ -2547,22 +2793,6 @@ export default function HomeScreen() {
             </TouchableOpacity>
           )}
 
-          {/* Rebook alert */}
-          {rebookAlert && (
-            <TouchableOpacity
-              style={{ backgroundColor: 'rgba(255,255,255,0.2)', borderRadius: 10, padding: 8, marginBottom: 8, flexDirection: 'row', alignItems: 'center', gap: 8 }}
-              onPress={() => {
-                Alert.alert(t.recurRebookTitle, t.recurRebookMsg, [
-                  { text: t.cancel, style: 'cancel', onPress: () => setRebookAlert(null) },
-                  { text: t.recurRebookBtn, onPress: () => { setRebookAlert(null); setBooking(rebookAlert); } },
-                ]);
-              }}
-            >
-              <Text style={{ fontSize: 14 }}>🔄</Text>
-              <Text style={{ color: C.white, fontSize: 12, fontWeight: '700', flex: 1 }}>{t.recurRebookTitle}</Text>
-              <Text style={{ color: 'rgba(255,255,255,0.7)', fontSize: 11 }}>›</Text>
-            </TouchableOpacity>
-          )}
           <View style={{ zIndex: 999, elevation: 999 }}>
             <View style={s.searchWrap}>
               <Text style={{ fontSize: 14, color: 'rgba(255,255,255,0.7)' }}>🔍</Text>
@@ -2636,6 +2866,37 @@ export default function HomeScreen() {
           contentContainerStyle={{ padding: 10, gap: 10 }}
           showsVerticalScrollIndicator={false}
           onScrollToIndexFailed={() => {}}
+          ListHeaderComponent={
+            rebookAlert ? (
+              <TouchableOpacity
+                activeOpacity={0.85}
+                style={{
+                  backgroundColor: '#7C3AED',
+                  borderRadius: 16,
+                  padding: 14,
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  gap: 12,
+                  marginBottom: 4,
+                  elevation: 3,
+                  shadowColor: '#7C3AED',
+                  shadowOffset: { width: 0, height: 2 },
+                  shadowOpacity: 0.3,
+                  shadowRadius: 6,
+                }}
+                onPress={() => setBooking(rebookAlert)}
+              >
+                <Text style={{ fontSize: 28 }}>♻️</Text>
+                <View style={{ flex: 1 }}>
+                  <Text style={{ color: '#fff', fontSize: 15, fontWeight: '800' }}>{t.recurRebookTitle || 'הזמנות חוזרות'}</Text>
+                  <Text style={{ color: 'rgba(255,255,255,0.85)', fontSize: 12, marginTop: 2 }}>
+                    {t.recurRebookMsg || 'הזמן שוב עם מנקה שכבר עבד אצלך'}{rebookAlert.cleanerName ? ` · ${rebookAlert.cleanerName}` : ''}
+                  </Text>
+                </View>
+                <Text style={{ color: '#fff', fontSize: 22 }}>›</Text>
+              </TouchableOpacity>
+            ) : null
+          }
           ListEmptyComponent={
             <View style={{ alignItems: 'center', marginTop: 40 }}>
               <Text style={{ fontSize: 36, marginBottom: 8 }}>🔍</Text>
@@ -2657,9 +2918,10 @@ export default function HomeScreen() {
         cleaner={booking}
         visible={!!booking}
         onClose={() => setBooking(null)}
-        onBookingCreated={(cleanerId: string) => {
+        existingBookings={myBookings}
+        onBookingCreated={(cleanerId: string, newBooking?: any) => {
           setPendingCleanerIds(prev => new Set([...prev, cleanerId]));
-          // לא סוגרים כאן — מסך ההצלחה יסגור בעצמו
+          if (newBooking) setMyBookings(prev => [newBooking, ...prev]);
         }}
       />
       <ChatModal      cleaner={chatWith} visible={!!chatWith} onClose={() => setChatWith(null)} />
@@ -2881,6 +3143,58 @@ export default function HomeScreen() {
               <Text style={{ fontSize: 16, fontWeight: '800', color: C.white }}>
                 {mandatorySubmitting ? '...' : t.reviewSubmitNow}
               </Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
+      {/* ── פופאפ: הזמנה אושרה ── */}
+      <Modal visible={!!confirmedPopup} transparent animationType="slide" onRequestClose={() => setConfirmedPopup(null)}>
+        <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.55)', justifyContent: 'flex-end' }}>
+          <View style={{ backgroundColor: C.white, borderTopLeftRadius: 28, borderTopRightRadius: 28, padding: 28, paddingBottom: 40, alignItems: 'center', gap: 14 }}>
+            {/* אייקון */}
+            <View style={{ width: 80, height: 80, borderRadius: 40, backgroundColor: '#D1FAE5', alignItems: 'center', justifyContent: 'center', borderWidth: 3, borderColor: '#10B981' }}>
+              <Text style={{ fontSize: 40 }}>✅</Text>
+            </View>
+            <Text style={{ fontSize: 22, fontWeight: '900', color: '#065F46', textAlign: 'center' }}>
+              {t.bookingConfirmedPopupTitle || '🎉 ההזמנה אושרה!'}
+            </Text>
+            <Text style={{ fontSize: 14, color: '#6B7280', textAlign: 'center', lineHeight: 22 }}>
+              {t.bookingConfirmedPopupSub || 'המנקה אישר את הגעתו — ההזמנה מאושרת ומוכנה'}
+            </Text>
+            {/* כרטיס פרטים */}
+            {confirmedPopup && (
+              <View style={{ backgroundColor: '#F0FDF4', borderRadius: 16, padding: 16, width: '100%', gap: 10, borderWidth: 1, borderColor: '#A7F3D0' }}>
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+                  <Text style={{ fontSize: 13, color: '#6B7280' }}>🧹 {t.cleanerLabel || 'מנקה'}</Text>
+                  <Text style={{ fontSize: 13, fontWeight: '800', color: '#065F46' }}>{confirmedPopup.cleanerName}</Text>
+                </View>
+                {confirmedPopup.bookingDate ? (
+                  <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+                    <Text style={{ fontSize: 13, color: '#6B7280' }}>📅 {t.dateLabel || 'תאריך'}</Text>
+                    <Text style={{ fontSize: 13, fontWeight: '700', color: '#065F46' }}>{confirmedPopup.bookingDate}  {confirmedPopup.startTime || ''}</Text>
+                  </View>
+                ) : null}
+                {confirmedPopup.hours ? (
+                  <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+                    <Text style={{ fontSize: 13, color: '#6B7280' }}>⏱️ {t.hoursLabel || 'שעות'}</Text>
+                    <Text style={{ fontSize: 13, fontWeight: '700', color: '#065F46' }}>{confirmedPopup.hours} {t.hoursUnit}</Text>
+                  </View>
+                ) : null}
+              </View>
+            )}
+            {/* כפתורים */}
+            <TouchableOpacity
+              style={{ backgroundColor: '#2563EB', borderRadius: 14, paddingVertical: 15, width: '100%', alignItems: 'center' }}
+              onPress={() => { setConfirmedPopup(null); router.push('/profile'); }}
+            >
+              <Text style={{ fontSize: 15, fontWeight: '900', color: '#fff' }}>{t.viewMyBookings || '📋 ההזמנות שלי'}</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={{ paddingVertical: 10, width: '100%', alignItems: 'center' }}
+              onPress={() => setConfirmedPopup(null)}
+            >
+              <Text style={{ fontSize: 14, color: '#9CA3AF', fontWeight: '600' }}>{t.closeBtn || 'סגור'}</Text>
             </TouchableOpacity>
           </View>
         </View>

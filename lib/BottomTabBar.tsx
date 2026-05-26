@@ -3,10 +3,12 @@ import { View, TouchableOpacity, Text, StyleSheet, Platform } from 'react-native
 import { useRouter, usePathname } from 'expo-router';
 import { useLanguage } from './LanguageContext';
 
+export const TAB_BAR_CONTENT_HEIGHT = 60;
+
 export default function BottomTabBar() {
   const router   = useRouter();
   const pathname = usePathname();
-  const { t }    = useLanguage();
+  const { t, flipSide } = useLanguage();
 
   const tabs = [
     { route: '/home',     icon: '🏠', label: t.navHome     || 'ראשי'   },
@@ -14,9 +16,11 @@ export default function BottomTabBar() {
     { route: '/profile',  icon: '👤', label: t.navProfile  || 'פרופיל' },
   ] as const;
 
+  const orderedTabs = flipSide ? [...tabs].reverse() : tabs;
+
   return (
     <View style={s.bar}>
-      {tabs.map(tab => {
+      {orderedTabs.map(tab => {
         const active = pathname === tab.route || pathname.startsWith(tab.route + '?');
         return (
           <TouchableOpacity

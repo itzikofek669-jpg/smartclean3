@@ -93,7 +93,7 @@ function getClientResponse(msg: string, userName: string, activeBooking: any, al
   // ── ברכות ─────────────────────────────────────────────────────────────────
   if (matchAny(msg, ['שלום', 'היי', 'הי', 'בוקר טוב', 'ערב טוב', 'צהריים', 'מה שלומך', 'מה נשמע', 'מה המצב'])) {
     return {
-      text: `שלום ${userName}! 😊\nאני CLEAN Bot — עוזר התמיכה של CLEANTOUCH.\nאיך אוכל לעזור לך?`,
+      text: `שלום ${userName}! 😊\nאני CLEAN Bot — עוזר התמיכה של A&M Clean.\nאיך אוכל לעזור לך?`,
       quickReplies: ['מה הסטטוס שלי?', 'רוצה לבטל', 'כמה זה עולה?', 'פרטי המנקה'],
     };
   }
@@ -128,7 +128,7 @@ function getClientResponse(msg: string, userName: string, activeBooking: any, al
   // ── שלח מייל לתמיכה ──────────────────────────────────────────────────────
   if (matchAny(msg, ['שלח מייל', 'שאלה שלא נענתה', 'שלח לתמיכה', 'מייל לתמיכה', 'שאלה שלא נענתה — שלח מייל'])) {
     return {
-      text: `בוודאי! 📧\nנפתח את אפליקציית המייל שלך לפנייה ישירה לצוות התמיכה שלנו.\n\n✉️ support@cleantouch.co.il\n\nנחזור אליך תוך 24 שעות! 🕐`,
+      text: `בוודאי! 📧\nנפתח את אפליקציית המייל שלך לפנייה ישירה לצוות התמיכה שלנו.\n\n✉️ support@amclean.co.il\n\nנחזור אליך תוך 24 שעות! 🕐`,
       quickReplies: ['חזור לתפריט'],
       action: 'sendEmail',
     };
@@ -159,7 +159,7 @@ function getClientResponse(msg: string, userName: string, activeBooking: any, al
     }
     const b = activeBooking;
     return {
-      text: `📋 מדיניות ביטול CLEANTOUCH:\n\n✅ ביטול עד 24 שעות לפני — החזר מלא\n❌ ביטול פחות מ-24 שעות — אין החזר\n\nלביטול ההזמנה עם ${b.cleanerName || 'המנקה'} ב-${b.date || '—'}:\nכנס ל"הזמנות שלי" ולחץ "ביטול הזמנה".`,
+      text: `📋 מדיניות ביטול A&M Clean:\n\n✅ ביטול עד 24 שעות לפני — החזר מלא\n❌ ביטול פחות מ-24 שעות — אין החזר\n\nלביטול ההזמנה עם ${b.cleanerName || 'המנקה'} ב-${b.date || '—'}:\nכנס ל"הזמנות שלי" ולחץ "ביטול הזמנה".`,
       quickReplies: ['הזמנות שלי', 'שמור הזמנה', 'חזור לתפריט'],
       navigateTo: '/profile',
     };
@@ -179,7 +179,7 @@ function getClientResponse(msg: string, userName: string, activeBooking: any, al
       const b = activeBooking;
       const perHour = b.hours ? Math.round((b.total || 0) / b.hours) : 0;
       return {
-        text: `💰 עלות ההזמנה הנוכחית:\n\n⏱️ ${b.hours} שעות × ₪${perHour}/שעה\n💵 סה"כ: ₪${b.total || 0}\n💳 תשלום ב: ${b.paymentMethod === 'cash' ? 'מזומן' : b.paymentMethod === 'bit' ? 'ביט' : 'אשראי'}\n\n✅ ₪0 דמי שירות — CLEANTOUCH חינמי!`,
+        text: `💰 עלות ההזמנה הנוכחית:\n\n⏱️ ${b.hours} שעות × ₪${perHour}/שעה\n💵 סה"כ: ₪${b.total || 0}\n💳 תשלום ב: ${b.paymentMethod === 'cash' ? 'מזומן' : b.paymentMethod === 'bit' ? 'ביט' : 'אשראי'}\n\n✅ ₪0 דמי שירות — A&M Clean חינמי!`,
         quickReplies: ['מה הסטטוס?', 'חזור לתפריט'],
       };
     }
@@ -224,7 +224,7 @@ function getClientResponse(msg: string, userName: string, activeBooking: any, al
   // ── מה כולל הניקוי ───────────────────────────────────────────────────────
   if (matchAny(msg, ['מה כולל', 'מה הניקוי', 'מה עושים', 'סוגי שירות', 'שירותים', 'ניקוי עמוק', 'ניקוי פסח'])) {
     return {
-      text: '🧹 סוגי ניקוי ב-CLEANTOUCH:\n\n• שוטף — ניקוי בסיסי יומיומי/שבועי\n• עמוק — ניקוי יסודי מלא + מטבח/שירותים\n• חלונות — ניקוי חלונות, מרפסות, ממ"ד\n• אחרי שיפוץ — פינוי אבק ופסולת בנייה\n• אחרי אירוע — ניקיון מהיר ויסודי\n• גינון 🌿 / שטיפת רכב 🚗',
+      text: '🧹 סוגי ניקוי ב-A&M Clean:\n\n• שוטף — ניקוי בסיסי יומיומי/שבועי\n• עמוק — ניקוי יסודי מלא + מטבח/שירותים\n• חלונות — ניקוי חלונות, מרפסות, ממ"ד\n• אחרי שיפוץ — פינוי אבק ופסולת בנייה\n• אחרי אירוע — ניקיון מהיר ויסודי\n• גינון 🌿 / שטיפת רכב 🚗',
       quickReplies: ['כמה עולה?', 'איך להזמין?', 'חזור לתפריט'],
     };
   }
@@ -240,7 +240,7 @@ function getClientResponse(msg: string, userName: string, activeBooking: any, al
   // ── ביטוח ─────────────────────────────────────────────────────────────────
   if (matchAny(msg, ['ביטוח', 'נזק', 'אחריות', 'שבר', 'פגע', 'תביעה', 'הגנה'])) {
     return {
-      text: '🛡️ ביטוח CLEANTOUCH:\n\nכל הזמנה מבוטחת דרך השותף שלנו.\nלכפתור הביטוח — פתח כרטיס מנקה ולחץ "🛡️ ביטוח".\n\nלתביעה ישירה:\n📧 support@cleantouch.co.il',
+      text: '🛡️ ביטוח A&M Clean:\n\nכל הזמנה מבוטחת דרך השותף שלנו.\nלכפתור הביטוח — פתח כרטיס מנקה ולחץ "🛡️ ביטוח".\n\nלתביעה ישירה:\n📧 support@amclean.co.il',
       quickReplies: ['צור קשר', 'חזור לתפריט'],
     };
   }
@@ -300,7 +300,7 @@ function getClientResponse(msg: string, userName: string, activeBooking: any, al
   // ── מחיקת חשבון ──────────────────────────────────────────────────────────
   if (matchAny(msg, ['למחוק חשבון', 'מחיקת חשבון', 'לסגור חשבון', 'להתנתק לצמיתות'])) {
     return {
-      text: '🗑️ מחיקת חשבון:\n\nלמחיקת החשבון שלך צור קשר ישיר:\n📧 support@cleantouch.co.il\n\nנחזור אליך תוך 24 שעות.',
+      text: '🗑️ מחיקת חשבון:\n\nלמחיקת החשבון שלך צור קשר ישיר:\n📧 support@amclean.co.il\n\nנחזור אליך תוך 24 שעות.',
       quickReplies: ['חזור לתפריט'],
     };
   }
@@ -317,7 +317,7 @@ function getClientResponse(msg: string, userName: string, activeBooking: any, al
   // ── עמלות ─────────────────────────────────────────────────────────────────
   if (matchAny(msg, ['עמלה', 'דמי שירות', 'כמה אתם לוקחים', 'חינם', 'בחינם', 'ללא עמלה', 'אחוז'])) {
     return {
-      text: '💚 CLEANTOUCH — 0% עמלה!\n\n✅ למנקים: שומרים 100% מהתשלום\n✅ ללקוחות: ₪0 דמי שירות\n\nהפלטפורמה חינמית לחלוטין.',
+      text: '💚 A&M Clean — 0% עמלה!\n\n✅ למנקים: שומרים 100% מהתשלום\n✅ ללקוחות: ₪0 דמי שירות\n\nהפלטפורמה חינמית לחלוטין.',
       quickReplies: ['חזור לתפריט'],
     };
   }
@@ -325,7 +325,7 @@ function getClientResponse(msg: string, userName: string, activeBooking: any, al
   // ── תמיכה / נציג ─────────────────────────────────────────────────────────
   if (matchAny(msg, ['לדבר עם אדם', 'נציג', 'שירות לקוחות', 'צור קשר', 'להתקשר', 'אדם אמיתי', 'תמיכה אנושית'])) {
     return {
-      text: '📞 תמיכת CLEANTOUCH:\n\n📧 support@cleantouch.co.il\n📱 WhatsApp: 050-000-0000\n\nשעות מענה:\nא׳–ה׳: 09:00–18:00',
+      text: '📞 תמיכת A&M Clean:\n\n📧 support@amclean.co.il\n📱 WhatsApp: 050-000-0000\n\nשעות מענה:\nא׳–ה׳: 09:00–18:00',
       quickReplies: ['חזור לתפריט'],
     };
   }
@@ -341,7 +341,7 @@ function getClientResponse(msg: string, userName: string, activeBooking: any, al
   // ── תלונה / בעיה ─────────────────────────────────────────────────────────
   if (matchAny(msg, ['תלונה', 'בעיה', 'לא מרוצה', 'גרוע', 'גרועה', 'להתלונן', 'פגם', 'נזק'])) {
     return {
-      text: '😔 מצטערים לשמוע!\n\nלדיווח על בעיה:\n1️⃣ כנס לפרופיל שלך\n2️⃣ לחץ "🚨 דיווח"\n3️⃣ מלא את הפרטים\n\nאו צור קשר ישיר:\n📧 support@cleantouch.co.il',
+      text: '😔 מצטערים לשמוע!\n\nלדיווח על בעיה:\n1️⃣ כנס לפרופיל שלך\n2️⃣ לחץ "🚨 דיווח"\n3️⃣ מלא את הפרטים\n\nאו צור קשר ישיר:\n📧 support@amclean.co.il',
       quickReplies: ['הפרופיל שלי', 'חזור לתפריט'],
       navigateTo: '/profile',
     };
@@ -439,7 +439,7 @@ function getCleanerResponse(msg: string, userName: string, allBookings: any[]): 
   // ── ברכות ────────────────────────────────────────────────────────────────
   if (matchAny(msg, ['שלום','היי','הי','בוקר טוב','ערב טוב','מה שלומך','מה נשמע'])) {
     return {
-      text: `שלום ${userName}! 👋\nאני CLEAN Bot — עוזר התמיכה למנקים של CLEANTOUCH.\nאיך אוכל לעזור לך היום?`,
+      text: `שלום ${userName}! 👋\nאני CLEAN Bot — עוזר התמיכה למנקים של A&M Clean.\nאיך אוכל לעזור לך היום?`,
       quickReplies: ['ההזמנות שלי', 'כמה הרווחתי?', 'איך מקבלים תשלום?', 'עדכון זמינות', 'חזור לתפריט'],
     };
   }
@@ -464,7 +464,7 @@ function getCleanerResponse(msg: string, userName: string, allBookings: any[]): 
   // ── הכנסות ───────────────────────────────────────────────────────────────
   if (matchAny(msg, ['כמה הרווחתי','הכנסות','הרוויח','כסף','תשלום שקיבלתי','סה"כ','כמה קיבלתי'])) {
     return {
-      text: `💰 הכנסות שלך, ${userName}:\n\n✅ ניקויים שהושלמו: ${done}\n💵 סה"כ הכנסות: ₪${totalEarned}\n\n🎉 CLEANTOUCH לא גובה עמלה — 100% הולך אליך!`,
+      text: `💰 הכנסות שלך, ${userName}:\n\n✅ ניקויים שהושלמו: ${done}\n💵 סה"כ הכנסות: ₪${totalEarned}\n\n🎉 A&M Clean לא גובה עמלה — 100% הולך אליך!`,
       quickReplies: ['ההזמנות שלי', 'איך מקבלים תשלום?', 'חזור לתפריט'],
     };
   }
@@ -472,7 +472,7 @@ function getCleanerResponse(msg: string, userName: string, allBookings: any[]): 
   // ── קבלת תשלום ───────────────────────────────────────────────────────────
   if (matchAny(msg, ['איך מקבלים תשלום','קבלת תשלום','ביט','מזומן','אשראי','אמצעי תשלום','כרטיס'])) {
     return {
-      text: `💳 קבלת תשלום מלקוחות:\n\n💵 מזומן — בסיום הניקוי ישירות מהלקוח\n📱 ביט — העברה דיגיטלית מיידית\n💳 אשראי — הלקוח משלם דרך האפליקציה\n\n✅ CLEANTOUCH לא גובה עמלה — כל הסכום שלך!`,
+      text: `💳 קבלת תשלום מלקוחות:\n\n💵 מזומן — בסיום הניקוי ישירות מהלקוח\n📱 ביט — העברה דיגיטלית מיידית\n💳 אשראי — הלקוח משלם דרך האפליקציה\n\n✅ A&M Clean לא גובה עמלה — כל הסכום שלך!`,
       quickReplies: ['כמה הרווחתי?', 'חזור לתפריט'],
     };
   }
@@ -551,7 +551,7 @@ function getCleanerResponse(msg: string, userName: string, allBookings: any[]): 
   // ── עמלה ─────────────────────────────────────────────────────────────────
   if (matchAny(msg, ['עמלה','דמי שירות','כמה לוקחים','אחוז','חינם','בחינם','ללא עמלה'])) {
     return {
-      text: `💚 עמלת CLEANTOUCH: 0%!\n\n✅ אתה שומר 100% מהתשלום מהלקוח\n✅ אין דמי רישום\n✅ אין דמי חודשי\n\nPlatform חינמי לחלוטין למנקים! 🎉`,
+      text: `💚 עמלת A&M Clean: 0%!\n\n✅ אתה שומר 100% מהתשלום מהלקוח\n✅ אין דמי רישום\n✅ אין דמי חודשי\n\nPlatform חינמי לחלוטין למנקים! 🎉`,
       quickReplies: ['איך מקבלים תשלום?', 'חזור לתפריט'],
     };
   }
@@ -559,7 +559,7 @@ function getCleanerResponse(msg: string, userName: string, allBookings: any[]): 
   // ── תמיכה אנושית ─────────────────────────────────────────────────────────
   if (matchAny(msg, ['לדבר עם אדם','נציג','שירות לקוחות','צור קשר','אדם אמיתי','תמיכה אנושית'])) {
     return {
-      text: `📞 תמיכה למנקים:\n\n📧 cleaners@cleantouch.co.il\n📱 WhatsApp: 050-000-0000\n\nשעות מענה לצוות מנקים:\nא׳–ה׳: 08:00–20:00`,
+      text: `📞 תמיכה למנקים:\n\n📧 cleaners@amclean.co.il\n📱 WhatsApp: 050-000-0000\n\nשעות מענה לצוות מנקים:\nא׳–ה׳: 08:00–20:00`,
       quickReplies: ['שאלה שלא נענתה — שלח מייל', 'חזור לתפריט'],
     };
   }
@@ -583,7 +583,7 @@ function getCleanerResponse(msg: string, userName: string, allBookings: any[]): 
   // ── שלח מייל ────────────────────────────────────────────────────────────
   if (matchAny(msg, ['שלח מייל','שאלה שלא נענתה','שלח לתמיכה','מייל לתמיכה','שאלה שלא נענתה — שלח מייל'])) {
     return {
-      text: `בוודאי! 📧\nנפתח את אפליקציית המייל שלך.\n\n✉️ cleaners@cleantouch.co.il\n\nנחזור אליך תוך 24 שעות! 🕐`,
+      text: `בוודאי! 📧\nנפתח את אפליקציית המייל שלך.\n\n✉️ cleaners@amclean.co.il\n\nנחזור אליך תוך 24 שעות! 🕐`,
       quickReplies: ['חזור לתפריט'],
       action: 'sendEmail',
     };
@@ -691,7 +691,7 @@ export default function SupportScreen() {
       // Guest greeting
       setTimeout(() => {
         pushBotMessage(
-          'הגעת למרכז השירות של CleanTouch 👨‍💼\nבמה נוכל לעזור?',
+          'הגעת למרכז השירות של A&M Clean 👨‍💼\nבמה נוכל לעזור?',
           ['מה הסטטוס שלי?', 'כמה זה עולה?', 'איך להזמין?', 'צור קשר'],
         );
       }, 600);
@@ -738,13 +738,13 @@ export default function SupportScreen() {
       setTimeout(() => {
         if (role === 'cleaner') {
           pushBotMessage(
-            'הגעת למרכז השירות של CleanTouch 👨‍💼\nבמה נוכל לעזור?',
+            'הגעת למרכז השירות של A&M Clean 👨‍💼\nבמה נוכל לעזור?',
             ['ההזמנות שלי', 'כמה הרווחתי?', 'איך מקבלים תשלום?', 'עדכון זמינות', 'חזור לתפריט'],
             ctx
           );
         } else {
           pushBotMessage(
-            'הגעת למרכז השירות של CleanTouch 👨‍💼\nבמה נוכל לעזור?',
+            'הגעת למרכז השירות של A&M Clean 👨‍💼\nבמה נוכל לעזור?',
             ['מה הסטטוס שלי?', 'רוצה לבטל', 'כמה זה עולה?', 'פרטי המנקה', 'איך להזמין?'],
             ctx
           );
@@ -807,11 +807,11 @@ export default function SupportScreen() {
       // Open email client if needed
       if (response.action === 'sendEmail') {
         const isCleaner = context.role === 'cleaner';
-        const emailAddr = isCleaner ? 'cleaners@cleantouch.co.il' : 'support@cleantouch.co.il';
+        const emailAddr = isCleaner ? 'cleaners@amclean.co.il' : 'support@amclean.co.il';
         const roleLabel = isCleaner ? 'מנקה' : 'לקוח';
-        const subject = encodeURIComponent(`שאלה שלא נענתה — פנייה לתמיכה CLEANTOUCH (${roleLabel})`);
+        const subject = encodeURIComponent(`שאלה שלא נענתה — פנייה לתמיכה A&M Clean (${roleLabel})`);
         const body = encodeURIComponent(
-          `שלום צוות CLEANTOUCH,\n\nשמי: ${context.userName}\nתפקיד: ${roleLabel}\n\nאנא פנו אלי בנוגע לשאלה הבאה:\n\n`
+          `שלום צוות A&M Clean,\n\nשמי: ${context.userName}\nתפקיד: ${roleLabel}\n\nאנא פנו אלי בנוגע לשאלה הבאה:\n\n`
         );
         setTimeout(() => {
           Linking.openURL(`mailto:${emailAddr}?subject=${subject}&body=${body}`);

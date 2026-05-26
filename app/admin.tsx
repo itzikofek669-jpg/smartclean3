@@ -239,7 +239,7 @@ export default function AdminScreen() {
       {/* ── Header ── */}
       <View style={s.header}>
         <View>
-          <Text style={s.headerTitle}>🛡️ CLEANTOUCH Admin</Text>
+          <Text style={s.headerTitle}>🛡️ A&M Clean Admin</Text>
           <Text style={s.headerSub}>
             {users.length} משתמשים · {bookings.length} הזמנות
           </Text>
@@ -484,7 +484,7 @@ export default function AdminScreen() {
                 style={s.input}
                 value={pushTitle}
                 onChangeText={setPushTitle}
-                placeholder="לדוגמה: עדכון חשוב מ-CLEANTOUCH"
+                placeholder="לדוגמה: עדכון חשוב מ-A&M Clean"
                 placeholderTextColor={C.sub}
               />
               <Text style={s.fieldLabel}>תוכן ההודעה</Text>

@@ -126,8 +126,8 @@ export default function OnboardingScreen() {
           </Text>
         </TouchableOpacity>
 
-        {/* CLEANTOUCH branding */}
-        <Text style={s.brand}>CLEANTOUCH</Text>
+        {/* A&M Clean branding */}
+        <Text style={s.brand}>A&M Clean</Text>
       </View>
     </SafeAreaView>
   );

@@ -1,6 +1,52 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
+import { Text, TextProps } from 'react-native';
 import * as SecureStore from 'expo-secure-store';
 import translations, { Lang, Translations } from './translations';
+
+// ─── Color Palette ───────────────────────────────────────────────────────────
+export type AppColors = {
+  blue: string; blueDark: string; blueLight: string; bluePale: string;
+  blueBorder: string; textDark: string; textMid: string; textSub: string;
+  gold: string; green: string; greenBg: string; white: string;
+  grayBg: string; grayBorder: string;
+  orange: string; bg: string; error: string;
+};
+
+const DEFAULT_COLORS: AppColors = {
+  blue:       '#185FA5',
+  blueDark:   '#0D4F96',
+  blueLight:  '#E6F1FB',
+  bluePale:   '#F4F8FD',
+  blueBorder: '#B5D4F4',
+  textDark:   '#042C53',
+  textMid:    '#378ADD',
+  textSub:    '#6B9DC2',
+  gold:       '#F59E0B',
+  green:      '#10B981',
+  greenBg:    '#D1FAE5',
+  white:      '#FFFFFF',
+  grayBg:     '#F1F5F9',
+  grayBorder: '#E2EAF3',
+  orange:     '#F97316',
+  bg:         '#F8F9FA',
+  error:      '#EF4444',
+};
+
+export function useAppColors(): AppColors {
+  return DEFAULT_COLORS;
+}
+
+// ─── Scaled Text Component ────────────────────────────────────────────────────
+export function T({ style, children, ...props }: TextProps) {
+  const { textScale } = useLanguage();
+  const flatStyle = Array.isArray(style) ? Object.assign({}, ...style.map(s => s || {})) : (style || {});
+  const baseFontSize = (flatStyle as any).fontSize ?? 14;
+  return (
+    <Text style={[style, { fontSize: baseFontSize * textScale }]} {...props}>
+      {children}
+    </Text>
+  );
+}
 
 export type TextScale = 1 | 1.15 | 1.3;
 
