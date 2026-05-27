@@ -63,7 +63,7 @@ const LANG_OPTS = [
   { key: 'ru', label: 'Русский',  flag: '🇷🇺' },
   { key: 'ar', label: 'العربية',  flag: '🇸🇦' },
   { key: 'fr', label: 'Français', flag: '🇫🇷' },
-  { key: 'hi', label: 'हिन्दी',  flag: '🇮🇳' },
+  { key: 'hi', label: 'Hindi',   flag: '🇮🇳' },
 ];
 
 const TERMS = `תקנון והסרת אחריות – שימוש באפליקציה
@@ -428,7 +428,7 @@ export default function RegisterScreen() {
                     label={`${l.flag} ${l.label}`}
                     active={prefLang === l.key}
                     onPress={() => setPrefLang(l.key)}
-                    devanagari={l.key === 'hi'}
+                    devanagari={false}
                   />
                 ))}
               </View>
@@ -610,7 +610,7 @@ export default function RegisterScreen() {
                       label={`${l.flag} ${l.label}`}
                       active={prefLang === l.key}
                       onPress={() => setPrefLang(l.key)}
-                      devanagari={l.key === 'hi'}
+                      devanagari={false}
                     />
                   ))}
                 </View>
