@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity, StyleSheet,
   StatusBar, KeyboardAvoidingView, Platform, Dimensions,
@@ -261,7 +261,31 @@ export default function RegisterScreen() {
   const [loading,  setLoading]  = useState(false);
 
   // Client-specific fields
-  const [city,      setCity]      = useState('');
+  const [city,           setCity]           = useState('');
+  const [addrSuggestions, setAddrSuggestions] = useState<string[]>([]);
+  const addrTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const GMAPS_KEY = 'AIzaSyDgFAy6_0c9X_lN6JV4j6fWfCyn4vCcDdA';
+
+  const fetchAddrSuggestions = (text: string) => {
+    if (addrTimer.current) clearTimeout(addrTimer.current);
+    if (text.length < 3) { setAddrSuggestions([]); return; }
+    addrTimer.current = setTimeout(async () => {
+      try {
+        const url = `https://maps.googleapis.com/maps/api/place/autocomplete/json?input=${encodeURIComponent(text)}&key=${GMAPS_KEY}&language=he&components=country:il`;
+        const res = await fetch(url);
+        const json = await res.json();
+        if (json.predictions) {
+          setAddrSuggestions(json.predictions.map((p: any) => p.description));
+        }
+      } catch (_) {}
+    }, 350);
+  };
+
+  const handleCityChange = (text: string) => {
+    setCity(text);
+    fetchAddrSuggestions(text);
+  };
+
   const [prefLang,  setPrefLang]  = useState<string>(lang);
 
   // Cleaner-specific fields
@@ -522,9 +546,22 @@ await setDoc(doc(db, 'users', cred.user.uid), data);
                 <Text style={s.label}>📍 כתובת מלאה</Text>
                 <TextInput
                   style={s.input} placeholder="רחוב, מספר, עיר..."
-                  value={city} onChangeText={setCity}
+                  value={city} onChangeText={handleCityChange}
                   placeholderTextColor={C.sub} textAlign="right"
                 />
+                {addrSuggestions.length > 0 && (
+                  <View style={s.addrDropdown}>
+                    {addrSuggestions.map((sug, i) => (
+                      <TouchableOpacity
+                        key={i}
+                        style={[s.addrSugRow, i < addrSuggestions.length - 1 && s.addrSugBorder]}
+                        onPress={() => { setCity(sug); setAddrSuggestions([]); }}
+                      >
+                        <Text style={s.addrSugText}>📍 {sug}</Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                )}
               </View>
               <SectionTitle>{t.prefLangSection}</SectionTitle>
               <View style={s.pillRow}>
@@ -789,6 +826,10 @@ const s = StyleSheet.create({
   roleLabelActive: { color: C.blue },
   roleDesc:        { fontSize: 11, color: C.sub, textAlign: 'center' },
   clientBlock:     { backgroundColor: C.blueLight, borderRadius: 16, padding: 16, marginBottom: 16, borderWidth: 1, borderColor: C.border },
+  addrDropdown:    { backgroundColor: C.white, borderRadius: 12, borderWidth: 1, borderColor: C.border, marginTop: 4, overflow: 'hidden', elevation: 4, shadowColor: '#000', shadowOpacity: 0.1, shadowRadius: 6, shadowOffset: { width: 0, height: 2 } },
+  addrSugRow:      { paddingVertical: 12, paddingHorizontal: 14 },
+  addrSugBorder:   { borderBottomWidth: 1, borderBottomColor: C.border },
+  addrSugText:     { fontSize: 13, color: C.text, textAlign: 'right' },
   freePromoCard:   { backgroundColor: '#D1FAE5', borderRadius: 14, padding: 14, marginBottom: 16, borderWidth: 1.5, borderColor: '#6EE7B7', alignItems: 'center' },
   freePromoText:   { fontSize: 13, fontWeight: '800', color: '#065F46', textAlign: 'center', lineHeight: 20 },
   cleanerBlock:    { backgroundColor: C.blueLight, borderRadius: 16, padding: 16, marginBottom: 16, borderWidth: 1, borderColor: C.border },
