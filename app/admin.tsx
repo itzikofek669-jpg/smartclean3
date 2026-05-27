@@ -2,7 +2,6 @@ import React, { useEffect, useRef, useState } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity, TextInput,
   Alert, StyleSheet, SafeAreaView, StatusBar, ActivityIndicator,
-  Animated,
 } from 'react-native';
 import {
   collection, onSnapshot, query, orderBy, limit,
@@ -77,6 +76,13 @@ export default function AdminScreen() {
   const [bookingSearch, setBookingSearch] = useState('');
 
   useEffect(() => {
+    // הגנה — רק אדמין מורשה
+    const currentEmail = auth.currentUser?.email || '';
+    const ADMIN_EMAILS = ['cleantouchapp@gmail.com', 'itzikofek669@gmail.com'];
+    if (!ADMIN_EMAILS.includes(currentEmail)) {
+      router.replace('/home');
+      return;
+    }
     const unsubUsers = onSnapshot(collection(db, 'users'), snap => {
       setUsers(snap.docs.map(d => ({ uid: d.id, ...d.data() })));
       setLoading(false);

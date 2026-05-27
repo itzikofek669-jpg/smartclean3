@@ -189,9 +189,10 @@ const CLEANERS = [
 ];
 
 const TYPE_ICONS: Record<string, string> = {
-  'ניקוי לפסח': '🧹', 'חלונות': '🪟', 'לאחר שיפוץ': '🔨',
+  'ניקוי רגיל': '🏠', 'ניקוי לפסח': '🧹', 'חלונות': '🪟', 'לאחר שיפוץ': '🔨',
   'שטיפת רכב': '🚗', 'ניקיון משרדים': '🏢',
   'ניקיון אחרי אירוע': '🎉', 'מחסן ועליית גג': '📦',
+  'סידורי בגדים וארונות': '👔',
 };
 
 function getBadges(cleaner: any): string[] {
@@ -614,7 +615,7 @@ function ReviewsModal({ cleaner, visible, onClose }: any) {
             <Stars rating={cleaner.rating} size={24} />
             <Text style={s.ratingBigCount}>{cleaner.reviews} {t.reviewsSuffix}</Text>
           </View>
-          {cleaner.reviewsList.map((r: any, i: number) => (
+          {(cleaner.reviewsList || []).map((r: any, i: number) => (
             <View key={i} style={s.reviewCard}>
               <View style={s.reviewTop}>
                 <View style={s.reviewAvatar}><Text style={s.reviewAvatarText}>{r.name.charAt(0)}</Text></View>
@@ -755,7 +756,7 @@ function CleanerProfile({ cleaner, visible, onClose, onBook, onChat }: any) {
               <TouchableOpacity onPress={() => setShowReviews(true)}><Text style={s.seeAllBtn}>{t.seeAllBtn}</Text></TouchableOpacity>
             </View>
             <Stars rating={cleaner.rating} size={20} />
-            {cleaner.reviewsList.slice(0, 2).map((r: any, i: number) => (
+            {(cleaner.reviewsList || []).slice(0, 2).map((r: any, i: number) => (
               <View key={i} style={[s.reviewCard, { marginTop: 10 }]}>
                 <View style={s.reviewTop}>
                   <View style={s.reviewAvatar}><Text style={s.reviewAvatarText}>{r.name.charAt(0)}</Text></View>
@@ -764,7 +765,7 @@ function CleanerProfile({ cleaner, visible, onClose, onBook, onChat }: any) {
                 <Text style={s.reviewText}>{r.text}</Text>
               </View>
             ))}
-            {cleaner.reviewsList.length > 2 && (
+            {(cleaner.reviewsList || []).length > 2 && (
               <TouchableOpacity style={s.allReviewsBtn} onPress={() => setShowReviews(true)}>
                 <Text style={s.allReviewsBtnText}>{t.allReviewsPrefix} ({cleaner.reviews}) ›</Text>
               </TouchableOpacity>

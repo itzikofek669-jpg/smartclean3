@@ -13,8 +13,7 @@ import {
   doc, getDoc, setDoc, updateDoc, addDoc, deleteDoc,
   collection, query, where, orderBy, arrayRemove, arrayUnion, onSnapshot,
 } from 'firebase/firestore';
-import { auth, db } from '../lib/firebase';
-import { storage } from '../lib/firebase';
+import { auth, db, storage } from '../lib/firebase';
 import { ref as storageRef, uploadBytes, getDownloadURL } from 'firebase/storage';
 // expo-av נטען דינמית — לא קורס ב-Expo Go
 let Audio: typeof import('expo-av').Audio | null = null;
@@ -237,7 +236,7 @@ function createS(c: AppColors) {
   });
 }
 
-const PAY_ICONS: Record<string, string> = { bit: '📱', cash: '💵', paybox: '💜' };
+const PAY_ICONS: Record<string, string> = { bit: '📱', cash: '💵', paybox: '💙' };
 
 const SERVICE_ICONS: Record<string, string> = {
   'ניקוי רגיל': '🏠', 'ניקוי לפסח': '🧹', 'חלונות': '🪟', 'לאחר שיפוץ': '🔨',
@@ -585,7 +584,7 @@ export default function ProfileScreen() {
   const [userPhone,    setUserPhone]    = useState('');
   const [hasPushToken,     setHasPushToken]     = useState(true); // האם יש pushToken — לאזהרת ניקוי דחוף
   const [pushToggleLoading, setPushToggleLoading] = useState(false);
-  const [availOpen,        setAvailOpen]        = useState(true);  // collapsible זמינות — פתוח כברירת מחדל
+  const [availOpen,        setAvailOpen]        = useState(false); // collapsible זמינות — סגור כברירת מחדל
   const [availableDates,   setAvailableDates]   = useState<string[]>([]); // תאריכים זמינים — YYYY-MM-DD
   const [calMonth,         setCalMonth]         = useState(new Date()); // חודש מוצג בלוח
   const [portfolioSaved,   setPortfolioSaved]   = useState(false); // סימן שמור אחרי העלאת תמונה
@@ -994,6 +993,7 @@ export default function ProfileScreen() {
   };
 
   useEffect(() => {
+    if (!uid) return;
     // ── טעינת נתוני פרופיל (חד-פעמי) ──────────────────────────────────────
     (async () => {
       try {

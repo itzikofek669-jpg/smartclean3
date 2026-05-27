@@ -861,8 +861,6 @@ const s = StyleSheet.create({
   addrSugRow:      { paddingVertical: 12, paddingHorizontal: 14 },
   addrSugBorder:   { borderBottomWidth: 1, borderBottomColor: C.border },
   addrSugText:     { fontSize: 13, color: C.text, textAlign: 'right' },
-  freePromoCard:   { backgroundColor: '#D1FAE5', borderRadius: 14, padding: 14, marginBottom: 16, borderWidth: 1.5, borderColor: '#6EE7B7', alignItems: 'center' },
-  freePromoText:   { fontSize: 13, fontWeight: '800', color: '#065F46', textAlign: 'center', lineHeight: 20 },
   cleanerBlock:    { backgroundColor: C.blueLight, borderRadius: 16, padding: 16, marginBottom: 16, borderWidth: 1, borderColor: C.border },
   sectionTitle:    { fontSize: 14, fontWeight: '800', color: C.text, marginBottom: 10, marginTop: 8, textAlign: 'center' },
   pillRow:         { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 14, justifyContent: 'center' },
@@ -887,5 +885,4 @@ const s = StyleSheet.create({
   photoPickerPlaceholder: { width: 110, height: 110, borderRadius: 55, backgroundColor: C.blueLight, borderWidth: 2.5, borderColor: C.border, alignItems: 'center', justifyContent: 'center' },
   photoPickerBadge:       { position: 'absolute', bottom: 4, right: 4, width: 28, height: 28, borderRadius: 14, backgroundColor: C.blue, alignItems: 'center', justifyContent: 'center', borderWidth: 2, borderColor: C.white },
   photoPickerLabel:       { fontSize: 14, fontWeight: '700', color: C.text },
-  photoPickerSub:         { fontSize: 12, color: C.sub, textAlign: 'center' },
 });

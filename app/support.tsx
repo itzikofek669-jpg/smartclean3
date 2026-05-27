@@ -179,7 +179,7 @@ function getClientResponse(msg: string, userName: string, activeBooking: any, al
       const b = activeBooking;
       const perHour = b.hours ? Math.round((b.total || 0) / b.hours) : 0;
       return {
-        text: `💰 עלות ההזמנה הנוכחית:\n\n⏱️ ${b.hours} שעות × ₪${perHour}/שעה\n💵 סה"כ: ₪${b.total || 0}\n💳 תשלום ב: ${b.paymentMethod === 'cash' ? 'מזומן' : b.paymentMethod === 'bit' ? 'ביט' : 'אשראי'}\n\n✅ ₪0 דמי שירות — A&M Clean חינמי!`,
+        text: `💰 עלות ההזמנה הנוכחית:\n\n⏱️ ${b.hours} שעות × ₪${perHour}/שעה\n💵 סה"כ: ₪${b.total || 0}\n💳 תשלום ב: ${b.paymentMethod === 'cash' ? 'מזומן' : b.paymentMethod === 'bit' ? 'ביט' : b.paymentMethod === 'paybox' ? 'Paybox' : 'מזומן'}\n\n✅ ₪0 דמי שירות — A&M Clean חינמי!`,
         quickReplies: ['מה הסטטוס?', 'חזור לתפריט'],
       };
     }

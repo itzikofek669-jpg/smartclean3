@@ -96,7 +96,6 @@ function InlineChatModal({ chatId, otherUid, otherName, visible, onClose }: any)
 
   useEffect(() => {
     if (!chatId || !visible) return;
-    const myUid = auth.currentUser?.uid;
     if (myUid) {
       updateDoc(doc(db, 'chats', chatId), { unreadBy: arrayRemove(myUid) }).catch(() => {});
     }
@@ -281,7 +280,7 @@ function InlineChatModal({ chatId, otherUid, otherName, visible, onClose }: any)
 
   // מחיקת ההודעות הנבחרות
   const deleteSelected = async () => {
-    if (selectedMsgs.size === 0) return;
+    if (selectedMsgs.size === 0 || !chatId) return;
     Alert.alert(
       `מחק ${selectedMsgs.size} הודעות`,
       'הפעולה אינה הפיכה.',
