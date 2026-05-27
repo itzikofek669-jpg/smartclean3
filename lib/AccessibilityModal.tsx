@@ -1,9 +1,10 @@
 import React from 'react';
 import {
   Modal, View, Text, TouchableOpacity,
-  StyleSheet, ScrollView, Platform,
+  StyleSheet, ScrollView,
 } from 'react-native';
-import { useLanguage, TextScale } from './LanguageContext';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useLanguage, TextScale, HC, T } from './LanguageContext';
 
 interface Props {
   visible: boolean;
@@ -12,22 +13,27 @@ interface Props {
 
 export default function AccessibilityModal({ visible, onClose }: Props) {
   const { t, flipSide, setFlipSide, textScale, setTextScale, highContrast, setHighContrast } = useLanguage();
+  const insets = useSafeAreaInsets();
 
-  const bg    = '#FFFFFF';
-  const bgRow = '#F8FAFC';
-  const txt   = '#1E3A5F';
-  const sub   = '#64748B';
-  const blue  = '#2563EB';
-  const border= '#E2EAF3';
+  // צבעים דינמיים — מגיבים לניגודיות גבוהה
+  const bg    = highContrast ? HC.card    : '#FFFFFF';
+  const bgRow = highContrast ? HC.bg      : '#F8FAFC';
+  const txt   = highContrast ? HC.text    : '#1E3A5F';
+  const sub   = highContrast ? HC.sub     : '#64748B';
+  const blue  = highContrast ? HC.blue    : '#2563EB';
+  const border= highContrast ? HC.border  : '#E2EAF3';
+
+  // גודל גופן דינמי
+  const fs = (base: number) => Math.round(base * textScale);
 
   const Row = ({ icon, label, sublabel, right }: {
     icon: string; label: string; sublabel?: string; right: React.ReactNode
   }) => (
-    <View style={[ms.row, { backgroundColor: bgRow, borderColor: border }]}>
-      <Text style={ms.rowIcon}>{icon}</Text>
+    <View style={[ms.row, { backgroundColor: bgRow, borderColor: border, borderWidth: highContrast ? 2 : 1 }]}>
+      <T style={[ms.rowIcon, { fontSize: fs(22) }]}>{icon}</T>
       <View style={{ flex: 1 }}>
-        <Text style={[ms.rowLabel, { color: txt }]}>{label}</Text>
-        {sublabel ? <Text style={[ms.rowSub, { color: sub }]}>{sublabel}</Text> : null}
+        <T style={[ms.rowLabel, { color: txt, fontSize: fs(15) }]}>{label}</T>
+        {sublabel ? <T style={[ms.rowSub, { color: sub, fontSize: fs(12) }]}>{sublabel}</T> : null}
       </View>
       {right}
     </View>
@@ -38,7 +44,7 @@ export default function AccessibilityModal({ visible, onClose }: Props) {
       onPress={onToggle}
       accessibilityRole="switch"
       accessibilityState={{ checked: value }}
-      style={[ms.toggle, value && { backgroundColor: blue }]}
+      style={[ms.toggle, { backgroundColor: value ? blue : (highContrast ? '#444' : '#CBD5E1') }]}
     >
       <View style={[ms.thumb, value && ms.thumbOn]} />
     </TouchableOpacity>
@@ -53,11 +59,11 @@ export default function AccessibilityModal({ visible, onClose }: Props) {
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
       <TouchableOpacity style={ms.backdrop} activeOpacity={1} onPress={onClose} />
-      <View style={[ms.sheet, { backgroundColor: bg }]}>
+      <View style={[ms.sheet, { backgroundColor: bg, borderColor: border, borderTopWidth: highContrast ? 2 : 0, paddingBottom: insets.bottom + 16 }]}>
         {/* handle */}
         <View style={[ms.handle, { backgroundColor: border }]} />
 
-        <Text style={[ms.title, { color: txt }]}>♿ {t.accessibilityTitle || 'נגישות'}</Text>
+        <T style={[ms.title, { color: txt, fontSize: fs(18) }]}>♿ {t.accessibilityTitle || 'נגישות'}</T>
 
         <ScrollView showsVerticalScrollIndicator={false}>
 
@@ -78,10 +84,10 @@ export default function AccessibilityModal({ visible, onClose }: Props) {
           />
 
           {/* גודל טקסט */}
-          <View style={[ms.row, ms.scaleRow, { backgroundColor: bgRow, borderColor: border }]}>
-            <Text style={ms.rowIcon}>Aa</Text>
+          <View style={[ms.row, ms.scaleRow, { backgroundColor: bgRow, borderColor: border, borderWidth: highContrast ? 2 : 1 }]}>
+            <T style={[ms.rowIcon, { fontSize: fs(22) }]}>Aa</T>
             <View style={{ flex: 1 }}>
-              <Text style={[ms.rowLabel, { color: txt }]}>{t.textSizeLabel || 'גודל טקסט'}</Text>
+              <T style={[ms.rowLabel, { color: txt, fontSize: fs(15) }]}>{t.textSizeLabel || 'גודל טקסט'}</T>
             </View>
             <View style={ms.scaleBtns}>
               {SCALES.map(sc => (
@@ -96,12 +102,15 @@ export default function AccessibilityModal({ visible, onClose }: Props) {
                     textScale === sc.v && { backgroundColor: blue, borderColor: blue },
                   ]}
                 >
-                  <Text style={[
+                  <T style={[
                     ms.scaleBtnText,
-                    { color: textScale === sc.v ? '#FFF' : txt, fontSize: 11 + SCALES.indexOf(sc) * 2 },
+                    {
+                      color: textScale === sc.v ? '#FFF' : txt,
+                      fontSize: (11 + SCALES.indexOf(sc) * 3) * textScale,
+                    },
                   ]}>
                     {sc.label}
-                  </Text>
+                  </T>
                 </TouchableOpacity>
               ))}
             </View>
@@ -109,8 +118,13 @@ export default function AccessibilityModal({ visible, onClose }: Props) {
 
         </ScrollView>
 
-        <TouchableOpacity style={[ms.closeBtn, { borderColor: border }]} onPress={onClose}>
-          <Text style={[ms.closeBtnText, { color: blue }]}>{t.closeBtn || 'סגור'}</Text>
+        <TouchableOpacity
+          style={[ms.closeBtn, { borderColor: blue, backgroundColor: highContrast ? blue : 'transparent' }]}
+          onPress={onClose}
+        >
+          <T style={[ms.closeBtnText, { color: highContrast ? '#FFF' : blue, fontSize: fs(15) }]}>
+            {t.closeBtn || 'סגור'}
+          </T>
         </TouchableOpacity>
       </View>
     </Modal>
@@ -119,7 +133,7 @@ export default function AccessibilityModal({ visible, onClose }: Props) {
 
 const ms = StyleSheet.create({
   backdrop:     { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.45)' },
-  sheet:        { position: 'absolute', bottom: 0, left: 0, right: 0, borderTopLeftRadius: 24, borderTopRightRadius: 24, paddingHorizontal: 20, paddingBottom: Platform.OS === 'ios' ? 36 : 24, elevation: 20, maxHeight: '80%' },
+  sheet:        { position: 'absolute', bottom: 0, left: 0, right: 0, borderTopLeftRadius: 24, borderTopRightRadius: 24, paddingHorizontal: 20, elevation: 20, maxHeight: '80%' },
   handle:       { width: 40, height: 4, borderRadius: 2, alignSelf: 'center', marginTop: 12, marginBottom: 4 },
   title:        { fontSize: 18, fontWeight: '800', textAlign: 'center', marginVertical: 14 },
   row:          { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 14, borderRadius: 14, marginBottom: 10, borderWidth: 1 },
@@ -127,12 +141,12 @@ const ms = StyleSheet.create({
   rowIcon:      { fontSize: 22, width: 32, textAlign: 'center' },
   rowLabel:     { fontSize: 15, fontWeight: '700' },
   rowSub:       { fontSize: 12, marginTop: 2 },
-  toggle:       { width: 48, height: 27, borderRadius: 14, backgroundColor: '#CBD5E1', justifyContent: 'center', paddingHorizontal: 3 },
+  toggle:       { width: 48, height: 27, borderRadius: 14, justifyContent: 'center', paddingHorizontal: 3 },
   thumb:        { width: 21, height: 21, borderRadius: 11, backgroundColor: '#FFF', alignSelf: 'flex-start', elevation: 2 },
   thumbOn:      { alignSelf: 'flex-end' },
   scaleBtns:    { flexDirection: 'row', gap: 6 },
-  scaleBtn:     { width: 40, height: 36, borderRadius: 10, borderWidth: 1.5, alignItems: 'center', justifyContent: 'center' },
+  scaleBtn:     { width: 44, height: 40, borderRadius: 10, borderWidth: 1.5, alignItems: 'center', justifyContent: 'center' },
   scaleBtnText: { fontWeight: '800' },
-  closeBtn:     { marginTop: 8, borderRadius: 14, borderWidth: 1.5, paddingVertical: 14, alignItems: 'center' },
+  closeBtn:     { marginTop: 8, borderRadius: 14, borderWidth: 2, paddingVertical: 14, alignItems: 'center' },
   closeBtnText: { fontSize: 15, fontWeight: '700' },
 });

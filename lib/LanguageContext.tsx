@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
+import { Text as RNText, TextProps, StyleSheet as RNStyleSheet } from 'react-native';
 import * as SecureStore from 'expo-secure-store';
 import translations, { Lang, Translations } from './translations';
 
@@ -94,4 +95,117 @@ export function LanguageProvider({ children }: { children: React.ReactNode }) {
 
 export function useLanguage() {
   return useContext(LanguageContext);
+}
+
+/** מכפיל גודל גופן לפי הגדרת הנגישות */
+export function useFS() {
+  const { textScale } = useContext(LanguageContext);
+  return (base: number) => Math.round(base * textScale);
+}
+
+/**
+ * T — רכיב Text שמכפיל fontSize אוטומטית לפי textScale מהקונטקסט.
+ * משמש במקום <Text> בכל האפליקציה — כל שאר ה-props עוברים ישירות.
+ */
+export function T({ style, children, ...props }: TextProps) {
+  const { textScale, lang } = useContext(LanguageContext);
+  const needsDevanagari = lang === 'hi' &&
+    typeof children === 'string' &&
+    /[ऀ-ॿ]/.test(children);
+  const hiFont = needsDevanagari ? { fontFamily: 'NotoSansDevanagari_400Regular' } : {};
+  const flat: any = style ? RNStyleSheet.flatten(style) ?? {} : {};
+
+  // הינדי: הקטנת פונט אוטומטית אם הטקסט לא מתאים לכפתור
+  const hiAdjust = needsDevanagari && !props.numberOfLines
+    ? { adjustsFontSizeToFit: true, numberOfLines: 2, minimumFontScale: 0.65 }
+    : {};
+
+  if (textScale === 1) return <RNText style={[hiFont, style]} {...hiAdjust} {...props}>{children}</RNText>;
+  const scaled = flat.fontSize != null
+    ? { ...flat, ...hiFont, fontSize: Math.round(flat.fontSize * textScale) }
+    : { ...flat, ...hiFont };
+  return <RNText style={scaled} {...hiAdjust} {...props}>{children}</RNText>;
+}
+
+/**
+ * צבעי ניגודיות גבוהה — שחור על לבן (WCAG AAA ≥ 7:1)
+ * לא "מצב לילה" — רקע בהיר עם טקסט כהה וגבולות שחורים בולטים
+ */
+export const HC = {
+  bg:      '#FFFFFF',   // רקע לבן נקי
+  card:    '#F0F0F0',   // כרטיסים — אפור בהיר
+  text:    '#000000',   // טקסט שחור מלא
+  sub:     '#1A1A1A',   // טקסט משני — כמעט שחור
+  border:  '#000000',   // גבול שחור עבה
+  blue:    '#0040CC',   // כחול כהה — ניגודיות גבוהה על לבן
+  red:     '#B30000',   // אדום כהה
+  green:   '#005C00',   // ירוק כהה
+};
+
+export function useHighContrast() {
+  const { highContrast } = useContext(LanguageContext);
+  return highContrast;
+}
+
+export type AppColors = {
+  blue: string; blueDark: string; blueLight: string; bluePale: string;
+  blueBorder: string; textDark: string; textMid: string; textSub: string;
+  green: string; greenBg: string; gold: string; orange: string; orangeBg: string;
+  white: string; grayBg: string; grayBorder: string; error: string;
+  bg: string; card: string;
+  // shorthand aliases
+  text: string; sub: string;
+};
+
+const NORMAL_COLORS: AppColors = {
+  blue:       '#185FA5',
+  blueDark:   '#0D4F96',
+  blueLight:  '#E6F1FB',
+  bluePale:   '#FAF7F2',
+  blueBorder: '#B5D4F4',
+  textDark:   '#042C53',
+  textMid:    '#378ADD',
+  textSub:    '#6B9DC2',
+  green:      '#10B981',
+  greenBg:    '#D1FAE5',
+  gold:       '#F59E0B',
+  orange:     '#F97316',
+  orangeBg:   '#FEF3C7',
+  white:      '#FFFFFF',
+  grayBg:     '#F1F5F9',
+  grayBorder: '#E2EAF3',
+  error:      '#EF4444',
+  bg:         '#FAF7F2',
+  card:       '#FFFFFF',
+  text:       '#042C53',
+  sub:        '#6B9DC2',
+};
+
+const HC_COLORS: AppColors = {
+  blue:       '#0040CC',
+  blueDark:   '#002080',
+  blueLight:  '#FFFFFF',
+  bluePale:   '#FFFFFF',
+  blueBorder: '#000000',
+  textDark:   '#000000',
+  textMid:    '#000000',
+  textSub:    '#1A1A1A',
+  green:      '#005C00',
+  greenBg:    '#CCFFCC',
+  gold:       '#7A4800',
+  orange:     '#7A2E00',
+  orangeBg:   '#FFE0CC',
+  white:      '#FFFFFF',
+  grayBg:     '#FFFFFF',
+  grayBorder: '#000000',
+  error:      '#B30000',
+  bg:         '#FFFFFF',
+  card:       '#F0F0F0',
+  text:       '#000000',
+  sub:        '#1A1A1A',
+};
+
+export function useAppColors(): AppColors {
+  const { highContrast } = useContext(LanguageContext);
+  return highContrast ? HC_COLORS : NORMAL_COLORS;
 }

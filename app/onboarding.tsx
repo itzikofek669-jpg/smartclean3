@@ -1,11 +1,11 @@
-import React, { useRef, useState } from 'react';
+﻿import React, { useRef, useState } from 'react';
 import {
-  View, Text, StyleSheet, Dimensions, FlatList,
+  View, StyleSheet, Dimensions, FlatList,
   TouchableOpacity, SafeAreaView, StatusBar, Animated,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import * as SecureStore from 'expo-secure-store';
-import { useLanguage } from '../lib/LanguageContext';
+import { useLanguage, T, useAppColors } from '../lib/LanguageContext';
 
 const { width: W, height: H } = Dimensions.get('window');
 
@@ -38,7 +38,8 @@ const SLIDES = [
 
 export default function OnboardingScreen() {
   const router  = useRouter();
-  const { t }   = useLanguage();
+  const { t, highContrast } = useLanguage();
+  const appC = useAppColors();
   const [current, setCurrent] = useState(0);
   const listRef = useRef<FlatList>(null);
   const fadeAnim = useRef(new Animated.Value(1)).current;
@@ -63,14 +64,16 @@ export default function OnboardingScreen() {
   };
 
   const slide = SLIDES[current];
+  const slideBg     = highContrast ? '#FFFFFF' : slide.bg;
+  const slideAccent = highContrast ? '#0040CC' : slide.accent;
 
   return (
-    <SafeAreaView style={[s.wrap, { backgroundColor: slide.bg }]}>
-      <StatusBar barStyle="dark-content" backgroundColor={slide.bg} />
+    <SafeAreaView style={[s.wrap, { backgroundColor: slideBg }]}>
+      <StatusBar barStyle="dark-content" backgroundColor={slideBg} />
 
       {/* Skip */}
       <TouchableOpacity style={s.skipBtn} onPress={finish}>
-        <Text style={s.skipTxt}>{t.onboardingSkip}</Text>
+        <T style={s.skipTxt}>{t.onboardingSkip}</T>
       </TouchableOpacity>
 
       {/* Slides (hidden scroll, we animate via state) */}
@@ -92,9 +95,9 @@ export default function OnboardingScreen() {
 
       {/* Animated content */}
       <Animated.View style={[s.content, { opacity: fadeAnim }]}>
-        <Text style={s.emoji}>{slide.emoji}</Text>
-        <Text style={[s.title, { color: slide.accent }]}>{(t as any)[slide.titleKey]}</Text>
-        <Text style={s.sub}>{(t as any)[slide.subKey]}</Text>
+        <T style={s.emoji}>{slide.emoji}</T>
+        <T style={[s.title, { color: slideAccent }]}>{(t as any)[slide.titleKey]}</T>
+        <T style={[s.sub, { color: highContrast ? '#1A1A1A' : '#64748B' }]}>{(t as any)[slide.subKey]}</T>
       </Animated.View>
 
       {/* Bottom */}
@@ -117,17 +120,17 @@ export default function OnboardingScreen() {
 
         {/* Next / Start */}
         <TouchableOpacity
-          style={[s.nextBtn, { backgroundColor: slide.accent }]}
+          style={[s.nextBtn, { backgroundColor: slideAccent }]}
           onPress={handleNext}
           activeOpacity={0.85}
         >
-          <Text style={s.nextTxt}>
+          <T style={s.nextTxt}>
             {current === SLIDES.length - 1 ? t.onboardingStart : `${t.onboardingNext} →`}
-          </Text>
+          </T>
         </TouchableOpacity>
 
-        {/* CLEANTOUCH branding */}
-        <Text style={s.brand}>CLEANTOUCH</Text>
+        {/* A&M Clean branding */}
+        <T style={s.brand}>A&M Clean</T>
       </View>
     </SafeAreaView>
   );
@@ -150,3 +153,4 @@ const s = StyleSheet.create({
   nextTxt: { fontSize: 17, fontWeight: '900', color: '#fff', letterSpacing: 0.3 },
   brand:   { fontSize: 13, color: '#94A3B8', fontWeight: '600', marginTop: -8 },
 });
+

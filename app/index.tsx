@@ -8,20 +8,59 @@ import { signInWithEmailAndPassword, sendPasswordResetEmail } from 'firebase/aut
 import * as SecureStore from 'expo-secure-store';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { auth, db } from '../lib/firebase';
-import { useLanguage } from '../lib/LanguageContext';
+import { useLanguage, T, useAppColors, AppColors } from '../lib/LanguageContext';
 import { Lang } from '../lib/translations';
 
-const C = {
-  blue:     '#185FA5',
-  blueDark: '#0D4F96',
-  blueMid:  '#1E6FC0',
-  blueLight:'#E6F1FB',
-  border:   '#B5D4F4',
-  text:     '#042C53',
-  sub:      '#6B9DC2',
-  white:    '#FFFFFF',
-  error:    '#EF4444',
-};
+function createS(c: AppColors) {
+  return StyleSheet.create({
+    wrap:         { flex: 1, backgroundColor: c.white },
+    hero:         { alignItems: 'center', paddingTop: 12, paddingBottom: 10, backgroundColor: c.white },
+    logo:         { fontSize: 44, marginBottom: 6 },
+    title:        { fontSize: 32, fontWeight: '900', color: c.white, letterSpacing: -1 },
+    subtitle:     { fontSize: 13, color: 'rgba(255,255,255,0.7)', marginTop: 4 },
+
+    langBtn:      { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 14, backgroundColor: c.blueLight, borderRadius: 20, paddingHorizontal: 16, paddingVertical: 8, borderWidth: 1.5, borderColor: c.blueBorder },
+    langBtnFlag:  { fontSize: 18 },
+    langBtnLabel: { fontSize: 14, fontWeight: '700', color: c.blue },
+    langBtnArrow: { fontSize: 10, color: c.textSub, marginLeft: 2 },
+
+    langOverlay:      { flex: 1, backgroundColor: 'rgba(0,0,0,0.55)', justifyContent: 'center', alignItems: 'center', padding: 32 },
+    langMenu:         { backgroundColor: c.white, borderRadius: 20, width: '100%', maxWidth: 320, overflow: 'hidden' },
+    langMenuTitle:    { fontSize: 15, fontWeight: '900', color: c.textDark, padding: 18, paddingBottom: 12, textAlign: 'center', borderBottomWidth: 1, borderBottomColor: c.blueBorder },
+    langMenuItem:     { flexDirection: 'row', alignItems: 'center', padding: 16, paddingHorizontal: 20, gap: 14, borderBottomWidth: 1, borderBottomColor: '#F1F5F9' },
+    langMenuItemActive: { backgroundColor: c.blueLight },
+    langMenuFlag:     { fontSize: 26 },
+    langMenuName:     { flex: 1, fontSize: 16, fontWeight: '600', color: c.textDark },
+    langMenuNameActive: { color: c.blue, fontWeight: '800' },
+    langMenuCheck:    { fontSize: 18, color: c.blue, fontWeight: '900' },
+
+    card:         { backgroundColor: c.white, borderTopLeftRadius: 32, borderTopRightRadius: 32, flex: 1 },
+    cardTitle:    { fontSize: 22, fontWeight: '800', color: c.textDark, marginBottom: 20, textAlign: 'center' },
+    field:        { marginBottom: 16 },
+    label:        { fontSize: 13, fontWeight: '700', color: c.textDark, marginBottom: 8, textAlign: 'right' },
+    input:        { backgroundColor: c.blueLight, borderRadius: 12, padding: 14, fontSize: 15, color: c.textDark, borderWidth: 1, borderColor: c.blueBorder },
+    btn:          { backgroundColor: c.blue, borderRadius: 14, padding: 16, alignItems: 'center', marginTop: 8 },
+    btnText:      { fontSize: 16, fontWeight: '800', color: c.white },
+    divider:      { flexDirection: 'row', alignItems: 'center', marginVertical: 20, gap: 12 },
+    dividerLine:  { flex: 1, height: 1, backgroundColor: c.blueBorder },
+    dividerText:  { fontSize: 13, color: c.textSub, fontWeight: '600' },
+    rememberRow:      { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 18, paddingHorizontal: 2 },
+    checkbox:         { width: 22, height: 22, borderRadius: 6, borderWidth: 2, borderColor: c.blue, backgroundColor: c.white, alignItems: 'center', justifyContent: 'center' },
+    checkboxChecked:  { backgroundColor: c.blue, borderColor: c.blue },
+    checkmark:        { color: c.white, fontSize: 13, fontWeight: '900', lineHeight: 16 },
+    rememberText:     { fontSize: 13, color: c.textDark, fontWeight: '600', flex: 1, textAlign: 'right' },
+    registerBtn:  { borderRadius: 14, padding: 16, alignItems: 'center', borderWidth: 1.5, borderColor: c.blue, marginBottom: 12 },
+    registerBtnText: { fontSize: 16, fontWeight: '700', color: c.blue },
+
+    socialRow:         { flexDirection: 'row', gap: 12, marginBottom: 16 },
+    socialBtnGoogle:   { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, borderRadius: 12, paddingVertical: 11, paddingHorizontal: 8, borderWidth: 1.5, borderColor: '#DADCE0', backgroundColor: c.white, elevation: 2 },
+    socialBtnFacebook: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, borderRadius: 12, paddingVertical: 11, paddingHorizontal: 8, backgroundColor: '#1877F2' },
+    socialBtnTextGoogle:   { fontSize: 13, fontWeight: '700', color: '#3C4043' },
+    socialBtnTextFacebook: { fontSize: 13, fontWeight: '700', color: c.white },
+    googleIcon:   { fontSize: 16, fontWeight: '900', color: '#4285F4' },
+    facebookIcon: { fontSize: 18, fontWeight: '900', color: c.white },
+  });
+}
 
 const LANGS: { code: Lang; flag: string; label: string; nativeName: string }[] = [
   { code: 'he', flag: '🇮🇱', label: 'עב',  nativeName: 'עברית'   },
@@ -49,6 +88,8 @@ async function ensureUserProfile(uid: string, name: string, email: string) {
 export default function LoginScreen() {
   const router = useRouter();
   const { t, lang, setLang } = useLanguage();
+  const C = useAppColors();
+  const s = createS(C);
 
   const [email,         setEmail]         = useState('');
   const [password,      setPassword]      = useState('');
@@ -115,14 +156,14 @@ export default function LoginScreen() {
           {/* Language button */}
           <View style={{ alignItems: 'center', marginBottom: 16 }}>
             <TouchableOpacity style={s.langBtn} onPress={() => setShowLangMenu(true)}>
-              <Text style={s.langBtnFlag}>{currentLang.flag}</Text>
-              <Text style={s.langBtnLabel}>{currentLang.nativeName}</Text>
-              <Text style={s.langBtnArrow}>▼</Text>
+              <T style={s.langBtnFlag}>{currentLang.flag}</T>
+              <T style={s.langBtnLabel}>{currentLang.nativeName}</T>
+              <T style={s.langBtnArrow}>▼</T>
             </TouchableOpacity>
           </View>
 
           <View style={s.field}>
-            <Text style={s.label}>{t.emailLabel}</Text>
+            <T style={s.label}>{t.emailLabel}</T>
             <TextInput
               style={s.input}
               placeholder="your@email.com"
@@ -136,7 +177,7 @@ export default function LoginScreen() {
           </View>
 
           <View style={s.field}>
-            <Text style={s.label}>{t.passwordLabel}</Text>
+            <T style={s.label}>{t.passwordLabel}</T>
             <TextInput
               style={s.input}
               placeholder={t.passwordHint}
@@ -151,9 +192,9 @@ export default function LoginScreen() {
           {/* זכור אותי + שכחתי סיסמה */}
           <TouchableOpacity style={s.rememberRow} onPress={() => setRememberMe(v => !v)} activeOpacity={0.7}>
             <View style={[s.checkbox, rememberMe && s.checkboxChecked]}>
-              {rememberMe && <Text style={s.checkmark}>✓</Text>}
+              {rememberMe && <T style={s.checkmark}>✓</T>}
             </View>
-            <Text style={s.rememberText}>זכור אותי — כניסה מהירה בפעם הבאה</Text>
+            <T style={s.rememberText}>זכור אותי — כניסה מהירה בפעם הבאה</T>
           </TouchableOpacity>
 
           <TouchableOpacity onPress={async () => {
@@ -165,15 +206,15 @@ export default function LoginScreen() {
               Alert.alert(t.error, 'אימייל לא נמצא במערכת');
             }
           }} style={{ alignItems: 'flex-end', paddingVertical: 6, marginBottom: 4 }}>
-            <Text style={{ color: C.blue, fontSize: 13, fontWeight: '600' }}>🔑 שכחתי סיסמה</Text>
+            <T style={{ color: C.blue, fontSize: 13, fontWeight: '600' }}>🔑 שכחתי סיסמה</T>
           </TouchableOpacity>
 
           <TouchableOpacity style={s.registerBtn} onPress={() => router.push('/register')}>
-            <Text style={s.registerBtnText}>{t.registerLink}</Text>
+            <T style={s.registerBtnText}>{t.registerLink}</T>
           </TouchableOpacity>
 
           <TouchableOpacity style={[s.btn, loading && { opacity: 0.7 }]} onPress={handleLogin} disabled={loading}>
-            <Text style={s.btnText}>{loading ? t.loggingIn : t.loginBtn}</Text>
+            <T style={s.btnText}>{loading ? t.loggingIn : t.loginBtn}</T>
           </TouchableOpacity>
 
         </ScrollView>
@@ -184,16 +225,16 @@ export default function LoginScreen() {
       <Modal visible={showLangMenu} transparent animationType="fade">
         <TouchableOpacity style={s.langOverlay} activeOpacity={1} onPress={() => setShowLangMenu(false)}>
           <View style={s.langMenu}>
-            <Text style={s.langMenuTitle}>{t.drawerLanguage}</Text>
+            <T style={s.langMenuTitle}>{t.drawerLanguage}</T>
             {LANGS.map(l => (
               <TouchableOpacity
                 key={l.code}
                 style={[s.langMenuItem, lang === l.code && s.langMenuItemActive]}
                 onPress={() => { setLang(l.code); setShowLangMenu(false); }}
               >
-                <Text style={s.langMenuFlag}>{l.flag}</Text>
-                <Text style={[s.langMenuName, lang === l.code && s.langMenuNameActive]}>{l.nativeName}</Text>
-                {lang === l.code && <Text style={s.langMenuCheck}>✓</Text>}
+                <T style={s.langMenuFlag}>{l.flag}</T>
+                <T style={[s.langMenuName, lang === l.code && s.langMenuNameActive]}>{l.nativeName}</T>
+                {lang === l.code && <T style={s.langMenuCheck}>✓</T>}
               </TouchableOpacity>
             ))}
           </View>
@@ -203,51 +244,3 @@ export default function LoginScreen() {
   );
 }
 
-const s = StyleSheet.create({
-  wrap:         { flex: 1, backgroundColor: C.white },
-  hero:         { alignItems: 'center', paddingTop: 12, paddingBottom: 10, backgroundColor: C.white },
-  logo:         { fontSize: 44, marginBottom: 6 },
-  title:        { fontSize: 32, fontWeight: '900', color: C.white, letterSpacing: -1 },
-  subtitle:     { fontSize: 13, color: 'rgba(255,255,255,0.7)', marginTop: 4 },
-
-  langBtn:      { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 14, backgroundColor: C.blueLight, borderRadius: 20, paddingHorizontal: 16, paddingVertical: 8, borderWidth: 1.5, borderColor: C.border },
-  langBtnFlag:  { fontSize: 18 },
-  langBtnLabel: { fontSize: 14, fontWeight: '700', color: C.blue },
-  langBtnArrow: { fontSize: 10, color: C.sub, marginLeft: 2 },
-
-  langOverlay:      { flex: 1, backgroundColor: 'rgba(0,0,0,0.55)', justifyContent: 'center', alignItems: 'center', padding: 32 },
-  langMenu:         { backgroundColor: C.white, borderRadius: 20, width: '100%', maxWidth: 320, overflow: 'hidden' },
-  langMenuTitle:    { fontSize: 15, fontWeight: '900', color: C.text, padding: 18, paddingBottom: 12, textAlign: 'center', borderBottomWidth: 1, borderBottomColor: C.border },
-  langMenuItem:     { flexDirection: 'row', alignItems: 'center', padding: 16, paddingHorizontal: 20, gap: 14, borderBottomWidth: 1, borderBottomColor: '#F1F5F9' },
-  langMenuItemActive: { backgroundColor: C.blueLight },
-  langMenuFlag:     { fontSize: 26 },
-  langMenuName:     { flex: 1, fontSize: 16, fontWeight: '600', color: C.text },
-  langMenuNameActive: { color: C.blue, fontWeight: '800' },
-  langMenuCheck:    { fontSize: 18, color: C.blue, fontWeight: '900' },
-
-  card:         { backgroundColor: C.white, borderTopLeftRadius: 32, borderTopRightRadius: 32, flex: 1 },
-  cardTitle:    { fontSize: 22, fontWeight: '800', color: C.text, marginBottom: 20, textAlign: 'center' },
-  field:        { marginBottom: 16 },
-  label:        { fontSize: 13, fontWeight: '700', color: C.text, marginBottom: 8, textAlign: 'right' },
-  input:        { backgroundColor: C.blueLight, borderRadius: 12, padding: 14, fontSize: 15, color: C.text, borderWidth: 1, borderColor: C.border },
-  btn:          { backgroundColor: C.blue, borderRadius: 14, padding: 16, alignItems: 'center', marginTop: 8 },
-  btnText:      { fontSize: 16, fontWeight: '800', color: C.white },
-  divider:      { flexDirection: 'row', alignItems: 'center', marginVertical: 20, gap: 12 },
-  dividerLine:  { flex: 1, height: 1, backgroundColor: C.border },
-  dividerText:  { fontSize: 13, color: C.sub, fontWeight: '600' },
-  rememberRow:      { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 18, paddingHorizontal: 2 },
-  checkbox:         { width: 22, height: 22, borderRadius: 6, borderWidth: 2, borderColor: C.blue, backgroundColor: C.white, alignItems: 'center', justifyContent: 'center' },
-  checkboxChecked:  { backgroundColor: C.blue, borderColor: C.blue },
-  checkmark:        { color: C.white, fontSize: 13, fontWeight: '900', lineHeight: 16 },
-  rememberText:     { fontSize: 13, color: C.text, fontWeight: '600', flex: 1, textAlign: 'right' },
-  registerBtn:  { borderRadius: 14, padding: 16, alignItems: 'center', borderWidth: 1.5, borderColor: C.blue, marginBottom: 12 },
-  registerBtnText: { fontSize: 16, fontWeight: '700', color: C.blue },
-
-  socialRow:         { flexDirection: 'row', gap: 12, marginBottom: 16 },
-  socialBtnGoogle:   { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, borderRadius: 12, paddingVertical: 11, paddingHorizontal: 8, borderWidth: 1.5, borderColor: '#DADCE0', backgroundColor: C.white, elevation: 2 },
-  socialBtnFacebook: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, borderRadius: 12, paddingVertical: 11, paddingHorizontal: 8, backgroundColor: '#1877F2' },
-  socialBtnTextGoogle:   { fontSize: 13, fontWeight: '700', color: '#3C4043' },
-  socialBtnTextFacebook: { fontSize: 13, fontWeight: '700', color: C.white },
-  googleIcon:   { fontSize: 16, fontWeight: '900', color: '#4285F4' },
-  facebookIcon: { fontSize: 18, fontWeight: '900', color: C.white },
-});

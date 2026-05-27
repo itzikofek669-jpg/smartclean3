@@ -1,5 +1,5 @@
 {
-  "name": "cleantouch",
+  "name": "amclean",
   "main": "expo-router/entry",
   "version": "1.0.0",
   "scripts": {
@@ -21,6 +21,7 @@
     "expo": "~54.0.33",
     "expo-application": "~7.0.8",
     "expo-auth-session": "~7.0.10",
+    "expo-av": "~16.0.8",
     "expo-constants": "~18.0.13",
     "expo-crypto": "~15.0.9",
     "expo-dev-client": "~6.0.21",

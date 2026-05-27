@@ -1,12 +1,55 @@
 import React from 'react';
-import { View, TouchableOpacity, Text, StyleSheet, Platform } from 'react-native';
+import { View, TouchableOpacity, StyleSheet, Platform } from 'react-native';
 import { useRouter, usePathname } from 'expo-router';
-import { useLanguage } from './LanguageContext';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useLanguage, T, useAppColors, AppColors } from './LanguageContext';
+
+export const TAB_BAR_CONTENT_HEIGHT = 56;
+
+function createS(c: AppColors, paddingBottom: number) {
+  return StyleSheet.create({
+    bar: {
+      flexDirection:   'row',
+      backgroundColor: c.white,
+      borderTopWidth:  1,
+      borderTopColor:  c.blueBorder,
+      paddingBottom,
+      paddingTop:      8,
+      elevation:       12,
+      shadowColor:     '#185FA5',
+      shadowOpacity:   0.08,
+      shadowRadius:    8,
+      shadowOffset:    { width: 0, height: -2 },
+    },
+    tab: {
+      flex:           1,
+      alignItems:     'center',
+      justifyContent: 'center',
+      gap:            3,
+      position:       'relative',
+    },
+    icon:        { fontSize: 22 },
+    iconActive:  { fontSize: 24 },
+    label:       { fontSize: 11, color: c.textSub, fontWeight: '600' },
+    labelActive: { color: c.blue, fontWeight: '800' },
+    dot: {
+      position:        'absolute',
+      bottom:          -6,
+      width:           4,
+      height:          4,
+      borderRadius:    2,
+      backgroundColor: c.blue,
+    },
+  });
+}
 
 export default function BottomTabBar() {
   const router   = useRouter();
   const pathname = usePathname();
-  const { t }    = useLanguage();
+  const { t, flipSide } = useLanguage();
+  const C = useAppColors();
+  const insets = useSafeAreaInsets();
+  const s = createS(C, insets.bottom + 8);
 
   const tabs = [
     { route: '/home',     icon: '🏠', label: t.navHome     || 'ראשי'   },
@@ -15,7 +58,7 @@ export default function BottomTabBar() {
   ] as const;
 
   return (
-    <View style={s.bar}>
+    <View style={[s.bar, flipSide && { flexDirection: 'row-reverse' }]}>
       {tabs.map(tab => {
         const active = pathname === tab.route || pathname.startsWith(tab.route + '?');
         return (
@@ -30,8 +73,8 @@ export default function BottomTabBar() {
             accessibilityLabel={tab.label}
             accessibilityState={{ selected: active }}
           >
-            <Text style={[s.icon, active && s.iconActive]}>{tab.icon}</Text>
-            <Text style={[s.label, active && s.labelActive]}>{tab.label}</Text>
+            <T style={[s.icon, active && s.iconActive]}>{tab.icon}</T>
+            <T style={[s.label, active && s.labelActive]}>{tab.label}</T>
             {active && <View style={s.dot} />}
           </TouchableOpacity>
         );
@@ -40,45 +83,3 @@ export default function BottomTabBar() {
   );
 }
 
-const C = {
-  blue:      '#185FA5',
-  blueLight: '#E6F1FB',
-  border:    '#B5D4F4',
-  text:      '#6B9DC2',
-  white:     '#FFFFFF',
-};
-
-const s = StyleSheet.create({
-  bar: {
-    flexDirection:   'row',
-    backgroundColor: C.white,
-    borderTopWidth:  1,
-    borderTopColor:  C.border,
-    paddingBottom:   Platform.OS === 'ios' ? 20 : 8,
-    paddingTop:      8,
-    elevation:       12,
-    shadowColor:     '#185FA5',
-    shadowOpacity:   0.08,
-    shadowRadius:    8,
-    shadowOffset:    { width: 0, height: -2 },
-  },
-  tab: {
-    flex:           1,
-    alignItems:     'center',
-    justifyContent: 'center',
-    gap:            3,
-    position:       'relative',
-  },
-  icon:        { fontSize: 22 },
-  iconActive:  { fontSize: 24 },
-  label:       { fontSize: 11, color: C.text, fontWeight: '600' },
-  labelActive: { color: C.blue, fontWeight: '800' },
-  dot: {
-    position:        'absolute',
-    bottom:          -6,
-    width:           4,
-    height:          4,
-    borderRadius:    2,
-    backgroundColor: C.blue,
-  },
-});

@@ -1,20 +1,22 @@
-import React, { useEffect, useRef, useState } from 'react';
+﻿import React, { useEffect, useRef, useState } from 'react';
 import {
-  View, Text, StyleSheet, StatusBar,
+  View, StyleSheet, StatusBar,
   TouchableOpacity, TextInput, FlatList, KeyboardAvoidingView,
   Platform, Animated, Keyboard, Linking, BackHandler, Dimensions,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { collection, query, where, orderBy, limit, getDocs, onSnapshot, doc, getDoc } from 'firebase/firestore';
+import { db, auth } from '../lib/firebase';
+import { useRouter } from 'expo-router';
+import { useLanguage, T } from '../lib/LanguageContext';
+import { TAB_BAR_CONTENT_HEIGHT } from '../lib/BottomTabBar';
 
 const NAV_BAR_HEIGHT = Platform.OS === 'android'
   ? Math.max(0, Dimensions.get('screen').height - Dimensions.get('window').height - (StatusBar.currentHeight || 0))
   : 0;
-import { collection, query, where, orderBy, limit, getDocs, onSnapshot, doc, getDoc } from 'firebase/firestore';
-import { db, auth } from '../lib/firebase';
-import { useRouter } from 'expo-router';
 
 // ─── Palette ──────────────────────────────────────────────────────────────────
-const C = {
+const C_DEFAULT = {
   bg:        '#F0F4FF',
   botBg:     '#FFFFFF',
   userBg:    '#2563EB',
@@ -93,7 +95,7 @@ function getClientResponse(msg: string, userName: string, activeBooking: any, al
   // ── ברכות ─────────────────────────────────────────────────────────────────
   if (matchAny(msg, ['שלום', 'היי', 'הי', 'בוקר טוב', 'ערב טוב', 'צהריים', 'מה שלומך', 'מה נשמע', 'מה המצב'])) {
     return {
-      text: `שלום ${userName}! 😊\nאני CLEAN Bot — עוזר התמיכה של CLEANTOUCH.\nאיך אוכל לעזור לך?`,
+      text: `היי ${userName}! 👋\nשמחים שפנית — במה נוכל לעזור לך היום?`,
       quickReplies: ['מה הסטטוס שלי?', 'רוצה לבטל', 'כמה זה עולה?', 'פרטי המנקה'],
     };
   }
@@ -101,7 +103,7 @@ function getClientResponse(msg: string, userName: string, activeBooking: any, al
   // ── תודה ──────────────────────────────────────────────────────────────────
   if (matchAny(msg, ['תודה', 'תודה רבה', 'מעולה', 'סבבה', 'ממש עזרת', 'יפה', 'כל הכבוד', 'אחלה', 'גדול'])) {
     return {
-      text: `שמחתי לעזור ${userName}! 🌟\n\nהאם יש שאלות נוספות או שאלות שלא נענו?`,
+      text: `בשמחה ${userName}! 🌟\n\nיש עוד משהו שנוכל לעזור?`,
       quickReplies: ['כן, יש לי שאלה נוספת', 'לא, הכל בסדר', 'שאלה שלא נענתה — שלח מייל'],
     };
   }
@@ -109,7 +111,7 @@ function getClientResponse(msg: string, userName: string, activeBooking: any, al
   // ── כן, יש עוד שאלות ──────────────────────────────────────────────────────
   if (matchAny(msg, ['כן יש לי שאלה', 'יש לי שאלה נוספת', 'כן יש עוד', 'יש עוד שאלה', 'כן יש לי שאלה נוספת'])) {
     return {
-      text: `😊 בשמחה! מה השאלה שלך?\n\nאו בחר מהנושאים:`,
+      text: `בכיף! מה השאלה שלך?`,
       quickReplies: [
         'מה הסטטוס שלי?', 'רוצה לבטל', 'כמה זה עולה?',
         'פרטי המנקה', 'הזמנות שלי', 'ביטוח', 'צור קשר',
@@ -120,7 +122,7 @@ function getClientResponse(msg: string, userName: string, activeBooking: any, al
   // ── לא, הכל בסדר ──────────────────────────────────────────────────────────
   if (matchAny(msg, ['לא הכל בסדר', 'הכל בסדר', 'הכל ברור', 'אין שאלות', 'לא תודה', 'לא יש עוד', 'לא כל הכבוד', 'לא הכל ברור'])) {
     return {
-      text: `מעולה! 🎉\nשמחנו לעזור ${userName}!\n\nCLEAN Bot זמין 24/7 — תמיד שמח לעזור 💙\nיום טוב ונקי! ✨`,
+      text: `מעולה! 🎉\nיום טוב ונקי ${userName}! ✨`,
       quickReplies: [],
     };
   }
@@ -128,7 +130,7 @@ function getClientResponse(msg: string, userName: string, activeBooking: any, al
   // ── שלח מייל לתמיכה ──────────────────────────────────────────────────────
   if (matchAny(msg, ['שלח מייל', 'שאלה שלא נענתה', 'שלח לתמיכה', 'מייל לתמיכה', 'שאלה שלא נענתה — שלח מייל'])) {
     return {
-      text: `בוודאי! 📧\nנפתח את אפליקציית המייל שלך לפנייה ישירה לצוות התמיכה שלנו.\n\n✉️ support@cleantouch.co.il\n\nנחזור אליך תוך 24 שעות! 🕐`,
+      text: `כמובן 📧\nנפתח את אפליקציית המייל שלך כדי שתוכל לפנות ישירות לצוות שלנו.\n\n✉️ support@A&M Clean.co.il\n\nנחזור אליך תוך 24 שעות.`,
       quickReplies: ['חזור לתפריט'],
       action: 'sendEmail',
     };
@@ -159,7 +161,7 @@ function getClientResponse(msg: string, userName: string, activeBooking: any, al
     }
     const b = activeBooking;
     return {
-      text: `📋 מדיניות ביטול CLEANTOUCH:\n\n✅ ביטול עד 24 שעות לפני — החזר מלא\n❌ ביטול פחות מ-24 שעות — אין החזר\n\nלביטול ההזמנה עם ${b.cleanerName || 'המנקה'} ב-${b.date || '—'}:\nכנס ל"הזמנות שלי" ולחץ "ביטול הזמנה".`,
+      text: `📋 מדיניות ביטול A&M Clean:\n\n✅ ביטול עד 24 שעות לפני — החזר מלא\n❌ ביטול פחות מ-24 שעות — אין החזר\n\nלביטול ההזמנה עם ${b.cleanerName || 'המנקה'} ב-${b.date || '—'}:\nכנס ל"הזמנות שלי" ולחץ "ביטול הזמנה".`,
       quickReplies: ['הזמנות שלי', 'שמור הזמנה', 'חזור לתפריט'],
       navigateTo: '/profile',
     };
@@ -179,7 +181,7 @@ function getClientResponse(msg: string, userName: string, activeBooking: any, al
       const b = activeBooking;
       const perHour = b.hours ? Math.round((b.total || 0) / b.hours) : 0;
       return {
-        text: `💰 עלות ההזמנה הנוכחית:\n\n⏱️ ${b.hours} שעות × ₪${perHour}/שעה\n💵 סה"כ: ₪${b.total || 0}\n💳 תשלום ב: ${b.paymentMethod === 'cash' ? 'מזומן' : b.paymentMethod === 'bit' ? 'ביט' : 'אשראי'}\n\n✅ ₪0 דמי שירות — CLEANTOUCH חינמי!`,
+        text: `💰 עלות ההזמנה הנוכחית:\n\n⏱️ ${b.hours} שעות × ₪${perHour}/שעה\n💵 סה"כ: ₪${b.total || 0}\n💳 תשלום ב: ${b.paymentMethod === 'cash' ? 'מזומן' : b.paymentMethod === 'bit' ? 'Bit' : b.paymentMethod === 'paybox' ? 'PayBox' : b.paymentMethod === 'bank' ? 'העברה בנקאית' : b.paymentMethod}\n\n✅ ₪0 דמי שירות — A&M Clean חינמי!`,
         quickReplies: ['מה הסטטוס?', 'חזור לתפריט'],
       };
     }
@@ -189,10 +191,18 @@ function getClientResponse(msg: string, userName: string, activeBooking: any, al
     };
   }
 
+  // ── קבלת תשלום (שאלת מנקה שהגיע לפה) ─────────────────────────────────────
+  if (matchAny(msg, ['מקבלים תשלום', 'מקבל תשלום', 'לקבל תשלום', 'קבלת תשלום', 'איך מקבל', 'לקבל כסף', 'תשלום מלקוח', 'תשלום ממני', 'תשלום ממנקה', 'מנקה מקבל'])) {
+    return {
+      text: `💳 קבלת תשלום מלקוחות:\n\n💵 מזומן — הלקוח משלם לך ישירות בסיום הניקוי\n📱 Bit — הלקוח שולח העברה מיידית לטלפון שלך\n💜 PayBox — הלקוח שולח תשלום דרך PayBox\n🏦 העברה בנקאית — הלקוח מעביר לחשבון שלך\n\n✅ A&M Clean לא גובה עמלה — 100% מהסכום הולך אליך!\n\n💡 שיטת התשלום נקבעת עם הלקוח בעת ההזמנה.`,
+      quickReplies: ['כמה הרווחתי?', 'עמלה', 'חזור לתפריט'],
+    };
+  }
+
   // ── שיטת תשלום ───────────────────────────────────────────────────────────
   if (matchAny(msg, ['איך משלמים', 'שיטת תשלום', 'ביט', 'אשראי', 'מזומן', 'כרטיס אשראי', 'ויזה'])) {
     return {
-      text: '💳 שיטות תשלום מקובלות:\n\n📱 ביט — העברה מיידית\n💳 אשראי — ויזה / מסטרקארד\n💵 מזומן — בסיום העבודה\n\nשיטת התשלום נבחרת בעת ההזמנה.',
+      text: '💳 שיטות תשלום מקובלות:\n\n💵 מזומן — בסיום העבודה\n📱 Bit — העברה מיידית\n💜 PayBox — תשלום מהיר באפליקציה\n🏦 העברה בנקאית — לחשבון המנקה\n\nשיטת התשלום נבחרת בעת ההזמנה.',
       quickReplies: ['כמה עולה?', 'חזור לתפריט'],
     };
   }
@@ -224,7 +234,7 @@ function getClientResponse(msg: string, userName: string, activeBooking: any, al
   // ── מה כולל הניקוי ───────────────────────────────────────────────────────
   if (matchAny(msg, ['מה כולל', 'מה הניקוי', 'מה עושים', 'סוגי שירות', 'שירותים', 'ניקוי עמוק', 'ניקוי פסח'])) {
     return {
-      text: '🧹 סוגי ניקוי ב-CLEANTOUCH:\n\n• שוטף — ניקוי בסיסי יומיומי/שבועי\n• עמוק — ניקוי יסודי מלא + מטבח/שירותים\n• חלונות — ניקוי חלונות, מרפסות, ממ"ד\n• אחרי שיפוץ — פינוי אבק ופסולת בנייה\n• אחרי אירוע — ניקיון מהיר ויסודי\n• גינון 🌿 / שטיפת רכב 🚗',
+      text: '🧹 סוגי ניקוי ב-A&M Clean:\n\n• שוטף — ניקוי בסיסי יומיומי/שבועי\n• עמוק — ניקוי יסודי מלא + מטבח/שירותים\n• חלונות — ניקוי חלונות, מרפסות, ממ"ד\n• אחרי שיפוץ — פינוי אבק ופסולת בנייה\n• אחרי אירוע — ניקיון מהיר ויסודי\n• גינון 🌿 / שטיפת רכב 🚗',
       quickReplies: ['כמה עולה?', 'איך להזמין?', 'חזור לתפריט'],
     };
   }
@@ -240,7 +250,7 @@ function getClientResponse(msg: string, userName: string, activeBooking: any, al
   // ── ביטוח ─────────────────────────────────────────────────────────────────
   if (matchAny(msg, ['ביטוח', 'נזק', 'אחריות', 'שבר', 'פגע', 'תביעה', 'הגנה'])) {
     return {
-      text: '🛡️ ביטוח CLEANTOUCH:\n\nכל הזמנה מבוטחת דרך השותף שלנו.\nלכפתור הביטוח — פתח כרטיס מנקה ולחץ "🛡️ ביטוח".\n\nלתביעה ישירה:\n📧 support@cleantouch.co.il',
+      text: '🛡️ ביטוח A&M Clean:\n\nכל הזמנה מבוטחת דרך השותף שלנו.\nלכפתור הביטוח — פתח כרטיס מנקה ולחץ "🛡️ ביטוח".\n\nלתביעה ישירה:\n📧 support@A&M Clean.co.il',
       quickReplies: ['צור קשר', 'חזור לתפריט'],
     };
   }
@@ -300,7 +310,7 @@ function getClientResponse(msg: string, userName: string, activeBooking: any, al
   // ── מחיקת חשבון ──────────────────────────────────────────────────────────
   if (matchAny(msg, ['למחוק חשבון', 'מחיקת חשבון', 'לסגור חשבון', 'להתנתק לצמיתות'])) {
     return {
-      text: '🗑️ מחיקת חשבון:\n\nלמחיקת החשבון שלך צור קשר ישיר:\n📧 support@cleantouch.co.il\n\nנחזור אליך תוך 24 שעות.',
+      text: '🗑️ מחיקת חשבון:\n\nלמחיקת החשבון שלך צור קשר ישיר:\n📧 support@A&M Clean.co.il\n\nנחזור אליך תוך 24 שעות.',
       quickReplies: ['חזור לתפריט'],
     };
   }
@@ -317,7 +327,7 @@ function getClientResponse(msg: string, userName: string, activeBooking: any, al
   // ── עמלות ─────────────────────────────────────────────────────────────────
   if (matchAny(msg, ['עמלה', 'דמי שירות', 'כמה אתם לוקחים', 'חינם', 'בחינם', 'ללא עמלה', 'אחוז'])) {
     return {
-      text: '💚 CLEANTOUCH — 0% עמלה!\n\n✅ למנקים: שומרים 100% מהתשלום\n✅ ללקוחות: ₪0 דמי שירות\n\nהפלטפורמה חינמית לחלוטין.',
+      text: '💚 A&M Clean — 0% עמלה!\n\n✅ למנקים: שומרים 100% מהתשלום\n✅ ללקוחות: ₪0 דמי שירות\n\nהפלטפורמה חינמית לחלוטין.',
       quickReplies: ['חזור לתפריט'],
     };
   }
@@ -325,7 +335,7 @@ function getClientResponse(msg: string, userName: string, activeBooking: any, al
   // ── תמיכה / נציג ─────────────────────────────────────────────────────────
   if (matchAny(msg, ['לדבר עם אדם', 'נציג', 'שירות לקוחות', 'צור קשר', 'להתקשר', 'אדם אמיתי', 'תמיכה אנושית'])) {
     return {
-      text: '📞 תמיכת CLEANTOUCH:\n\n📧 support@cleantouch.co.il\n📱 WhatsApp: 050-000-0000\n\nשעות מענה:\nא׳–ה׳: 09:00–18:00',
+      text: '📞 צוות התמיכה של A&M Clean:\n\n📧 support@A&M Clean.co.il\n📱 WhatsApp: 050-000-0000\n\nשעות מענה:\nא׳–ה׳: 09:00–18:00',
       quickReplies: ['חזור לתפריט'],
     };
   }
@@ -341,7 +351,7 @@ function getClientResponse(msg: string, userName: string, activeBooking: any, al
   // ── תלונה / בעיה ─────────────────────────────────────────────────────────
   if (matchAny(msg, ['תלונה', 'בעיה', 'לא מרוצה', 'גרוע', 'גרועה', 'להתלונן', 'פגם', 'נזק'])) {
     return {
-      text: '😔 מצטערים לשמוע!\n\nלדיווח על בעיה:\n1️⃣ כנס לפרופיל שלך\n2️⃣ לחץ "🚨 דיווח"\n3️⃣ מלא את הפרטים\n\nאו צור קשר ישיר:\n📧 support@cleantouch.co.il',
+      text: '😔 מצטערים לשמוע!\n\nלדיווח על בעיה:\n1️⃣ כנס לפרופיל שלך\n2️⃣ לחץ "🚨 דיווח"\n3️⃣ מלא את הפרטים\n\nאו צור קשר ישיר:\n📧 support@A&M Clean.co.il',
       quickReplies: ['הפרופיל שלי', 'חזור לתפריט'],
       navigateTo: '/profile',
     };
@@ -350,16 +360,72 @@ function getClientResponse(msg: string, userName: string, activeBooking: any, al
   // ── מה אתה יכול / עזרה ────────────────────────────────────────────────────
   if (matchAny(msg, ['מה אתה יכול', 'עזרה', 'help', 'אפשרויות', 'מה יש', 'תפריט', 'חזור לתפריט'])) {
     return {
-      text: '👨‍💼 במה אוכל לעזור?\n\nבחר נושא:',
+      text: `היי ${userName}, על מה תרצה עזרה?`,
       quickReplies: [
         'מה הסטטוס שלי?',
         'רוצה לבטל',
         'כמה זה עולה?',
         'פרטי המנקה',
-        'הזמנות שלי',
         'ביטוח',
+        'שיטת תשלום',
         'צור קשר',
       ],
+    };
+  }
+
+  // ── מה האפליקציה / על החברה ──────────────────────────────────────────────
+  if (matchAny(msg, ['מה זה', 'מה האפליקציה', 'מי אתם', 'על החברה', 'A&M Clean', 'clean touch', 'אודות', 'about'])) {
+    return {
+      text: '🏠 A&M Clean:\n\nפלטפורמה לחיבור בין לקוחות למנקים מקצועיים.\n\n✅ מנקים מאומתים בלבד\n✅ 0% עמלה — חינמי לחלוטין\n✅ הזמנה בדקות — שירות ב-24 שעות\n✅ כל הארץ — צפון, מרכז, דרום',
+      quickReplies: ['איך להזמין?', 'כמה זה עולה?', 'חזור לתפריט'],
+    };
+  }
+
+  // ── מפה / מיקום ───────────────────────────────────────────────────────────
+  if (matchAny(msg, ['מפה', 'מיקום', 'gps', 'לאתר מנקה', 'ליד הבית', 'קרוב אלי', 'מנקה קרוב'])) {
+    return {
+      text: '📍 מציאת מנקה לפי מיקום:\n\n1️⃣ פתח את מסך הבית\n2️⃣ לחץ על אייקון המפה\n3️⃣ ה-GPS ימצא מנקים בסביבתך\n4️⃣ לחץ על הסיכה לפרטי המנקה\n\nאו חפש לפי עיר / אזור בשורת החיפוש!',
+      quickReplies: ['איך להזמין?', 'חזור לתפריט'],
+    };
+  }
+
+  // ── ניקוי דחוף ───────────────────────────────────────────────────────────
+  if (matchAny(msg, ['דחוף', 'מיידי', 'עכשיו', 'היום', 'הכי מהר', 'ניקוי מהיר', 'ניקוי דחוף'])) {
+    return {
+      text: '⚡ ניקוי דחוף:\n\n1️⃣ במסך הבית לחץ "⚡ דחוף"\n2️⃣ הכנס כתובת + תיאור קצר\n3️⃣ המערכת שולחת בקשה לכל המנקים הזמינים באזורך\n4️⃣ מנקה שמאשר — תקבל התראה מיידית!\n\n⏱️ זמן ממוצע למענה: 5–15 דקות',
+      quickReplies: ['כמה זה עולה?', 'פרטי המנקה', 'חזור לתפריט'],
+    };
+  }
+
+  // ── התראות ────────────────────────────────────────────────────────────────
+  if (matchAny(msg, ['התראה', 'push', 'הודעה', 'לא קיבלתי', 'לא הגיעה הודעה', 'נוטיפיקציה', 'notifications'])) {
+    return {
+      text: '🔔 התראות:\n\nלהפעלת התראות:\n1️⃣ הגדרות הטלפון → אפליקציות\n2️⃣ בחר A&M Clean\n3️⃣ הפעל "הודעות"\n\nסוגי התראות:\n📋 אישור הזמנה\n🚗 מנקה בדרך\n✅ סיום ניקוי\n⭐ בקשת דירוג',
+      quickReplies: ['מה הסטטוס שלי?', 'חזור לתפריט'],
+    };
+  }
+
+  // ── שפה ──────────────────────────────────────────────────────────────────
+  if (matchAny(msg, ['שפה', 'אנגלית', 'ערבית', 'רוסית', 'language', 'לשנות שפה', 'עברית'])) {
+    return {
+      text: '🌐 שינוי שפה:\n\nA&M Clean תומכת ב-6 שפות:\nעברית 🇮🇱 | English 🇬🇧 | العربية 🇸🇦\nРусский 🇷🇺 | Français 🇫🇷 | हिंदी 🇮🇳\n\nלשינוי:\n1️⃣ לחץ ≡ (תפריט)\n2️⃣ בחר "שפה"\n3️⃣ בחר שפה מועדפת',
+      quickReplies: ['חזור לתפריט'],
+    };
+  }
+
+  // ── ביקורת ממנקה ─────────────────────────────────────────────────────────
+  if (matchAny(msg, ['מנקה גרוע', 'לא מרוצה מהניקוי', 'ניקוי גרוע', 'עבודה לא טובה', 'מנקה לא מקצועי'])) {
+    return {
+      text: '😔 מצטערים על החוויה!\n\nמה לעשות:\n1️⃣ דרג את המנקה 1–2 כוכבים עם ביאור\n2️⃣ כנס לפרופיל → "🚨 דיווח"\n3️⃣ תאר את הבעיה\n\nנבדוק את המנקה ונחזור אליך תוך 24 שעות.\n📧 support@A&M Clean.co.il',
+      quickReplies: ['שאלה שלא נענתה — שלח מייל', 'חזור לתפריט'],
+    };
+  }
+
+  // ── הזמנה חוזרת ──────────────────────────────────────────────────────────
+  if (matchAny(msg, ['הזמנה חוזרת', 'כל שבוע', 'כל חודש', 'קבועה', 'תדירות', 'להזמין קבוע', 'weekly', 'monthly'])) {
+    return {
+      text: '🔄 הזמנה חוזרת:\n\nניתן לקבוע ניקוי קבוע:\n📅 שבועי — כל שבוע באותו יום\n📅 חודשי — פעם בחודש\n\nאיך:\n1️⃣ הזמן כרגיל\n2️⃣ בחלון ההזמנה בחר "חוזרת"\n3️⃣ בחר תדירות ✅',
+      quickReplies: ['איך להזמין?', 'חזור לתפריט'],
     };
   }
 
@@ -414,7 +480,7 @@ function getClientResponse(msg: string, userName: string, activeBooking: any, al
 
   // ברירת מחדל כללית — לא נמצאה כוונה
   return {
-    text: `לא הצלחתי להבין את השאלה 😅\n${userName}, נסה לכתוב בצורה אחרת, או בחר נושא:\n\n📌 לא מצאת תשובה? שלח מייל לצוות שלנו — נחזור תוך 24 שעות!`,
+    text: `לא הצלחנו להבין בדיוק מה שאלת.\n\nתנסה לכתוב אחרת, או בחר נושא מהרשימה. אם לא מצאת תשובה — שלח לנו מייל ונחזור אליך תוך 24 שעות.`,
     quickReplies: [
       'מה הסטטוס שלי?',
       'כמה זה עולה?',
@@ -439,7 +505,7 @@ function getCleanerResponse(msg: string, userName: string, allBookings: any[]): 
   // ── ברכות ────────────────────────────────────────────────────────────────
   if (matchAny(msg, ['שלום','היי','הי','בוקר טוב','ערב טוב','מה שלומך','מה נשמע'])) {
     return {
-      text: `שלום ${userName}! 👋\nאני CLEAN Bot — עוזר התמיכה למנקים של CLEANTOUCH.\nאיך אוכל לעזור לך היום?`,
+      text: `היי ${userName}! 👋\nשמחים שפנית — על מה תרצה עזרה?`,
       quickReplies: ['ההזמנות שלי', 'כמה הרווחתי?', 'איך מקבלים תשלום?', 'עדכון זמינות', 'חזור לתפריט'],
     };
   }
@@ -447,7 +513,7 @@ function getCleanerResponse(msg: string, userName: string, allBookings: any[]): 
   // ── תודה ────────────────────────────────────────────────────────────────
   if (matchAny(msg, ['תודה','תודה רבה','מעולה','סבבה','ממש עזרת','אחלה','כל הכבוד'])) {
     return {
-      text: `שמחתי לעזור ${userName}! 🌟\n\nהאם יש שאלות נוספות או שאלות שלא נענו?`,
+      text: `בשמחה ${userName}! 🌟\n\nיש עוד משהו שנוכל לעזור?`,
       quickReplies: ['כן, יש לי שאלה נוספת', 'לא, הכל בסדר', 'שאלה שלא נענתה — שלח מייל'],
     };
   }
@@ -461,19 +527,24 @@ function getCleanerResponse(msg: string, userName: string, allBookings: any[]): 
     };
   }
 
-  // ── הכנסות ───────────────────────────────────────────────────────────────
-  if (matchAny(msg, ['כמה הרווחתי','הכנסות','הרוויח','כסף','תשלום שקיבלתי','סה"כ','כמה קיבלתי'])) {
+  // ── קבלת תשלום ───────────────────────────────────────────────────────────
+  if (matchAny(msg, [
+    'איך מקבלים תשלום', 'איך מקבל תשלום', 'קבלת תשלום',
+    'לקבל תשלום', 'מקבל תשלום', 'תשלום מלקוח', 'תשלום מה',
+    'ביט', 'מזומן', 'אשראי', 'אמצעי תשלום', 'כרטיס',
+    'העברה', 'תשלום', 'איך מקבל', 'לקבל כסף',
+  ])) {
     return {
-      text: `💰 הכנסות שלך, ${userName}:\n\n✅ ניקויים שהושלמו: ${done}\n💵 סה"כ הכנסות: ₪${totalEarned}\n\n🎉 CLEANTOUCH לא גובה עמלה — 100% הולך אליך!`,
-      quickReplies: ['ההזמנות שלי', 'איך מקבלים תשלום?', 'חזור לתפריט'],
+      text: `💳 קבלת תשלום מלקוחות:\n\n💵 מזומן — הלקוח משלם לך ישירות בסיום הניקוי\n📱 Bit — הלקוח שולח העברה מיידית לטלפון שלך\n💜 PayBox — הלקוח שולח תשלום דרך PayBox\n🏦 העברה בנקאית — הלקוח מעביר לחשבון שלך\n\n✅ A&M Clean לא גובה עמלה — 100% מהסכום הולך אליך!\n\n💡 שיטת התשלום נקבעת עם הלקוח בעת ההזמנה.`,
+      quickReplies: ['כמה הרווחתי?', 'עמלה', 'חזור לתפריט'],
     };
   }
 
-  // ── קבלת תשלום ───────────────────────────────────────────────────────────
-  if (matchAny(msg, ['איך מקבלים תשלום','קבלת תשלום','ביט','מזומן','אשראי','אמצעי תשלום','כרטיס'])) {
+  // ── הכנסות ───────────────────────────────────────────────────────────────
+  if (matchAny(msg, ['כמה הרווחתי','הכנסות','הרוויח','כסף','תשלום שקיבלתי','סה"כ','כמה קיבלתי'])) {
     return {
-      text: `💳 קבלת תשלום מלקוחות:\n\n💵 מזומן — בסיום הניקוי ישירות מהלקוח\n📱 ביט — העברה דיגיטלית מיידית\n💳 אשראי — הלקוח משלם דרך האפליקציה\n\n✅ CLEANTOUCH לא גובה עמלה — כל הסכום שלך!`,
-      quickReplies: ['כמה הרווחתי?', 'חזור לתפריט'],
+      text: `💰 הכנסות שלך, ${userName}:\n\n✅ ניקויים שהושלמו: ${done}\n💵 סה"כ הכנסות: ₪${totalEarned}\n\n🎉 A&M Clean לא גובה עמלה — 100% הולך אליך!`,
+      quickReplies: ['ההזמנות שלי', 'איך מקבלים תשלום?', 'חזור לתפריט'],
     };
   }
 
@@ -551,7 +622,7 @@ function getCleanerResponse(msg: string, userName: string, allBookings: any[]): 
   // ── עמלה ─────────────────────────────────────────────────────────────────
   if (matchAny(msg, ['עמלה','דמי שירות','כמה לוקחים','אחוז','חינם','בחינם','ללא עמלה'])) {
     return {
-      text: `💚 עמלת CLEANTOUCH: 0%!\n\n✅ אתה שומר 100% מהתשלום מהלקוח\n✅ אין דמי רישום\n✅ אין דמי חודשי\n\nPlatform חינמי לחלוטין למנקים! 🎉`,
+      text: `💚 עמלת A&M Clean: 0%!\n\n✅ אתה שומר 100% מהתשלום מהלקוח\n✅ אין דמי רישום\n✅ אין דמי חודשי\n\nPlatform חינמי לחלוטין למנקים! 🎉`,
       quickReplies: ['איך מקבלים תשלום?', 'חזור לתפריט'],
     };
   }
@@ -559,7 +630,7 @@ function getCleanerResponse(msg: string, userName: string, allBookings: any[]): 
   // ── תמיכה אנושית ─────────────────────────────────────────────────────────
   if (matchAny(msg, ['לדבר עם אדם','נציג','שירות לקוחות','צור קשר','אדם אמיתי','תמיכה אנושית'])) {
     return {
-      text: `📞 תמיכה למנקים:\n\n📧 cleaners@cleantouch.co.il\n📱 WhatsApp: 050-000-0000\n\nשעות מענה לצוות מנקים:\nא׳–ה׳: 08:00–20:00`,
+      text: `📞 תמיכה למנקים:\n\n📧 cleaners@A&M Clean.co.il\n📱 WhatsApp: 050-000-0000\n\nשעות מענה לצוות מנקים:\nא׳–ה׳: 08:00–20:00`,
       quickReplies: ['שאלה שלא נענתה — שלח מייל', 'חזור לתפריט'],
     };
   }
@@ -567,7 +638,7 @@ function getCleanerResponse(msg: string, userName: string, allBookings: any[]): 
   // ── כן יש עוד שאלות ─────────────────────────────────────────────────────
   if (matchAny(msg, ['כן יש לי שאלה','יש לי שאלה נוספת','כן יש עוד','יש עוד שאלה'])) {
     return {
-      text: `😊 בשמחה! מה השאלה שלך?\n\nאו בחר מהנושאים:`,
+      text: `בכיף! מה השאלה שלך?`,
       quickReplies: ['ההזמנות שלי', 'כמה הרווחתי?', 'עדכון זמינות', 'דירוג וביקורות', 'עמלה', 'צור קשר'],
     };
   }
@@ -575,7 +646,7 @@ function getCleanerResponse(msg: string, userName: string, allBookings: any[]): 
   // ── לא הכל בסדר ─────────────────────────────────────────────────────────
   if (matchAny(msg, ['לא הכל בסדר','הכל בסדר','הכל ברור','אין שאלות','לא תודה'])) {
     return {
-      text: `מעולה! 🎉\nשמחנו לעזור ${userName}!\n\nCLEAN Bot זמין 24/7 — תמיד שמח לעזור 💙\nעבודה פורה! ✨`,
+      text: `מעולה! עבודה פורה ${userName} ✨`,
       quickReplies: [],
     };
   }
@@ -583,7 +654,7 @@ function getCleanerResponse(msg: string, userName: string, allBookings: any[]): 
   // ── שלח מייל ────────────────────────────────────────────────────────────
   if (matchAny(msg, ['שלח מייל','שאלה שלא נענתה','שלח לתמיכה','מייל לתמיכה','שאלה שלא נענתה — שלח מייל'])) {
     return {
-      text: `בוודאי! 📧\nנפתח את אפליקציית המייל שלך.\n\n✉️ cleaners@cleantouch.co.il\n\nנחזור אליך תוך 24 שעות! 🕐`,
+      text: `בוודאי! 📧\nנפתח את אפליקציית המייל שלך.\n\n✉️ cleaners@A&M Clean.co.il\n\nנחזור אליך תוך 24 שעות! 🕐`,
       quickReplies: ['חזור לתפריט'],
       action: 'sendEmail',
     };
@@ -592,7 +663,7 @@ function getCleanerResponse(msg: string, userName: string, allBookings: any[]): 
   // ── תפריט ────────────────────────────────────────────────────────────────
   if (matchAny(msg, ['תפריט','חזור לתפריט','עזרה','help','אפשרויות','מה יש'])) {
     return {
-      text: `👨‍💼 במה אוכל לעזור, ${userName}?\n\nבחר נושא:`,
+      text: `היי ${userName}, על מה תרצה עזרה?`,
       quickReplies: [
         'ההזמנות שלי',
         'כמה הרווחתי?',
@@ -607,9 +678,33 @@ function getCleanerResponse(msg: string, userName: string, allBookings: any[]): 
     };
   }
 
+  // ── לא מגיעות הזמנות ─────────────────────────────────────────────────────
+  if (matchAny(msg, ['לא מגיעות הזמנות', 'אין הזמנות', 'לא מוצאים אותי', 'ללקוחות', 'כמה מנקים'])) {
+    return {
+      text: '📋 לא מגיעות הזמנות? טיפים:\n\n✅ ודא שאתה מסומן "זמין"\n📸 הוסף תמונת פרופיל (3× יותר הזמנות)\n💲 בדוק שהמחיר תחרותי: ₪65–₪90/שעה\n🗓️ הרחב את ימי הזמינות שלך\n🌍 הרחב את האזורים שאתה עובד בהם',
+      quickReplies: ['עדכון זמינות', 'עדכון מחיר', 'פרופיל ותמונה', 'חזור לתפריט'],
+    };
+  }
+
+  // ── לקוח ביטל ────────────────────────────────────────────────────────────
+  if (matchAny(msg, ['לקוח ביטל', 'ביטל עלי', 'בוטלה הזמנה', 'לקוח לא הגיע', 'לקוח לא נמצא'])) {
+    return {
+      text: '❌ לקוח ביטל הזמנה:\n\nביטול עד 24 שעות לפני — ללא פיצוי\nביטול פחות מ-24 שעות — פנה לתמיכה:\n📧 cleaners@A&M Clean.co.il\n\nאנו בוחנים כל מקרה של ביטול מאוחר ✅',
+      quickReplies: ['צור קשר', 'חזור לתפריט'],
+    };
+  }
+
+  // ── כיצד מוצגים בתוצאות ──────────────────────────────────────────────────
+  if (matchAny(msg, ['למעלה בתוצאות', 'לעלות בחיפוש', 'rank', 'דירוג חיפוש', 'איך נראים', 'חשיפה'])) {
+    return {
+      text: '🔝 איך להופיע ראשון:\n\n⭐ דירוג גבוה (4.5+)\n📸 תמונת פרופיל מקצועית\n✅ הרבה ביקורות חיוביות\n🟢 זמינות רחבה\n⚡ אישור הזמנות מהיר\n\nכל אלה משפרים את המיקום שלך!',
+      quickReplies: ['דירוג וביקורות', 'עדכון זמינות', 'חזור לתפריט'],
+    };
+  }
+
   // ── ברירת מחדל למנקה ────────────────────────────────────────────────────
   return {
-    text: `לא הצלחתי להבין 🤔\n${userName}, נסה לבחור מהנושאים:`,
+    text: `לא הצלחנו להבין בדיוק מה שאלת.\n\nתנסה לכתוב אחרת, או בחר מהנושאים. אפשר גם לשלוח מייל ונחזור אליך תוך 24 שעות.`,
     quickReplies: [
       'ההזמנות שלי',
       'כמה הרווחתי?',
@@ -622,7 +717,7 @@ function getCleanerResponse(msg: string, userName: string, allBookings: any[]): 
 }
 
 // ─── Typing indicator ─────────────────────────────────────────────────────────
-function TypingDots() {
+function TypingDots({ s }: { s: ReturnType<typeof createS> }) {
   const dot1 = useRef(new Animated.Value(0)).current;
   const dot2 = useRef(new Animated.Value(0)).current;
   const dot3 = useRef(new Animated.Value(0)).current;
@@ -647,7 +742,7 @@ function TypingDots() {
   return (
     <View style={s.typingWrap}>
       <View style={s.botAvatarSm}>
-        <Text style={{ fontSize: 12 }}>👨‍💼</Text>
+        <T style={{ fontSize: 12 }}>👨‍💼</T>
       </View>
       <View style={s.typingBubble}>
         {[dot1, dot2, dot3].map((dot, i) => (
@@ -663,6 +758,15 @@ function TypingDots() {
 
 // ─── Main Screen ──────────────────────────────────────────────────────────────
 export default function SupportScreen() {
+  const { highContrast } = useLanguage();
+  const insets = useSafeAreaInsets();
+  const C = highContrast ? {
+    bg:        '#FFFFFF', botBg:  '#F0F0F0', userBg: '#0040CC',
+    blue:      '#0040CC', blueDark: '#002080', blueLight: '#FFFFFF',
+    text:      '#000000', sub:    '#1A1A1A',  border:   '#000000',
+    white:     '#FFFFFF', green:  '#005C00',  red:      '#B30000',
+  } : C_DEFAULT;
+  const s = createS(C);
   const router = useRouter();
   const flatRef = useRef<FlatList>(null);
 
@@ -691,8 +795,8 @@ export default function SupportScreen() {
       // Guest greeting
       setTimeout(() => {
         pushBotMessage(
-          'הגעת למרכז השירות של CleanTouch 👨‍💼\nבמה נוכל לעזור?',
-          ['מה הסטטוס שלי?', 'כמה זה עולה?', 'איך להזמין?', 'צור קשר'],
+          'היי! שמחים שפנית 👋\nעל מה תרצה עזרה?',
+          ['מה הסטטוס שלי?', 'כמה זה עולה?', 'ניקוי דחוף', 'צור קשר'],
         );
       }, 600);
       return;
@@ -738,14 +842,14 @@ export default function SupportScreen() {
       setTimeout(() => {
         if (role === 'cleaner') {
           pushBotMessage(
-            'הגעת למרכז השירות של CleanTouch 👨‍💼\nבמה נוכל לעזור?',
-            ['ההזמנות שלי', 'כמה הרווחתי?', 'איך מקבלים תשלום?', 'עדכון זמינות', 'חזור לתפריט'],
+            `היי ${userName}! שמחים שפנית 👋\nעל מה תרצה עזרה?`,
+            ['ההזמנות שלי', 'כמה הרווחתי?', 'איך מקבלים תשלום?', 'עדכון זמינות', 'צור קשר'],
             ctx
           );
         } else {
           pushBotMessage(
-            'הגעת למרכז השירות של CleanTouch 👨‍💼\nבמה נוכל לעזור?',
-            ['מה הסטטוס שלי?', 'רוצה לבטל', 'כמה זה עולה?', 'פרטי המנקה', 'איך להזמין?'],
+            `היי ${userName}! שמחים שפנית 👋\nעל מה תרצה עזרה?`,
+            ['מה הסטטוס שלי?', 'רוצה לבטל', 'כמה זה עולה?', 'פרטי המנקה', 'ניקוי דחוף'],
             ctx
           );
         }
@@ -780,6 +884,9 @@ export default function SupportScreen() {
   };
 
   // ── Send flow ──────────────────────────────────────────────────────────────
+  const contextRef = useRef(context);
+  useEffect(() => { contextRef.current = context; }, [context]);
+
   const handleSend = (text: string) => {
     const trimmed = text.trim();
     if (!trimmed) return;
@@ -798,20 +905,39 @@ export default function SupportScreen() {
       return;
     }
 
+    // ── תשלום — תפוס ישירות ללא תלות ב-role ──────────────────────────────
+    const norm = normalize(trimmed);
+    const isPaymentQ = norm.includes('מקבלים תשלום') || norm.includes('מקבל תשלום') ||
+      norm.includes('קבלת תשלום') || norm.includes('לקבל תשלום') ||
+      norm.includes('איך מקבל') || norm.includes('לקבל כסף') ||
+      trimmed === 'איך מקבלים תשלום?';
+    if (isPaymentQ) {
+      setTyping(true);
+      setTimeout(() => {
+        setTyping(false);
+        pushBotMessage(
+          '💳 קבלת תשלום מלקוחות:\n\n💵 מזומן — הלקוח משלם לך ישירות בסיום הניקוי\n📱 Bit — הלקוח שולח העברה מיידית לטלפון שלך\n💜 PayBox — הלקוח שולח תשלום דרך PayBox\n🏦 העברה בנקאית — הלקוח מעביר לחשבון שלך\n\n✅ A&M Clean לא גובה עמלה — 100% מהסכום הולך אליך!\n\n💡 שיטת התשלום נקבעת עם הלקוח בעת ההזמנה.',
+          ['כמה הרווחתי?', 'עמלה', 'חזור לתפריט']
+        );
+      }, 800);
+      return;
+    }
+
     setTyping(true);
     setTimeout(() => {
       setTyping(false);
-      const response = getBotResponse(trimmed, context);
+      const ctx = contextRef.current;
+      const response = getBotResponse(trimmed, ctx);
       pushBotMessage(response.text, response.quickReplies);
 
       // Open email client if needed
       if (response.action === 'sendEmail') {
-        const isCleaner = context.role === 'cleaner';
-        const emailAddr = isCleaner ? 'cleaners@cleantouch.co.il' : 'support@cleantouch.co.il';
+        const isCleaner = ctx.role === 'cleaner';
+        const emailAddr = isCleaner ? 'cleaners@A&M Clean.co.il' : 'support@A&M Clean.co.il';
         const roleLabel = isCleaner ? 'מנקה' : 'לקוח';
-        const subject = encodeURIComponent(`שאלה שלא נענתה — פנייה לתמיכה CLEANTOUCH (${roleLabel})`);
+        const subject = encodeURIComponent(`שאלה שלא נענתה — פנייה לתמיכה A&M Clean (${roleLabel})`);
         const body = encodeURIComponent(
-          `שלום צוות CLEANTOUCH,\n\nשמי: ${context.userName}\nתפקיד: ${roleLabel}\n\nאנא פנו אלי בנוגע לשאלה הבאה:\n\n`
+          `שלום צוות A&M Clean,\n\nשמי: ${ctx.userName}\nתפקיד: ${roleLabel}\n\nאנא פנו אלי בנוגע לשאלה הבאה:\n\n`
         );
         setTimeout(() => {
           Linking.openURL(`mailto:${emailAddr}?subject=${subject}&body=${body}`);
@@ -827,19 +953,19 @@ export default function SupportScreen() {
       <View style={[s.msgRow, isBot ? s.msgRowBot : s.msgRowUser]}>
         {isBot && (
           <View style={s.botAvatarSm}>
-            <Text style={{ fontSize: 14 }}>👨‍💼</Text>
+            <T style={{ fontSize: 14 }}>👨‍💼</T>
           </View>
         )}
         <View style={{ maxWidth: '80%' }}>
           <View style={[s.bubble, isBot ? s.bubbleBot : s.bubbleUser]}>
-            <Text style={[s.bubbleText, isBot ? s.bubbleTextBot : s.bubbleTextUser]}>
+            <T style={[s.bubbleText, isBot ? s.bubbleTextBot : s.bubbleTextUser]}>
               {item.text}
-            </Text>
+            </T>
           </View>
-          <Text style={[s.timeText, isBot ? { textAlign: 'left' } : { textAlign: 'right' }]}>
+          <T style={[s.timeText, isBot ? { textAlign: 'left' } : { textAlign: 'right' }]}>
             {item.time.getHours().toString().padStart(2, '0')}:
             {item.time.getMinutes().toString().padStart(2, '0')}
-          </Text>
+          </T>
 
           {/* Quick replies */}
           {isBot && item.quickReplies && item.quickReplies.length > 0 && (
@@ -850,7 +976,7 @@ export default function SupportScreen() {
                   style={s.qrChip}
                   onPress={() => handleSend(qr)}
                 >
-                  <Text style={s.qrChipText}>{qr}</Text>
+                  <T style={s.qrChipText}>{qr}</T>
                 </TouchableOpacity>
               ))}
             </View>
@@ -862,23 +988,23 @@ export default function SupportScreen() {
 
   // ── Render ─────────────────────────────────────────────────────────────────
   return (
-    <SafeAreaView style={s.root}>
+    <View style={[s.root, { paddingTop: StatusBar.currentHeight || 0 }]}>
       <StatusBar barStyle="light-content" backgroundColor={C.blueDark} />
 
       {/* Header */}
       <View style={s.header}>
         <TouchableOpacity onPress={() => router.back()} style={s.backBtn}>
-          <Text style={s.backBtnText}>‹</Text>
+          <T style={s.backBtnText}>‹</T>
         </TouchableOpacity>
         <View style={s.headerCenter}>
           <View style={s.headerAvatar}>
-            <Text style={{ fontSize: 20 }}>👨‍💼</Text>
+            <T style={{ fontSize: 20 }}>👨‍💼</T>
           </View>
           <View>
-            <Text style={s.headerName}>CLEAN Bot</Text>
+            <T style={s.headerName}>מרכז תמיכה</T>
             <View style={s.onlineRow}>
               <View style={s.onlineDot} />
-              <Text style={s.onlineText}>מחובר תמיד</Text>
+              <T style={s.onlineText}>זמינים 24/7</T>
             </View>
           </View>
         </View>
@@ -886,7 +1012,7 @@ export default function SupportScreen() {
       </View>
 
       <KeyboardAvoidingView
-        style={{ flex: 1 }}
+        style={{ flex: 1, backgroundColor: C.bg }}
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
         keyboardVerticalOffset={0}
       >
@@ -896,13 +1022,14 @@ export default function SupportScreen() {
           data={messages}
           renderItem={renderMessage}
           keyExtractor={m => m.id}
+          style={{ flex: 1 }}
           contentContainerStyle={s.msgList}
           onContentSizeChange={() => flatRef.current?.scrollToEnd({ animated: true })}
-          ListFooterComponent={typing ? <TypingDots /> : null}
+          ListFooterComponent={typing ? <TypingDots s={s} /> : null}
         />
 
         {/* Input bar */}
-        <View style={s.inputBar}>
+        <View style={[s.inputBar, insets.bottom > 0 && { paddingBottom: insets.bottom + 10 }]}>
           <TextInput
             style={s.textInput}
             value={input}
@@ -918,62 +1045,64 @@ export default function SupportScreen() {
             onPress={() => handleSend(input)}
             disabled={!input.trim()}
           >
-            <Text style={s.sendBtnText}>▶</Text>
+            <T style={s.sendBtnText}>▶</T>
           </TouchableOpacity>
         </View>
-        <View style={{ height: NAV_BAR_HEIGHT, backgroundColor: C.white }} />
       </KeyboardAvoidingView>
-    </SafeAreaView>
+    </View>
   );
 }
 
 // ─── Styles ───────────────────────────────────────────────────────────────────
-const s = StyleSheet.create({
-  root:          { flex: 1, backgroundColor: C.bg },
+function createS(c: typeof C_DEFAULT) { return StyleSheet.create({
+  root:          { flex: 1, backgroundColor: c.bg },
 
   // Header
-  header:        { backgroundColor: C.blueDark, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, paddingVertical: 12, gap: 8 },
+  header:        { backgroundColor: c.blueDark, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, paddingVertical: 12, gap: 8 },
   backBtn:       { width: 40, height: 40, alignItems: 'center', justifyContent: 'center' },
   backBtnText:   { color: '#fff', fontSize: 30, fontWeight: '300', marginTop: -3 },
   headerCenter:  { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 10 },
   headerAvatar:  { width: 42, height: 42, borderRadius: 21, backgroundColor: 'rgba(255,255,255,0.2)', alignItems: 'center', justifyContent: 'center' },
   headerName:    { color: '#fff', fontSize: 16, fontWeight: '800' },
   onlineRow:     { flexDirection: 'row', alignItems: 'center', gap: 5, marginTop: 2 },
-  onlineDot:     { width: 8, height: 8, borderRadius: 4, backgroundColor: C.green },
+  onlineDot:     { width: 8, height: 8, borderRadius: 4, backgroundColor: c.green },
   onlineText:    { color: 'rgba(255,255,255,0.75)', fontSize: 12 },
 
   // Messages
-  msgList:       { paddingHorizontal: 16, paddingVertical: 12, gap: 8, paddingBottom: 20 },
+  msgList:       { paddingHorizontal: 16, paddingVertical: 12, gap: 8, paddingBottom: 4 },
   msgRow:        { flexDirection: 'row', gap: 8, marginVertical: 4 },
   msgRowBot:     { alignSelf: 'flex-start', maxWidth: '90%' },
   msgRowUser:    { alignSelf: 'flex-end',   flexDirection: 'row-reverse', maxWidth: '90%' },
 
   // Avatar
-  botAvatarSm:   { width: 32, height: 32, borderRadius: 16, backgroundColor: C.blueLight, alignItems: 'center', justifyContent: 'center', marginTop: 4, flexShrink: 0 },
+  botAvatarSm:   { width: 32, height: 32, borderRadius: 16, backgroundColor: c.blueLight, alignItems: 'center', justifyContent: 'center', marginTop: 4, flexShrink: 0 },
 
   // Bubbles
   bubble:        { borderRadius: 18, paddingHorizontal: 14, paddingVertical: 10, maxWidth: '100%' },
-  bubbleBot:     { backgroundColor: C.white, borderBottomLeftRadius: 4, elevation: 2, shadowColor: '#000', shadowOpacity: 0.06, shadowRadius: 4, shadowOffset: { width: 0, height: 1 } },
-  bubbleUser:    { backgroundColor: C.blue, borderBottomRightRadius: 4 },
+  bubbleBot:     { backgroundColor: c.white, borderBottomLeftRadius: 4, borderWidth: 1, borderColor: c.border, elevation: 3, shadowColor: '#000', shadowOpacity: 0.10, shadowRadius: 6, shadowOffset: { width: 0, height: 2 } },
+  bubbleUser:    { backgroundColor: c.blue, borderBottomRightRadius: 4, borderWidth: 1, borderColor: c.blueDark },
   bubbleText:    { fontSize: 14, lineHeight: 22 },
-  bubbleTextBot: { color: C.text },
+  bubbleTextBot: { color: c.text },
   bubbleTextUser:{ color: '#fff' },
-  timeText:      { fontSize: 10, color: C.sub, marginTop: 3, paddingHorizontal: 4 },
+  timeText:      { fontSize: 10, color: c.sub, marginTop: 3, paddingHorizontal: 4 },
 
   // Quick replies
   qrWrap:        { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 8 },
-  qrChip:        { backgroundColor: C.white, borderRadius: 14, paddingHorizontal: 12, paddingVertical: 6, borderWidth: 1.5, borderColor: C.blue },
-  qrChipText:    { fontSize: 12, fontWeight: '700', color: C.blue },
+  qrChip:        { backgroundColor: c.white, borderRadius: 14, paddingHorizontal: 12, paddingVertical: 6, borderWidth: 1.5, borderColor: c.blue },
+  qrChipText:    { fontSize: 12, fontWeight: '700', color: c.blue },
 
   // Typing
   typingWrap:    { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 16, paddingVertical: 6 },
-  typingBubble:  { backgroundColor: C.white, borderRadius: 18, borderBottomLeftRadius: 4, paddingHorizontal: 14, paddingVertical: 12, flexDirection: 'row', gap: 4, elevation: 2, shadowColor: '#000', shadowOpacity: 0.06, shadowRadius: 4, shadowOffset: { width: 0, height: 1 } },
-  typingDot:     { width: 8, height: 8, borderRadius: 4, backgroundColor: C.sub },
+  typingBubble:  { backgroundColor: c.white, borderRadius: 18, borderBottomLeftRadius: 4, paddingHorizontal: 14, paddingVertical: 12, flexDirection: 'row', gap: 4, elevation: 2, shadowColor: '#000', shadowOpacity: 0.06, shadowRadius: 4, shadowOffset: { width: 0, height: 1 } },
+  typingDot:     { width: 8, height: 8, borderRadius: 4, backgroundColor: c.sub },
 
   // Input bar
-  inputBar:      { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: C.white, paddingHorizontal: 14, paddingVertical: 10, borderTopWidth: 1, borderTopColor: C.border },
-  textInput:     { flex: 1, backgroundColor: C.bg, borderRadius: 22, paddingHorizontal: 16, paddingVertical: 10, fontSize: 14, color: C.text, maxHeight: 80, borderWidth: 1, borderColor: C.border, textAlign: 'right' },
-  sendBtn:       { width: 44, height: 44, borderRadius: 22, backgroundColor: C.blue, alignItems: 'center', justifyContent: 'center' },
+  inputBar:      { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: c.white, paddingHorizontal: 14, paddingVertical: 10, borderTopWidth: 1, borderTopColor: c.border },
+  textInput:     { flex: 1, backgroundColor: c.bg, borderRadius: 22, paddingHorizontal: 16, paddingVertical: 10, fontSize: 14, color: c.text, maxHeight: 80, borderWidth: 1, borderColor: c.border, textAlign: 'right' },
+  sendBtn:       { width: 44, height: 44, borderRadius: 22, backgroundColor: c.blue, alignItems: 'center', justifyContent: 'center' },
   sendBtnText:   { color: '#fff', fontSize: 16, fontWeight: '700' },
-});
+}); }
+
+
+
 

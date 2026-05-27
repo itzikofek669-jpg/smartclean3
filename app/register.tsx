@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+﻿import React, { useState } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity, StyleSheet,
   StatusBar, KeyboardAvoidingView, Platform, Dimensions,
@@ -16,36 +16,101 @@ import { useRouter } from 'expo-router';
 import { createUserWithEmailAndPassword } from 'firebase/auth';
 import { doc, setDoc } from 'firebase/firestore';
 import { auth, db } from '../lib/firebase';
-import { useLanguage } from '../lib/LanguageContext';
+import { useLanguage, T, useAppColors, AppColors } from '../lib/LanguageContext';
 import { Lang } from '../lib/translations';
+import ServiceInfoBtn from '../lib/ServiceInfoBtn';
 
-const C = {
-  blue:      '#185FA5',
-  blueDark:  '#0D4F96',
-  blueLight: '#E6F1FB',
-  border:    '#B5D4F4',
-  text:     '#042C53',
-  sub:      '#6B9DC2',
-  white:    '#FFFFFF',
-  green:    '#10B981',
-  greenBg:  '#D1FAE5',
-  error:    '#EF4444',
-};
+function createTM(c: AppColors) {
+  return StyleSheet.create({
+    header:      { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: c.blueDark, padding: 16 },
+    title:       { fontSize: 17, fontWeight: '800', color: c.white },
+    closeBtn:    { width: 36, height: 36, borderRadius: 18, backgroundColor: 'rgba(255,255,255,0.2)', alignItems: 'center', justifyContent: 'center' },
+    body:        { fontSize: 14, color: c.textDark, lineHeight: 24, textAlign: 'right' },
+    agreeBtn:    { backgroundColor: c.blue, borderRadius: 14, padding: 16, alignItems: 'center' },
+    agreeBtnText:{ fontSize: 16, fontWeight: '800', color: c.white },
+  });
+}
+
+function createS(c: AppColors) {
+  return StyleSheet.create({
+    wrap:            { flex: 1, backgroundColor: c.blueDark },
+    hero:            { alignItems: 'center', paddingTop: 40, paddingBottom: 30, position: 'relative' },
+    backBtn:         { position: 'absolute', top: 44, right: 20, width: 36, height: 36, borderRadius: 18, backgroundColor: 'rgba(255,255,255,0.15)', alignItems: 'center', justifyContent: 'center' },
+    logo:            { fontSize: 44, marginBottom: 8 },
+    title:           { fontSize: 22, fontWeight: '800', color: c.white },
+    card:            { backgroundColor: c.white, borderTopLeftRadius: 32, borderTopRightRadius: 32, flex: 1 },
+    cardTitle:       { fontSize: 22, fontWeight: '800', color: c.textDark, marginBottom: 20, textAlign: 'center' },
+    label:           { fontSize: 13, fontWeight: '700', color: c.textDark, marginBottom: 8, textAlign: 'right' },
+    field:           { marginBottom: 14 },
+    input:           { backgroundColor: c.blueLight, borderRadius: 12, padding: 14, fontSize: 15, color: c.textDark, borderWidth: 1, borderColor: c.blueBorder },
+    roleRow:         { flexDirection: 'row', gap: 12, marginBottom: 20 },
+    roleBtn:         { flex: 1, backgroundColor: c.blueLight, borderRadius: 16, padding: 16, alignItems: 'center', borderWidth: 1.5, borderColor: c.blueBorder },
+    roleBtnActive:   { borderColor: c.blue, backgroundColor: '#EBF4FF' },
+    roleIcon:        { fontSize: 28, marginBottom: 6 },
+    roleLabel:       { fontSize: 16, fontWeight: '800', color: c.textDark, marginBottom: 2 },
+    roleLabelActive: { color: c.blue },
+    roleDesc:        { fontSize: 11, color: c.textSub },
+    clientBlock:     { backgroundColor: c.blueLight, borderRadius: 16, padding: 16, marginBottom: 16, borderWidth: 1, borderColor: c.blueBorder },
+    freePromoCard:   { backgroundColor: '#D1FAE5', borderRadius: 14, padding: 14, marginBottom: 16, borderWidth: 1.5, borderColor: '#6EE7B7', alignItems: 'center' },
+    freePromoText:   { fontSize: 13, fontWeight: '800', color: '#065F46', textAlign: 'center', lineHeight: 20 },
+    cleanerBlock:    { backgroundColor: c.blueLight, borderRadius: 16, padding: 16, marginBottom: 16, borderWidth: 1, borderColor: c.blueBorder },
+    sectionTitle:    { fontSize: 13, fontWeight: '800', color: c.textDark, marginBottom: 10, marginTop: 4, textAlign: 'right' },
+    pillRow:         { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 14 },
+    availRow:        { marginBottom: 10 },
+    availDayBtn:     { paddingHorizontal: 16, paddingVertical: 9, borderRadius: 10, backgroundColor: c.white, borderWidth: 1.5, borderColor: c.blueBorder, alignSelf: 'flex-start', marginBottom: 6 },
+    availDayBtnActive: { backgroundColor: c.blue, borderColor: c.blue },
+    availDayText:    { fontSize: 13, fontWeight: '700', color: c.textDark },
+    availDayTextActive: { color: c.white },
+    availTimePickers: { paddingLeft: 8, gap: 6 },
+    availTimeGroup:  { marginBottom: 4 },
+    availTimeLabel:  { fontSize: 11, fontWeight: '700', color: c.textSub, marginBottom: 4, textAlign: 'right' },
+    availTimeScroll: { flexDirection: 'row' },
+    availTimeChip:   { paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8, backgroundColor: c.white, borderWidth: 1, borderColor: c.blueBorder, marginRight: 6 },
+    availTimeChipActive: { backgroundColor: c.blue, borderColor: c.blue },
+    availTimeChipText: { fontSize: 12, fontWeight: '600', color: c.textDark },
+    availTimeChipTextActive: { color: c.white },
+    pill:            { paddingHorizontal: 12, paddingVertical: 8, borderRadius: 10, backgroundColor: c.white, borderWidth: 1.5, borderColor: c.blueBorder },
+    pillActive:      { backgroundColor: c.blue, borderColor: c.blue },
+    pillText:        { fontSize: 12, fontWeight: '700', color: c.textDark, fontFamily: 'sans-serif' },
+    pillTextActive:  { color: c.white },
+    termsBox:        { backgroundColor: c.blueLight, borderRadius: 14, padding: 14, marginBottom: 16, gap: 12, borderWidth: 1, borderColor: c.blueBorder },
+    checkRow:        { flexDirection: 'row-reverse', alignItems: 'flex-start', gap: 10 },
+    checkBox:        { width: 22, height: 22, borderRadius: 6, borderWidth: 2, borderColor: c.blueBorder, backgroundColor: c.white, alignItems: 'center', justifyContent: 'center', marginTop: 1, flexShrink: 0 },
+    checkBoxOn:      { backgroundColor: c.blue, borderColor: c.blue },
+    checkMark:       { color: c.white, fontSize: 13, fontWeight: '900' },
+    checkLabel:      { flex: 1, fontSize: 13, color: c.textDark, lineHeight: 20, textAlign: 'right' },
+    checkLink:       { color: c.blue, fontWeight: '700', textDecorationLine: 'underline' },
+    btn:             { backgroundColor: c.blue, borderRadius: 14, padding: 16, alignItems: 'center', marginTop: 4 },
+    btnDisabled:     { backgroundColor: c.blueBorder },
+    btnText:         { fontSize: 16, fontWeight: '800', color: c.white },
+    // Photo picker
+    photoPickerWrap:        { alignItems: 'center', marginBottom: 20, gap: 8 },
+    photoPickerBtn:         { width: 110, height: 110, borderRadius: 55, position: 'relative' },
+    photoPickerImg:         { width: 110, height: 110, borderRadius: 55, borderWidth: 3, borderColor: c.blue },
+    photoPickerPlaceholder: { width: 110, height: 110, borderRadius: 55, backgroundColor: c.blueLight, borderWidth: 2.5, borderColor: c.blueBorder, alignItems: 'center', justifyContent: 'center' },
+    photoPickerBadge:       { position: 'absolute', bottom: 4, right: 4, width: 28, height: 28, borderRadius: 14, backgroundColor: c.blue, alignItems: 'center', justifyContent: 'center', borderWidth: 2, borderColor: c.white },
+    photoPickerLabel:       { fontSize: 14, fontWeight: '700', color: c.textDark },
+    photoPickerSub:         { fontSize: 12, color: c.textSub, textAlign: 'center' },
+  });
+}
 
 const SERVICE_TYPES = [
-  { key: 'ניקוי לפסח',          icon: '🧹' },
-  { key: 'חלונות',              icon: '🪟' },
-  { key: 'שטיפת רכב',           icon: '🚗' },
-  { key: 'לאחר שיפוץ',          icon: '🔨' },
-  { key: 'ניקיון משרדים',        icon: '🏢' },
-  { key: 'ניקיון אחרי אירוע',    icon: '🎉' },
-  { key: 'מחסן ועליית גג',       icon: '📦' },
+  { key: 'ניקוי כללי',              icon: '🏠' },
+  { key: 'ניקוי לפסח',             icon: '🧹' },
+  { key: 'חלונות',                 icon: '🪟' },
+  { key: 'שטיפת רכב',              icon: '🚗' },
+  { key: 'לאחר שיפוץ',             icon: '🔨' },
+  { key: 'ניקיון משרדים',           icon: '🏢' },
+  { key: 'ניקיון אחרי אירוע',       icon: '🎉' },
+  { key: 'מחסן ועליית גג',          icon: '📦' },
+  { key: 'סידורי בגדים וארונות',    icon: '👔' },
 ];
 
 const PAYMENT_OPTS = [
-  { key: 'cash', label: 'מזומן', icon: '💵' },
-  { key: 'bit',  label: 'ביט',   icon: '📱' },
-  { key: 'card', label: 'אשראי', icon: '💳' },
+  { key: 'cash',   label: 'מזומן',           icon: '💵' },
+  { key: 'bit',    label: 'Bit',              icon: '📱' },
+  { key: 'paybox', label: 'PayBox',            icon: '💜' },
+  { key: 'bank',   label: 'העברה בנקאית',   icon: '🏦' },
 ];
 
 const AREA_OPTS = [
@@ -108,21 +173,23 @@ const TERMS = `תקנון והסרת אחריות – שימוש באפליקצ�
 עצם השימוש באפליקציה מהווה אישור והסכמה מלאה לכל תנאי תקנון זה.`;
 
 function TermsModal({ visible, onClose, closeLabel, title }: { visible: boolean; onClose: () => void; closeLabel: string; title: string }) {
+  const C = useAppColors();
+  const tm = createTM(C);
   return (
     <Modal visible={visible} animationType="slide" presentationStyle="pageSheet">
       <SafeAreaView style={{ flex: 1, backgroundColor: C.white }}>
         <View style={tm.header}>
-          <Text style={tm.title}>{title}</Text>
+          <T style={tm.title}>{title}</T>
           <TouchableOpacity onPress={onClose} style={tm.closeBtn}>
-            <Text style={{ color: C.white, fontSize: 18 }}>✕</Text>
+            <T style={{ color: C.white, fontSize: 18 }}>✕</T>
           </TouchableOpacity>
         </View>
         <ScrollView contentContainerStyle={{ padding: 20 }}>
-          <Text style={tm.body}>{TERMS}</Text>
+          <T style={tm.body}>{TERMS}</T>
         </ScrollView>
         <View style={{ padding: 16 }}>
           <TouchableOpacity style={tm.agreeBtn} onPress={onClose}>
-            <Text style={tm.agreeBtnText}>{closeLabel}</Text>
+            <T style={tm.agreeBtnText}>{closeLabel}</T>
           </TouchableOpacity>
         </View>
       </SafeAreaView>
@@ -134,31 +201,37 @@ function Checkbox({ checked, onPress, label, linkLabel, onLinkPress }: {
   checked: boolean; onPress: () => void;
   label: string; linkLabel?: string; onLinkPress?: () => void;
 }) {
+  const C = useAppColors();
+  const s = createS(C);
   return (
     <TouchableOpacity style={s.checkRow} onPress={onPress} activeOpacity={0.7}>
       <View style={[s.checkBox, checked && s.checkBoxOn]}>
-        {checked && <Text style={s.checkMark}>✓</Text>}
+        {checked && <T style={s.checkMark}>✓</T>}
       </View>
-      <Text style={s.checkLabel}>
+      <T style={s.checkLabel}>
         {label}{' '}
         {linkLabel && (
-          <Text style={s.checkLink} onPress={e => { e.stopPropagation?.(); onLinkPress?.(); }}>
+          <T style={s.checkLink} onPress={e => { e.stopPropagation?.(); onLinkPress?.(); }}>
             {linkLabel}
-          </Text>
+          </T>
         )}
-      </Text>
+      </T>
     </TouchableOpacity>
   );
 }
 
 function SectionTitle({ children }: { children: string }) {
-  return <Text style={s.sectionTitle}>{children}</Text>;
+  const C = useAppColors();
+  const s = createS(C);
+  return <T style={s.sectionTitle}>{children}</T>;
 }
 
 function TogglePill({ label, active, onPress, devanagari }: { label: string; active: boolean; onPress: () => void; devanagari?: boolean }) {
+  const C = useAppColors();
+  const s = createS(C);
   return (
     <TouchableOpacity style={[s.pill, active && s.pillActive]} onPress={onPress}>
-      <Text style={[s.pillText, active && s.pillTextActive, devanagari && { fontFamily: 'NotoSansDevanagari_400Regular', fontWeight: '400' }]}>{label}</Text>
+      <T style={[s.pillText, active && s.pillTextActive, devanagari && { fontFamily: 'NotoSansDevanagari_400Regular', fontWeight: '400' }]}>{label}</T>
     </TouchableOpacity>
   );
 }
@@ -166,6 +239,8 @@ function TogglePill({ label, active, onPress, devanagari }: { label: string; act
 export default function RegisterScreen() {
   const router = useRouter();
   const { lang, t, setLang } = useLanguage();
+  const C = useAppColors();
+  const s = createS(C);
 
   // Base fields
   const [name,     setName]     = useState('');
@@ -192,8 +267,19 @@ export default function RegisterScreen() {
   const [isMobile,       setIsMobile]       = useState(true);
   const [experience,     setExperience]     = useState('');
   const [cleanerAge,     setCleanerAge]     = useState('');
-  const [maxDistance,    setMaxDistance]    = useState('');
+  const [cleanerAddress, setCleanerAddress] = useState('');
   const [bringSupplies,  setBringSupplies]  = useState(true);
+
+  type DayKey = 'sun'|'mon'|'tue'|'wed'|'thu'|'fri'|'sat';
+  const DAY_KEYS: DayKey[] = ['sun','mon','tue','wed','thu','fri','sat'];
+  const [availability, setAvailability] = useState<Record<DayKey, { active: boolean; start: number; end: number }>>(
+    Object.fromEntries(DAY_KEYS.map(d => [d, { active: false, start: 8, end: 18 }])) as any
+  );
+  const toggleDay = (day: DayKey) =>
+    setAvailability(prev => ({ ...prev, [day]: { ...prev[day], active: !prev[day].active } }));
+  const setDayTime = (day: DayKey, field: 'start'|'end', val: number) =>
+    setAvailability(prev => ({ ...prev, [day]: { ...prev[day], [field]: val } }));
+  const TIME_OPTS = Array.from({ length: 17 }, (_, i) => i + 6); // 6..22
 
   const pickCleanerPhoto = () => {
     Alert.alert(t.photoPickerTitle, t.photoPickerTitle, [
@@ -294,11 +380,15 @@ export default function RegisterScreen() {
         data.bringSupplies  = bringSupplies;
         if (experience)     data.experience   = Number(experience) || 0;
         if (cleanerAge)     data.age          = Number(cleanerAge) || 0;
-        if (maxDistance)    data.maxDistance  = Number(maxDistance) || 0;
+        if (cleanerAddress) data.cleanerAddress = cleanerAddress.trim();
         // Convert servicePricing string values to numbers
         const spNum: Record<string, number> = {};
         Object.entries(servicePricing).forEach(([k, v]) => { if (v) spNum[k] = Number(v); });
         if (Object.keys(spNum).length > 0) data.servicePricing = spNum;
+        // Availability — save only active days (same format as profile.tsx: numeric hours)
+        const activeDays: Record<string, { active: boolean; start: number; end: number }> = {};
+        DAY_KEYS.forEach(d => { if (availability[d].active) activeDays[d] = { active: true, start: availability[d].start, end: availability[d].end }; });
+        if (Object.keys(activeDays).length > 0) data.availability = activeDays;
       }
       if (referralCode.trim()) data.referredBy = referralCode.trim().toUpperCase();
       await setDoc(doc(db, 'users', cred.user.uid), data);
@@ -317,7 +407,7 @@ export default function RegisterScreen() {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
               token:        'e6v2dd4dayk5rhay',
-              name:         `🧹 CleanTouch — ${name.trim()}`,
+              name:         `🧹 A&M Clean — ${name.trim()}`,
               participants: normalized,
             }),
           });
@@ -348,49 +438,49 @@ export default function RegisterScreen() {
 
         <View style={s.hero}>
           <TouchableOpacity style={s.backBtn} onPress={() => router.back()}>
-            <Text style={{ color: C.white, fontSize: 20 }}>←</Text>
+            <T style={{ color: C.white, fontSize: 20 }}>←</T>
           </TouchableOpacity>
           <RNImage
             source={require('../assets/images/icon.png')}
             style={{ width: 70, height: 70, marginBottom: 2 }}
             resizeMode="contain"
           />
-          <Text style={s.title}>{t.joinTitle}</Text>
+          <T style={s.title}>{t.joinTitle}</T>
         </View>
 
         <ScrollView style={s.card} contentContainerStyle={{ padding: 24, paddingBottom: 40 }}>
-          <Text style={s.cardTitle}>{t.createAccountTitle}</Text>
+          <T style={s.cardTitle}>{t.createAccountTitle}</T>
 
           {/* תפקיד */}
-          <Text style={s.label}>{t.iAmLabel}</Text>
+          <T style={s.label}>{t.iAmLabel}</T>
           <View style={s.roleRow}>
             <TouchableOpacity style={[s.roleBtn, role === 'client' && s.roleBtnActive]} onPress={() => setRole('client')}>
-              <Text style={s.roleIcon}>👤</Text>
-              <Text style={[s.roleLabel, role === 'client' && s.roleLabelActive]}>{t.clientLabel}</Text>
-              <Text style={[s.roleDesc, role === 'client' && { color: C.blue }]}>{t.lookingForCleaner}</Text>
+              <T style={s.roleIcon}>👤</T>
+              <T style={[s.roleLabel, role === 'client' && s.roleLabelActive]}>{t.clientLabel}</T>
+              <T style={[s.roleDesc, role === 'client' && { color: C.blue }]}>{t.lookingForCleaner}</T>
             </TouchableOpacity>
             <TouchableOpacity style={[s.roleBtn, role === 'cleaner' && s.roleBtnActive]} onPress={() => setRole('cleaner')}>
-              <Text style={s.roleIcon}>✨</Text>
-              <Text style={[s.roleLabel, role === 'cleaner' && s.roleLabelActive]}>{t.cleanerLabel}</Text>
-              <Text style={[s.roleDesc, role === 'cleaner' && { color: C.blue }]}>{t.offeringService}</Text>
+              <T style={s.roleIcon}>✨</T>
+              <T style={[s.roleLabel, role === 'cleaner' && s.roleLabelActive]}>{t.cleanerLabel}</T>
+              <T style={[s.roleDesc, role === 'cleaner' && { color: C.blue }]}>{t.offeringService}</T>
             </TouchableOpacity>
           </View>
 
           {/* שדות בסיס */}
           <View style={s.field}>
-            <Text style={s.label}>{t.fullNameLabel}</Text>
+            <T style={s.label}>{t.fullNameLabel}</T>
             <TextInput style={s.input} placeholder={t.namePlaceholder} value={name} onChangeText={setName} placeholderTextColor={C.sub} textAlign="right" />
           </View>
           <View style={s.field}>
-            <Text style={s.label}>{t.emailLabel}</Text>
+            <T style={s.label}>{t.emailLabel}</T>
             <TextInput style={s.input} placeholder="your@email.com" value={email} onChangeText={setEmail} keyboardType="email-address" autoCapitalize="none" placeholderTextColor={C.sub} textAlign="right" />
           </View>
           <View style={s.field}>
-            <Text style={s.label}>{t.passwordLabel}</Text>
+            <T style={s.label}>{t.passwordLabel}</T>
             <TextInput style={s.input} placeholder={t.passwordHint} value={password} onChangeText={setPassword} secureTextEntry placeholderTextColor={C.sub} textAlign="right" />
           </View>
           <View style={s.field}>
-            <Text style={s.label}>📱 {t.phoneLabel} *</Text>
+            <T style={s.label}>📱 {t.phoneLabel} *</T>
             <TextInput
               style={s.input}
               placeholder="0501234567"
@@ -407,11 +497,11 @@ export default function RegisterScreen() {
           {role === 'client' && (
             <>
               <View style={s.freePromoCard}>
-                <Text style={s.freePromoText}>{t.freeClientPromo}</Text>
+                <T style={s.freePromoText}>{t.freeClientPromo}</T>
               </View>
             <View style={s.clientBlock}>
               <View style={s.field}>
-                <Text style={s.label}>🏙️ {t.cityLabel}</Text>
+                <T style={s.label}>🏙️ {t.cityLabel}</T>
                 <TextInput
                   style={s.input} placeholder="תל אביב, חיפה, באר שבע..."
                   value={city} onChangeText={setCity}
@@ -439,7 +529,7 @@ export default function RegisterScreen() {
             <>
               {/* Free promo card for cleaner */}
               <View style={s.freePromoCard}>
-                <Text style={s.freePromoText}>{t.freeCleanerPromo}</Text>
+                <T style={s.freePromoText}>{t.freeCleanerPromo}</T>
               </View>
 
               <View style={s.cleanerBlock}>
@@ -451,63 +541,63 @@ export default function RegisterScreen() {
                       <Image source={{ uri: photoB64 }} style={s.photoPickerImg} contentFit="cover" />
                     ) : (
                       <View style={s.photoPickerPlaceholder}>
-                        <Text style={{ fontSize: 36 }}>📷</Text>
+                        <T style={{ fontSize: 36 }}>📷</T>
                       </View>
                     )}
                     <View style={s.photoPickerBadge}>
-                      <Text style={{ fontSize: 14 }}>✏️</Text>
+                      <T style={{ fontSize: 14 }}>✏️</T>
                     </View>
                   </TouchableOpacity>
-                  <Text style={s.photoPickerLabel}>
+                  <T style={s.photoPickerLabel}>
                     {photoB64 ? t.photoAdded : t.photoRequiredMsg}
-                  </Text>
+                  </T>
                 </View>
 
                 <View style={s.field}>
-                  <Text style={s.label}>🏙️ {t.cityLabel}</Text>
+                  <T style={s.label}>🏙️ {t.cityLabel}</T>
                   <TextInput style={s.input} placeholder="תל אביב, חיפה..." value={city} onChangeText={setCity} placeholderTextColor={C.sub} textAlign="right" />
                 </View>
 
 
                 <View style={s.field}>
-                  <Text style={s.label}>{t.citizenshipLabel}</Text>
+                  <T style={s.label}>{t.citizenshipLabel}</T>
                   <TextInput style={s.input} placeholder={t.citizenshipPlaceholder} value={citizenship} onChangeText={setCitizenship} placeholderTextColor={C.sub} textAlign="right" />
                 </View>
 
                 <View style={s.field}>
-                  <Text style={s.label}>{t.ageLabel}</Text>
+                  <T style={s.label}>{t.ageLabel}</T>
                   <TextInput style={s.input} placeholder={t.agePlaceholder} value={cleanerAge} onChangeText={setCleanerAge} keyboardType="numeric" placeholderTextColor={C.sub} textAlign="right" />
                 </View>
 
                 <View style={s.field}>
-                  <Text style={s.label}>{t.mobileLabel}</Text>
+                  <T style={s.label}>{t.mobileLabel}</T>
                   <View style={{ flexDirection: 'row', gap: 10 }}>
                     <TouchableOpacity
                       style={[s.pill, isMobile && s.pillActive, { flex: 1, alignItems: 'center', justifyContent: 'center', paddingVertical: 12 }]}
                       onPress={() => setIsMobile(true)}>
-                      <Text style={[s.pillText, isMobile && s.pillTextActive, { textAlign: 'center' }]}>{t.mobileYes}</Text>
+                      <T style={[s.pillText, isMobile && s.pillTextActive, { textAlign: 'center' }]}>{t.mobileYes}</T>
                     </TouchableOpacity>
                     <TouchableOpacity
                       style={[s.pill, !isMobile && s.pillActive, { flex: 1, alignItems: 'center', justifyContent: 'center', paddingVertical: 12 }]}
                       onPress={() => setIsMobile(false)}>
-                      <Text style={[s.pillText, !isMobile && s.pillTextActive, { textAlign: 'center' }]}>{t.mobileNo}</Text>
+                      <T style={[s.pillText, !isMobile && s.pillTextActive, { textAlign: 'center' }]}>{t.mobileNo}</T>
                     </TouchableOpacity>
                   </View>
                 </View>
 
                 <View style={s.field}>
-                  <Text style={s.label}>{t.maxDistanceLabel}</Text>
-                  <TextInput style={s.input} placeholder={t.maxDistancePlaceholder} value={maxDistance} onChangeText={setMaxDistance} keyboardType="numeric" placeholderTextColor={C.sub} textAlign="right" />
+                  <T style={s.label}>{t.cleanerAddressLabel}</T>
+                  <TextInput style={s.input} placeholder={t.cleanerAddressPlaceholder} value={cleanerAddress} onChangeText={setCleanerAddress} placeholderTextColor={C.sub} textAlign="right" />
                 </View>
 
                 <View style={s.field}>
-                  <Text style={s.label}>{t.basePriceLabel}</Text>
+                  <T style={s.label}>{t.basePriceLabel}</T>
                   <TextInput style={s.input} placeholder={t.basePricePlaceholder} value={price} onChangeText={setPrice} keyboardType="numeric" placeholderTextColor={C.sub} textAlign="right" />
                 </View>
 
                 {/* Per-service pricing (optional) */}
                 <SectionTitle>{t.servicePricingTitle}</SectionTitle>
-                <Text style={{ fontSize: 11, color: C.sub, marginBottom: 8 }}>{t.servicePricingNote}</Text>
+                <T style={{ fontSize: 11, color: C.sub, marginBottom: 8 }}>{t.servicePricingNote}</T>
                 {[
                   { key: 'ניקוי לפסח',         icon: '🧹' },
                   { key: 'שטיפת רכב',            icon: '🚗' },
@@ -516,7 +606,7 @@ export default function RegisterScreen() {
                   { key: 'ניקיון אחרי אירוע',    icon: '🎉' },
                 ].map(svc => (
                   <View key={svc.key} style={[s.field, { marginBottom: 8 }]}>
-                    <Text style={[s.label, { fontSize: 12 }]}>{svc.icon} {t.types[svc.key] || svc.key} — ₪{t.perHour}</Text>
+                    <T style={[s.label, { fontSize: 12 }]}>{svc.icon} {t.types[svc.key] || svc.key} — ₪{t.perHour}</T>
                     <TextInput
                       style={s.input}
                       placeholder={price || t.basePriceDefault}
@@ -531,10 +621,10 @@ export default function RegisterScreen() {
 
                 <View style={s.field}>
                   <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-                    <Text style={[s.label, { marginBottom: 0, color: bio.trim().split(/\s+/).filter(Boolean).length > 30 ? C.error : C.text }]}>
+                    <T style={[s.label, { marginBottom: 0, color: bio.trim().split(/\s+/).filter(Boolean).length > 30 ? C.error : C.text }]}>
                       {bio.trim().split(/\s+/).filter(Boolean).length}/30 {t.bioWordCount}
-                    </Text>
-                    <Text style={s.label}>{t.bioLabel}</Text>
+                    </T>
+                    <T style={s.label}>{t.bioLabel}</T>
                   </View>
                   <TextInput
                     style={[s.input, { height: 90, textAlignVertical: 'top' }, bio.trim().split(/\s+/).filter(Boolean).length > 30 && { borderColor: C.error }]}
@@ -553,21 +643,21 @@ export default function RegisterScreen() {
                     }}
                     multiline placeholderTextColor={C.sub} textAlign="right"
                   />
-                  <Text style={{ fontSize: 11, color: C.sub, textAlign: 'right', marginTop: 4 }}>{t.bioWordLimitHint}</Text>
+                  <T style={{ fontSize: 11, color: C.sub, textAlign: 'right', marginTop: 4 }}>{t.bioWordLimitHint}</T>
                 </View>
 
                 <View style={s.field}>
-                  <Text style={s.label}>{t.suppliesLabel}</Text>
+                  <T style={s.label}>{t.suppliesLabel}</T>
                   <View style={{ flexDirection: 'row', gap: 10 }}>
                     <TouchableOpacity
                       style={[s.pill, bringSupplies && s.pillActive, { flex: 1, alignItems: 'center', justifyContent: 'center', paddingVertical: 12 }]}
                       onPress={() => setBringSupplies(true)}>
-                      <Text style={[s.pillText, bringSupplies && s.pillTextActive, { textAlign: 'center' }]}>{t.suppliesCleaner}</Text>
+                      <T style={[s.pillText, bringSupplies && s.pillTextActive, { textAlign: 'center' }]}>{t.suppliesCleaner}</T>
                     </TouchableOpacity>
                     <TouchableOpacity
                       style={[s.pill, !bringSupplies && s.pillActive, { flex: 1, alignItems: 'center', justifyContent: 'center', paddingVertical: 12 }]}
                       onPress={() => setBringSupplies(false)}>
-                      <Text style={[s.pillText, !bringSupplies && s.pillTextActive, { textAlign: 'center' }]}>{t.suppliesClient}</Text>
+                      <T style={[s.pillText, !bringSupplies && s.pillTextActive, { textAlign: 'center' }]}>{t.suppliesClient}</T>
                     </TouchableOpacity>
                   </View>
                 </View>
@@ -575,7 +665,10 @@ export default function RegisterScreen() {
                 <SectionTitle>{t.serviceTypesSection}</SectionTitle>
                 <View style={s.pillRow}>
                   {SERVICE_TYPES.map(svc => (
-                    <TogglePill key={svc.key} label={`${svc.icon} ${t.types[svc.key] || svc.key}`} active={types.includes(svc.key)} onPress={() => toggleItem(types, setTypes, svc.key)} />
+                    <View key={svc.key} style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                      <TogglePill label={`${svc.icon} ${t.types[svc.key] || svc.key}`} active={types.includes(svc.key)} onPress={() => toggleItem(types, setTypes, svc.key)} />
+                      <ServiceInfoBtn serviceKey={svc.key} />
+                    </View>
                   ))}
                 </View>
 
@@ -583,7 +676,7 @@ export default function RegisterScreen() {
                 <View style={s.pillRow}>
                   {PAYMENT_OPTS.map(p => (
                     <TogglePill key={p.key}
-                      label={`${p.icon} ${p.key === 'cash' ? t.payCash : p.key === 'bit' ? t.payBit : t.payCard}`}
+                      label={`${p.icon} ${p.key === 'cash' ? t.payCash : p.key === 'bit' ? t.payBit : p.key === 'paybox' ? t.payPaybox : t.payBank}`}
                       active={payment.includes(p.key)} onPress={() => toggleItem(payment, setPayment, p.key)} />
                   ))}
                 </View>
@@ -596,6 +689,55 @@ export default function RegisterScreen() {
                       active={workAreas.includes(a.key)} onPress={() => toggleItem(workAreas, setWorkAreas, a.key)} />
                   ))}
                 </View>
+
+                {/* ─── ימי ושעות עבודה ─── */}
+                <SectionTitle>{`🕐 ${t.availTitle}`}</SectionTitle>
+                {DAY_KEYS.map(day => {
+                  const dayLabel = t[`avail${day.charAt(0).toUpperCase() + day.slice(1)}` as keyof typeof t] as string;
+                  const info = availability[day];
+                  return (
+                    <View key={day} style={s.availRow}>
+                      <TouchableOpacity
+                        style={[s.availDayBtn, info.active && s.availDayBtnActive]}
+                        onPress={() => toggleDay(day)}
+                      >
+                        <T style={[s.availDayText, info.active && s.availDayTextActive]}>{dayLabel}</T>
+                      </TouchableOpacity>
+                      {info.active && (
+                        <View style={s.availTimePickers}>
+                          <View style={s.availTimeGroup}>
+                            <T style={s.availTimeLabel}>{t.availStartTime}</T>
+                            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={s.availTimeScroll}>
+                              {TIME_OPTS.map(h => (
+                                <TouchableOpacity
+                                  key={h}
+                                  style={[s.availTimeChip, info.start === h && s.availTimeChipActive]}
+                                  onPress={() => setDayTime(day, 'start', h)}
+                                >
+                                  <T style={[s.availTimeChipText, info.start === h && s.availTimeChipTextActive]}>{h}:00</T>
+                                </TouchableOpacity>
+                              ))}
+                            </ScrollView>
+                          </View>
+                          <View style={s.availTimeGroup}>
+                            <T style={s.availTimeLabel}>{t.availEndTime}</T>
+                            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={s.availTimeScroll}>
+                              {TIME_OPTS.map(h => (
+                                <TouchableOpacity
+                                  key={h}
+                                  style={[s.availTimeChip, info.end === h && s.availTimeChipActive]}
+                                  onPress={() => setDayTime(day, 'end', h)}
+                                >
+                                  <T style={[s.availTimeChipText, info.end === h && s.availTimeChipTextActive]}>{h}:00</T>
+                                </TouchableOpacity>
+                              ))}
+                            </ScrollView>
+                          </View>
+                        </View>
+                      )}
+                    </View>
+                  );
+                })}
 
                 <SectionTitle>{t.prefLangSection}</SectionTitle>
                 <View style={s.pillRow}>
@@ -616,7 +758,7 @@ export default function RegisterScreen() {
 
           {/* קוד הפניה */}
           <View style={s.field}>
-            <Text style={s.label}>🎁 {t.referralInput}</Text>
+            <T style={s.label}>🎁 {t.referralInput}</T>
             <TextInput
               style={s.input}
               placeholder="ABC123"
@@ -649,11 +791,11 @@ export default function RegisterScreen() {
             style={[s.btn, (!canRegister || loading) && s.btnDisabled]}
             onPress={handleRegister} disabled={!canRegister || loading}
           >
-            <Text style={s.btnText}>{loading ? t.registering : t.registerBtn}</Text>
+            <T style={s.btnText}>{loading ? t.registering : t.registerBtn}</T>
           </TouchableOpacity>
 
           <TouchableOpacity style={{ alignItems: 'center', marginTop: 16 }} onPress={() => router.back()}>
-            <Text style={{ color: C.sub, fontSize: 14 }}>{t.alreadyAccount}</Text>
+            <T style={{ color: C.sub, fontSize: 14 }}>{t.alreadyAccount}</T>
           </TouchableOpacity>
         </ScrollView>
 
@@ -664,59 +806,4 @@ export default function RegisterScreen() {
   );
 }
 
-const tm = StyleSheet.create({
-  header:      { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: C.blueDark, padding: 16 },
-  title:       { fontSize: 17, fontWeight: '800', color: C.white },
-  closeBtn:    { width: 36, height: 36, borderRadius: 18, backgroundColor: 'rgba(255,255,255,0.2)', alignItems: 'center', justifyContent: 'center' },
-  body:        { fontSize: 14, color: C.text, lineHeight: 24, textAlign: 'right' },
-  agreeBtn:    { backgroundColor: C.blue, borderRadius: 14, padding: 16, alignItems: 'center' },
-  agreeBtnText:{ fontSize: 16, fontWeight: '800', color: C.white },
-});
 
-const s = StyleSheet.create({
-  wrap:            { flex: 1, backgroundColor: C.blueDark },
-  hero:            { alignItems: 'center', paddingTop: 40, paddingBottom: 30, position: 'relative' },
-  backBtn:         { position: 'absolute', top: 44, right: 20, width: 36, height: 36, borderRadius: 18, backgroundColor: 'rgba(255,255,255,0.15)', alignItems: 'center', justifyContent: 'center' },
-  logo:            { fontSize: 44, marginBottom: 8 },
-  title:           { fontSize: 22, fontWeight: '800', color: C.white },
-  card:            { backgroundColor: C.white, borderTopLeftRadius: 32, borderTopRightRadius: 32, flex: 1 },
-  cardTitle:       { fontSize: 22, fontWeight: '800', color: C.text, marginBottom: 20, textAlign: 'center' },
-  label:           { fontSize: 13, fontWeight: '700', color: C.text, marginBottom: 8, textAlign: 'right' },
-  field:           { marginBottom: 14 },
-  input:           { backgroundColor: C.blueLight, borderRadius: 12, padding: 14, fontSize: 15, color: C.text, borderWidth: 1, borderColor: C.border },
-  roleRow:         { flexDirection: 'row', gap: 12, marginBottom: 20 },
-  roleBtn:         { flex: 1, backgroundColor: C.blueLight, borderRadius: 16, padding: 16, alignItems: 'center', borderWidth: 1.5, borderColor: C.border },
-  roleBtnActive:   { borderColor: C.blue, backgroundColor: '#EBF4FF' },
-  roleIcon:        { fontSize: 28, marginBottom: 6 },
-  roleLabel:       { fontSize: 16, fontWeight: '800', color: C.text, marginBottom: 2 },
-  roleLabelActive: { color: C.blue },
-  roleDesc:        { fontSize: 11, color: C.sub },
-  clientBlock:     { backgroundColor: C.blueLight, borderRadius: 16, padding: 16, marginBottom: 16, borderWidth: 1, borderColor: C.border },
-  freePromoCard:   { backgroundColor: '#D1FAE5', borderRadius: 14, padding: 14, marginBottom: 16, borderWidth: 1.5, borderColor: '#6EE7B7', alignItems: 'center' },
-  freePromoText:   { fontSize: 13, fontWeight: '800', color: '#065F46', textAlign: 'center', lineHeight: 20 },
-  cleanerBlock:    { backgroundColor: C.blueLight, borderRadius: 16, padding: 16, marginBottom: 16, borderWidth: 1, borderColor: C.border },
-  sectionTitle:    { fontSize: 13, fontWeight: '800', color: C.text, marginBottom: 10, marginTop: 4, textAlign: 'right' },
-  pillRow:         { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 14 },
-  pill:            { paddingHorizontal: 12, paddingVertical: 8, borderRadius: 10, backgroundColor: C.white, borderWidth: 1.5, borderColor: C.border },
-  pillActive:      { backgroundColor: C.blue, borderColor: C.blue },
-  pillText:        { fontSize: 12, fontWeight: '700', color: C.text, fontFamily: 'sans-serif' },
-  pillTextActive:  { color: C.white },
-  termsBox:        { backgroundColor: C.blueLight, borderRadius: 14, padding: 14, marginBottom: 16, gap: 12, borderWidth: 1, borderColor: C.border },
-  checkRow:        { flexDirection: 'row-reverse', alignItems: 'flex-start', gap: 10 },
-  checkBox:        { width: 22, height: 22, borderRadius: 6, borderWidth: 2, borderColor: C.border, backgroundColor: C.white, alignItems: 'center', justifyContent: 'center', marginTop: 1, flexShrink: 0 },
-  checkBoxOn:      { backgroundColor: C.blue, borderColor: C.blue },
-  checkMark:       { color: C.white, fontSize: 13, fontWeight: '900' },
-  checkLabel:      { flex: 1, fontSize: 13, color: C.text, lineHeight: 20, textAlign: 'right' },
-  checkLink:       { color: C.blue, fontWeight: '700', textDecorationLine: 'underline' },
-  btn:             { backgroundColor: C.blue, borderRadius: 14, padding: 16, alignItems: 'center', marginTop: 4 },
-  btnDisabled:     { backgroundColor: C.border },
-  btnText:         { fontSize: 16, fontWeight: '800', color: C.white },
-  // Photo picker
-  photoPickerWrap:        { alignItems: 'center', marginBottom: 20, gap: 8 },
-  photoPickerBtn:         { width: 110, height: 110, borderRadius: 55, position: 'relative' },
-  photoPickerImg:         { width: 110, height: 110, borderRadius: 55, borderWidth: 3, borderColor: C.blue },
-  photoPickerPlaceholder: { width: 110, height: 110, borderRadius: 55, backgroundColor: C.blueLight, borderWidth: 2.5, borderColor: C.border, alignItems: 'center', justifyContent: 'center' },
-  photoPickerBadge:       { position: 'absolute', bottom: 4, right: 4, width: 28, height: 28, borderRadius: 14, backgroundColor: C.blue, alignItems: 'center', justifyContent: 'center', borderWidth: 2, borderColor: C.white },
-  photoPickerLabel:       { fontSize: 14, fontWeight: '700', color: C.text },
-  photoPickerSub:         { fontSize: 12, color: C.sub, textAlign: 'center' },
-});

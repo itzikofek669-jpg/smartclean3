@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useRef } from 'react';
+﻿import React, { useEffect, useState, useRef } from 'react';
 import { Platform, View, StyleSheet } from 'react-native';
 import { Stack, useRouter, useSegments } from 'expo-router';
 import { onAuthStateChanged, signInWithEmailAndPassword } from 'firebase/auth';
@@ -9,6 +9,7 @@ import { doc, updateDoc } from 'firebase/firestore';
 import { auth, db } from '../lib/firebase';
 import { LanguageProvider } from '../lib/LanguageContext';
 import { ThemeProvider } from '../lib/ThemeContext';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { useFonts, NotoSansDevanagari_400Regular } from '@expo-google-fonts/noto-sans-devanagari';
 
 // ── הגדרת התנהגות כשהאפליקציה פתוחה בפורגראונד ─────────────────────────────
@@ -90,7 +91,7 @@ export default function RootLayout() {
         setReady(true);
         const seg0 = segments[0] as string | undefined;
         const inAuth = seg0 === undefined || seg0 === 'index' || seg0 === 'register';
-        const ADMIN_EMAIL = 'cleantouchapp@gmail.com';
+        const ADMIN_EMAIL = 'A&M Cleanapp@gmail.com';
         if (!user && !inAuth) router.replace('/');
         else if (user && inAuth) {
           if (user.email === ADMIN_EMAIL) {
@@ -143,16 +144,19 @@ export default function RootLayout() {
   if (!ready || (!fontsLoaded && !fontError)) return null;
 
   return (
-    <View style={ls.root}>
-      <ThemeProvider>
-        <LanguageProvider>
-          <Stack screenOptions={{ headerShown: false }} />
-        </LanguageProvider>
-      </ThemeProvider>
-    </View>
+    <SafeAreaProvider>
+      <View style={ls.root}>
+        <ThemeProvider>
+          <LanguageProvider>
+            <Stack screenOptions={{ headerShown: false }} />
+          </LanguageProvider>
+        </ThemeProvider>
+      </View>
+    </SafeAreaProvider>
   );
 }
 
 const ls = StyleSheet.create({
   root: { flex: 1, direction: 'ltr' },
 });
+
