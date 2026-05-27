@@ -240,13 +240,13 @@ function createS(c: AppColors) {
 const PAY_ICONS: Record<string, string> = { bit: '📱', cash: '💵', paybox: '💜' };
 
 const SERVICE_ICONS: Record<string, string> = {
-  'ניקוי כללי': '🏠', 'ניקוי לפסח': '🧹', 'חלונות': '🪟', 'לאחר שיפוץ': '🔨',
+  'ניקוי רגיל': '🏠', 'ניקוי לפסח': '🧹', 'חלונות': '🪟', 'לאחר שיפוץ': '🔨',
   'שטיפת רכב': '🚗', 'ניקיון משרדים': '🏢', 'ניקיון אחרי אירוע': '🎉',
   'מחסן ועליית גג': '📦', 'סידורי בגדים וארונות': '👔',
 };
 
 const SERVICE_DETAIL: Record<string, string[]> = {
-  'ניקוי כללי': [
+  'ניקוי רגיל': [
     '🫧 שטיפת רצפות וניגוב בכל חדרי הבית',
     '🪣 ניקוי אבק ממשטחים, רהיטים ופריטי דקורציה',
     '🚿 ניקוי חדרי רחצה ושירותים — אריחים, כיורים ואסלות',
@@ -938,8 +938,8 @@ export default function ProfileScreen() {
         const sp = d.servicePricing || {};
         const spStr: Record<string,string> = {};
         Object.entries(sp).forEach(([k,v]) => { spStr[k] = String(v); });
-        // אם אין מחיר לניקוי כללי — מלא מהמחיר הישן
-        if (!spStr['ניקוי כללי'] && d.price) spStr['ניקוי כללי'] = String(d.price);
+        // אם אין מחיר לניקוי רגיל — מלא מהמחיר הישן
+        if (!spStr['ניקוי רגיל'] && d.price) spStr['ניקוי רגיל'] = String(d.price);
         setEditServicePricing(spStr);
         setEditBitPhone(d.bitPhone || '');
         setEditPayboxLink(d.payboxLink || '');
@@ -963,7 +963,7 @@ export default function ProfileScreen() {
         isPrivate:     editAddrPrivate,
         phone:         editPhone.trim(),
         bio:           editBio.trim(),
-        price:         Number(editServicePricing['ניקוי כללי']) || Number(Object.values(editServicePricing).find(v => v)) || 0,
+        price:         Number(editServicePricing['ניקוי רגיל']) || Number(Object.values(editServicePricing).find(v => v)) || 0,
         types:         editTypes,
         payment:       editPayment,
         workAreas:     editWorkAreas,
@@ -3727,7 +3727,7 @@ export default function ProfileScreen() {
                 <T style={ep.label}>{t.editServicePricingLabel}</T>
                 <View style={{ gap: 8, marginTop: 6 }}>
                   {[
-                    { key: 'ניקוי כללי',           icon: '🏠' },
+                    { key: 'ניקוי רגיל',           icon: '🏠' },
                     { key: 'ניקוי לפסח',           icon: '🧹' },
                     { key: 'חלונות',               icon: '🪟' },
                     { key: 'שטיפת רכב',            icon: '🚗' },
