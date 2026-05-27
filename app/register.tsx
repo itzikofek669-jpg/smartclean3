@@ -516,7 +516,7 @@ export default function RegisterScreen() {
                           style={[s.pill, active && s.pillActive, { flex: 1, alignItems: 'flex-end', paddingVertical: 12, paddingHorizontal: 14 }]}
                           onPress={() => toggleItem(types, setTypes, svc.key)}
                         >
-                          <Text style={[s.pillText, active && s.pillTextActive, { textAlign: 'right' }]}>{svc.icon} {svc.key}</Text>
+                          <Text style={[s.pillText, active && s.pillTextActive, { textAlign: 'center' }]}>{svc.icon} {svc.key}</Text>
                         </TouchableOpacity>
                         {/* שדה מחיר */}
                         <TextInput
@@ -686,22 +686,22 @@ const s = StyleSheet.create({
   title:           { fontSize: 22, fontWeight: '800', color: C.white },
   card:            { backgroundColor: C.white, borderTopLeftRadius: 32, borderTopRightRadius: 32, flex: 1 },
   cardTitle:       { fontSize: 22, fontWeight: '800', color: C.text, marginBottom: 20, textAlign: 'center' },
-  label:           { fontSize: 13, fontWeight: '700', color: C.text, marginBottom: 8, textAlign: 'right' },
+  label:           { fontSize: 13, fontWeight: '700', color: C.text, marginBottom: 8, textAlign: 'center' },
   field:           { marginBottom: 14 },
-  input:           { backgroundColor: C.blueLight, borderRadius: 12, padding: 14, fontSize: 15, color: C.text, borderWidth: 1, borderColor: C.border },
-  roleRow:         { flexDirection: 'row', gap: 12, marginBottom: 20 },
+  input:           { backgroundColor: C.blueLight, borderRadius: 12, padding: 14, fontSize: 15, color: C.text, borderWidth: 1, borderColor: C.border, textAlign: 'right' },
+  roleRow:         { flexDirection: 'row', gap: 12, marginBottom: 20, justifyContent: 'center' },
   roleBtn:         { flex: 1, backgroundColor: C.blueLight, borderRadius: 16, padding: 16, alignItems: 'center', borderWidth: 1.5, borderColor: C.border },
   roleBtnActive:   { borderColor: C.blue, backgroundColor: '#EBF4FF' },
   roleIcon:        { fontSize: 28, marginBottom: 6 },
-  roleLabel:       { fontSize: 16, fontWeight: '800', color: C.text, marginBottom: 2 },
+  roleLabel:       { fontSize: 16, fontWeight: '800', color: C.text, marginBottom: 2, textAlign: 'center' },
   roleLabelActive: { color: C.blue },
-  roleDesc:        { fontSize: 11, color: C.sub },
+  roleDesc:        { fontSize: 11, color: C.sub, textAlign: 'center' },
   clientBlock:     { backgroundColor: C.blueLight, borderRadius: 16, padding: 16, marginBottom: 16, borderWidth: 1, borderColor: C.border },
   freePromoCard:   { backgroundColor: '#D1FAE5', borderRadius: 14, padding: 14, marginBottom: 16, borderWidth: 1.5, borderColor: '#6EE7B7', alignItems: 'center' },
   freePromoText:   { fontSize: 13, fontWeight: '800', color: '#065F46', textAlign: 'center', lineHeight: 20 },
   cleanerBlock:    { backgroundColor: C.blueLight, borderRadius: 16, padding: 16, marginBottom: 16, borderWidth: 1, borderColor: C.border },
-  sectionTitle:    { fontSize: 13, fontWeight: '800', color: C.text, marginBottom: 10, marginTop: 4, textAlign: 'right' },
-  pillRow:         { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 14 },
+  sectionTitle:    { fontSize: 14, fontWeight: '800', color: C.text, marginBottom: 10, marginTop: 8, textAlign: 'center' },
+  pillRow:         { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 14, justifyContent: 'center' },
   pill:            { paddingHorizontal: 12, paddingVertical: 8, borderRadius: 10, backgroundColor: C.white, borderWidth: 1.5, borderColor: C.border },
   pillActive:      { backgroundColor: C.blue, borderColor: C.blue },
   pillText:        { fontSize: 12, fontWeight: '700', color: C.text, fontFamily: 'sans-serif' },
