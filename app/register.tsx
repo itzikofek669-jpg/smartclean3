@@ -207,7 +207,7 @@ export default function RegisterScreen() {
           if (!perm.granted) return Alert.alert(t.error, t.photoGallery);
           const res = await ImagePicker.launchImageLibraryAsync({
             mediaTypes: ImagePicker.MediaTypeOptions.Images,
-            allowsEditing: true, aspect: [1, 1], quality: 0.15, base64: true,
+            allowsEditing: false, quality: 0.15, base64: true,
           });
           if (!res.canceled && res.assets[0].base64) {
             setPhotoB64(`data:image/jpeg;base64,${res.assets[0].base64}`);
@@ -220,7 +220,7 @@ export default function RegisterScreen() {
           const perm = await ImagePicker.requestCameraPermissionsAsync();
           if (!perm.granted) return Alert.alert(t.error, t.photoCamera);
           const res = await ImagePicker.launchCameraAsync({
-            allowsEditing: true, aspect: [1, 1], quality: 0.15, base64: true,
+            allowsEditing: false, quality: 0.15, base64: true,
           });
           if (!res.canceled && res.assets[0].base64) {
             setPhotoB64(`data:image/jpeg;base64,${res.assets[0].base64}`);
