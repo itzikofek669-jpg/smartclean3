@@ -347,7 +347,7 @@ export default function RegisterScreen() {
   return (
     <SafeAreaView style={s.wrap}>
       <StatusBar barStyle="light-content" backgroundColor={C.blueDark} />
-      <KeyboardAvoidingView behavior="padding" style={{ flex: 1 }}>
+      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }} keyboardVerticalOffset={0}>
 
         <View style={s.hero}>
           <TouchableOpacity style={s.backBtn} onPress={() => router.back()}>
@@ -361,7 +361,7 @@ export default function RegisterScreen() {
           <Text style={s.title}>{t.joinTitle}</Text>
         </View>
 
-        <ScrollView style={s.card} contentContainerStyle={{ padding: 24, paddingBottom: 40 }}>
+        <ScrollView style={s.card} contentContainerStyle={{ padding: 24, paddingBottom: 40 }} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
           <Text style={s.cardTitle}>{t.createAccountTitle}</Text>
 
           {/* תפקיד */}
@@ -413,9 +413,9 @@ export default function RegisterScreen() {
               </View>
             <View style={s.clientBlock}>
               <View style={s.field}>
-                <Text style={s.label}>🏙️ {t.cityLabel}</Text>
+                <Text style={s.label}>📍 כתובת מלאה</Text>
                 <TextInput
-                  style={s.input} placeholder="תל אביב, חיפה, באר שבע..."
+                  style={s.input} placeholder="רחוב, מספר, עיר..."
                   value={city} onChangeText={setCity}
                   placeholderTextColor={C.sub} textAlign="right"
                 />
