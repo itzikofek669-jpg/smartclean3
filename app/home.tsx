@@ -3384,6 +3384,12 @@ export default function HomeScreen() {
                       </TouchableOpacity>
                     ))}
                   </View>
+                  <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 6, backgroundColor: '#FEF9C3', borderRadius: 10, padding: 10, borderWidth: 1, borderColor: '#FDE047' }}>
+                    <Text style={{ fontSize: 14 }}>💡</Text>
+                    <Text style={{ fontSize: 12, color: '#854D0E', flex: 1, lineHeight: 18, textAlign: 'right' }}>
+                      התשלום מתבצע ישירות בין הלקוח לנותן השירות בלבד. A&M Clean אינה מעורבת בעסקה הכספית.
+                    </Text>
+                  </View>
                 </View>
 
                 {/* כפתור שליחה */}
