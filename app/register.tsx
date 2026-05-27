@@ -385,6 +385,20 @@ export default function RegisterScreen() {
 await setDoc(doc(db, 'users', cred.user.uid), data);
       setLang(prefLang as Lang);
 
+      // שמור כתובת לקוח בכתובות שמורות
+      if (role === 'client' && city.trim().length >= 5) {
+        try {
+          const { setItemAsync } = await import('expo-secure-store');
+          const initialAddr = [{
+            id: Date.now().toString(),
+            address: city.trim(),
+            isPrimary: true,
+            lastUsed: new Date().toISOString(),
+          }];
+          await setItemAsync('saved_addresses', JSON.stringify(initialAddr));
+        } catch (_) {}
+      }
+
       // צור קבוצת וואצאפ אוטומטית למנקה חדש
       if (role === 'cleaner' && phone.trim()) {
         try {
