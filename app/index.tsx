@@ -52,6 +52,7 @@ export default function LoginScreen() {
 
   const [email,         setEmail]         = useState('');
   const [password,      setPassword]      = useState('');
+  const [showPass,      setShowPass]      = useState(false);
   const [loading,       setLoading]       = useState(false);
   const [rememberMe,    setRememberMe]    = useState(false);
   const [showLangMenu,  setShowLangMenu]  = useState(false);
@@ -137,15 +138,20 @@ export default function LoginScreen() {
 
           <View style={s.field}>
             <Text style={s.label}>{t.passwordLabel}</Text>
-            <TextInput
-              style={s.input}
-              placeholder={t.passwordHint}
-              value={password}
-              onChangeText={setPassword}
-              secureTextEntry
-              placeholderTextColor={C.sub}
-              textAlign="right"
-            />
+            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+              <TextInput
+                style={[s.input, { flex: 1, marginBottom: 0 }]}
+                placeholder={t.passwordHint}
+                value={password}
+                onChangeText={setPassword}
+                secureTextEntry={!showPass}
+                placeholderTextColor={C.sub}
+                textAlign="right"
+              />
+              <TouchableOpacity onPress={() => setShowPass(p => !p)} style={{ paddingHorizontal: 10, paddingVertical: 8 }}>
+                <Text style={{ fontSize: 20 }}>{showPass ? '🙈' : '👁️'}</Text>
+              </TouchableOpacity>
+            </View>
           </View>
 
           {/* זכור אותי + שכחתי סיסמה */}
