@@ -579,7 +579,6 @@ export default function ProfileScreen() {
   const [uploading,    setUploading]    = useState(false);
   const [rateTarget,   setRateTarget]   = useState<any>(null);
   const [rateModal,    setRateModal]    = useState(false);
-  const [referralCode, setReferralCode] = useState('');
   const [portfolio,    setPortfolio]    = useState<string[]>([]);
   const [idVerified,   setIdVerified]   = useState(false);
   const [prefLang,     setPrefLang]     = useState('he');
@@ -1020,12 +1019,6 @@ export default function ProfileScreen() {
           setIdVerified(d.identityVerified === true);
           setPrefLang((d.preferredLang || 'he') as Lang);
           setUserPhone(d.phone || '');
-          let code = d.referralCode || '';
-          if (!code) {
-            code = Math.random().toString(36).substring(2, 8).toUpperCase();
-            setDoc(doc(db, 'users', uid), { referralCode: code }, { merge: true }).catch(() => {});
-          }
-          setReferralCode(code);
           setCleanerBitPhone(d.bitPhone || '');
           setCleanerPayboxLink(d.payboxLink || '');
           setHasPushToken(!!(d.pushToken));
@@ -1211,12 +1204,6 @@ export default function ProfileScreen() {
       { text: '📷 מצלמה',   onPress: () => doUpload('camera')  },
       { text: t.cancel, style: 'cancel' },
     ]);
-  };
-
-  const handleShareReferral = async () => {
-    try {
-      await Share.share({ message: `${t.referralBonus}\n\nהקוד שלי: ${referralCode}` });
-    } catch (_) {}
   };
 
   // ─── Portfolio ────────────────────────────────────────────────────────────────
@@ -3203,38 +3190,6 @@ export default function ProfileScreen() {
                   הגעת למקסימום 5 כתובות — מחק כתובת ישנה כדי להוסיף חדשה
                 </T>
               )}
-            </View>
-          )}
-
-          {/* ספר לחברים (לקוח) — תחתית הדף */}
-          {!isCleaner && (
-            <View style={s.section}>
-              <T style={[s.sectionTitle, { textAlign: 'center' }]}>🎁 {t.referralTitle}</T>
-              <View style={s.referralCard}>
-                <T style={s.referralBonus}>{t.referralBonus}</T>
-                <View style={s.referralCodeRow}>
-                  <T style={s.referralCodeText}>{referralCode || '...'}</T>
-                  <TouchableOpacity style={s.referralShareBtn} onPress={handleShareReferral}>
-                    <T style={s.referralShareBtnText}>{t.referralShare}</T>
-                  </TouchableOpacity>
-                </View>
-              </View>
-            </View>
-          )}
-
-          {/* ספר לחברים (מנקה) — תחתית הדף */}
-          {isCleaner && (
-            <View style={s.section}>
-              <T style={[s.sectionTitle, { textAlign: 'center' }]}>🎁 {t.referralTitle}</T>
-              <View style={s.referralCard}>
-                <T style={s.referralBonus}>{t.referralBonus}</T>
-                <View style={s.referralCodeRow}>
-                  <T style={s.referralCodeText}>{referralCode || '...'}</T>
-                  <TouchableOpacity style={s.referralShareBtn} onPress={handleShareReferral}>
-                    <T style={s.referralShareBtnText}>{t.referralShare}</T>
-                  </TouchableOpacity>
-                </View>
-              </View>
             </View>
           )}
 

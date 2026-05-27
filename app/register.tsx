@@ -313,9 +313,6 @@ export default function RegisterScreen() {
     ]);
   };
 
-  // Referral
-  const [referralCode, setReferralCode] = useState('');
-
   // Terms
   const [termsOk,    setTermsOk]    = useState(false);
   const [ageOk,      setAgeOk]      = useState(false);
@@ -385,8 +382,7 @@ export default function RegisterScreen() {
         Object.entries(servicePricing).forEach(([k, v]) => { if (v) spNum[k] = Number(v); });
         if (Object.keys(spNum).length > 0) data.servicePricing = spNum;
       }
-      if (referralCode.trim()) data.referredBy = referralCode.trim().toUpperCase();
-      await setDoc(doc(db, 'users', cred.user.uid), data);
+await setDoc(doc(db, 'users', cred.user.uid), data);
       setLang(prefLang as Lang);
 
       // צור קבוצת וואצאפ אוטומטית למנקה חדש
@@ -700,20 +696,6 @@ export default function RegisterScreen() {
               </View>
             </>
           )}
-
-          {/* קוד הפניה */}
-          <View style={s.field}>
-            <Text style={s.label}>🎁 {t.referralInput}</Text>
-            <TextInput
-              style={s.input}
-              placeholder="ABC123"
-              value={referralCode}
-              onChangeText={v => setReferralCode(v.toUpperCase())}
-              autoCapitalize="characters"
-              placeholderTextColor={C.sub}
-              textAlign="right"
-            />
-          </View>
 
           {/* תקנון */}
           <View style={s.termsBox}>
