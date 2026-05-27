@@ -2008,6 +2008,71 @@ function CleanerCard({ cleaner, selected, onSelect, onProfile, onBook, onChat, i
   );
 }
 
+// ─── Free Banner ──────────────────────────────────────────────────────────────
+function FreeBanner() {
+  const pulse1 = useRef(new Animated.Value(1)).current;
+  const pulse2 = useRef(new Animated.Value(1)).current;
+
+  useEffect(() => {
+    const anim = (val: Animated.Value, delay: number) =>
+      Animated.loop(
+        Animated.sequence([
+          Animated.delay(delay),
+          Animated.timing(val, { toValue: 1.12, duration: 600, useNativeDriver: true }),
+          Animated.timing(val, { toValue: 1,    duration: 600, useNativeDriver: true }),
+          Animated.delay(1800),
+        ])
+      ).start();
+    anim(pulse1, 0);
+    anim(pulse2, 700);
+  }, []);
+
+  return (
+    <View style={{
+      backgroundColor: '#fff',
+      borderRadius: 18,
+      marginBottom: 8,
+      paddingVertical: 14,
+      paddingHorizontal: 16,
+      borderWidth: 1.5,
+      borderColor: '#6EE7B7',
+      shadowColor: '#10B981',
+      shadowOpacity: 0.15,
+      shadowRadius: 8,
+      shadowOffset: { width: 0, height: 3 },
+      elevation: 3,
+    }}>
+      <Text style={{ fontSize: 14, fontWeight: '900', color: '#065F46', textAlign: 'center', marginBottom: 12 }}>
+        🎉 A&M Clean — חינמי לחלוטין
+      </Text>
+      <View style={{ flexDirection: 'row', gap: 10, justifyContent: 'center' }}>
+        {/* תג 1 — 0% עמלה */}
+        <View style={{
+          flex: 1, backgroundColor: '#ECFDF5', borderRadius: 14,
+          paddingVertical: 12, alignItems: 'center',
+          borderWidth: 1.5, borderColor: '#34D399',
+        }}>
+          <Animated.Text style={{ fontSize: 28, fontWeight: '900', color: '#059669', transform: [{ scale: pulse1 }] }}>
+            0%
+          </Animated.Text>
+          <Text style={{ fontSize: 12, fontWeight: '700', color: '#047857', marginTop: 2 }}>עמלה למנקים</Text>
+        </View>
+        {/* תג 2 — ₪0 דמי שירות */}
+        <View style={{
+          flex: 1, backgroundColor: '#EFF6FF', borderRadius: 14,
+          paddingVertical: 12, alignItems: 'center',
+          borderWidth: 1.5, borderColor: '#93C5FD',
+        }}>
+          <Animated.Text style={{ fontSize: 28, fontWeight: '900', color: '#2563EB', transform: [{ scale: pulse2 }] }}>
+            ₪0
+          </Animated.Text>
+          <Text style={{ fontSize: 12, fontWeight: '700', color: '#1D4ED8', marginTop: 2 }}>דמי שירות ללקוחות</Text>
+        </View>
+      </View>
+    </View>
+  );
+}
+
 // ─── Main screen ──────────────────────────────────────────────────────────────
 export default function HomeScreen() {
   const router   = useRouter();
@@ -2769,10 +2834,7 @@ export default function HomeScreen() {
             </TouchableOpacity>
           </View>
           {/* Free platform banner */}
-          <View style={s.freeBanner}>
-            <Text style={s.freeBannerTitle}>{t.freeBannerTitle}</Text>
-            <Text style={s.freeBannerSub}>{t.freeBannerSub}</Text>
-          </View>
+          <FreeBanner />
 
           {/* באנר הזמנות ממתינות למנקה */}
           {myRole === 'cleaner' && cleanerPendingCount > 0 && (

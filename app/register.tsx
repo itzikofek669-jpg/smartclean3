@@ -1,8 +1,8 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity, StyleSheet,
   StatusBar, KeyboardAvoidingView, Platform, Dimensions,
-  Alert, ScrollView, Modal, ActivityIndicator,
+  Alert, ScrollView, Modal, ActivityIndicator, Animated,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -245,6 +245,41 @@ function TogglePill({ label, active, onPress, devanagari }: { label: string; act
     <TouchableOpacity style={[s.pill, active && s.pillActive]} onPress={onPress}>
       <Text style={[s.pillText, active && s.pillTextActive, devanagari && { fontFamily: 'NotoSansDevanagari_400Regular', fontWeight: '400' }]}>{label}</Text>
     </TouchableOpacity>
+  );
+}
+
+// ─── Free Banner (הרשמה) ──────────────────────────────────────────────────────
+function RegisterFreeBanner({ label1, sub1, label2, sub2, color1, color2, bg1, bg2, border1, border2 }: {
+  label1: string; sub1: string; label2: string; sub2: string;
+  color1: string; color2: string; bg1: string; bg2: string; border1: string; border2: string;
+}) {
+  const p1 = useRef(new Animated.Value(1)).current;
+  const p2 = useRef(new Animated.Value(1)).current;
+  useEffect(() => {
+    const anim = (val: Animated.Value, delay: number) =>
+      Animated.loop(Animated.sequence([
+        Animated.delay(delay),
+        Animated.timing(val, { toValue: 1.12, duration: 600, useNativeDriver: true }),
+        Animated.timing(val, { toValue: 1,    duration: 600, useNativeDriver: true }),
+        Animated.delay(1800),
+      ])).start();
+    anim(p1, 0);
+    anim(p2, 700);
+  }, []);
+  return (
+    <View style={{ backgroundColor: '#fff', borderRadius: 18, marginBottom: 14, paddingVertical: 14, paddingHorizontal: 12, borderWidth: 1.5, borderColor: '#6EE7B7', elevation: 3, shadowColor: '#10B981', shadowOpacity: 0.15, shadowRadius: 8, shadowOffset: { width: 0, height: 3 } }}>
+      <Text style={{ fontSize: 13, fontWeight: '900', color: '#065F46', textAlign: 'center', marginBottom: 10 }}>🎉 A&M Clean — חינמי לחלוטין</Text>
+      <View style={{ flexDirection: 'row', gap: 10 }}>
+        <View style={{ flex: 1, backgroundColor: bg1, borderRadius: 14, paddingVertical: 12, alignItems: 'center', borderWidth: 1.5, borderColor: border1 }}>
+          <Animated.Text style={{ fontSize: 26, fontWeight: '900', color: color1, transform: [{ scale: p1 }] }}>{label1}</Animated.Text>
+          <Text style={{ fontSize: 11, fontWeight: '700', color: color1, marginTop: 2 }}>{sub1}</Text>
+        </View>
+        <View style={{ flex: 1, backgroundColor: bg2, borderRadius: 14, paddingVertical: 12, alignItems: 'center', borderWidth: 1.5, borderColor: border2 }}>
+          <Animated.Text style={{ fontSize: 26, fontWeight: '900', color: color2, transform: [{ scale: p2 }] }}>{label2}</Animated.Text>
+          <Text style={{ fontSize: 11, fontWeight: '700', color: color2, marginTop: 2 }}>{sub2}</Text>
+        </View>
+      </View>
+    </View>
   );
 }
 
@@ -538,9 +573,7 @@ await setDoc(doc(db, 'users', cred.user.uid), data);
           {/* שדות לקוח */}
           {role === 'client' && (
             <>
-              <View style={s.freePromoCard}>
-                <Text style={s.freePromoText}>{t.freeClientPromo}</Text>
-              </View>
+              <RegisterFreeBanner label1="₪0" sub1="דמי שירות" label2="0%" sub2="עמלה" color1="#2563EB" color2="#059669" bg1="#EFF6FF" bg2="#ECFDF5" border1="#93C5FD" border2="#34D399" />
             <View style={s.clientBlock}>
               <View style={s.field}>
                 <Text style={s.label}>📍 כתובת מלאה</Text>
@@ -583,9 +616,7 @@ await setDoc(doc(db, 'users', cred.user.uid), data);
           {role === 'cleaner' && (
             <>
               {/* Free promo card for cleaner */}
-              <View style={s.freePromoCard}>
-                <Text style={s.freePromoText}>{t.freeCleanerPromo}</Text>
-              </View>
+              <RegisterFreeBanner label1="0%" sub1="עמלה" label2="100%" sub2="הכנסה שלך" color1="#059669" color2="#2563EB" bg1="#ECFDF5" bg2="#EFF6FF" border1="#34D399" border2="#93C5FD" />
 
               <View style={s.cleanerBlock}>
 
