@@ -43,9 +43,9 @@ const SERVICE_TYPES = [
 ];
 
 const PAYMENT_OPTS = [
-  { key: 'cash', label: 'מזומן', icon: '💵' },
-  { key: 'bit',  label: 'ביט',   icon: '📱' },
-  { key: 'card', label: 'אשראי', icon: '💳' },
+  { key: 'cash',   label: 'מזומן',  icon: '💵' },
+  { key: 'bit',    label: 'ביט',    icon: '📱' },
+  { key: 'paybox', label: 'paybox', icon: '💳' },
 ];
 
 const AREA_OPTS = [
@@ -500,11 +500,6 @@ export default function RegisterScreen() {
                   <TextInput style={s.input} placeholder={t.maxDistancePlaceholder} value={maxDistance} onChangeText={setMaxDistance} keyboardType="numeric" placeholderTextColor={C.sub} textAlign="right" />
                 </View>
 
-                <View style={s.field}>
-                  <Text style={s.label}>{t.basePriceLabel}</Text>
-                  <TextInput style={s.input} placeholder={t.basePricePlaceholder} value={price} onChangeText={setPrice} keyboardType="numeric" placeholderTextColor={C.sub} textAlign="right" />
-                </View>
-
                 {/* Per-service pricing (optional) */}
                 <SectionTitle>{t.servicePricingTitle}</SectionTitle>
                 <Text style={{ fontSize: 11, color: C.sub, marginBottom: 8 }}>{t.servicePricingNote}</Text>
@@ -528,6 +523,11 @@ export default function RegisterScreen() {
                     />
                   </View>
                 ))}
+
+                <View style={s.field}>
+                  <Text style={s.label}>🧹 מחיר לשעה לניקוי רגיל (₪)</Text>
+                  <TextInput style={s.input} placeholder={t.basePricePlaceholder} value={price} onChangeText={setPrice} keyboardType="numeric" placeholderTextColor={C.sub} textAlign="right" />
+                </View>
 
                 <View style={s.field}>
                   <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
@@ -583,7 +583,7 @@ export default function RegisterScreen() {
                 <View style={s.pillRow}>
                   {PAYMENT_OPTS.map(p => (
                     <TogglePill key={p.key}
-                      label={`${p.icon} ${p.key === 'cash' ? t.payCash : p.key === 'bit' ? t.payBit : t.payCard}`}
+                      label={`${p.icon} ${p.key === 'cash' ? t.payCash : p.key === 'bit' ? t.payBit : 'Paybox'}`}
                       active={payment.includes(p.key)} onPress={() => toggleItem(payment, setPayment, p.key)} />
                   ))}
                 </View>
