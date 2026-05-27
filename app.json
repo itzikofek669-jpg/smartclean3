@@ -17,6 +17,7 @@
         "backgroundColor": "#E6F4FE"
       },
       "predictiveBackGestureEnabled": false,
+      "softwareKeyboardLayoutMode": "pan",
       "package": "com.itzik669.cleantouch",
       "config": {
         "googleMaps": {

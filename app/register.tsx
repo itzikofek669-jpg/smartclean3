@@ -403,8 +403,26 @@ export default function RegisterScreen() {
       if (!workAreas.length) return Alert.alert(t.error, t.regErrAreas);
     }
     setLoading(true);
+    // ── שלב 1: יצירת חשבון Auth ──────────────────────────────────────────
+    let cred: any;
     try {
-      const cred = await createUserWithEmailAndPassword(auth, email.trim(), password);
+      cred = await createUserWithEmailAndPassword(auth, email.trim(), password);
+    } catch (e: any) {
+      console.error('[REGISTER AUTH ERROR]', e.code, e.message);
+      const msg =
+        e.code === 'auth/email-already-in-use' ? `${t.regErrEmailInUse}\n\nנסה להתחבר עם המייל הזה במקום` :
+        e.code === 'auth/invalid-email'         ? t.regErrInvalidEmail :
+        e.code === 'auth/weak-password'         ? t.regErrWeakPassword :
+        e.code === 'auth/network-request-failed' ? 'אין חיבור לאינטרנט' :
+        e.code === 'auth/too-many-requests'      ? 'יותר מדי ניסיונות, נסה שוב מאוחר יותר' :
+        `שגיאת הרשמה (${e.code || e.message || 'unknown'})`;
+      Alert.alert(t.error, msg);
+      setLoading(false);
+      return;
+    }
+
+    // ── שלב 2: שמירת פרופיל ב-Firestore ────────────────────────────────
+    try {
       const data: any = {
         name: name.trim(),
         email: email.trim(),
@@ -485,12 +503,8 @@ await setDoc(doc(db, 'users', cred.user.uid), data);
         } catch (_) {}
       }
     } catch (e: any) {
-      const msg =
-        e.code === 'auth/email-already-in-use' ? t.regErrEmailInUse :
-        e.code === 'auth/invalid-email'         ? t.regErrInvalidEmail :
-        e.code === 'auth/weak-password'         ? t.regErrWeakPassword :
-        t.regErrDefault;
-      Alert.alert(t.error, msg);
+      console.error('[REGISTER FIRESTORE ERROR]', e.code, e.message);
+      Alert.alert(t.error, `שגיאת שמירת פרופיל (${e.code || e.message || 'unknown'})\nהחשבון נוצר — נסה להתחבר ולפנות לתמיכה`);
     } finally {
       setLoading(false);
     }
@@ -499,7 +513,7 @@ await setDoc(doc(db, 'users', cred.user.uid), data);
   return (
     <SafeAreaView style={s.wrap}>
       <StatusBar barStyle="light-content" backgroundColor={C.blueDark} />
-      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1 }}>
+      <KeyboardAvoidingView behavior="padding" keyboardVerticalOffset={Platform.OS === 'android' ? (StatusBar.currentHeight ?? 0) : 0} style={{ flex: 1 }}>
 
         <View style={s.hero}>
           <TouchableOpacity style={s.backBtn} onPress={() => router.back()}>

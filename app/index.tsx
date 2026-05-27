@@ -100,7 +100,7 @@ export default function LoginScreen() {
   return (
     <SafeAreaView style={s.wrap}>
       <StatusBar barStyle="dark-content" backgroundColor={C.white} />
-      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }}>
+      <KeyboardAvoidingView behavior="padding" keyboardVerticalOffset={Platform.OS === 'android' ? (StatusBar.currentHeight ?? 0) : 0} style={{ flex: 1 }}>
 
         {/* Hero */}
         <View style={s.hero}>
