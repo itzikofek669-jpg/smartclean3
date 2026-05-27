@@ -34,7 +34,7 @@ const C = {
 };
 
 const SERVICE_TYPES = [
-  { key: 'ניקוי כללי',           icon: '🏠' },
+  { key: 'ניקוי רגיל',           icon: '🏠' },
   { key: 'ניקוי לפסח',           icon: '🧹' },
   { key: 'חלונות',               icon: '🪟' },
   { key: 'שטיפת רכב',            icon: '🚗' },
@@ -508,7 +508,7 @@ export default function RegisterScreen() {
                 <View style={{ gap: 8 }}>
                   {SERVICE_TYPES.map(svc => {
                     const active = types.includes(svc.key);
-                    const isBase = svc.key === 'ניקוי כללי';
+                    const isBase = svc.key === 'ניקוי רגיל';
                     return (
                       <View key={svc.key} style={{ flexDirection: 'row-reverse', alignItems: 'center', gap: 8 }}>
                         {/* כפתור בחירה */}
