@@ -25,6 +25,8 @@ import { Lang } from '../lib/translations';
 import AccessibilityModal from '../lib/AccessibilityModal';
 import { MaterialIcons } from '@expo/vector-icons';
 import { TAB_BAR_CONTENT_HEIGHT } from '../lib/BottomTabBar';
+import * as Notifications from 'expo-notifications';
+import Constants from 'expo-constants';
 
 
 function createRM(c: AppColors) {
@@ -484,48 +486,6 @@ export default function ProfileScreen() {
     setNewAddrInput('');
   };
 
-  // ── כתובות שמורות (לקוח) ───────────────────────────────────────────────
-  type SavedAddr = { id: string; address: string; isPrimary: boolean; lastUsed: string };
-  const ADDR_KEY = 'saved_addresses';
-  const [savedAddrs, setSavedAddrs] = useState<SavedAddr[]>([]);
-  const [newAddrInput, setNewAddrInput] = useState('');
-
-  const loadAddrs = async () => {
-    try {
-      const raw = await import('expo-secure-store').then(m => m.getItemAsync(ADDR_KEY));
-      setSavedAddrs(raw ? JSON.parse(raw) : []);
-    } catch { setSavedAddrs([]); }
-  };
-
-  const saveAddrs = async (list: SavedAddr[]) => {
-    const { setItemAsync } = await import('expo-secure-store');
-    await setItemAsync(ADDR_KEY, JSON.stringify(list));
-    setSavedAddrs(list);
-  };
-
-  const handleSetPrimary = async (id: string) => {
-    const updated = savedAddrs.map(a => ({ ...a, isPrimary: a.id === id }));
-    await saveAddrs(updated);
-  };
-
-  const handleDeleteAddr = async (id: string) => {
-    const filtered = savedAddrs.filter(a => a.id !== id);
-    if (savedAddrs.find(a => a.id === id)?.isPrimary && filtered.length > 0) filtered[0].isPrimary = true;
-    await saveAddrs(filtered);
-  };
-
-  const handleAddAddr = async () => {
-    const trimmed = newAddrInput.trim();
-    if (!trimmed || trimmed.length < 5) return Alert.alert(t.error, t.addressTooShort);
-    if (savedAddrs.length >= 5) return Alert.alert('', t.maxAddressesReached);
-    const exists = savedAddrs.find(a => a.address === trimmed);
-    if (exists) { setNewAddrInput(''); return; }
-    const isFirst = savedAddrs.length === 0;
-    const newList = [{ id: Date.now().toString(), address: trimmed, isPrimary: isFirst, lastUsed: new Date().toISOString() }, ...savedAddrs];
-    await saveAddrs(newList);
-    setNewAddrInput('');
-  };
-
   // Tabs (cleaner): 'bookings' | 'schedule' | 'profile' | 'urgent'
   const [activeTab,    setActiveTab]    = useState<'bookings' | 'schedule' | 'profile' | 'urgent'>('bookings');
 
@@ -678,13 +638,15 @@ export default function ProfileScreen() {
   const [editServicePricing,setEditServicePricing]= useState<Record<string,string>>({});
   const [editSaving,       setEditSaving]       = useState(false);
   // Payment details (cleaner)
-  const [editBitPhone,     setEditBitPhone]     = useState('');
-  const [editPayboxLink,   setEditPayboxLink]   = useState('');
-  const [editBankName,     setEditBankName]     = useState('');
+  const [editBitPhone,        setEditBitPhone]        = useState('');
+  const [editPayboxLink,      setEditPayboxLink]      = useState('');
+  const [editWhatsappGroupId, setEditWhatsappGroupId] = useState('');
+  const [editBankName,        setEditBankName]        = useState('');
   const [editBankNum,      setEditBankNum]      = useState('');
   const [editBankBranch,   setEditBankBranch]   = useState('');
   const [editBankAccount,  setEditBankAccount]  = useState('');
   // Cleaner saved payment details
+  const [referralCode,       setReferralCode]       = useState('');
   const [cleanerBitPhone,    setCleanerBitPhone]    = useState('');
   const [cleanerPayboxLink,  setCleanerPayboxLink]  = useState('');
   const [cleanerBankName,    setCleanerBankName]    = useState('');
@@ -1579,6 +1541,10 @@ export default function ProfileScreen() {
   const ratedBks        = completedBks.filter(b => b.clientRating);
   const dashAvgRating   = ratedBks.length > 0 ? (ratedBks.reduce((s, b) => s + b.clientRating, 0) / ratedBks.length).toFixed(1) : '-';
 
+  // Weekly schedule
+  const weekStart = (() => { const d = new Date(nowDate); d.setDate(d.getDate() - d.getDay()); d.setHours(0,0,0,0); return d; })();
+  const weekBookings = incomingBks.filter(b => { const d = new Date(b.bookingDate || b.createdAt); return d >= weekStart && d < new Date(weekStart.getTime() + 7*24*60*60*1000); });
+
   // Bar chart — last 6 months earnings
   const last6Months = Array.from({ length: 6 }, (_, i) => {
     const d = new Date(nowDate.getFullYear(), nowDate.getMonth() - (5 - i), 1);
@@ -1594,6 +1560,12 @@ export default function ProfileScreen() {
 
   // Schedule — current week bookings for calendar view
 
+
+  const handleShareReferral = async () => {
+    try {
+      await Share.share({ message: `${t.referralShare || 'הצטרף/י ל-A&M Clean עם הקוד שלי:'} ${referralCode}` });
+    } catch (_) {}
+  };
 
   // ─── Status display ───────────────────────────────────────────────────────────
   const handleConfirmBooking = async (b: any) => {

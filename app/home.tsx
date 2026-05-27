@@ -3951,9 +3951,9 @@ export default function HomeScreen() {
         visible={!!booking}
         onClose={() => { setBooking(null); setPrebookData(null); }}
         prebookData={prebookData}
-        onBookingCreated={(cleanerId: string) => {
+        onBookingCreated={(cleanerId: string, nb?: any) => {
           setPendingCleanerIds(prev => new Set([...prev, cleanerId]));
-          if (newBooking) setMyBookings(prev => [newBooking, ...prev]);
+          if (nb) setMyBookings(prev => [nb, ...prev]);
         }}
       />
       <ChatModal      cleaner={chatWith} visible={!!chatWith} onClose={() => setChatWith(null)} />

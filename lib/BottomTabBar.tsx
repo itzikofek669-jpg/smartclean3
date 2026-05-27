@@ -4,8 +4,6 @@ import { useRouter, usePathname } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useLanguage, T, useAppColors, AppColors } from './LanguageContext';
 
-export const TAB_BAR_CONTENT_HEIGHT = 56;
-
 function createS(c: AppColors, paddingBottom: number) {
   return StyleSheet.create({
     bar: {

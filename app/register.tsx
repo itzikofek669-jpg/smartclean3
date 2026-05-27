@@ -1,4 +1,4 @@
-﻿import React, { useState } from 'react';
+﻿import React, { useState, useRef, useEffect } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity, StyleSheet,
   StatusBar, KeyboardAvoidingView, Platform, Dimensions,
@@ -91,6 +91,10 @@ function createS(c: AppColors) {
     photoPickerBadge:       { position: 'absolute', bottom: 4, right: 4, width: 28, height: 28, borderRadius: 14, backgroundColor: c.blue, alignItems: 'center', justifyContent: 'center', borderWidth: 2, borderColor: c.white },
     photoPickerLabel:       { fontSize: 14, fontWeight: '700', color: c.textDark },
     photoPickerSub:         { fontSize: 12, color: c.textSub, textAlign: 'center' },
+    addrDropdown:    { position: 'absolute', top: 50, left: 0, right: 0, backgroundColor: c.white, borderRadius: 10, borderWidth: 1, borderColor: c.blueBorder, zIndex: 100, elevation: 5, maxHeight: 200 },
+    addrSugRow:      { flexDirection: 'row', alignItems: 'center', padding: 12, gap: 8 },
+    addrSugBorder:   { borderBottomWidth: 1, borderBottomColor: c.blueBorder },
+    addrSugText:     { fontSize: 14, color: c.textDark, flex: 1, textAlign: 'right' },
   });
 }
 
@@ -360,9 +364,10 @@ export default function RegisterScreen() {
   const s = createS(C);
 
   // Base fields
-  const [name,     setName]     = useState('');
-  const [email,    setEmail]    = useState('');
-  const [password, setPassword] = useState('');
+  const [name,         setName]         = useState('');
+  const [email,        setEmail]        = useState('');
+  const [password,     setPassword]     = useState('');
+  const [referralCode, setReferralCode] = useState('');
   const [showPass, setShowPass] = useState(false);
   const [role,     setRole]     = useState<'client' | 'cleaner'>('client');
   const [loading,  setLoading]  = useState(false);

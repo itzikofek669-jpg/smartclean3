@@ -656,6 +656,9 @@ const he = {
   cashPaymentTitle:     'נ’µ ׳×׳©׳׳•׳ ׳‘׳׳–׳•׳׳',
   onWayConfirmMsg:      '׳׳₪׳×׳•׳— ׳ ׳™׳•׳•׳˜ / ׳׳¢׳“׳›׳ ׳׳× ׳”׳׳§׳•׳—?',
   cleanerNotFound:      '׳”׳׳ ׳§׳” ׳׳™׳ ׳• ׳ ׳׳¦׳ ׳‘׳׳¢׳¨׳›׳× ג€” ׳™׳™׳×׳›׳ ׳©׳”׳¡׳™׳¨ ׳׳× ׳₪׳¨׳•׳₪׳™׳׳•',
+  backToHome:                'חזור לדף הבית',
+  bookingConfirmedPopupTitle: '🎉 ההזמנה אושרה!',
+  bookingConfirmedPopupSub:   'המנקה אישר את הגעתו — ההזמנה מוכנה',
 };
 
 const en: typeof he = {
@@ -1628,6 +1631,9 @@ const ru: typeof he = {
   cashPaymentTitle:     'נ’µ ׀׀¿׀»׀°ׁ‚׀° ׀½׀°׀»׀¸ׁ‡׀½ׁ‹׀¼׀¸',
   onWayConfirmMsg:      '׀ׁ‚׀÷ׁ€ׁ‹ׁ‚ׁ ׀½׀°׀²׀¸׀³׀°ׁ†׀¸ׁ / ׁƒ׀²׀µ׀´׀¾׀¼׀¸ׁ‚ׁ ׀÷׀»׀¸׀µ׀½ׁ‚׀°?',
   cleanerNotFound:      '׀£׀±׀¾ׁ€ׁ‰׀¸׀÷ ׀½׀µ ׀½׀°׀¹׀´׀µ׀½ ג€” ׀²׀¾׀·׀¼׀¾׀¶׀½׀¾, ׁƒ׀´׀°׀»׀¸׀» ׀¿ׁ€׀¾ׁ„׀¸׀»ׁ',
+  backToHome:                'Вернуться на главную',
+  bookingConfirmedPopupTitle: '🎉 Бронирование подтверждено!',
+  bookingConfirmedPopupSub:   'Уборщик подтвердил прибытие — всё готово',
 };
 
 const ar: typeof he = {
@@ -2112,6 +2118,9 @@ const ar: typeof he = {
   cashPaymentTitle:     'נ’µ ״¯״¹ †‚״¯',
   onWayConfirmMsg:      '״×״­ ״§„…„״§״­״© / ״¥״®״·״§״± ״§„״¹…„״',
   cleanerNotFound:      '„… ״¹״«״± ״¹„‰ ״§„…†״¸ ג€” ״±״¨…״§ ״­״° …„‡ ״§„״´״®״µ',
+  backToHome:                'العودة للرئيسية',
+  bookingConfirmedPopupTitle: '🎉 تم تأكيد الحجز!',
+  bookingConfirmedPopupSub:   'المنظف أكد الحضور — الحجز جاهز',
 };
 
 const fr: typeof he = {
@@ -2533,6 +2542,9 @@ const fr: typeof he = {
   cashPaymentTitle:     'נ’µ Paiement en espֳ¨ces',
   onWayConfirmMsg:      'Ouvrir la navigation / notifier le client?',
   cleanerNotFound:      'Nettoyeur introuvable ג€” il a peut-ֳ×tre supprimֳ© son profil',
+  backToHome:                "Retour à l'accueil",
+  bookingConfirmedPopupTitle: '🎉 Réservation confirmée!',
+  bookingConfirmedPopupSub:   'Le nettoyeur a confirmé — tout est prêt',
 };
 
 const hi: typeof he = {
@@ -2954,6 +2966,9 @@ const hi: typeof he = {
   cashPaymentTitle:     'נ’µ א₪¨א₪•א₪¦ א₪­א¥א₪—א₪₪א₪¾א₪¨',
   onWayConfirmMsg:      'א₪¨א¥‡א₪µא₪¿א₪—א¥‡א₪¶א₪¨ א₪–א¥‹א₪²א¥‡א₪‚ / א₪—א¥א₪°א₪¾א₪¹א₪• א₪•א¥‹ א₪¸א¥‚א₪א₪¿א₪₪ א₪•א₪°א¥‡א₪‚?',
   cleanerNotFound:      'א₪¸א₪«א₪¾א₪ˆא₪•א₪°א¥א₪®א¥€ א₪¨א₪¹א¥€א₪‚ א₪®א₪¿א₪²א₪¾ ג€” א₪‰א₪¨א¥א₪¹א¥‹א₪‚א₪¨א¥‡ א₪…א₪×א₪¨א¥€ א₪×א¥א₪°א¥‹א₪«א₪¼א₪¾א₪‡א₪² א₪¹א₪א₪¾ א₪¦א¥€ א₪¹א¥‹א₪—א¥€',
+  backToHome:                'होम पर वापस जाएं',
+  bookingConfirmedPopupTitle: '🎉 बुकिंग कन्फर्म हो गई!',
+  bookingConfirmedPopupSub:   'क्लीनर ने पुष्टि की — बुकिंग तैयार है',
 };
 
 const translations = { he, en, ru, ar, fr, hi };
