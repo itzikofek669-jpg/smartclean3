@@ -355,7 +355,7 @@ export default function RegisterScreen() {
           </TouchableOpacity>
           <RNImage
             source={require('../assets/images/icon.png')}
-            style={{ width: 70, height: 70, marginBottom: 2 }}
+            style={{ width: 120, height: 120, marginBottom: 6 }}
             resizeMode="contain"
           />
           <Text style={s.title}>{t.joinTitle}</Text>
