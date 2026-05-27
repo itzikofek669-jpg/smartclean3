@@ -347,7 +347,7 @@ export default function RegisterScreen() {
   return (
     <SafeAreaView style={s.wrap}>
       <StatusBar barStyle="light-content" backgroundColor={C.blueDark} />
-      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }} keyboardVerticalOffset={0}>
+      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1 }}>
 
         <View style={s.hero}>
           <TouchableOpacity style={s.backBtn} onPress={() => router.back()}>
@@ -361,7 +361,7 @@ export default function RegisterScreen() {
           <Text style={s.title}>{t.joinTitle}</Text>
         </View>
 
-        <ScrollView style={s.card} contentContainerStyle={{ padding: 24, paddingBottom: 40 }} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
+        <ScrollView style={s.card} contentContainerStyle={{ padding: 24, paddingBottom: 40 }} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false} nestedScrollEnabled={true} overScrollMode="never">
           <Text style={s.cardTitle}>{t.createAccountTitle}</Text>
 
           {/* תפקיד */}
