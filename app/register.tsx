@@ -506,8 +506,8 @@ await setDoc(doc(db, 'users', cred.user.uid), data);
             <Text style={{ color: C.white, fontSize: 20 }}>←</Text>
           </TouchableOpacity>
           <RNImage
-            source={require('../assets/images/icon.png')}
-            style={{ width: 120, height: 120, marginBottom: 6 }}
+            source={require('../assets/images/logo-ui.png')}
+            style={{ width: 130, height: 130, marginBottom: 6 }}
             resizeMode="contain"
           />
           <Text style={s.title}>{t.joinTitle}</Text>

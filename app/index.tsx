@@ -105,8 +105,8 @@ export default function LoginScreen() {
         {/* Hero */}
         <View style={s.hero}>
           <Image
-            source={require('../assets/images/icon.png')}
-            style={{ width: 200, height: 200, marginBottom: -25 }}
+            source={require('../assets/images/logo-ui.png')}
+            style={{ width: 160, height: 160, marginBottom: -25 }}
             resizeMode="contain"
           />
         </View>
