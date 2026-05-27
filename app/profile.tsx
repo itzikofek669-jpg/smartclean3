@@ -60,7 +60,7 @@ function createS(c: AppColors) {
   return StyleSheet.create({
     wrap:        { flex: 1, backgroundColor: c.bluePale },
     header:      { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: c.blueDark, padding: 16 },
-    backBtn:     { width: 36, height: 36, borderRadius: 18, backgroundColor: 'rgba(255,255,255,0.15)', alignItems: 'center', justifyContent: 'center' },
+    backBtn:     { width: 44, height: 44, borderRadius: 22, backgroundColor: 'rgba(255,255,255,0.15)', alignItems: 'center', justifyContent: 'center' },
     headerTitle: { fontSize: 16, fontWeight: '800', color: c.white },
     loader:      { flex: 1, alignItems: 'center', justifyContent: 'center' },
 
@@ -2221,12 +2221,12 @@ export default function ProfileScreen() {
 
       <View style={[s.header, { paddingTop: (StatusBar.currentHeight || 0) + 12 }]}>
         <TouchableOpacity onPress={() => router.back()} style={s.backBtn}>
-          <T style={{ color: C.white, fontSize: 20 }}>←</T>
+          <T style={{ color: C.white, fontSize: 24, lineHeight: 28, textAlign: 'center' }}>←</T>
         </TouchableOpacity>
         <T style={s.headerTitle}>{t.myProfileTitle}</T>
         <TouchableOpacity
           onPress={() => setA11yOpen(true)}
-          style={{ backgroundColor: 'rgba(255,255,255,0.15)', borderRadius: 10, width: 36, height: 32, alignItems: 'center', justifyContent: 'center' }}
+          style={{ backgroundColor: 'rgba(255,255,255,0.15)', borderRadius: 22, width: 44, height: 44, alignItems: 'center', justifyContent: 'center' }}
           accessibilityRole="button"
           accessibilityLabel={t.accessibilityTitle || 'נגישות'}
         >
