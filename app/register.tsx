@@ -18,6 +18,7 @@ import { doc, setDoc } from 'firebase/firestore';
 import { auth, db } from '../lib/firebase';
 import { useLanguage } from '../lib/LanguageContext';
 import { Lang } from '../lib/translations';
+import ServiceInfoBtn from '../lib/ServiceInfoBtn';
 
 const C = {
   blue:      '#185FA5',
@@ -33,13 +34,15 @@ const C = {
 };
 
 const SERVICE_TYPES = [
-  { key: 'ניקוי לפסח',          icon: '🧹' },
-  { key: 'חלונות',              icon: '🪟' },
-  { key: 'שטיפת רכב',           icon: '🚗' },
-  { key: 'לאחר שיפוץ',          icon: '🔨' },
-  { key: 'ניקיון משרדים',        icon: '🏢' },
-  { key: 'ניקיון אחרי אירוע',    icon: '🎉' },
-  { key: 'מחסן ועליית גג',       icon: '📦' },
+  { key: 'ניקוי כללי',           icon: '🏠' },
+  { key: 'ניקוי לפסח',           icon: '🧹' },
+  { key: 'חלונות',               icon: '🪟' },
+  { key: 'שטיפת רכב',            icon: '🚗' },
+  { key: 'לאחר שיפוץ',           icon: '🔨' },
+  { key: 'ניקיון משרדים',         icon: '🏢' },
+  { key: 'ניקיון אחרי אירוע',     icon: '🎉' },
+  { key: 'מחסן ועליית גג',        icon: '📦' },
+  { key: 'סידורי בגדים וארונות',  icon: '👔' },
 ];
 
 const PAYMENT_OPTS = [
@@ -500,33 +503,43 @@ export default function RegisterScreen() {
                   <TextInput style={s.input} placeholder={t.maxDistancePlaceholder} value={maxDistance} onChangeText={setMaxDistance} keyboardType="numeric" placeholderTextColor={C.sub} textAlign="right" />
                 </View>
 
-                {/* Per-service pricing (optional) */}
+                {/* Per-service pricing */}
                 <SectionTitle>{t.servicePricingTitle}</SectionTitle>
-                <Text style={{ fontSize: 11, color: C.sub, marginBottom: 8 }}>{t.servicePricingNote}</Text>
-                {[
-                  { key: 'ניקוי לפסח',         icon: '🧹' },
-                  { key: 'שטיפת רכב',            icon: '🚗' },
-                  { key: 'חלונות',               icon: '🪟' },
-                  { key: 'לאחר שיפוץ',           icon: '🔨' },
-                  { key: 'ניקיון אחרי אירוע',    icon: '🎉' },
-                ].map(svc => (
-                  <View key={svc.key} style={[s.field, { marginBottom: 8 }]}>
-                    <Text style={[s.label, { fontSize: 12 }]}>{svc.icon} {t.types[svc.key] || svc.key} — ₪{t.perHour}</Text>
-                    <TextInput
-                      style={s.input}
-                      placeholder={price || t.basePriceDefault}
-                      value={servicePricing[svc.key] || ''}
-                      onChangeText={v => setServicePricing(prev => ({ ...prev, [svc.key]: v }))}
-                      keyboardType="numeric"
-                      placeholderTextColor={C.sub}
-                      textAlign="right"
-                    />
-                  </View>
-                ))}
-
-                <View style={s.field}>
-                  <Text style={s.label}>🧹 מחיר לשעה לניקוי רגיל (₪)</Text>
-                  <TextInput style={s.input} placeholder={t.basePricePlaceholder} value={price} onChangeText={setPrice} keyboardType="numeric" placeholderTextColor={C.sub} textAlign="right" />
+                <Text style={{ fontSize: 11, color: C.sub, marginBottom: 12 }}>{t.servicePricingNote}</Text>
+                <View style={{ gap: 8 }}>
+                  {SERVICE_TYPES.map(svc => {
+                    const active = types.includes(svc.key);
+                    const isBase = svc.key === 'ניקוי כללי';
+                    return (
+                      <View key={svc.key} style={{ flexDirection: 'row-reverse', alignItems: 'center', gap: 8 }}>
+                        {/* כפתור בחירה */}
+                        <TouchableOpacity
+                          style={[s.pill, active && s.pillActive, { flex: 1, alignItems: 'flex-end', paddingVertical: 12, paddingHorizontal: 14 }]}
+                          onPress={() => toggleItem(types, setTypes, svc.key)}
+                        >
+                          <Text style={[s.pillText, active && s.pillTextActive, { textAlign: 'right' }]}>{svc.icon} {svc.key}</Text>
+                        </TouchableOpacity>
+                        {/* שדה מחיר */}
+                        <TextInput
+                          style={[s.input, { width: 72, marginBottom: 0, textAlign: 'center', opacity: (active || isBase) ? 1 : 0.4 }]}
+                          value={isBase ? price : (servicePricing[svc.key] || '')}
+                          onChangeText={v => {
+                            if (isBase) {
+                              setPrice(v);
+                            } else {
+                              setServicePricing(prev => ({ ...prev, [svc.key]: v }));
+                              if (v && !active) toggleItem(types, setTypes, svc.key);
+                            }
+                          }}
+                          placeholder="₪"
+                          keyboardType="numeric"
+                          placeholderTextColor={C.sub}
+                        />
+                        {/* כפתור מידע */}
+                        <ServiceInfoBtn serviceKey={svc.key} />
+                      </View>
+                    );
+                  })}
                 </View>
 
                 <View style={s.field}>
@@ -570,13 +583,6 @@ export default function RegisterScreen() {
                       <Text style={[s.pillText, !bringSupplies && s.pillTextActive, { textAlign: 'center' }]}>{t.suppliesClient}</Text>
                     </TouchableOpacity>
                   </View>
-                </View>
-
-                <SectionTitle>{t.serviceTypesSection}</SectionTitle>
-                <View style={s.pillRow}>
-                  {SERVICE_TYPES.map(svc => (
-                    <TogglePill key={svc.key} label={`${svc.icon} ${t.types[svc.key] || svc.key}`} active={types.includes(svc.key)} onPress={() => toggleItem(types, setTypes, svc.key)} />
-                  ))}
                 </View>
 
                 <SectionTitle>{t.paymentSection}</SectionTitle>
