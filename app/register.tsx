@@ -365,7 +365,6 @@ export default function RegisterScreen() {
           <Text style={s.cardTitle}>{t.createAccountTitle}</Text>
 
           {/* תפקיד */}
-          <Text style={s.label}>{t.iAmLabel}</Text>
           <View style={s.roleRow}>
             <TouchableOpacity style={[s.roleBtn, role === 'client' && s.roleBtnActive]} onPress={() => setRole('client')}>
               <Text style={s.roleIcon}>👤</Text>
