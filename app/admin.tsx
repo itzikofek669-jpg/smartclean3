@@ -106,6 +106,13 @@ export default function AdminScreen() {
   const [reports,       setReports]       = useState<any[]>([]);
 
   useEffect(() => {
+    // הגנה — רק אדמין מורשה
+    const currentEmail = auth.currentUser?.email || '';
+    const ADMIN_EMAILS = ['cleantouchapp@gmail.com', 'itzikofek669@gmail.com'];
+    if (!ADMIN_EMAILS.includes(currentEmail)) {
+      router.replace('/home');
+      return;
+    }
     const unsubUsers = onSnapshot(collection(db, 'users'), snap => {
       setUsers(snap.docs.map(d => ({ uid: d.id, ...d.data() })));
       setLoading(false);

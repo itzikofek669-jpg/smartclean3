@@ -43,6 +43,8 @@ function createS(c: AppColors, paddingBottom: number) {
   });
 }
 
+export const TAB_BAR_CONTENT_HEIGHT = 60;
+
 export default function BottomTabBar() {
   const router   = useRouter();
   const pathname = usePathname();
@@ -56,6 +58,8 @@ export default function BottomTabBar() {
     { route: '/messages', icon: '💬', label: t.navMessages || 'הודעות' },
     { route: '/profile',  icon: '👤', label: t.navProfile  || 'פרופיל' },
   ] as const;
+
+  const orderedTabs = flipSide ? [...tabs].reverse() : tabs;
 
   return (
     <View style={[s.bar, flipSide && { flexDirection: 'row-reverse' }]}>

@@ -2,7 +2,7 @@
 import {
   View, Text, TextInput, TouchableOpacity, StyleSheet,
   StatusBar, KeyboardAvoidingView, Platform, Dimensions,
-  Alert, ScrollView, Modal, ActivityIndicator,
+  Alert, ScrollView, Modal, ActivityIndicator, Animated,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -125,52 +125,134 @@ const LANG_OPTS = [
   { key: 'ru', label: 'Русский',  flag: '🇷🇺' },
   { key: 'ar', label: 'العربية',  flag: '🇸🇦' },
   { key: 'fr', label: 'Français', flag: '🇫🇷' },
-  { key: 'hi', label: 'हिन्दी',  flag: '🇮🇳' },
+  { key: 'hi', label: 'Hindi',   flag: '🇮🇳' },
 ];
 
-const TERMS = `תקנון והסרת אחריות – שימוש באפליקציה
+const TERMS = `תקנון שימוש, מדיניות פרטיות והגבלת אחריות
+אפליקציית A&M Clean
+עדכון אחרון: מאי 2026
 
-1. כללי
-האפליקציה מהווה פלטפורמה טכנולוגית בלבד המחברת בין משתמשים שונים לצורך ביצוע עסקאות, שירותים ו/או התקשרויות ביניהם. האפליקציה אינה צד לכל הסכם, התקשרות או פעילות בין המשתמשים.
+═══════════════════════════════
+פרק א' — הגדרות כלליות
+═══════════════════════════════
 
-2. היעדר אחריות כללית
-השימוש באפליקציה נעשה באחריותם הבלעדית של המשתמשים. האפליקציה, בעליה, מנהליה ו/או מי מטעמה לא יישאו בכל אחריות, ישירה או עקיפה, לכל נזק, הפסד או פגיעה מכל סוג שהוא, לרבות אך לא רק:
+1. מבוא ואופי השירות
+1.1 אפליקציית A&M Clean ("האפליקציה", "הפלטפורמה") הינה פלטפורמה טכנולוגית דיגיטלית בלבד, המשמשת כמתווכת אלקטרונית בין לקוחות המעוניינים בשירותי ניקיון לבין נותני שירות עצמאיים ("מנקים").
+1.2 האפליקציה אינה חברת ניקיון, אינה מעסיקה מנקים ואינה צד כלשהו להסכם השירות הנחתם בין הלקוח למנקה.
+1.3 כל עסקה, שירות, תשלום ופעילות מתבצעים ישירות ובאופן בלעדי בין המשתמשים עצמם.
+1.4 עצם ההרשמה לאפליקציה ו/או השימוש בה מהווה הסכמה מלאה, מוחלטת ובלתי חוזרת לכל תנאי תקנון זה.
 
-• פגיעה גופנית, תאונה, נפילה או כל נזק פיזי אחר
-• גניבה, אובדן או נזק לרכוש
-• נזקים לצדדים שלישיים (צד ג')
-• אי עמידה בהתחייבויות בין משתמשים
-• אי קבלת תשלום או עיכוב בתשלום
-• כל נזק עקיף, תוצאתי או מיוחד
+═══════════════════════════════
+פרק ב' — הגבלת אחריות מוחלטת
+═══════════════════════════════
 
-3. אחריות המשתמשים
-כל התקשרות, הסכמה, תשלום, אספקת שירות או מוצר נעשים ישירות בין המשתמשים בלבד. המשתמשים נושאים באחריות המלאה והבלעדית לכל פעולה, התחייבות או תוצאה הנובעת מהשימוש באפליקציה.
+2. היעדר אחריות כוללת
+2.1 האפליקציה, בעליה, מנהליה, עובדיה, שלוחיה וכל מי מטעמה ("הנהלת האפליקציה") לא יישאו בכל אחריות, ישירה, עקיפה, נסיבתית, תוצאתית, עונשית או מיוחדת, לכל נזק מכל סוג שהוא, לרבות:
 
-4. תשלומים ומיסוי
-האפליקציה אינה אחראית ואינה מעורבת בניהול תשלומים בין משתמשים, אלא אם צוין אחרת במפורש.
-כל משתמש אחראי באופן בלעדי ל:
+• נזק גופני, פציעה, מוות, תאונה או פגיעה בריאותית מכל סוג
+• נזק לרכוש, שבר, אובדן, גניבה, שריפה, הצפה או כל נזק פיזי לנכס
+• נזק כלכלי, הפסד הכנסה, אובדן רווח או נזק עסקי
+• נזק לצד שלישי כלשהו הנובע מפעילות המנקה
+• נזק כתוצאה מאי התאמת השירות לציפיות הלקוח
+• נזק כתוצאה מרשלנות, מחדל או מעשה של מנקה
+• נזק עקב שימוש בחומרי ניקוי, ציוד או כלים
+• אובדן מידע, נתונים פרטיים או פגיעה בפרטיות
+• כל נזק אחר הנובע מהשימוש באפליקציה או מהסתמכות עליה
 
-• דיווח והעברת מס הכנסה בהתאם לדין
-• תשלום והפרשה לביטוח לאומי
-• עמידה בכל דרישות החוק, הרגולציה והמיסוי החלות עליו
+2.2 הנהלת האפליקציה לא תישא בכל אחריות לאיכות, מקצועיות, אמינות, כשירות משפטית או ביטחונית של מנקה כלשהו הפועל דרך הפלטפורמה.
 
-האפליקציה לא תישא בכל אחריות להפרות או אי עמידה בהוראות אלו.
+2.3 האפליקציה אינה בודקת, מאמתת, מסמיכה או מעניקה כל הסמכה מקצועית למנקים. האחריות לבחירת המנקה ולבדיקת כשירותו מוטלת על הלקוח בלבד.
 
-5. היעדר יחסי עבודה
-השימוש באפליקציה אינו יוצר יחסי עובד-מעביד, שותפות, שליחות או כל מערכת יחסים משפטית אחרת בין האפליקציה לבין המשתמשים, או בין המשתמשים לבין עצמם, מעבר למה שהוסכם ביניהם במפורש.
+═══════════════════════════════
+פרק ג' — אחריות המשתמשים
+═══════════════════════════════
 
-6. ויתור ושיפוי
-המשתמשים מוותרים בזאת באופן בלתי חוזר על כל טענה, דרישה או תביעה כלפי האפליקציה, בעליה או מי מטעמה.
-בנוסף, המשתמשים מתחייבים לשפות את האפליקציה בגין כל נזק, הפסד, הוצאה או תביעה שתיגרם לה עקב שימושם באפליקציה או הפרת התקנון.
+3. אחריות הלקוח
+3.1 הלקוח מצהיר ומתחייב כי:
+• הוא בחר את המנקה מרצונו החופשי ועל דעתו בלבד
+• הוא מאפשר למנקה כניסה לנכסו על דעתו ואחריותו המלאה
+• הוא מודע לכך שהאפליקציה אינה ערבה לתוצאות השירות
+• כל מחלוקת עם המנקה תיושב ישירות בינו לבין המנקה בלבד
+• הוא ישפה את הנהלת האפליקציה בגין כל תביעה, הוצאה או נזק שייגרמו לה עקב פעולותיו
 
-7. שימוש על אחריות המשתמש
-המשתמשים מצהירים כי הם מודעים לכך שהאפליקציה משמשת כפלטפורמה בלבד, וכי כל סיכון הנובע מהשימוש בה מוטל עליהם בלבד.
+3.2 הלקוח מוותר במפורש על כל טענה, תביעה, דרישה או תרעומת כלפי הנהלת האפליקציה בכל עניין הקשור לשירות שקיבל מהמנקה.
 
-8. תחולת הדין
-על תקנון זה יחולו דיני מדינת ישראל בלבד, וכל מחלוקת תתברר בבתי המשפט המוסמכים לכך.
+4. אחריות המנקה
+4.1 המנקה מצהיר ומתחייב כי:
+• הוא עצמאי, בעל כישורים מתאימים ופועל על דעתו ואחריותו בלבד
+• הוא אחראי לכל נזק שייגרם במסגרת עבודתו
+• הוא אחראי לביטוח עצמו, לרבות ביטוח צד ג' וביטוח נזקים
+• הוא ישא בכל אחריות מקצועית, משפטית, פלילית ואזרחית בגין פעולותיו
+• הוא אחראי לדיווח מס, הפרשות סוציאליות וכל חובה חוקית החלה עליו כעצמאי
 
-אישור התקנון
-עצם השימוש באפליקציה מהווה אישור והסכמה מלאה לכל תנאי תקנון זה.`;
+4.2 הנהלת האפליקציה לא תישא בכל אחריות לנזק שייגרם על ידי מנקה כלשהו.
+
+═══════════════════════════════
+פרק ד' — תשלומים וביטולים
+═══════════════════════════════
+
+5. מדיניות תשלומים
+5.1 כל תשלום מתבצע ישירות בין הלקוח למנקה. האפליקציה אינה גובה תשלום ואינה מחזיקה כספים בנאמנות.
+5.2 האפליקציה אינה אחראית לאי תשלום, מחלוקות תשלום, עיכובים או כשלים בהעברת כספים.
+5.3 כל מחלוקת כספית בין לקוח למנקה תיושב ביניהם ישירות ללא מעורבות האפליקציה.
+
+6. מדיניות ביטולים
+6.1 ביטול עד 24 שעות לפני מועד השירות — החזר מלא.
+6.2 ביטול פחות מ-24 שעות לפני מועד השירות — לא יינתן החזר כלשהו.
+6.3 אי הגעת לקוח ללא הודעה מוקדמת — לא יינתן החזר כלשהו.
+6.4 האפליקציה אינה אחראית לאכיפת מדיניות הביטולים ואינה צד למחלוקות הנובעות מביטולים.
+
+═══════════════════════════════
+פרק ה' — שיפוי והגנה משפטית
+═══════════════════════════════
+
+7. התחייבות לשיפוי
+7.1 כל משתמש (לקוח או מנקה) מתחייב בזאת לשפות, להגן ולפצות את הנהלת האפליקציה, בעליה, מנהליה ועובדיה, בגין כל תביעה, הוצאה משפטית, פיצוי, קנס, נזק ישיר ועקיף, לרבות שכר טרחת עורך דין, הנובעים מ:
+• הפרת תנאי תקנון זה
+• שימוש לרעה באפליקציה
+• נזק שגרם המשתמש לצד שלישי
+• כל פעולה בלתי חוקית שביצע המשתמש
+
+7.2 ויתור על תביעות: המשתמש מוותר בזאת, באופן מוחלט, בלתי חוזר ובלא תנאי, על כל טענה, תביעה, דרישה, קובלנה או הליך משפטי כלשהו כנגד הנהלת האפליקציה בקשר לשימוש בה.
+
+═══════════════════════════════
+פרק ו' — הוראות נוספות
+═══════════════════════════════
+
+8. היעדר יחסי עבודה
+8.1 השימוש באפליקציה אינו יוצר בשום מקרה יחסי עובד-מעסיק, שותפות, סוכנות, שליחות, זיכיון או כל מערכת יחסים משפטית אחרת בין הנהלת האפליקציה לבין כל משתמש.
+8.2 המנקים פועלים כקבלנים עצמאיים בלבד.
+
+9. פרטיות ואבטחת מידע
+9.1 האפליקציה אוספת מידע אישי לצורך מתן השירות בלבד.
+9.2 המידע לא יועבר לצדדים שלישיים ללא הסכמת המשתמש, למעט כנדרש על פי דין.
+9.3 המשתמש מסכים לאיסוף ועיבוד מידעו לצורך פעילות האפליקציה.
+
+10. שינויים בתקנון
+10.1 הנהלת האפליקציה רשאית לשנות תקנון זה בכל עת וללא הודעה מוקדמת.
+10.2 המשך השימוש באפליקציה לאחר שינוי התקנון מהווה הסכמה לנוסחו המעודכן.
+
+11. תחולת הדין וסמכות שיפוט
+11.1 על תקנון זה יחולו דיני מדינת ישראל בלבד.
+11.2 סמכות השיפוט הבלעדית לכל מחלוקת הנובעת מתקנון זה תהא נתונה לבתי המשפט המוסמכים במחוז תל אביב בלבד.
+11.3 ככל שייקבע כי סעיף כלשהו בתקנון זה אינו חוקי או בלתי אכיף, יוסיף יתר הסעיפים לחול במלואם.
+
+12. כותרת לעניין פרשנות
+12.1 בכל מקרה של סתירה בין הוראות תקנון זה לבין כל הבנה, הצהרה או מצג אחר, יגברו הוראות תקנון זה.
+12.2 אי מימוש זכות כלשהי על פי תקנון זה לא ייחשב כוויתור עליה.
+
+═══════════════════════════════
+אישור והסכמה
+═══════════════════════════════
+
+על ידי לחיצה על "אני מסכים/ה לתנאי השימוש" ו/או שימוש באפליקציה, המשתמש מאשר כי:
+✓ קרא את כל תנאי תקנון זה והבין אותם במלואם
+✓ הוא בגיר (מעל גיל 18) וכשיר משפטית לכרות הסכם זה
+✓ הוא מסכים לכל הוראות התקנון ללא הסתייגות
+✓ הוא מוותר על כל טענה עתידית כנגד הנהלת האפליקציה
+✓ הוא מודע לכך שהאפליקציה פועלת כפלטפורמה בלבד
+
+A&M Clean © 2026 — כל הזכויות שמורות`;
 
 function TermsModal({ visible, onClose, closeLabel, title }: { visible: boolean; onClose: () => void; closeLabel: string; title: string }) {
   const C = useAppColors();
@@ -236,6 +318,41 @@ function TogglePill({ label, active, onPress, devanagari }: { label: string; act
   );
 }
 
+// ─── Free Banner (הרשמה) ──────────────────────────────────────────────────────
+function RegisterFreeBanner({ label1, sub1, label2, sub2, color1, color2, bg1, bg2, border1, border2 }: {
+  label1: string; sub1: string; label2: string; sub2: string;
+  color1: string; color2: string; bg1: string; bg2: string; border1: string; border2: string;
+}) {
+  const p1 = useRef(new Animated.Value(1)).current;
+  const p2 = useRef(new Animated.Value(1)).current;
+  useEffect(() => {
+    const anim = (val: Animated.Value, delay: number) =>
+      Animated.loop(Animated.sequence([
+        Animated.delay(delay),
+        Animated.timing(val, { toValue: 1.12, duration: 600, useNativeDriver: true }),
+        Animated.timing(val, { toValue: 1,    duration: 600, useNativeDriver: true }),
+        Animated.delay(1800),
+      ])).start();
+    anim(p1, 0);
+    anim(p2, 700);
+  }, []);
+  return (
+    <View style={{ backgroundColor: '#fff', borderRadius: 18, marginBottom: 14, paddingVertical: 14, paddingHorizontal: 12, borderWidth: 1.5, borderColor: '#6EE7B7', elevation: 3, shadowColor: '#10B981', shadowOpacity: 0.15, shadowRadius: 8, shadowOffset: { width: 0, height: 3 } }}>
+      <Text style={{ fontSize: 13, fontWeight: '900', color: '#065F46', textAlign: 'center', marginBottom: 10 }}>🎉 A&M Clean — חינמי לחלוטין</Text>
+      <View style={{ flexDirection: 'row', gap: 10 }}>
+        <View style={{ flex: 1, backgroundColor: bg1, borderRadius: 14, paddingVertical: 12, alignItems: 'center', borderWidth: 1.5, borderColor: border1 }}>
+          <Animated.Text style={{ fontSize: 26, fontWeight: '900', color: color1, transform: [{ scale: p1 }] }}>{label1}</Animated.Text>
+          <Text style={{ fontSize: 11, fontWeight: '700', color: color1, marginTop: 2 }}>{sub1}</Text>
+        </View>
+        <View style={{ flex: 1, backgroundColor: bg2, borderRadius: 14, paddingVertical: 12, alignItems: 'center', borderWidth: 1.5, borderColor: border2 }}>
+          <Animated.Text style={{ fontSize: 26, fontWeight: '900', color: color2, transform: [{ scale: p2 }] }}>{label2}</Animated.Text>
+          <Text style={{ fontSize: 11, fontWeight: '700', color: color2, marginTop: 2 }}>{sub2}</Text>
+        </View>
+      </View>
+    </View>
+  );
+}
+
 export default function RegisterScreen() {
   const router = useRouter();
   const { lang, t, setLang } = useLanguage();
@@ -246,11 +363,36 @@ export default function RegisterScreen() {
   const [name,     setName]     = useState('');
   const [email,    setEmail]    = useState('');
   const [password, setPassword] = useState('');
+  const [showPass, setShowPass] = useState(false);
   const [role,     setRole]     = useState<'client' | 'cleaner'>('client');
   const [loading,  setLoading]  = useState(false);
 
   // Client-specific fields
-  const [city,      setCity]      = useState('');
+  const [city,           setCity]           = useState('');
+  const [addrSuggestions, setAddrSuggestions] = useState<string[]>([]);
+  const addrTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const GMAPS_KEY = 'AIzaSyDgFAy6_0c9X_lN6JV4j6fWfCyn4vCcDdA';
+
+  const fetchAddrSuggestions = (text: string) => {
+    if (addrTimer.current) clearTimeout(addrTimer.current);
+    if (text.length < 3) { setAddrSuggestions([]); return; }
+    addrTimer.current = setTimeout(async () => {
+      try {
+        const url = `https://maps.googleapis.com/maps/api/place/autocomplete/json?input=${encodeURIComponent(text)}&key=${GMAPS_KEY}&language=he&components=country:il`;
+        const res = await fetch(url);
+        const json = await res.json();
+        if (json.predictions) {
+          setAddrSuggestions(json.predictions.map((p: any) => p.description));
+        }
+      } catch (_) {}
+    }, 350);
+  };
+
+  const handleCityChange = (text: string) => {
+    setCity(text);
+    fetchAddrSuggestions(text);
+  };
+
   const [prefLang,  setPrefLang]  = useState<string>(lang);
 
   // Cleaner-specific fields
@@ -290,7 +432,7 @@ export default function RegisterScreen() {
           if (!perm.granted) return Alert.alert(t.error, t.photoGallery);
           const res = await ImagePicker.launchImageLibraryAsync({
             mediaTypes: ImagePicker.MediaTypeOptions.Images,
-            allowsEditing: true, aspect: [1, 1], quality: 0.15, base64: true,
+            allowsEditing: false, quality: 0.15, base64: true,
           });
           if (!res.canceled && res.assets[0].base64) {
             setPhotoB64(`data:image/jpeg;base64,${res.assets[0].base64}`);
@@ -303,7 +445,7 @@ export default function RegisterScreen() {
           const perm = await ImagePicker.requestCameraPermissionsAsync();
           if (!perm.granted) return Alert.alert(t.error, t.photoCamera);
           const res = await ImagePicker.launchCameraAsync({
-            allowsEditing: true, aspect: [1, 1], quality: 0.15, base64: true,
+            allowsEditing: false, quality: 0.15, base64: true,
           });
           if (!res.canceled && res.assets[0].base64) {
             setPhotoB64(`data:image/jpeg;base64,${res.assets[0].base64}`);
@@ -313,9 +455,6 @@ export default function RegisterScreen() {
       { text: t.cancel, style: 'cancel' },
     ]);
   };
-
-  // Referral
-  const [referralCode, setReferralCode] = useState('');
 
   // Terms
   const [termsOk,    setTermsOk]    = useState(false);
@@ -347,8 +486,26 @@ export default function RegisterScreen() {
       if (!workAreas.length) return Alert.alert(t.error, t.regErrAreas);
     }
     setLoading(true);
+    // ── שלב 1: יצירת חשבון Auth ──────────────────────────────────────────
+    let cred: any;
     try {
-      const cred = await createUserWithEmailAndPassword(auth, email.trim(), password);
+      cred = await createUserWithEmailAndPassword(auth, email.trim(), password);
+    } catch (e: any) {
+      console.error('[REGISTER AUTH ERROR]', e.code, e.message);
+      const msg =
+        e.code === 'auth/email-already-in-use' ? `${t.regErrEmailInUse}\n\nנסה להתחבר עם המייל הזה במקום` :
+        e.code === 'auth/invalid-email'         ? t.regErrInvalidEmail :
+        e.code === 'auth/weak-password'         ? t.regErrWeakPassword :
+        e.code === 'auth/network-request-failed' ? 'אין חיבור לאינטרנט' :
+        e.code === 'auth/too-many-requests'      ? 'יותר מדי ניסיונות, נסה שוב מאוחר יותר' :
+        `שגיאת הרשמה (${e.code || e.message || 'unknown'})`;
+      Alert.alert(t.error, msg);
+      setLoading(false);
+      return;
+    }
+
+    // ── שלב 2: שמירת פרופיל ב-Firestore ────────────────────────────────
+    try {
       const data: any = {
         name: name.trim(),
         email: email.trim(),
@@ -390,9 +547,22 @@ export default function RegisterScreen() {
         DAY_KEYS.forEach(d => { if (availability[d].active) activeDays[d] = { active: true, start: availability[d].start, end: availability[d].end }; });
         if (Object.keys(activeDays).length > 0) data.availability = activeDays;
       }
-      if (referralCode.trim()) data.referredBy = referralCode.trim().toUpperCase();
-      await setDoc(doc(db, 'users', cred.user.uid), data);
+await setDoc(doc(db, 'users', cred.user.uid), data);
       setLang(prefLang as Lang);
+
+      // שמור כתובת לקוח בכתובות שמורות
+      if (role === 'client' && city.trim().length >= 5) {
+        try {
+          const { setItemAsync } = await import('expo-secure-store');
+          const initialAddr = [{
+            id: Date.now().toString(),
+            address: city.trim(),
+            isPrimary: true,
+            lastUsed: new Date().toISOString(),
+          }];
+          await setItemAsync('saved_addresses', JSON.stringify(initialAddr));
+        } catch (_) {}
+      }
 
       // צור קבוצת וואצאפ אוטומטית למנקה חדש
       if (role === 'cleaner' && phone.trim()) {
@@ -420,12 +590,8 @@ export default function RegisterScreen() {
         } catch (_) {}
       }
     } catch (e: any) {
-      const msg =
-        e.code === 'auth/email-already-in-use' ? t.regErrEmailInUse :
-        e.code === 'auth/invalid-email'         ? t.regErrInvalidEmail :
-        e.code === 'auth/weak-password'         ? t.regErrWeakPassword :
-        t.regErrDefault;
-      Alert.alert(t.error, msg);
+      console.error('[REGISTER FIRESTORE ERROR]', e.code, e.message);
+      Alert.alert(t.error, `שגיאת שמירת פרופיל (${e.code || e.message || 'unknown'})\nהחשבון נוצר — נסה להתחבר ולפנות לתמיכה`);
     } finally {
       setLoading(false);
     }
@@ -434,15 +600,15 @@ export default function RegisterScreen() {
   return (
     <SafeAreaView style={s.wrap}>
       <StatusBar barStyle="light-content" backgroundColor={C.blueDark} />
-      <KeyboardAvoidingView behavior="padding" style={{ flex: 1 }}>
+      <KeyboardAvoidingView behavior="padding" keyboardVerticalOffset={Platform.OS === 'android' ? (StatusBar.currentHeight ?? 0) : 0} style={{ flex: 1 }}>
 
         <View style={s.hero}>
           <TouchableOpacity style={s.backBtn} onPress={() => router.back()}>
             <T style={{ color: C.white, fontSize: 20 }}>←</T>
           </TouchableOpacity>
           <RNImage
-            source={require('../assets/images/icon.png')}
-            style={{ width: 70, height: 70, marginBottom: 2 }}
+            source={require('../assets/images/logo-ui.png')}
+            style={{ width: 130, height: 130, marginBottom: 6 }}
             resizeMode="contain"
           />
           <T style={s.title}>{t.joinTitle}</T>
@@ -503,10 +669,23 @@ export default function RegisterScreen() {
               <View style={s.field}>
                 <T style={s.label}>🏙️ {t.cityLabel}</T>
                 <TextInput
-                  style={s.input} placeholder="תל אביב, חיפה, באר שבע..."
-                  value={city} onChangeText={setCity}
+                  style={s.input} placeholder="רחוב, מספר, עיר..."
+                  value={city} onChangeText={handleCityChange}
                   placeholderTextColor={C.sub} textAlign="right"
                 />
+                {addrSuggestions.length > 0 && (
+                  <View style={s.addrDropdown}>
+                    {addrSuggestions.map((sug, i) => (
+                      <TouchableOpacity
+                        key={i}
+                        style={[s.addrSugRow, i < addrSuggestions.length - 1 && s.addrSugBorder]}
+                        onPress={() => { setCity(sug); setAddrSuggestions([]); }}
+                      >
+                        <Text style={s.addrSugText}>📍 {sug}</Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                )}
               </View>
               <SectionTitle>{t.prefLangSection}</SectionTitle>
               <View style={s.pillRow}>
@@ -516,7 +695,7 @@ export default function RegisterScreen() {
                     label={`${l.flag} ${l.label}`}
                     active={prefLang === l.key}
                     onPress={() => setPrefLang(l.key)}
-                    devanagari={l.key === 'hi'}
+                    devanagari={false}
                   />
                 ))}
               </View>
@@ -747,7 +926,7 @@ export default function RegisterScreen() {
                       label={`${l.flag} ${l.label}`}
                       active={prefLang === l.key}
                       onPress={() => setPrefLang(l.key)}
-                      devanagari={l.key === 'hi'}
+                      devanagari={false}
                     />
                   ))}
                 </View>

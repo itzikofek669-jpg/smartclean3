@@ -1,0 +1,61 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ── משתמשים ──────────────────────────────────────────────────────────────
+    match /users/{userId} {
+      // כל משתמש מחובר יכול לקרוא פרופילים (להצגת מנקים)
+      allow read: if request.auth != null;
+      // יצירה: רק המשתמש עצמו (מיד אחרי הרשמה)
+      allow create: if request.auth != null && request.auth.uid == userId;
+      // עדכון: רק המשתמש עצמו
+      allow update: if request.auth != null && request.auth.uid == userId;
+      // מחיקה: אסורה
+      allow delete: if false;
+
+      // ביקורות תת-אוסף
+      match /reviews/{reviewId} {
+        allow read: if request.auth != null;
+        allow create: if request.auth != null;
+        allow update, delete: if false;
+      }
+    }
+
+    // ── הזמנות ────────────────────────────────────────────────────────────────
+    match /bookings/{bookingId} {
+      allow read:   if request.auth != null;
+      allow create: if request.auth != null;
+      allow update: if request.auth != null;
+      allow delete: if false;
+    }
+
+    // ── צ'אטים ────────────────────────────────────────────────────────────────
+    match /chats/{chatId} {
+      allow read, write: if request.auth != null;
+
+      match /messages/{messageId} {
+        allow read, write: if request.auth != null;
+      }
+    }
+
+    // ── הודעות תמיכה ──────────────────────────────────────────────────────────
+    match /supportMessages/{msgId} {
+      allow read, write: if request.auth != null;
+    }
+
+    // ── הגדרות אדמין ──────────────────────────────────────────────────────────
+    match /settings/{settingId} {
+      allow read:  if request.auth != null;
+      allow write: if request.auth != null &&
+                      request.auth.token.email in [
+                        'cleantouchapp@gmail.com',
+                        'itzikofek669@gmail.com'
+                      ];
+    }
+
+    // ── ברירת מחדל — חסום הכל ───────────────────────────────────────────────
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

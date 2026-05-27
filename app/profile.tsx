@@ -431,11 +431,58 @@ export default function ProfileScreen() {
   const [uploading,    setUploading]    = useState(false);
   const [rateTarget,   setRateTarget]   = useState<any>(null);
   const [rateModal,    setRateModal]    = useState(false);
-  const [referralCode, setReferralCode] = useState('');
   const [portfolio,    setPortfolio]    = useState<string[]>([]);
   const [idVerified,   setIdVerified]   = useState(false);
   const [prefLang,     setPrefLang]     = useState('he');
   const [userPhone,    setUserPhone]    = useState('');
+  const [hasPushToken,     setHasPushToken]     = useState(true); // האם יש pushToken — לאזהרת ניקוי דחוף
+  const [pushToggleLoading, setPushToggleLoading] = useState(false);
+  const [availOpen,        setAvailOpen]        = useState(false); // collapsible זמינות — סגור כברירת מחדל
+  const [availableDates,   setAvailableDates]   = useState<string[]>([]); // תאריכים זמינים — YYYY-MM-DD
+  const [calMonth,         setCalMonth]         = useState(new Date()); // חודש מוצג בלוח
+  const [portfolioSaved,   setPortfolioSaved]   = useState(false); // סימן שמור אחרי העלאת תמונה
+
+  // ── כתובות שמורות (לקוח) ───────────────────────────────────────────────
+  type SavedAddr = { id: string; address: string; isPrimary: boolean; lastUsed: string };
+  const ADDR_KEY = 'saved_addresses';
+  const [savedAddrs, setSavedAddrs] = useState<SavedAddr[]>([]);
+  const [newAddrInput, setNewAddrInput] = useState('');
+
+  const loadAddrs = async () => {
+    try {
+      const raw = await import('expo-secure-store').then(m => m.getItemAsync(ADDR_KEY));
+      setSavedAddrs(raw ? JSON.parse(raw) : []);
+    } catch { setSavedAddrs([]); }
+  };
+
+  const saveAddrs = async (list: SavedAddr[]) => {
+    const { setItemAsync } = await import('expo-secure-store');
+    await setItemAsync(ADDR_KEY, JSON.stringify(list));
+    setSavedAddrs(list);
+  };
+
+  const handleSetPrimary = async (id: string) => {
+    const updated = savedAddrs.map(a => ({ ...a, isPrimary: a.id === id }));
+    await saveAddrs(updated);
+  };
+
+  const handleDeleteAddr = async (id: string) => {
+    const filtered = savedAddrs.filter(a => a.id !== id);
+    if (savedAddrs.find(a => a.id === id)?.isPrimary && filtered.length > 0) filtered[0].isPrimary = true;
+    await saveAddrs(filtered);
+  };
+
+  const handleAddAddr = async () => {
+    const trimmed = newAddrInput.trim();
+    if (!trimmed || trimmed.length < 5) return Alert.alert(t.error, t.addressTooShort);
+    if (savedAddrs.length >= 5) return Alert.alert('', t.maxAddressesReached);
+    const exists = savedAddrs.find(a => a.address === trimmed);
+    if (exists) { setNewAddrInput(''); return; }
+    const isFirst = savedAddrs.length === 0;
+    const newList = [{ id: Date.now().toString(), address: trimmed, isPrimary: isFirst, lastUsed: new Date().toISOString() }, ...savedAddrs];
+    await saveAddrs(newList);
+    setNewAddrInput('');
+  };
 
   // ── כתובות שמורות (לקוח) ───────────────────────────────────────────────
   type SavedAddr = { id: string; address: string; isPrimary: boolean; lastUsed: string };
@@ -629,7 +676,6 @@ export default function ProfileScreen() {
   const [editIsMobile,     setEditIsMobile]     = useState(true);
   const [editCleanerAddress, setEditCleanerAddress] = useState('');
   const [editServicePricing,setEditServicePricing]= useState<Record<string,string>>({});
-  const [editWhatsappGroupId,setEditWhatsappGroupId]= useState('');
   const [editSaving,       setEditSaving]       = useState(false);
   // Payment details (cleaner)
   const [editBitPhone,     setEditBitPhone]     = useState('');
@@ -838,6 +884,7 @@ export default function ProfileScreen() {
   };
 
   useEffect(() => {
+    if (!uid) return;
     // ── טעינת נתוני פרופיל (חד-פעמי) ──────────────────────────────────────
     (async () => {
       try {
@@ -1008,6 +1055,17 @@ export default function ProfileScreen() {
     setTimeout(() => setAvailSaved(false), 2000);
   };
 
+  // ─── Monthly availability calendar ──────────────────────────────────────────
+  const toggleAvailableDate = async (dateStr: string) => {
+    const updated = availableDates.includes(dateStr)
+      ? availableDates.filter(d => d !== dateStr)
+      : [...availableDates, dateStr];
+    setAvailableDates(updated);
+    await setDoc(doc(db, 'users', uid), { availableDates: updated }, { merge: true });
+    setAvailSaved(true);
+    setTimeout(() => setAvailSaved(false), 1500);
+  };
+
   const toggleShowPhone = async (val: boolean) => {
     setShowPhone(val);
     await setDoc(doc(db, 'users', uid), { showPhone: val }, { merge: true });
@@ -1047,12 +1105,6 @@ export default function ProfileScreen() {
     ]);
   };
 
-  const handleShareReferral = async () => {
-    try {
-      await Share.share({ message: `${t.referralBonus}\n\nהקוד שלי: ${referralCode}` });
-    } catch (_) {}
-  };
-
   // ─── Portfolio ────────────────────────────────────────────────────────────────
   const pickPortfolioPhoto = () => {
     Alert.alert(t.portfolioAdd, '', [
@@ -1063,7 +1115,7 @@ export default function ProfileScreen() {
           if (!perm.granted) return Alert.alert(t.error, t.galleryPermDenied);
           const res = await ImagePicker.launchImageLibraryAsync({
             mediaTypes: ImagePicker.MediaTypeOptions.Images,
-            allowsEditing: true, aspect: [1, 1], quality: 0.2, base64: true,
+            quality: 0.3, base64: true,
           });
           if (!res.canceled && res.assets[0].base64) savePortfolioPhoto(res.assets[0].base64);
         },
@@ -1074,7 +1126,7 @@ export default function ProfileScreen() {
           const perm = await ImagePicker.requestCameraPermissionsAsync();
           if (!perm.granted) return Alert.alert(t.error, t.cameraPermDenied);
           const res = await ImagePicker.launchCameraAsync({
-            allowsEditing: true, aspect: [1, 1], quality: 0.2, base64: true,
+            quality: 0.3, base64: true,
           });
           if (!res.canceled && res.assets[0].base64) savePortfolioPhoto(res.assets[0].base64);
         },
@@ -1088,6 +1140,8 @@ export default function ProfileScreen() {
     const updated = [...portfolio, uri];
     setPortfolio(updated);
     await setDoc(doc(db, 'users', uid), { portfolio: updated }, { merge: true });
+    setPortfolioSaved(true);
+    setTimeout(() => setPortfolioSaved(false), 2500);
   };
 
   const removePortfolioPhoto = (index: number) => {
@@ -1174,23 +1228,27 @@ export default function ProfileScreen() {
   };
 
   // ─── Cleaner: open chat with client ─────────────────────────────────────────
+  // ה-subscription מנוהל ב-useEffect למטה — openCleanerChat רק מגדיר state
   const openCleanerChat = (b: any) => {
-    const clientUid  = b.clientUid;
-    const clientName = b.clientName || 'לקוח';
-    setChatClientUid(clientUid);
-    setChatClientName(clientName);
     setChatMessages([]);
+    setChatClientUid(b.clientUid);
+    setChatClientName(b.clientName || 'לקוח');
     setChatOpen(true);
-    // subscribe to messages
+  };
+
+  // subscription אוטומטי — מופעל בכל פעם שנפתח צ'אט (גם מ-confirmedBookingView)
+  useEffect(() => {
+    if (!chatOpen || !chatClientUid || !uid) return;
     if (chatUnsubRef.current) chatUnsubRef.current();
-    const chatId = [uid, clientUid].sort().join('_');
+    const chatId = [uid, chatClientUid].sort().join('_');
     const q = query(collection(db, 'chats', chatId, 'messages'), orderBy('createdAt', 'asc'));
     chatUnsubRef.current = onSnapshot(q, snap => {
       const msgs = snap.docs.map(d => ({ id: d.id, ...d.data() }));
       setChatMessages(msgs);
       setTimeout(() => chatScrollRef.current?.scrollToEnd({ animated: true }), 100);
     }, () => {});
-  };
+    return () => { if (chatUnsubRef.current) { chatUnsubRef.current(); chatUnsubRef.current = null; } };
+  }, [chatOpen, chatClientUid]);
 
   const sendCleanerMessage = async () => {
     if (!chatInput.trim() || !chatClientUid) return;
@@ -1535,15 +1593,7 @@ export default function ProfileScreen() {
   const bestMonthLabel = last6Months[monthlyEarnings.indexOf(Math.max(...monthlyEarnings))]?.label || '-';
 
   // Schedule — current week bookings for calendar view
-  const weekStart = new Date(nowDate);
-  weekStart.setDate(nowDate.getDate() - nowDate.getDay());
-  weekStart.setHours(0, 0, 0, 0);
-  const weekEnd = new Date(weekStart);
-  weekEnd.setDate(weekStart.getDate() + 7);
-  const weekBookings = incomingBks.filter(b => {
-    const d = new Date(b.bookingDate || b.createdAt);
-    return d >= weekStart && d < weekEnd && b.status !== 'cancelled';
-  });
+
 
   // ─── Status display ───────────────────────────────────────────────────────────
   const handleConfirmBooking = async (b: any) => {
@@ -1624,6 +1674,77 @@ export default function ProfileScreen() {
     if (status === 'done')      return s.statusPillText;
     if (status === 'cancelled') return s.statusPillTextCancelled;
     return s.statusPillTextPending;
+  };
+
+  // ─── Toggle Push Notifications ───────────────────────────────────────────────
+  const handleTogglePush = async () => {
+    if (!uid) { Alert.alert('שגיאה', 'לא מחובר'); return; }
+    setPushToggleLoading(true);
+    try {
+      if (hasPushToken) {
+        // ── כיבוי ─────────────────────────────────────────────────────────────
+        await updateDoc(doc(db, 'users', uid), { pushToken: '' });
+        setHasPushToken(false);
+      } else {
+        // ── הפעלה ─────────────────────────────────────────────────────────────
+        // 1. בדוק/בקש הרשאה
+        let finalStatus = 'undetermined';
+        try {
+          const { status: existing } = await Notifications.getPermissionsAsync();
+          finalStatus = existing;
+          if (existing !== 'granted') {
+            const { status } = await Notifications.requestPermissionsAsync();
+            finalStatus = status;
+          }
+        } catch (_) { finalStatus = 'denied'; }
+
+        if (finalStatus !== 'granted') {
+          Alert.alert(
+            '🔔 הפעלת התראות',
+            'יש לאפשר התראות בהגדרות המכשיר.',
+            [
+              { text: 'ביטול', style: 'cancel' },
+              { text: 'פתח הגדרות', onPress: () => {
+                try { Linking.openSettings(); } catch (_) {}
+              }},
+            ]
+          );
+          setPushToggleLoading(false);
+          return;
+        }
+
+        // 2. קבל טוקן
+        let token = '';
+        try {
+          const projectId =
+            Constants.expoConfig?.extra?.eas?.projectId ??
+            (Constants as any).easConfig?.projectId ??
+            Constants.expoConfig?.slug ?? '';
+          if (projectId) {
+            const td = await Notifications.getExpoPushTokenAsync({ projectId });
+            token = td?.data ?? '';
+          }
+        } catch (_) {
+          // Expo Go — לא ניתן לקבל טוקן
+          Alert.alert(
+            '⚠️ גרסת פיתוח',
+            'Push Notifications אינם זמינים ב-Expo Go.\nהם יפעלו לאחר בניית ה-APK הסופי.',
+          );
+          setPushToggleLoading(false);
+          return;
+        }
+
+        if (token) {
+          await updateDoc(doc(db, 'users', uid), { pushToken: token });
+          setHasPushToken(true);
+        } else {
+          Alert.alert('שגיאה', 'לא ניתן לקבל טוקן להתראות.');
+        }
+      }
+    } catch (e: any) {
+      Alert.alert('שגיאה', e?.message || 'פעולה נכשלה');
+    }
+    setPushToggleLoading(false);
   };
 
   // ─── Accept urgent request ───────────────────────────────────────────────────
@@ -2004,7 +2125,7 @@ export default function ProfileScreen() {
         <T style={s.headerTitle}>{t.myProfileTitle}</T>
         <TouchableOpacity
           onPress={() => setA11yOpen(true)}
-          style={{ backgroundColor: 'rgba(255,255,255,0.15)', borderRadius: 10, width: 36, height: 32, alignItems: 'center', justifyContent: 'center' }}
+          style={{ backgroundColor: 'rgba(255,255,255,0.15)', borderRadius: 22, width: 44, height: 44, alignItems: 'center', justifyContent: 'center' }}
           accessibilityRole="button"
           accessibilityLabel={t.accessibilityTitle || 'נגישות'}
         >

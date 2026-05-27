@@ -93,6 +93,7 @@ export default function LoginScreen() {
 
   const [email,         setEmail]         = useState('');
   const [password,      setPassword]      = useState('');
+  const [showPass,      setShowPass]      = useState(false);
   const [loading,       setLoading]       = useState(false);
   const [rememberMe,    setRememberMe]    = useState(false);
   const [showLangMenu,  setShowLangMenu]  = useState(false);
@@ -140,13 +141,13 @@ export default function LoginScreen() {
   return (
     <SafeAreaView style={s.wrap}>
       <StatusBar barStyle="dark-content" backgroundColor={C.white} />
-      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }}>
+      <KeyboardAvoidingView behavior="padding" keyboardVerticalOffset={Platform.OS === 'android' ? (StatusBar.currentHeight ?? 0) : 0} style={{ flex: 1 }}>
 
         {/* Hero */}
         <View style={s.hero}>
           <Image
-            source={require('../assets/images/icon.png')}
-            style={{ width: 200, height: 200, marginBottom: -25 }}
+            source={require('../assets/images/logo-ui.png')}
+            style={{ width: 160, height: 160, marginBottom: -25 }}
             resizeMode="contain"
           />
         </View>
