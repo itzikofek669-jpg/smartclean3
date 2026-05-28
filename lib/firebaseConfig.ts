@@ -1,5 +1,5 @@
 export const FIREBASE_CONFIG = {
-  apiKey:            "AIzaSyC_B3-z4aH4NIB4mXU6SlgHkvmynYPp9GY",
+  apiKey:            "AIzaSyDET2NbiZefDSbyHcTjwCq4clFlxpCBeMc",
   authDomain:        "smartclean1-db1fb.firebaseapp.com",
   projectId:         "smartclean1-db1fb",
   storageBucket:     "smartclean1-db1fb.firebasestorage.app",

@@ -127,11 +127,14 @@ export default function LoginScreen() {
       }
     } catch (e: any) {
       const msg =
-        e.code === 'auth/user-not-found'     ? 'משתמש לא קיים' :
-        e.code === 'auth/wrong-password'     ? 'סיסמה שגויה' :
-        e.code === 'auth/invalid-email'      ? 'כתובת email לא תקינה' :
-        e.code === 'auth/invalid-credential' ? 'פרטים שגויים' :
-        'שגיאת כניסה, נסה שוב';
+        e.code === 'auth/user-not-found'      ? 'משתמש לא קיים — בדוק אם ההרשמה הושלמה' :
+        e.code === 'auth/wrong-password'      ? 'סיסמה שגויה' :
+        e.code === 'auth/invalid-email'       ? 'כתובת email לא תקינה' :
+        e.code === 'auth/invalid-credential'  ? 'אימייל או סיסמה שגויים — נסה שוב' :
+        e.code === 'auth/too-many-requests'   ? 'יותר מדי ניסיונות — המתן כמה דקות ונסה שוב' :
+        e.code === 'auth/network-request-failed' ? 'בעיית רשת — בדוק חיבור אינטרנט' :
+        e.code === 'auth/user-disabled'       ? 'החשבון הושבת — פנה לתמיכה' :
+        `שגיאת כניסה (${e.code || e.message || 'unknown'})`;
       Alert.alert(t.error, msg);
     } finally {
       setLoading(false);
