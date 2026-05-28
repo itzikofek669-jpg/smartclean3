@@ -520,7 +520,8 @@ export default function RegisterScreen() {
         createdAt: new Date().toISOString(),
       };
       if (role === 'client') {
-        data.city          = city.trim();
+        data.address       = city.trim();   // כתובת מלאה
+        data.city          = city.trim();   // גם לאחור-תאימות
         data.preferredLang = prefLang;
         data.phone         = phone.replace(/[-\s]/g, '');
       }
@@ -559,9 +560,16 @@ await setDoc(doc(db, 'users', cred.user.uid), data);
       if (role === 'client' && city.trim().length >= 5) {
         try {
           const { setItemAsync } = await import('expo-secure-store');
+          // פצל את הכתובת המלאה לרחוב ועיר לטעינה נכונה בטופס הזמנה
+          const fullAddr = city.trim();
+          const lastComma = fullAddr.lastIndexOf(',');
+          const addrStreetPart = lastComma > 0 ? fullAddr.slice(0, lastComma).trim() : fullAddr;
+          const addrCityPart   = lastComma > 0 ? fullAddr.slice(lastComma + 1).trim() : '';
           const initialAddr = [{
             id: Date.now().toString(),
-            address: city.trim(),
+            address: fullAddr,
+            street: addrStreetPart,
+            city: addrCityPart,
             isPrimary: true,
             lastUsed: new Date().toISOString(),
           }];
@@ -672,9 +680,9 @@ await setDoc(doc(db, 'users', cred.user.uid), data);
               </View>
             <View style={s.clientBlock}>
               <View style={s.field}>
-                <T style={s.label}>🏙️ {t.cityLabel}</T>
+                <T style={s.label}>📍 כתובת מגורים (רחוב, מספר, עיר)</T>
                 <TextInput
-                  style={s.input} placeholder="רחוב, מספר, עיר..."
+                  style={s.input} placeholder="רחוב הרצל 5, תל אביב"
                   value={city} onChangeText={handleCityChange}
                   placeholderTextColor={C.sub} textAlign="right"
                 />
