@@ -19,6 +19,7 @@ import { auth, db } from '../lib/firebase';
 import { useLanguage, T, useAppColors, AppColors } from '../lib/LanguageContext';
 import { Lang } from '../lib/translations';
 import ServiceInfoBtn from '../lib/ServiceInfoBtn';
+import { MaterialIcons } from '@expo/vector-icons';
 
 function createTM(c: AppColors) {
   return StyleSheet.create({
@@ -34,8 +35,8 @@ function createTM(c: AppColors) {
 function createS(c: AppColors) {
   return StyleSheet.create({
     wrap:            { flex: 1, backgroundColor: c.blueDark },
-    hero:            { alignItems: 'center', paddingTop: 40, paddingBottom: 30, position: 'relative' },
-    backBtn:         { position: 'absolute', top: 44, right: 20, width: 36, height: 36, borderRadius: 18, backgroundColor: 'rgba(255,255,255,0.15)', alignItems: 'center', justifyContent: 'center' },
+    hero:            { alignItems: 'center', paddingTop: 28, paddingBottom: 14, position: 'relative' },
+    backBtn:         { position: 'absolute', top: 44, right: 20, width: 52, height: 52, borderRadius: 26, backgroundColor: 'rgba(255,255,255,0.2)', alignItems: 'center', justifyContent: 'center' },
     logo:            { fontSize: 44, marginBottom: 8 },
     title:           { fontSize: 22, fontWeight: '800', color: c.white },
     card:            { backgroundColor: c.white, borderTopLeftRadius: 32, borderTopRightRadius: 32, flex: 1 },
@@ -56,15 +57,16 @@ function createS(c: AppColors) {
     cleanerBlock:    { backgroundColor: c.blueLight, borderRadius: 16, padding: 16, marginBottom: 16, borderWidth: 1, borderColor: c.blueBorder },
     sectionTitle:    { fontSize: 13, fontWeight: '800', color: c.textDark, marginBottom: 10, marginTop: 4, textAlign: 'right' },
     pillRow:         { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 14 },
-    availRow:        { marginBottom: 10 },
-    availDayBtn:     { paddingHorizontal: 16, paddingVertical: 9, borderRadius: 10, backgroundColor: c.white, borderWidth: 1.5, borderColor: c.blueBorder, alignSelf: 'flex-start', marginBottom: 6 },
+    availRow:        { flexDirection: 'row', alignItems: 'center', paddingVertical: 10, paddingHorizontal: 10, borderBottomWidth: 1, borderBottomColor: c.blueBorder },
+    availDayBtn:     { width: 38, height: 38, borderRadius: 10, backgroundColor: c.white, borderWidth: 1.5, borderColor: c.blueBorder, alignItems: 'center', justifyContent: 'center' },
     availDayBtnActive: { backgroundColor: c.blue, borderColor: c.blue },
-    availDayText:    { fontSize: 13, fontWeight: '700', color: c.textDark },
+    availDayText:    { fontSize: 12, fontWeight: '800', color: c.textDark },
     availDayTextActive: { color: c.white },
-    availTimePickers: { paddingLeft: 8, gap: 6 },
-    availTimeGroup:  { marginBottom: 4 },
-    availTimeLabel:  { fontSize: 11, fontWeight: '700', color: c.textSub, marginBottom: 4, textAlign: 'right' },
+    availTimePickers: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end', gap: 6, paddingLeft: 8 },
+    availTimeGroup:  { flexDirection: 'row', alignItems: 'center', gap: 4 },
+    availTimeLabel:  { fontSize: 11, fontWeight: '700', color: c.textSub },
     availTimeScroll: { flexDirection: 'row' },
+    availTimeInput:  { width: 52, backgroundColor: c.blueLight, borderRadius: 8, borderWidth: 1, borderColor: c.blueBorder, paddingVertical: 6, paddingHorizontal: 4, fontSize: 14, fontWeight: '700', color: c.textDark, textAlign: 'center' },
     availTimeChip:   { paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8, backgroundColor: c.white, borderWidth: 1, borderColor: c.blueBorder, marginRight: 6 },
     availTimeChipActive: { backgroundColor: c.blue, borderColor: c.blue },
     availTimeChipText: { fontSize: 12, fontWeight: '600', color: c.textDark },
@@ -99,7 +101,7 @@ function createS(c: AppColors) {
 }
 
 const SERVICE_TYPES = [
-  { key: 'ניקוי כללי',              icon: '🏠' },
+  { key: 'ניקיון רגיל',              icon: '🏠' },
   { key: 'ניקוי לפסח',             icon: '🧹' },
   { key: 'חלונות',                 icon: '🪟' },
   { key: 'שטיפת רכב',              icon: '🚗' },
@@ -367,7 +369,6 @@ export default function RegisterScreen() {
   const [name,         setName]         = useState('');
   const [email,        setEmail]        = useState('');
   const [password,     setPassword]     = useState('');
-  const [referralCode, setReferralCode] = useState('');
   const [showPass, setShowPass] = useState(false);
   const [role,     setRole]     = useState<'client' | 'cleaner'>('client');
   const [loading,  setLoading]  = useState(false);
@@ -376,18 +377,27 @@ export default function RegisterScreen() {
   const [city,           setCity]           = useState('');
   const [addrSuggestions, setAddrSuggestions] = useState<string[]>([]);
   const addrTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const GMAPS_KEY = 'AIzaSyDgFAy6_0c9X_lN6JV4j6fWfCyn4vCcDdA';
 
   const fetchAddrSuggestions = (text: string) => {
     if (addrTimer.current) clearTimeout(addrTimer.current);
-    if (text.length < 3) { setAddrSuggestions([]); return; }
+    if (text.length < 2) { setAddrSuggestions([]); return; }
     addrTimer.current = setTimeout(async () => {
       try {
-        const url = `https://maps.googleapis.com/maps/api/place/autocomplete/json?input=${encodeURIComponent(text)}&key=${GMAPS_KEY}&language=he&components=country:il`;
-        const res = await fetch(url);
+        const url = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(text)}&format=json&countrycodes=il&limit=6&addressdetails=1&accept-language=he`;
+        const res = await fetch(url, { headers: { 'User-Agent': 'AMCleanApp/1.0' } });
         const json = await res.json();
-        if (json.predictions) {
-          setAddrSuggestions(json.predictions.map((p: any) => p.description));
+        if (json && json.length > 0) {
+          const results = json.map((p: any) => {
+            const addr    = p.address || {};
+            const road    = addr.road || addr.pedestrian || '';
+            const houseNo = addr.house_number || '';
+            const city    = addr.city || addr.town || addr.village || addr.municipality || '';
+            const street  = road ? (houseNo ? `${road} ${houseNo}` : road) : p.display_name.split(',')[0];
+            return street && city ? `${street}, ${city}` : p.display_name.split(',').slice(0, 2).join(', ');
+          });
+          setAddrSuggestions(results);
+        } else {
+          setAddrSuggestions([]);
         }
       } catch (_) {}
     }, 350);
@@ -415,6 +425,7 @@ export default function RegisterScreen() {
   const [experience,     setExperience]     = useState('');
   const [cleanerAge,     setCleanerAge]     = useState('');
   const [cleanerAddress, setCleanerAddress] = useState('');
+  const [maxDistance,    setMaxDistance]    = useState<number>(10);
   const [bringSupplies,  setBringSupplies]  = useState(true);
 
   type DayKey = 'sun'|'mon'|'tue'|'wed'|'thu'|'fri'|'sat';
@@ -528,7 +539,7 @@ export default function RegisterScreen() {
       if (role === 'cleaner') {
         data.city          = city.trim();
         data.phone         = phone.trim();
-        data.price         = Number(price) || 0;
+        data.price         = Number(servicePricing['ניקיון רגיל']) || Number(price) || 0;
         data.bio           = bio.trim();
         data.types         = types;
         data.payment       = payment;
@@ -544,6 +555,7 @@ export default function RegisterScreen() {
         if (experience)     data.experience   = Number(experience) || 0;
         if (cleanerAge)     data.age          = Number(cleanerAge) || 0;
         if (cleanerAddress) data.cleanerAddress = cleanerAddress.trim();
+        data.maxDistance = maxDistance;
         // Convert servicePricing string values to numbers
         const spNum: Record<string, number> = {};
         Object.entries(servicePricing).forEach(([k, v]) => { if (v) spNum[k] = Number(v); });
@@ -613,25 +625,30 @@ await setDoc(doc(db, 'users', cred.user.uid), data);
   return (
     <SafeAreaView style={s.wrap}>
       <StatusBar barStyle="light-content" backgroundColor={C.blueDark} />
-      <KeyboardAvoidingView behavior="padding" keyboardVerticalOffset={Platform.OS === 'android' ? (StatusBar.currentHeight ?? 0) : 0} style={{ flex: 1 }}>
+      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1 }}>
 
         <View style={s.hero}>
           <TouchableOpacity style={s.backBtn} onPress={() => router.back()}>
-            <T style={{ color: C.white, fontSize: 20 }}>←</T>
+            <MaterialIcons name="arrow-back" size={30} color="#FFFFFF" />
           </TouchableOpacity>
           <RNImage
             source={require('../assets/images/logo-ui.png')}
-            style={{ width: 130, height: 130, marginBottom: 6 }}
+            style={{ width: 80, height: 80, marginBottom: 4 }}
             resizeMode="contain"
           />
           <T style={s.title}>{t.joinTitle}</T>
         </View>
 
-        <ScrollView style={s.card} contentContainerStyle={{ padding: 24, paddingBottom: 40 }}>
+        <ScrollView
+          style={s.card}
+          contentContainerStyle={{ padding: 24, paddingBottom: 60 }}
+          keyboardShouldPersistTaps="handled"
+          nestedScrollEnabled
+          showsVerticalScrollIndicator={false}
+        >
           <T style={s.cardTitle}>{t.createAccountTitle}</T>
 
           {/* תפקיד */}
-          <T style={s.label}>{t.iAmLabel}</T>
           <View style={s.roleRow}>
             <TouchableOpacity style={[s.roleBtn, role === 'client' && s.roleBtnActive]} onPress={() => setRole('client')}>
               <T style={s.roleIcon}>👤</T>
@@ -746,12 +763,6 @@ await setDoc(doc(db, 'users', cred.user.uid), data);
                 </View>
 
                 <View style={s.field}>
-                  <T style={s.label}>🏙️ {t.cityLabel}</T>
-                  <TextInput style={s.input} placeholder="תל אביב, חיפה..." value={city} onChangeText={setCity} placeholderTextColor={C.sub} textAlign="right" />
-                </View>
-
-
-                <View style={s.field}>
                   <T style={s.label}>{t.citizenshipLabel}</T>
                   <TextInput style={s.input} placeholder={t.citizenshipPlaceholder} value={citizenship} onChangeText={setCitizenship} placeholderTextColor={C.sub} textAlign="right" />
                 </View>
@@ -782,34 +793,25 @@ await setDoc(doc(db, 'users', cred.user.uid), data);
                   <TextInput style={s.input} placeholder={t.cleanerAddressPlaceholder} value={cleanerAddress} onChangeText={setCleanerAddress} placeholderTextColor={C.sub} textAlign="right" />
                 </View>
 
+                {/* מרחק הגעה מקסימלי */}
                 <View style={s.field}>
-                  <T style={s.label}>{t.basePriceLabel}</T>
-                  <TextInput style={s.input} placeholder={t.basePricePlaceholder} value={price} onChangeText={setPrice} keyboardType="numeric" placeholderTextColor={C.sub} textAlign="right" />
+                  <T style={s.label}>📍 מרחק הגעה מקסימלי מהכתובת שלי</T>
+                  <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 4 }}>
+                    {[5, 10, 20, 30, 50, 999].map(km => (
+                      <TouchableOpacity
+                        key={km}
+                        style={[s.pill, maxDistance === km && s.pillActive, { paddingVertical: 10, paddingHorizontal: 14 }]}
+                        onPress={() => setMaxDistance(km)}
+                      >
+                        <T style={[s.pillText, maxDistance === km && s.pillTextActive]}>
+                          {km === 999 ? 'ללא הגבלה' : `${km} ק"מ`}
+                        </T>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
                 </View>
 
-                {/* Per-service pricing (optional) */}
-                <SectionTitle>{t.servicePricingTitle}</SectionTitle>
-                <T style={{ fontSize: 11, color: C.sub, marginBottom: 8 }}>{t.servicePricingNote}</T>
-                {[
-                  { key: 'ניקוי לפסח',         icon: '🧹' },
-                  { key: 'שטיפת רכב',            icon: '🚗' },
-                  { key: 'חלונות',               icon: '🪟' },
-                  { key: 'לאחר שיפוץ',           icon: '🔨' },
-                  { key: 'ניקיון אחרי אירוע',    icon: '🎉' },
-                ].map(svc => (
-                  <View key={svc.key} style={[s.field, { marginBottom: 8 }]}>
-                    <T style={[s.label, { fontSize: 12 }]}>{svc.icon} {t.types[svc.key] || svc.key} — ₪{t.perHour}</T>
-                    <TextInput
-                      style={s.input}
-                      placeholder={price || t.basePriceDefault}
-                      value={servicePricing[svc.key] || ''}
-                      onChangeText={v => setServicePricing(prev => ({ ...prev, [svc.key]: v }))}
-                      keyboardType="numeric"
-                      placeholderTextColor={C.sub}
-                      textAlign="right"
-                    />
-                  </View>
-                ))}
+
 
                 <View style={s.field}>
                   <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
@@ -854,14 +856,38 @@ await setDoc(doc(db, 'users', cred.user.uid), data);
                   </View>
                 </View>
 
-                <SectionTitle>{t.serviceTypesSection}</SectionTitle>
-                <View style={s.pillRow}>
-                  {SERVICE_TYPES.map(svc => (
-                    <View key={svc.key} style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
-                      <TogglePill label={`${svc.icon} ${t.types[svc.key] || svc.key}`} active={types.includes(svc.key)} onPress={() => toggleItem(types, setTypes, svc.key)} />
-                      <ServiceInfoBtn serviceKey={svc.key} />
-                    </View>
-                  ))}
+                {/* סוגי שירות + מחיר לשעה */}
+                <SectionTitle>מחיר לשעה לפי שירותים (₪)</SectionTitle>
+                <View style={{ gap: 8, marginBottom: 14 }}>
+                  {SERVICE_TYPES.map(svc => {
+                    const active = types.includes(svc.key);
+                    return (
+                      <View key={svc.key} style={{ flexDirection: 'row-reverse', alignItems: 'center', gap: 8 }}>
+                        {/* כפתור בחירת שירות */}
+                        <TouchableOpacity
+                          style={[s.pill, active && s.pillActive, { flex: 1, alignItems: 'flex-end', paddingVertical: 12 }]}
+                          onPress={() => toggleItem(types, setTypes, svc.key)}
+                        >
+                          <T style={[s.pillText, active && s.pillTextActive, { textAlign: 'right', fontSize: 13 }]}>{svc.icon} {t.types[svc.key] || svc.key}</T>
+                        </TouchableOpacity>
+                        {/* שדה מחיר */}
+                        <TextInput
+                          style={[s.input, { width: 72, marginBottom: 0, textAlign: 'center', opacity: active ? 1 : 0.45 }]}
+                          value={servicePricing[svc.key] || ''}
+                          onChangeText={v => {
+                            setServicePricing(prev => ({ ...prev, [svc.key]: v }));
+                            if (svc.key === 'ניקיון רגיל') setPrice(v);
+                            if (v && !active) toggleItem(types, setTypes, svc.key);
+                          }}
+                          placeholder={svc.key === 'ניקיון רגיל' ? '70' : svc.key === 'ניקוי לפסח' ? '100' : '₪'}
+                          keyboardType="numeric"
+                          placeholderTextColor={C.sub}
+                          editable={active}
+                        />
+                        <ServiceInfoBtn serviceKey={svc.key} />
+                      </View>
+                    );
+                  })}
                 </View>
 
                 <SectionTitle>{t.paymentSection}</SectionTitle>
@@ -884,52 +910,59 @@ await setDoc(doc(db, 'users', cred.user.uid), data);
 
                 {/* ─── ימי ושעות עבודה ─── */}
                 <SectionTitle>{`🕐 ${t.availTitle}`}</SectionTitle>
-                {DAY_KEYS.map(day => {
-                  const dayLabel = t[`avail${day.charAt(0).toUpperCase() + day.slice(1)}` as keyof typeof t] as string;
-                  const info = availability[day];
-                  return (
-                    <View key={day} style={s.availRow}>
-                      <TouchableOpacity
-                        style={[s.availDayBtn, info.active && s.availDayBtnActive]}
-                        onPress={() => toggleDay(day)}
-                      >
-                        <T style={[s.availDayText, info.active && s.availDayTextActive]}>{dayLabel}</T>
-                      </TouchableOpacity>
-                      {info.active && (
-                        <View style={s.availTimePickers}>
-                          <View style={s.availTimeGroup}>
-                            <T style={s.availTimeLabel}>{t.availStartTime}</T>
-                            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={s.availTimeScroll}>
-                              {TIME_OPTS.map(h => (
-                                <TouchableOpacity
-                                  key={h}
-                                  style={[s.availTimeChip, info.start === h && s.availTimeChipActive]}
-                                  onPress={() => setDayTime(day, 'start', h)}
-                                >
-                                  <T style={[s.availTimeChipText, info.start === h && s.availTimeChipTextActive]}>{h}:00</T>
-                                </TouchableOpacity>
-                              ))}
-                            </ScrollView>
+                <View style={{ backgroundColor: C.blueLight, borderRadius: 14, borderWidth: 1, borderColor: C.blueBorder, overflow: 'hidden', marginBottom: 14 }}>
+                  {DAY_KEYS.map((day, idx) => {
+                    const dayLabel = t[`avail${day.charAt(0).toUpperCase() + day.slice(1)}` as keyof typeof t] as string;
+                    const info = availability[day];
+                    return (
+                      <View key={day} style={[s.availRow, idx === DAY_KEYS.length - 1 && { borderBottomWidth: 0 }]}>
+                        {/* כפתור יום */}
+                        <TouchableOpacity
+                          style={[s.availDayBtn, info.active && s.availDayBtnActive]}
+                          onPress={() => toggleDay(day)}
+                        >
+                          <T style={[s.availDayText, info.active && s.availDayTextActive]}>{dayLabel}</T>
+                        </TouchableOpacity>
+
+                        {/* שעות — מוצג רק אם היום פעיל */}
+                        {info.active ? (
+                          <View style={s.availTimePickers}>
+                            <View style={s.availTimeGroup}>
+                              <T style={s.availTimeLabel}>מ-</T>
+                              <TextInput
+                                style={s.availTimeInput}
+                                value={String(info.start)}
+                                onChangeText={v => {
+                                  const n = parseInt(v) || 0;
+                                  if (n >= 0 && n <= 23) setDayTime(day, 'start', n);
+                                }}
+                                keyboardType="numeric"
+                                maxLength={2}
+                                selectTextOnFocus
+                              />
+                            </View>
+                            <T style={{ fontSize: 14, color: C.textSub, marginHorizontal: 2 }}>עד</T>
+                            <View style={s.availTimeGroup}>
+                              <TextInput
+                                style={s.availTimeInput}
+                                value={String(info.end)}
+                                onChangeText={v => {
+                                  const n = parseInt(v) || 0;
+                                  if (n >= 0 && n <= 23) setDayTime(day, 'end', n);
+                                }}
+                                keyboardType="numeric"
+                                maxLength={2}
+                                selectTextOnFocus
+                              />
+                            </View>
                           </View>
-                          <View style={s.availTimeGroup}>
-                            <T style={s.availTimeLabel}>{t.availEndTime}</T>
-                            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={s.availTimeScroll}>
-                              {TIME_OPTS.map(h => (
-                                <TouchableOpacity
-                                  key={h}
-                                  style={[s.availTimeChip, info.end === h && s.availTimeChipActive]}
-                                  onPress={() => setDayTime(day, 'end', h)}
-                                >
-                                  <T style={[s.availTimeChipText, info.end === h && s.availTimeChipTextActive]}>{h}:00</T>
-                                </TouchableOpacity>
-                              ))}
-                            </ScrollView>
-                          </View>
-                        </View>
-                      )}
-                    </View>
-                  );
-                })}
+                        ) : (
+                          <T style={{ flex: 1, fontSize: 12, color: C.textSub, paddingLeft: 10 }}>לא עובד</T>
+                        )}
+                      </View>
+                    );
+                  })}
+                </View>
 
                 <SectionTitle>{t.prefLangSection}</SectionTitle>
                 <View style={s.pillRow}>
@@ -947,20 +980,6 @@ await setDoc(doc(db, 'users', cred.user.uid), data);
               </View>
             </>
           )}
-
-          {/* קוד הפניה */}
-          <View style={s.field}>
-            <T style={s.label}>🎁 {t.referralInput}</T>
-            <TextInput
-              style={s.input}
-              placeholder="ABC123"
-              value={referralCode}
-              onChangeText={v => setReferralCode(v.toUpperCase())}
-              autoCapitalize="characters"
-              placeholderTextColor={C.sub}
-              textAlign="right"
-            />
-          </View>
 
           {/* תקנון */}
           <View style={s.termsBox}>

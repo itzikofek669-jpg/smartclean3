@@ -1,5 +1,5 @@
 export const SERVICE_ICONS: Record<string, string> = {
-  'ניקוי כללי':             '🏠',
+  'ניקיון רגיל':             '🏠',
   'ניקוי לפסח':             '🧹',
   'חלונות':                 '🪟',
   'שטיפת רכב':              '🚗',
@@ -11,7 +11,7 @@ export const SERVICE_ICONS: Record<string, string> = {
 };
 
 export const SERVICE_DESCRIPTIONS: Record<string, string[]> = {
-  'ניקוי כללי': [
+  'ניקיון רגיל': [
     '🫧 שטיפת רצפות וניגוב בכל חדרי הבית',
     '🪣 ניקוי אבק ממשטחים, רהיטים ופריטי דקורציה',
     '🚿 ניקוי חדרי רחצה ושירותים — אריחים, כיורים ואסלות',

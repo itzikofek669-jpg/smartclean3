@@ -60,7 +60,7 @@ function createS(c: AppColors) {
   return StyleSheet.create({
     wrap:        { flex: 1, backgroundColor: c.bluePale },
     header:      { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: c.blueDark, padding: 16 },
-    backBtn:     { width: 36, height: 36, borderRadius: 18, backgroundColor: 'rgba(255,255,255,0.15)', alignItems: 'center', justifyContent: 'center' },
+    backBtn:     { width: 52, height: 52, borderRadius: 26, backgroundColor: 'rgba(255,255,255,0.2)', alignItems: 'center', justifyContent: 'center' },
     headerTitle: { fontSize: 16, fontWeight: '800', color: c.white },
     loader:      { flex: 1, alignItems: 'center', justifyContent: 'center' },
 
@@ -240,13 +240,13 @@ function createS(c: AppColors) {
 const PAY_ICONS: Record<string, string> = { bit: '📱', cash: '💵', paybox: '💜', bank: '🏦' };
 
 const SERVICE_ICONS: Record<string, string> = {
-  'ניקוי כללי': '🏠', 'ניקוי לפסח': '🧹', 'חלונות': '🪟', 'לאחר שיפוץ': '🔨',
+  'ניקיון רגיל': '🏠', 'ניקוי לפסח': '🧹', 'חלונות': '🪟', 'לאחר שיפוץ': '🔨',
   'שטיפת רכב': '🚗', 'ניקיון משרדים': '🏢', 'ניקיון אחרי אירוע': '🎉',
   'מחסן ועליית גג': '📦', 'סידורי בגדים וארונות': '👔',
 };
 
 const SERVICE_DETAIL: Record<string, string[]> = {
-  'ניקוי כללי': [
+  'ניקיון רגיל': [
     '🫧 שטיפת רצפות וניגוב בכל חדרי הבית',
     '🪣 ניקוי אבק ממשטחים, רהיטים ופריטי דקורציה',
     '🚿 ניקוי חדרי רחצה ושירותים — אריחים, כיורים ואסלות',
@@ -776,8 +776,8 @@ export default function ProfileScreen() {
         const sp = d.servicePricing || {};
         const spStr: Record<string,string> = {};
         Object.entries(sp).forEach(([k,v]) => { spStr[k] = String(v); });
-        // אם אין מחיר לניקוי כללי — מלא מהמחיר הישן
-        if (!spStr['ניקוי כללי'] && d.price) spStr['ניקוי כללי'] = String(d.price);
+        // אם אין מחיר לניקיון רגיל — מלא מהמחיר הישן
+        if (!spStr['ניקיון רגיל'] && d.price) spStr['ניקיון רגיל'] = String(d.price);
         setEditServicePricing(spStr);
         setEditWhatsappGroupId(d.whatsappGroupId || '');
         setEditBitPhone(d.bitPhone || '');
@@ -806,7 +806,7 @@ export default function ProfileScreen() {
         isPrivate:     editAddrPrivate,
         phone:         editPhone.trim(),
         bio:           editBio.trim(),
-        price:         Number(editServicePricing['ניקוי כללי']) || Number(Object.values(editServicePricing).find(v => v)) || 0,
+        price:         Number(editServicePricing['ניקיון רגיל']) || Number(Object.values(editServicePricing).find(v => v)) || 0,
         types:         editTypes,
         payment:       editPayment,
         workAreas:     editWorkAreas,
@@ -2092,7 +2092,7 @@ export default function ProfileScreen() {
 
       <View style={[s.header, { paddingTop: (StatusBar.currentHeight || 0) + 12 }]}>
         <TouchableOpacity onPress={() => router.back()} style={s.backBtn}>
-          <T style={{ color: C.white, fontSize: 20 }}>←</T>
+          <MaterialIcons name="arrow-back" size={30} color="#FFFFFF" />
         </TouchableOpacity>
         <T style={s.headerTitle}>{t.myProfileTitle}</T>
         <TouchableOpacity
@@ -2966,37 +2966,6 @@ export default function ProfileScreen() {
             </View>
           )}
 
-          {/* ספר לחברים (לקוח) — תחתית הדף */}
-          {!isCleaner && (
-            <View style={s.section}>
-              <T style={[s.sectionTitle, { textAlign: 'center' }]}>🎁 {t.referralTitle}</T>
-              <View style={s.referralCard}>
-                <T style={s.referralBonus}>{t.referralBonus}</T>
-                <View style={s.referralCodeRow}>
-                  <T style={s.referralCodeText}>{referralCode || '...'}</T>
-                  <TouchableOpacity style={s.referralShareBtn} onPress={handleShareReferral}>
-                    <T style={s.referralShareBtnText}>{t.referralShare}</T>
-                  </TouchableOpacity>
-                </View>
-              </View>
-            </View>
-          )}
-
-          {/* ספר לחברים (מנקה) — תחתית הדף */}
-          {isCleaner && (
-            <View style={s.section}>
-              <T style={[s.sectionTitle, { textAlign: 'center' }]}>🎁 {t.referralTitle}</T>
-              <View style={s.referralCard}>
-                <T style={s.referralBonus}>{t.referralBonus}</T>
-                <View style={s.referralCodeRow}>
-                  <T style={s.referralCodeText}>{referralCode || '...'}</T>
-                  <TouchableOpacity style={s.referralShareBtn} onPress={handleShareReferral}>
-                    <T style={s.referralShareBtnText}>{t.referralShare}</T>
-                  </TouchableOpacity>
-                </View>
-              </View>
-            </View>
-          )}
 
           {/* כפתור דיווח — סוף הדף */}
           <View style={{ paddingHorizontal: 20, paddingTop: 8, paddingBottom: 32 }}>
@@ -3592,7 +3561,7 @@ export default function ProfileScreen() {
                 <T style={ep.label}>{t.editServicePricingLabel}</T>
                 <View style={{ gap: 8, marginTop: 6 }}>
                   {[
-                    { key: 'ניקוי כללי',           icon: '🏠' },
+                    { key: 'ניקיון רגיל',           icon: '🏠' },
                     { key: 'ניקוי לפסח',           icon: '🧹' },
                     { key: 'חלונות',               icon: '🪟' },
                     { key: 'שטיפת רכב',            icon: '🚗' },
