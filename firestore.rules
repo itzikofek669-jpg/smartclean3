@@ -43,13 +43,47 @@ service cloud.firestore {
       allow read, write: if request.auth != null;
     }
 
+    // ── בקשות ניקוי דחוף ──────────────────────────────────────────────────────
+    // לקוח יוצר בקשה, כל המנקים קוראים בקשות פתוחות, מנקה מעדכן/משבץ,
+    // והאפליקציה מוחקת אוטומטית בקשות שפג תוקפן
+    match /urgentRequests/{reqId} {
+      allow read:   if request.auth != null;
+      allow create: if request.auth != null;
+      allow update: if request.auth != null;
+      allow delete: if request.auth != null;
+    }
+
+    // ── דיווחים (באגים / דיווח על משתמש) ─────────────────────────────────────
+    match /reports/{reportId} {
+      allow read:   if request.auth != null;
+      allow create: if request.auth != null;
+      allow update: if request.auth != null;
+      allow delete: if request.auth != null;
+    }
+
+    // ── בקשות ביטוח ───────────────────────────────────────────────────────────
+    match /insuranceRequests/{reqId} {
+      allow read:   if request.auth != null;
+      allow create: if request.auth != null;
+      allow update: if request.auth != null;
+      allow delete: if false;
+    }
+
+    // ── קודי הנחה ─────────────────────────────────────────────────────────────
+    match /promoCodes/{promoId} {
+      allow read:  if request.auth != null;
+      allow write: if request.auth != null &&
+                      request.auth.token.email in [
+                        'cleantouchapp@gmail.com'
+                      ];
+    }
+
     // ── הגדרות אדמין ──────────────────────────────────────────────────────────
     match /settings/{settingId} {
       allow read:  if request.auth != null;
       allow write: if request.auth != null &&
                       request.auth.token.email in [
-                        'cleantouchapp@gmail.com',
-                        'itzikofek669@gmail.com'
+                        'cleantouchapp@gmail.com'
                       ];
     }
 

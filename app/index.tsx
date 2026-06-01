@@ -14,7 +14,7 @@ import { Lang } from '../lib/translations';
 function createS(c: AppColors) {
   return StyleSheet.create({
     wrap:         { flex: 1, backgroundColor: c.white },
-    hero:         { alignItems: 'center', paddingTop: 12, paddingBottom: 10, backgroundColor: c.white },
+    hero:         { alignItems: 'center', paddingTop: 0, paddingBottom: 0, backgroundColor: c.white },
     logo:         { fontSize: 44, marginBottom: 6 },
     title:        { fontSize: 32, fontWeight: '900', color: c.white, letterSpacing: -1 },
     subtitle:     { fontSize: 13, color: 'rgba(255,255,255,0.7)', marginTop: 4 },
@@ -150,7 +150,7 @@ export default function LoginScreen() {
         <View style={s.hero}>
           <Image
             source={require('../assets/images/logo-ui.png')}
-            style={{ width: 160, height: 160, marginBottom: -25 }}
+            style={{ width: 300, height: 300, marginBottom: -45 }}
             resizeMode="contain"
           />
         </View>
@@ -198,19 +198,19 @@ export default function LoginScreen() {
             <View style={[s.checkbox, rememberMe && s.checkboxChecked]}>
               {rememberMe && <T style={s.checkmark}>✓</T>}
             </View>
-            <T style={s.rememberText}>זכור אותי — כניסה מהירה בפעם הבאה</T>
+            <T style={s.rememberText}>{t.rememberMeText}</T>
           </TouchableOpacity>
 
           <TouchableOpacity onPress={async () => {
-            if (!email.trim()) return Alert.alert(t.error, 'הכנס את האימייל שלך קודם');
+            if (!email.trim()) return Alert.alert(t.error, t.enterEmailFirst);
             try {
               await sendPasswordResetEmail(auth, email.trim());
-              Alert.alert('✅ נשלח!', 'קישור לאיפוס סיסמה נשלח לאימייל שלך');
+              Alert.alert(t.resetSentTitle, t.resetSentMsg);
             } catch {
-              Alert.alert(t.error, 'אימייל לא נמצא במערכת');
+              Alert.alert(t.error, t.emailNotFound);
             }
           }} style={{ alignItems: 'flex-end', paddingVertical: 6, marginBottom: 4 }}>
-            <T style={{ color: C.blue, fontSize: 13, fontWeight: '600' }}>🔑 שכחתי סיסמה</T>
+            <T style={{ color: C.blue, fontSize: 13, fontWeight: '600' }}>{t.forgotPasswordBtn}</T>
           </TouchableOpacity>
 
           <TouchableOpacity style={s.registerBtn} onPress={() => router.push('/register')}>

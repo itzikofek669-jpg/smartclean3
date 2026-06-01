@@ -16,9 +16,8 @@ import {
 import { auth, db } from '../lib/firebase';
 import { storage } from '../lib/firebase';
 import { ref as storageRef, uploadBytes, getDownloadURL } from 'firebase/storage';
-// expo-av נטען דינמית — לא קורס ב-Expo Go
-let Audio: typeof import('expo-av').Audio | null = null;
-try { Audio = require('expo-av').Audio; } catch (_) {}
+// expo-audio — הקלטה והשמעה של הודעות קוליות (SDK 54, מחליף את expo-av)
+import { useAudioRecorder, createAudioPlayer, RecordingPresets, setAudioModeAsync, AudioModule } from 'expo-audio';
 import { useLanguage, T, useAppColors, AppColors } from '../lib/LanguageContext';
 import ServiceInfoBtn from '../lib/ServiceInfoBtn';
 import { Lang } from '../lib/translations';
@@ -206,6 +205,8 @@ function createS(c: AppColors) {
     // Status pills new
     statusPillOnWay:       { backgroundColor: '#FEF3C7', borderColor: '#FCD34D' },
     statusPillTextOnWay:   { fontSize: 11, fontWeight: '700', color: '#D97706' },
+    statusPillConfirmed:     { backgroundColor: '#EDE9FE', borderColor: '#C4B5FD' },
+    statusPillTextConfirmed: { fontSize: 11, fontWeight: '700', color: '#7C3AED' },
 
     // Chat from cleaner side
     chatCardBtn:     { marginTop: 8, backgroundColor: c.blueLight, borderRadius: 10, padding: 10, alignItems: 'center', borderWidth: 1, borderColor: c.blueBorder },
@@ -671,7 +672,7 @@ export default function ProfileScreen() {
   const chatUnsubRef  = useRef<(() => void) | null>(null);
   // Voice recording (cleaner chat)
   const [chatIsRecording,  setChatIsRecording]  = useState(false);
-  const [chatRecordingObj, setChatRecordingObj] = useState<any>(null);
+  const cleanerRecorder = useAudioRecorder(RecordingPresets.HIGH_QUALITY);
   const [chatPlayingId,    setChatPlayingId]    = useState<string | null>(null);
   const [chatViewerUri,    setChatViewerUri]    = useState<string | null>(null);
   const chatSoundRef = useRef<any>(null);
@@ -1203,6 +1204,8 @@ export default function ProfileScreen() {
     if (!chatOpen || !chatClientUid || !uid) return;
     if (chatUnsubRef.current) chatUnsubRef.current();
     const chatId = [uid, chatClientUid].sort().join('_');
+    // סמן כנקרא — הסר uid מ-unreadBy
+    updateDoc(doc(db, 'chats', chatId), { unreadBy: arrayRemove(uid) }).catch(() => {});
     const q = query(collection(db, 'chats', chatId, 'messages'), orderBy('createdAt', 'asc'));
     chatUnsubRef.current = onSnapshot(q, snap => {
       const msgs = snap.docs.map(d => ({ id: d.id, ...d.data() }));
@@ -1277,25 +1280,23 @@ export default function ProfileScreen() {
   };
 
   const startCleanerRecording = async () => {
-    if (!Audio) return Alert.alert(t.error, t.audioUnavailableMsg);
     try {
-      const perm = await Audio.requestPermissionsAsync();
+      const perm = await AudioModule.requestRecordingPermissionsAsync();
       if (!perm.granted) return Alert.alert(t.error, t.micPermDenied);
-      await Audio.setAudioModeAsync({ allowsRecordingIOS: true, playsInSilentModeIOS: true });
-      const { recording } = await Audio.Recording.createAsync(Audio.RecordingOptionsPresets.HIGH_QUALITY);
-      setChatRecordingObj(recording);
+      await setAudioModeAsync({ allowsRecording: true, playsInSilentMode: true });
+      await cleanerRecorder.prepareToRecordAsync();
+      cleanerRecorder.record();
       setChatIsRecording(true);
     } catch (_) {}
   };
 
   const stopAndSendCleanerRecording = async () => {
-    if (!chatRecordingObj) return;
+    if (!cleanerRecorder.isRecording) { setChatIsRecording(false); return; }
     setChatIsRecording(false);
     const chatId = [uid, chatClientUid].sort().join('_');
     try {
-      await chatRecordingObj.stopAndUnloadAsync();
-      const uri = chatRecordingObj.getURI();
-      setChatRecordingObj(null);
+      await cleanerRecorder.stop();
+      const uri = cleanerRecorder.uri;
       if (!uri || !chatId) return;
       const resp = await fetch(uri);
       const blob = await resp.blob();
@@ -1317,23 +1318,31 @@ export default function ProfileScreen() {
   };
 
   const playCleanerAudio = async (audioUrl: string, msgId: string) => {
-    if (!Audio) return;
     if (chatSoundRef.current) {
-      await chatSoundRef.current.unloadAsync().catch(() => {});
+      try { chatSoundRef.current.remove(); } catch (_) {}
       chatSoundRef.current = null;
     }
     if (chatPlayingId === msgId) { setChatPlayingId(null); return; }
     try {
-      await Audio.setAudioModeAsync({ allowsRecordingIOS: false, playsInSilentModeIOS: true });
-      const { sound } = await Audio.Sound.createAsync({ uri: audioUrl }, { shouldPlay: true });
-      chatSoundRef.current = sound;
+      await setAudioModeAsync({ allowsRecording: false, playsInSilentMode: true });
+      const player = createAudioPlayer({ uri: audioUrl });
+      chatSoundRef.current = player;
       setChatPlayingId(msgId);
-      sound.setOnPlaybackStatusUpdate((status: any) => {
-        if (status.isLoaded && status.didJustFinish) {
+      let started = false;
+      const startPlayback = () => {
+        if (started || !player.isLoaded) return;
+        started = true;
+        try { player.volume = 1.0; player.play(); } catch (_) {}
+      };
+      player.addListener('playbackStatusUpdate', (status: any) => {
+        if (status?.isLoaded) startPlayback();
+        if (status?.didJustFinish) {
           setChatPlayingId(null);
+          try { player.remove(); } catch (_) {}
           chatSoundRef.current = null;
         }
       });
+      startPlayback();
     } catch (_) { Alert.alert(t.error, t.audioPlayError); }
   };
 
@@ -1361,7 +1370,8 @@ export default function ProfileScreen() {
         paymentStatus: 'paid',
         paidAt: new Date().toISOString(),
       });
-      setBookings(prev => prev.map(bk => bk.id === b.id ? { ...bk, paymentStatus: 'paid' } : bk));
+      const upd = (prev: any[]) => prev.map(bk => bk.id === b.id ? { ...bk, paymentStatus: 'paid' } : bk);
+      setBookings(upd); setIncomingBks(upd);
     } catch (e: any) {
       Alert.alert(t.error, e.message);
     }
@@ -1524,7 +1534,7 @@ export default function ProfileScreen() {
 
   const totalSpent  = bookings.reduce((sum, b) => sum + (b.total || 0), 0);
   const totalEarned = incomingBks.reduce((sum, b) => sum + (b.total || 0), 0);
-  const isCleaner   = userRole === 'cleaner' || workAreas.length > 0;
+  const isCleaner   = userRole === 'cleaner';
   const DAYS_LABELS = [t.availSun, t.availMon, t.availTue, t.availWed, t.availThu, t.availFri, t.availSat];
 
   // Business dashboard stats
@@ -1574,10 +1584,14 @@ export default function ProfileScreen() {
       const updates: any = { status: 'confirmed' };
       const dateChanged = showPendingTimeChange && (pendingNewDate || pendingNewTime);
       if (dateChanged) {
-        const newDateStr = pendingPickerDate.toLocaleDateString(LOCALE_MAP[lang] || 'he-IL', { day: '2-digit', month: '2-digit', year: 'numeric' });
-        const newTimeStr = pendingPickerDate.toLocaleTimeString(LOCALE_MAP[lang] || 'he-IL', { hour: '2-digit', minute: '2-digit' });
-        updates.bookingDate = newDateStr;
-        updates.startTime   = newTimeStr;
+        // שמור בפורמט ISO עקבי — YYYY-MM-DD ו-HH:mm
+        const y  = pendingPickerDate.getFullYear();
+        const mm = String(pendingPickerDate.getMonth() + 1).padStart(2, '0');
+        const dd = String(pendingPickerDate.getDate()).padStart(2, '0');
+        const hh = String(pendingPickerDate.getHours()).padStart(2, '0');
+        const mi = String(pendingPickerDate.getMinutes()).padStart(2, '0');
+        updates.bookingDate = `${y}-${mm}-${dd}`;
+        updates.startTime   = `${hh}:${mi}`;
       }
       await updateDoc(doc(db, 'bookings', b.id), updates);
       const confirmed = { ...b, ...updates };
@@ -1635,6 +1649,7 @@ export default function ProfileScreen() {
   const getStatusStyle = (status: string) => {
     if (status === 'active')    return [s.detailPill, s.statusPillActive];
     if (status === 'onway')     return [s.detailPill, s.statusPillOnWay];
+    if (status === 'confirmed') return [s.detailPill, s.statusPillConfirmed];
     if (status === 'done')      return [s.detailPill, s.statusPill];
     if (status === 'cancelled') return [s.detailPill, s.statusPillCancelled];
     return [s.detailPill, s.statusPillPending];
@@ -1643,6 +1658,7 @@ export default function ProfileScreen() {
   const getStatusTextStyle = (status: string) => {
     if (status === 'active')    return s.statusPillTextActive;
     if (status === 'onway')     return s.statusPillTextOnWay;
+    if (status === 'confirmed') return s.statusPillTextConfirmed;
     if (status === 'done')      return s.statusPillText;
     if (status === 'cancelled') return s.statusPillTextCancelled;
     return s.statusPillTextPending;
@@ -1870,12 +1886,13 @@ export default function ProfileScreen() {
           {/* Progress bar — cleaner side only */}
           {forCleaner && (() => {
             const steps = [
-              { key: 'pending', label: '📋 ממתין' },
-              { key: 'onway',   label: '🚗 בדרך' },
-              { key: 'active',  label: '🧹 פעיל' },
-              { key: 'done',    label: '✅ הסתיים' },
+              { key: 'pending',   label: '📋 ממתין' },
+              { key: 'confirmed', label: '✅ אושר' },
+              { key: 'onway',     label: '🚗 בדרך' },
+              { key: 'active',    label: '🧹 פעיל' },
+              { key: 'done',      label: '✅ הסתיים' },
             ];
-            const statusOrder: Record<string, number> = { pending: 0, onway: 1, active: 2, done: 3 };
+            const statusOrder: Record<string, number> = { pending: 0, confirmed: 1, onway: 2, active: 3, done: 4 };
             const currentIdx = statusOrder[b.status] ?? 0;
             return (
               <View style={{ marginTop: 10, marginBottom: 2 }}>
@@ -1926,7 +1943,7 @@ export default function ProfileScreen() {
           {/* תשלום אושר */}
           {b.paymentStatus === 'paid' && (
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: '#D1FAE5', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 5 }}>
-              <T style={{ fontSize: 12, fontWeight: '800', color: '#065F46' }}>✅ תשלום אושר</T>
+              <T style={{ fontSize: 12, fontWeight: '800', color: '#065F46' }}>{t.paymentApproved}</T>
             </View>
           )}
         </View>
@@ -2006,7 +2023,7 @@ export default function ProfileScreen() {
         )}
         {forCleaner && b.paymentStatus === 'paid' && (
           <View style={{ marginTop: 8, backgroundColor: '#D1FAE5', borderRadius: 10, padding: 8, alignItems: 'center' }}>
-            <T style={{ color: '#065F46', fontWeight: '700', fontSize: 13 }}>✅ תשלום אושר</T>
+            <T style={{ color: '#065F46', fontWeight: '700', fontSize: 13 }}>{t.paymentApproved}</T>
           </View>
         )}
 
@@ -2114,7 +2131,7 @@ export default function ProfileScreen() {
         onRequestClose={() => setPendingConfirmBooking(null)}
       >
         <SafeAreaView style={{ flex: 1, backgroundColor: C.bg }} edges={['top','left','right']}>
-          <KeyboardAvoidingView style={{ flex: 1 }} behavior="padding" keyboardVerticalOffset={0}>
+          <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'} keyboardVerticalOffset={0}>
 
             {/* ─── Header ─── */}
             <View style={{ backgroundColor: '#FFF7ED', paddingHorizontal: 16, paddingVertical: 12, borderBottomWidth: 1.5, borderBottomColor: '#FED7AA' }}>
@@ -2159,7 +2176,7 @@ export default function ProfileScreen() {
 
                     {/* בחירת תאריך */}
                     <View style={{ gap: 4 }}>
-                      <T style={{ fontSize: 12, fontWeight: '700', color: C.textSub }}>📅 תאריך</T>
+                      <T style={{ fontSize: 12, fontWeight: '700', color: C.textSub }}>{t.dateShort}</T>
                       <TouchableOpacity
                         style={{ backgroundColor: C.bg, borderRadius: 10, borderWidth: 1.5, borderColor: C.blueBorder, paddingHorizontal: 14, paddingVertical: 12, alignItems: 'center' }}
                         onPress={() => { setShowTimePicker(false); setShowDatePicker(true); }}
@@ -2192,7 +2209,7 @@ export default function ProfileScreen() {
 
                     {/* בחירת שעה */}
                     <View style={{ gap: 4 }}>
-                      <T style={{ fontSize: 12, fontWeight: '700', color: C.textSub }}>🕐 שעה</T>
+                      <T style={{ fontSize: 12, fontWeight: '700', color: C.textSub }}>{t.timeShort}</T>
                       <TouchableOpacity
                         style={{ backgroundColor: C.bg, borderRadius: 10, borderWidth: 1.5, borderColor: C.blueBorder, paddingHorizontal: 14, paddingVertical: 12, alignItems: 'center' }}
                         onPress={() => { setShowDatePicker(false); setShowTimePicker(true); }}
@@ -2234,7 +2251,7 @@ export default function ProfileScreen() {
                 )}
 
                 {/* ─── צ'אט ─── */}
-                <T style={{ fontSize: 12, fontWeight: '800', color: C.textSub, paddingHorizontal: 16, marginTop: 10, marginBottom: 2 }}>💬 שיחה עם הלקוח</T>
+                <T style={{ fontSize: 12, fontWeight: '800', color: C.textSub, paddingHorizontal: 16, marginTop: 10, marginBottom: 2 }}>{t.chatWithClient}</T>
                 <FlatList
                   ref={pendingChatScrollRef}
                   data={pendingChatMsgs}
@@ -2269,7 +2286,7 @@ export default function ProfileScreen() {
                     style={{ flex: 1, backgroundColor: C.bg, borderRadius: 20, paddingHorizontal: 14, paddingVertical: 9, fontSize: 14, color: C.textDark, borderWidth: 1, borderColor: C.blueBorder, textAlign: 'right', maxHeight: 70 }}
                     value={pendingChatInput}
                     onChangeText={setPendingChatInput}
-                    placeholder="כתוב הודעה ללקוח..."
+                    placeholder={t.chatInputClientPh}
                     placeholderTextColor={C.textSub}
                     multiline
                     returnKeyType="send"
@@ -2290,7 +2307,7 @@ export default function ProfileScreen() {
                     style={{ flex: 1, backgroundColor: '#10B981', borderRadius: 14, paddingVertical: 14, alignItems: 'center' }}
                     onPress={() => handleConfirmBooking(pendingConfirmBooking)}
                   >
-                    <T style={{ fontSize: 15, fontWeight: '900', color: '#fff' }}>✅ אשר הזמנה</T>
+                    <T style={{ fontSize: 15, fontWeight: '900', color: '#fff' }}>{t.approveBookingBtn}</T>
                   </TouchableOpacity>
                   <TouchableOpacity
                     style={{ flex: 1, backgroundColor: '#FEE2E2', borderRadius: 14, paddingVertical: 14, alignItems: 'center', borderWidth: 1.5, borderColor: '#FCA5A5' }}
@@ -2307,7 +2324,7 @@ export default function ProfileScreen() {
                       ]);
                     }}
                   >
-                    <T style={{ fontSize: 15, fontWeight: '900', color: '#EF4444' }}>❌ דחה</T>
+                    <T style={{ fontSize: 15, fontWeight: '900', color: '#EF4444' }}>{t.rejectBtn}</T>
                   </TouchableOpacity>
                 </View>
               </>
@@ -2397,7 +2414,7 @@ export default function ProfileScreen() {
                     style={{ backgroundColor: C.blue, borderRadius: 14, paddingVertical: 14, alignItems: 'center' }}
                     onPress={() => setActiveBookingDetail(null)}
                   >
-                    <T style={{ fontSize: 15, fontWeight: '900', color: '#fff' }}>סגור</T>
+                    <T style={{ fontSize: 15, fontWeight: '900', color: '#fff' }}>{t.closeBtn}</T>
                   </TouchableOpacity>
                 </>
               );
@@ -2878,13 +2895,13 @@ export default function ProfileScreen() {
           {/* ── הכתובות שלי (לקוח) ── */}
           {!isCleaner && (
             <View style={s.section}>
-              <T style={[s.sectionTitle, { textAlign: 'center' }]}>📍 הכתובות שלי</T>
+              <T style={[s.sectionTitle, { textAlign: 'center' }]}>{t.myAddressesTitle}</T>
 
               {savedAddrs.length === 0 ? (
                 <View style={s.emptyBox}>
                   <T style={{ fontSize: 36, marginBottom: 6 }}>📍</T>
-                  <T style={s.emptyText}>אין כתובות שמורות</T>
-                  <T style={s.emptySubText}>הכתובות שתזמין אליהן ישמרו כאן אוטומטית</T>
+                  <T style={s.emptyText}>{t.noSavedAddrs}</T>
+                  <T style={s.emptySubText}>{t.savedAddrsHint}</T>
                 </View>
               ) : (
                 <View style={{ gap: 10 }}>
@@ -2899,7 +2916,7 @@ export default function ProfileScreen() {
                       {/* כתובת + תווית ראשית */}
                       <View style={{ flex: 1, gap: 2 }}>
                         {a.isPrimary && (
-                          <T style={{ fontSize: 10, fontWeight: '800', color: C.blue }}>⭐ ראשית — תמולא אוטומטית</T>
+                          <T style={{ fontSize: 10, fontWeight: '800', color: C.blue }}>{t.primaryAutoFill}</T>
                         )}
                         <T style={{ fontSize: 13, fontWeight: '700', color: C.textDark }}>{a.address}</T>
                         <T style={{ fontSize: 10, color: C.textSub }}>
@@ -2913,7 +2930,7 @@ export default function ProfileScreen() {
                             style={{ backgroundColor: C.blueLight, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 5 }}
                             onPress={() => handleSetPrimary(a.id)}
                           >
-                            <T style={{ fontSize: 11, fontWeight: '700', color: C.blue }}>⭐ ראשית</T>
+                            <T style={{ fontSize: 11, fontWeight: '700', color: C.blue }}>{t.primaryShort}</T>
                           </TouchableOpacity>
                         )}
                         <TouchableOpacity
@@ -2923,7 +2940,7 @@ export default function ProfileScreen() {
                             { text: t.portfolioDeleteBtn, style: 'destructive', onPress: () => handleDeleteAddr(a.id) },
                           ])}
                         >
-                          <T style={{ fontSize: 11, fontWeight: '700', color: '#EF4444' }}>✕ מחק</T>
+                          <T style={{ fontSize: 11, fontWeight: '700', color: '#EF4444' }}>{t.deleteX}</T>
                         </TouchableOpacity>
                       </View>
                     </View>
@@ -2940,7 +2957,7 @@ export default function ProfileScreen() {
                       fontSize: 14, color: C.textDark, borderWidth: 1, borderColor: C.blueBorder,
                       textAlign: 'right',
                     }}
-                    placeholder="הוסף כתובת חדשה (כולל מספר בית)"
+                    placeholder={t.addNewAddrPh}
                     placeholderTextColor={C.textSub}
                     value={newAddrInput}
                     onChangeText={setNewAddrInput}
@@ -2951,7 +2968,7 @@ export default function ProfileScreen() {
                     style={{ backgroundColor: C.blue, borderRadius: 12, padding: 12, alignItems: 'center' }}
                     onPress={handleAddAddr}
                   >
-                    <T style={{ fontSize: 14, fontWeight: '800', color: C.white }}>+ הוסף כתובת</T>
+                    <T style={{ fontSize: 14, fontWeight: '800', color: C.white }}>{t.addAddressBtn}</T>
                   </TouchableOpacity>
                   <T style={{ fontSize: 11, color: C.textSub, textAlign: 'center' }}>
                     {savedAddrs.length}/5 כתובות שמורות
@@ -3050,7 +3067,7 @@ export default function ProfileScreen() {
                     <T style={{ color: C.textSub, textAlign: 'center' }}>{t.paySheetBitNoPhone}</T>
                     <TouchableOpacity onPress={() => { setPaySheetOpen(false); openEditProfile(); }}
                       style={{ backgroundColor: C.blue, borderRadius: 10, paddingHorizontal: 20, paddingVertical: 10 }}>
-                      <T style={{ color: C.white, fontWeight: '700' }}>הגדר עכשיו</T>
+                      <T style={{ color: C.white, fontWeight: '700' }}>{t.setupNow}</T>
                     </TouchableOpacity>
                   </View>
                 )}
@@ -3093,7 +3110,7 @@ export default function ProfileScreen() {
                       style={{ backgroundColor: '#F3E8FF', borderRadius: 14, paddingVertical: 12, alignItems: 'center', borderWidth: 1, borderColor: '#C084FC' }}
                       onPress={() => Linking.openURL(cleanerPayboxLink)}
                     >
-                      <T style={{ color: '#7C3AED', fontWeight: '700', fontSize: 14 }}>פתח Paybox →</T>
+                      <T style={{ color: '#7C3AED', fontWeight: '700', fontSize: 14 }}>{t.openPaybox}</T>
                     </TouchableOpacity>
                   </>
                 ) : (
@@ -3102,7 +3119,7 @@ export default function ProfileScreen() {
                     <T style={{ color: C.textSub, textAlign: 'center' }}>{t.paySheetPayboxNoLink}</T>
                     <TouchableOpacity onPress={() => { setPaySheetOpen(false); openEditProfile(); }}
                       style={{ backgroundColor: '#7C3AED', borderRadius: 10, paddingHorizontal: 20, paddingVertical: 10 }}>
-                      <T style={{ color: C.white, fontWeight: '700' }}>הגדר עכשיו</T>
+                      <T style={{ color: C.white, fontWeight: '700' }}>{t.setupNow}</T>
                     </TouchableOpacity>
                   </View>
                 )}
@@ -3163,7 +3180,7 @@ export default function ProfileScreen() {
                     <T style={{ color: C.textSub, textAlign: 'center' }}>{t.paySheetBankNoDetails}</T>
                     <TouchableOpacity onPress={() => { setPaySheetOpen(false); openEditProfile(); }}
                       style={{ backgroundColor: '#1E3A5F', borderRadius: 10, paddingHorizontal: 20, paddingVertical: 10 }}>
-                      <T style={{ color: C.white, fontWeight: '700' }}>הגדר עכשיו</T>
+                      <T style={{ color: C.white, fontWeight: '700' }}>{t.setupNow}</T>
                     </TouchableOpacity>
                   </View>
                 )}
@@ -3195,7 +3212,7 @@ export default function ProfileScreen() {
           <SafeAreaView edges={['top']} style={{ backgroundColor: C.blue }}>
             <View style={s.header}>
               <TouchableOpacity onPress={() => { setChatOpen(false); if (chatUnsubRef.current) chatUnsubRef.current(); }} style={s.backBtn}>
-                <T style={{ color: C.white, fontSize: 18 }}>✕</T>
+                <MaterialIcons name="arrow-back" size={24} color={C.white} />
               </TouchableOpacity>
               <T style={s.headerTitle}>💬 {chatClientName}</T>
               <View style={{ width: 36 }} />
@@ -3246,12 +3263,17 @@ export default function ProfileScreen() {
           <KeyboardAvoidingView behavior="padding">
             <SafeAreaView edges={['bottom']} style={{ backgroundColor: C.white }}>
               <View style={[s.chatInputRow, { alignItems: 'center', paddingVertical: 8, paddingHorizontal: 8 }]}>
+                {chatIsRecording && (
+                  <View style={{ position: 'absolute', top: -34, left: 0, right: 0, flexDirection: 'row', alignItems: 'center', justifyContent: 'center' }}>
+                    <T style={{ color: '#fff', fontWeight: '800', fontSize: 13, backgroundColor: '#EF4444', paddingHorizontal: 14, paddingVertical: 5, borderRadius: 14, overflow: 'hidden' }}>{t.recordingAudio}</T>
+                  </View>
+                )}
                 <TouchableOpacity style={s.chatSendBtn} onPress={sendCleanerMessage}>
                   <T style={{ color: C.white, fontSize: 18 }}>▶</T>
                 </TouchableOpacity>
                 <TextInput
                   style={s.chatTextInput}
-                  placeholder="כתוב הודעה..."
+                  placeholder={t.chatInputPh}
                   value={chatInput}
                   onChangeText={setChatInput}
                   placeholderTextColor={C.textSub}
@@ -3332,7 +3354,7 @@ export default function ProfileScreen() {
                   <T style={{ fontSize: 48 }}>✅</T>
                   <T style={{ fontSize: 16, fontWeight: '700', color: C.green, textAlign: 'center' }}>{t.insuranceSentMsg}</T>
                   <TouchableOpacity style={[s.insuranceBtnLarge, { marginTop: 8 }]} onPress={() => setInsuranceOpen(false)}>
-                    <T style={s.insuranceBtnLargeText}>סגור</T>
+                    <T style={s.insuranceBtnLargeText}>{t.closeBtn}</T>
                   </TouchableOpacity>
                 </View>
               ) : (
@@ -3401,23 +3423,23 @@ export default function ProfileScreen() {
               {isCleaner && (
                 <View>
                   <T style={ep.label}>{t.editCityLabel}</T>
-                  <TextInput style={ep.input} value={editCity} onChangeText={setEditCity} placeholder="תל אביב, חיפה..." placeholderTextColor={C.textSub} textAlign="right" />
+                  <TextInput style={ep.input} value={editCity} onChangeText={setEditCity} placeholder={t.cityExamplePh} placeholderTextColor={C.textSub} textAlign="right" />
                 </View>
               )}
 
               {/* כתובת מלאה — לקוח בלבד */}
               {!isCleaner && (
                 <View style={{ gap: 10 }}>
-                  <T style={ep.label}>📍 כתובת מגורים</T>
+                  <T style={ep.label}>{t.homeAddressLabel}</T>
 
                   {/* עיר */}
                   <View>
-                    <T style={[ep.label, { fontSize: 12, color: C.textSub }]}>עיר *</T>
+                    <T style={[ep.label, { fontSize: 12, color: C.textSub }]}>{t.cityRequiredLabel}</T>
                     <TextInput
                       style={ep.input}
                       value={editCity}
                       onChangeText={setEditCity}
-                      placeholder="תל אביב, חיפה, ירושלים..."
+                      placeholder={t.cityExamplePh}
                       placeholderTextColor={C.textSub}
                       textAlign="right"
                     />
@@ -3425,12 +3447,12 @@ export default function ProfileScreen() {
 
                   {/* רחוב + מספר בית */}
                   <View>
-                    <T style={[ep.label, { fontSize: 12, color: C.textSub }]}>רחוב + מספר בית *</T>
+                    <T style={[ep.label, { fontSize: 12, color: C.textSub }]}>{t.streetNumLabel}</T>
                     <TextInput
                       style={ep.input}
                       value={editStreet}
                       onChangeText={setEditStreet}
-                      placeholder="לדוג׳: הרצל 15"
+                      placeholder={t.streetExamplePh}
                       placeholderTextColor={C.textSub}
                       textAlign="right"
                     />
@@ -3443,14 +3465,14 @@ export default function ProfileScreen() {
                       onPress={() => setEditAddrPrivate(false)}
                     >
                       <T style={{ fontSize: 16 }}>{!editAddrPrivate ? '🔵' : '⚪'}</T>
-                      <T style={{ fontWeight: '700', color: !editAddrPrivate ? C.white : C.textDark, fontSize: 14 }}>דירה</T>
+                      <T style={{ fontWeight: '700', color: !editAddrPrivate ? C.white : C.textDark, fontSize: 14 }}>{t.apartmentLabel}</T>
                     </TouchableOpacity>
                     <TouchableOpacity
                       style={{ flex: 1, flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: editAddrPrivate ? C.blue : C.bluePale, borderRadius: 12, padding: 12, borderWidth: 1.5, borderColor: editAddrPrivate ? C.blue : C.blueBorder }}
                       onPress={() => setEditAddrPrivate(true)}
                     >
                       <T style={{ fontSize: 16 }}>{editAddrPrivate ? '🔵' : '⚪'}</T>
-                      <T style={{ fontWeight: '700', color: editAddrPrivate ? C.white : C.textDark, fontSize: 14 }}>בית פרטי</T>
+                      <T style={{ fontWeight: '700', color: editAddrPrivate ? C.white : C.textDark, fontSize: 14 }}>{t.privateHouseLabel}</T>
                     </TouchableOpacity>
                   </View>
 
@@ -3458,7 +3480,7 @@ export default function ProfileScreen() {
                   {!editAddrPrivate && (
                     <View style={{ flexDirection: 'row', gap: 10 }}>
                       <View style={{ flex: 1 }}>
-                        <T style={[ep.label, { fontSize: 12, color: C.textSub }]}>קומה *</T>
+                        <T style={[ep.label, { fontSize: 12, color: C.textSub }]}>{t.floorPh}</T>
                         <TextInput
                           style={ep.input}
                           value={editFloor}
@@ -3470,7 +3492,7 @@ export default function ProfileScreen() {
                         />
                       </View>
                       <View style={{ flex: 1 }}>
-                        <T style={[ep.label, { fontSize: 12, color: C.textSub }]}>מספר דירה *</T>
+                        <T style={[ep.label, { fontSize: 12, color: C.textSub }]}>{t.aptNumberPh}</T>
                         <TextInput
                           style={ep.input}
                           value={editApt}
@@ -3487,7 +3509,7 @@ export default function ProfileScreen() {
                   {/* תצוגה מקדימה */}
                   {(editCity || editStreet) && (
                     <View style={{ backgroundColor: C.bluePale, borderRadius: 10, padding: 10, borderWidth: 1, borderColor: C.blueBorder }}>
-                      <T style={{ fontSize: 11, color: C.textSub, marginBottom: 2 }}>כתובת מלאה:</T>
+                      <T style={{ fontSize: 11, color: C.textSub, marginBottom: 2 }}>{t.fullAddrLabel}</T>
                       <T style={{ fontSize: 13, fontWeight: '700', color: C.textDark }}>
                         {[editStreet.trim(), editCity.trim(), editAddrPrivate ? 'בית פרטי' : (editFloor ? `קומה ${editFloor}` : ''), (!editAddrPrivate && editApt) ? `דירה ${editApt}` : ''].filter(Boolean).join(', ')}
                       </T>
@@ -3627,7 +3649,7 @@ export default function ProfileScreen() {
 
               {/* קבוצת וואצאפ */}
               <View style={{ backgroundColor: '#F0FFF4', borderRadius: 12, padding: 14, gap: 8, borderWidth: 1, borderColor: '#A7F3D0' }}>
-                <T style={{ fontSize: 13, fontWeight: '700', color: '#065F46' }}>💬 קבוצת וואצאפ לניקוי דחוף</T>
+                <T style={{ fontSize: 13, fontWeight: '700', color: '#065F46' }}>{t.whatsappGroupTitle}</T>
                 <T style={{ fontSize: 12, color: '#047857', lineHeight: 18 }}>
                   {'הזן את ה-Group ID של הקבוצה שנפתחה עם מנהל האפליקציה.\nהפורמט: XXXXXXXXXX@g.us\n(ניתן לקבל מ-UltraMsg Dashboard → Contacts)'}
                 </T>
@@ -3643,9 +3665,9 @@ export default function ProfileScreen() {
                   textAlign="left"
                 />
                 {editWhatsappGroupId ? (
-                  <T style={{ fontSize: 11, color: '#10B981' }}>✅ בקשות דחופות ישלחו לקבוצה זו</T>
+                  <T style={{ fontSize: 11, color: '#10B981' }}>{t.whatsappGroupActive}</T>
                 ) : (
-                  <T style={{ fontSize: 11, color: '#F59E0B' }}>⚠️ ללא Group ID — הבקשות ישלחו למספר הטלפון שלך</T>
+                  <T style={{ fontSize: 11, color: '#F59E0B' }}>{t.whatsappNoGroup}</T>
                 )}
               </View>
 

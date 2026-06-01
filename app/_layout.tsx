@@ -91,10 +91,10 @@ export default function RootLayout() {
         setReady(true);
         const seg0 = segments[0] as string | undefined;
         const inAuth = seg0 === undefined || seg0 === 'index' || seg0 === 'register';
-        const ADMIN_EMAIL = 'A&M Cleanapp@gmail.com';
+        const ADMIN_EMAILS = ['cleantouchapp@gmail.com'];
         if (!user && !inAuth) router.replace('/');
         else if (user && inAuth) {
-          if (user.email === ADMIN_EMAIL) {
+          if (user.email && ADMIN_EMAILS.includes(user.email.toLowerCase())) {
             router.replace('/admin');
           } else {
             router.replace('/home');

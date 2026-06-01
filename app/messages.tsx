@@ -14,20 +14,19 @@ import {
 import { auth, db } from '../lib/firebase';
 // Firebase Storage לא נדרש — תמונות ואודיו נשמרים כ-base64 ב-Firestore
 import * as ImagePicker from 'expo-image-picker';
-import * as FileSystem from 'expo-file-system';
+import * as FileSystem from 'expo-file-system/legacy';
 import { Image } from 'expo-image';
 import { useLanguage, T, useAppColors, AppColors } from '../lib/LanguageContext';
 import { MaterialIcons } from '@expo/vector-icons';
 
-// expo-av נטען דינמית — לא קורס ב-Expo Go
-let Audio: typeof import('expo-av').Audio | null = null;
-try { Audio = require('expo-av').Audio; } catch (_) {}
+// expo-audio — הקלטה והשמעה של הודעות קוליות (SDK 54, מחליף את expo-av)
+import { useAudioRecorder, createAudioPlayer, RecordingPresets, setAudioModeAsync, AudioModule } from 'expo-audio';
 
 
 function createCS(c: AppColors) {
   return StyleSheet.create({
     header:      { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: c.blueDark, padding: 16 },
-    closeBtn:    { width: 36, height: 36, borderRadius: 18, backgroundColor: 'rgba(255,255,255,0.15)', alignItems: 'center', justifyContent: 'center' },
+    closeBtn:    { width: 42, height: 42, borderRadius: 21, backgroundColor: 'rgba(255,255,255,0.15)', alignItems: 'center', justifyContent: 'center' },
     headerTitle: { fontSize: 16, fontWeight: '800', color: c.white },
     bubble:      { maxWidth: '80%', padding: 12, borderRadius: 16 },
     bubbleMe:    { backgroundColor: c.white, borderWidth: 1, borderColor: c.blueBorder },
@@ -42,7 +41,7 @@ function createS(c: AppColors) {
   return StyleSheet.create({
     wrap:        { flex: 1, backgroundColor: c.bluePale },
     header:      { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: c.blueDark, padding: 16 },
-    backBtn:     { width: 36, height: 36, borderRadius: 18, backgroundColor: 'rgba(255,255,255,0.15)', alignItems: 'center', justifyContent: 'center' },
+    backBtn:     { width: 42, height: 42, borderRadius: 21, backgroundColor: 'rgba(255,255,255,0.15)', alignItems: 'center', justifyContent: 'center' },
     headerTitle: { fontSize: 18, fontWeight: '900', color: c.white },
     center:      { flex: 1, alignItems: 'center', justifyContent: 'center' },
     empty:       { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 32 },
@@ -89,8 +88,8 @@ function InlineChatModal({ chatId, otherUid, otherName, visible, onClose }: any)
   const [isRecording, setIsRecording] = useState(false);
   const [playingId, setPlayingId]     = useState<string | null>(null);
   const [viewerUri, setViewerUri]     = useState<string | null>(null);
-  const recordingRef                  = useRef<any>(null);
-  const soundRef                      = useRef<any>(null);
+  const audioRecorder                 = useAudioRecorder(RecordingPresets.LOW_QUALITY);
+  const playerRef                     = useRef<any>(null);
   const scrollRef                     = useRef<ScrollView>(null);
   const myUid                         = auth.currentUser?.uid || '';
 
@@ -188,24 +187,22 @@ function InlineChatModal({ chatId, otherUid, otherName, visible, onClose }: any)
   };
 
   const startRecording = async () => {
-    if (!Audio) return Alert.alert(t.error, t.audioUnavailableMsg);
     try {
-      const perm = await Audio.requestPermissionsAsync();
+      const perm = await AudioModule.requestRecordingPermissionsAsync();
       if (!perm.granted) return Alert.alert(t.error, t.micPermDenied);
-      await Audio.setAudioModeAsync({ allowsRecordingIOS: true, playsInSilentModeIOS: true });
-      const { recording } = await Audio.Recording.createAsync(Audio.RecordingOptionsPresets.LOW_QUALITY);
-      recordingRef.current = recording;
+      await setAudioModeAsync({ allowsRecording: true, playsInSilentMode: true });
+      await audioRecorder.prepareToRecordAsync();
+      audioRecorder.record();
       setIsRecording(true);
     } catch (_) {}
   };
 
   const stopAndSendRecording = async () => {
-    if (!recordingRef.current) return;
+    if (!audioRecorder.isRecording) { setIsRecording(false); return; }
     setIsRecording(false);
     try {
-      await recordingRef.current.stopAndUnloadAsync();
-      const uri = recordingRef.current.getURI();
-      recordingRef.current = null;
+      await audioRecorder.stop();
+      const uri = audioRecorder.uri;
       if (!uri || !chatId) return;
       // קרא כ-base64 דרך expo-file-system
       const base64Data = await FileSystem.readAsStringAsync(uri, { encoding: 'base64' as any });
@@ -236,25 +233,41 @@ function InlineChatModal({ chatId, otherUid, otherName, visible, onClose }: any)
   };
 
   const playAudio = async (audioBase64: string | undefined, audioUrl: string | undefined, msgId: string) => {
-    if (!Audio) return;
     const src = audioBase64 || audioUrl;
     if (!src) return;
-    if (soundRef.current) {
-      await soundRef.current.unloadAsync().catch(() => {});
-      soundRef.current = null;
+    if (playerRef.current) {
+      try { playerRef.current.remove(); } catch (_) {}
+      playerRef.current = null;
     }
     if (playingId === msgId) { setPlayingId(null); return; }
     try {
-      await Audio.setAudioModeAsync({ allowsRecordingIOS: false, playsInSilentModeIOS: true });
-      const { sound } = await Audio.Sound.createAsync({ uri: src }, { shouldPlay: true });
-      soundRef.current = sound;
+      await setAudioModeAsync({ allowsRecording: false, playsInSilentMode: true });
+      let playSrc = src;
+      // data URI → כתוב לקובץ זמני להשמעה אמינה ב-Android
+      if (src.startsWith('data:')) {
+        const base64 = src.substring(src.indexOf(',') + 1);
+        const path = (FileSystem.cacheDirectory || '') + `voice_${msgId}.m4a`;
+        await FileSystem.writeAsStringAsync(path, base64, { encoding: 'base64' as any });
+        playSrc = path;
+      }
+      const player = createAudioPlayer({ uri: playSrc });
+      playerRef.current = player;
       setPlayingId(msgId);
-      sound.setOnPlaybackStatusUpdate((status: any) => {
-        if (status.isLoaded && status.didJustFinish) {
+      let started = false;
+      const startPlayback = () => {
+        if (started || !player.isLoaded) return;
+        started = true;
+        try { player.volume = 1.0; player.play(); } catch (_) {}
+      };
+      player.addListener('playbackStatusUpdate', (status: any) => {
+        if (status?.isLoaded) startPlayback();
+        if (status?.didJustFinish) {
           setPlayingId(null);
-          soundRef.current = null;
+          try { player.remove(); } catch (_) {}
+          playerRef.current = null;
         }
       });
+      startPlayback();
     } catch (_) { Alert.alert(t.error, t.audioPlayError); }
   };
 
@@ -343,7 +356,7 @@ function InlineChatModal({ chatId, otherUid, otherName, visible, onClose }: any)
         ) : (
           <View style={cs.header}>
             <TouchableOpacity onPress={onClose} style={cs.closeBtn}>
-              <T style={{ color: C.white, fontSize: 18 }}>←</T>
+              <MaterialIcons name="arrow-back" size={24} color={C.white} />
             </TouchableOpacity>
             <T style={cs.headerTitle}>{t.chatWithPrefix}{otherName}</T>
             <View style={{ width: 36 }} />
@@ -422,10 +435,10 @@ function InlineChatModal({ chatId, otherUid, otherName, visible, onClose }: any)
           {msgSelecting ? (
             <View style={[cs.inputRow, { justifyContent: 'space-between', backgroundColor: '#FEF2F2', borderColor: '#FCA5A5' }]}>
               <TouchableOpacity onPress={cancelSelection} style={{ paddingHorizontal: 16, paddingVertical: 10 }}>
-                <T style={{ color: '#64748B', fontWeight: '700', fontSize: 14 }}>ביטול</T>
+                <T style={{ color: '#64748B', fontWeight: '700', fontSize: 14 }}>{t.cancel}</T>
               </TouchableOpacity>
               <T style={{ color: '#64748B', fontSize: 13, fontWeight: '600' }}>
-                {selectedMsgs.size > 0 ? `${selectedMsgs.size} הודעות נבחרו` : 'לחץ לבחור הודעה'}
+                {selectedMsgs.size > 0 ? `${selectedMsgs.size} ${t.msgsSelectedSuffix}` : t.tapToSelectMsg}
               </T>
               <TouchableOpacity
                 onPress={deleteSelected}
@@ -437,12 +450,17 @@ function InlineChatModal({ chatId, otherUid, otherName, visible, onClose }: any)
               >
                 {deleting
                   ? <ActivityIndicator size="small" color="#fff" />
-                  : <T style={{ color: selectedMsgs.size > 0 ? '#fff' : '#94A3B8', fontWeight: '800', fontSize: 14 }}>🗑 מחק</T>
+                  : <T style={{ color: selectedMsgs.size > 0 ? '#fff' : '#94A3B8', fontWeight: '800', fontSize: 14 }}>{t.deleteBtn}</T>
                 }
               </TouchableOpacity>
             </View>
           ) : (
             <View style={cs.inputRow}>
+              {isRecording && (
+                <View style={{ position: 'absolute', top: -34, left: 0, right: 0, flexDirection: 'row', alignItems: 'center', justifyContent: 'center' }}>
+                  <T style={{ color: '#fff', fontWeight: '800', fontSize: 13, backgroundColor: '#EF4444', paddingHorizontal: 14, paddingVertical: 5, borderRadius: 14, overflow: 'hidden' }}>{t.recordingAudio}</T>
+                </View>
+              )}
               <TouchableOpacity style={cs.sendBtn} onPress={send}>
                 <T style={{ color: C.white, fontSize: 18 }}>◀</T>
               </TouchableOpacity>
@@ -634,7 +652,7 @@ export default function MessagesScreen() {
       ) : (
         <View style={[s.header, { paddingTop: (StatusBar.currentHeight || 0) + 12 }]}>
           <TouchableOpacity onPress={() => router.back()} style={s.backBtn}>
-            <T style={{ color: C.white, fontSize: 20 }}>←</T>
+            <MaterialIcons name="arrow-back" size={24} color={C.white} />
           </TouchableOpacity>
           <T style={s.headerTitle}>{t.messagesTitle}</T>
           <View style={{ width: 36 }} />
@@ -666,10 +684,10 @@ export default function MessagesScreen() {
                 }
               }}>
                 <T style={{ color: '#EF4444', fontSize: 13, fontWeight: '700' }}>
-                  {selectedConvs.size === conversations.length ? '✕ בטל הכל' : '✓ בחר הכל'}
+                  {selectedConvs.size === conversations.length ? t.deselectAll : t.selectAll}
                 </T>
               </TouchableOpacity>
-              <T style={{ color: '#64748B', fontSize: 12 }}>לחיצה ארוכה לבחירה</T>
+              <T style={{ color: '#64748B', fontSize: 12 }}>{t.longPressSelect}</T>
             </View>
           )}
 

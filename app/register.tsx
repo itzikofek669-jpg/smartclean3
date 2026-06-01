@@ -18,6 +18,7 @@ import { doc, setDoc } from 'firebase/firestore';
 import { auth, db } from '../lib/firebase';
 import { useLanguage, T, useAppColors, AppColors } from '../lib/LanguageContext';
 import { Lang } from '../lib/translations';
+import { TERMS_BY_LANG } from '../lib/terms';
 import ServiceInfoBtn from '../lib/ServiceInfoBtn';
 import { MaterialIcons } from '@expo/vector-icons';
 
@@ -36,33 +37,36 @@ function createS(c: AppColors) {
   return StyleSheet.create({
     wrap:            { flex: 1, backgroundColor: c.blueDark },
     hero:            { alignItems: 'center', paddingTop: 28, paddingBottom: 14, position: 'relative' },
-    backBtn:         { position: 'absolute', top: 44, right: 20, width: 52, height: 52, borderRadius: 26, backgroundColor: 'rgba(255,255,255,0.2)', alignItems: 'center', justifyContent: 'center' },
+    backBtn:         { position: 'absolute', top: 44, left: 20, width: 52, height: 52, borderRadius: 26, backgroundColor: 'rgba(255,255,255,0.2)', alignItems: 'center', justifyContent: 'center' },
     logo:            { fontSize: 44, marginBottom: 8 },
     title:           { fontSize: 22, fontWeight: '800', color: c.white },
     card:            { backgroundColor: c.white, borderTopLeftRadius: 32, borderTopRightRadius: 32, flex: 1 },
     cardTitle:       { fontSize: 22, fontWeight: '800', color: c.textDark, marginBottom: 20, textAlign: 'center' },
-    label:           { fontSize: 13, fontWeight: '700', color: c.textDark, marginBottom: 8, textAlign: 'right' },
+    label:           { fontSize: 13, fontWeight: '700', color: c.textDark, marginBottom: 8, textAlign: 'center' },
     field:           { marginBottom: 14 },
-    input:           { backgroundColor: c.blueLight, borderRadius: 12, padding: 14, fontSize: 15, color: c.textDark, borderWidth: 1, borderColor: c.blueBorder },
+    input:           { backgroundColor: c.blueLight, borderRadius: 12, padding: 14, fontSize: 15, color: c.textDark, borderWidth: 1, borderColor: c.blueBorder, textAlign: 'center' },
+    inputError:      { borderColor: '#EF4444', borderWidth: 1.5, backgroundColor: '#FEF2F2' },
+    sectionTitleError: { color: '#EF4444' },
+    checkBoxError:   { borderColor: '#EF4444' },
     roleRow:         { flexDirection: 'row', gap: 12, marginBottom: 20 },
     roleBtn:         { flex: 1, backgroundColor: c.blueLight, borderRadius: 16, padding: 16, alignItems: 'center', borderWidth: 1.5, borderColor: c.blueBorder },
     roleBtnActive:   { borderColor: c.blue, backgroundColor: '#EBF4FF' },
     roleIcon:        { fontSize: 28, marginBottom: 6 },
-    roleLabel:       { fontSize: 16, fontWeight: '800', color: c.textDark, marginBottom: 2 },
+    roleLabel:       { fontSize: 16, fontWeight: '800', color: c.textDark, marginBottom: 2, textAlign: 'center' },
     roleLabelActive: { color: c.blue },
-    roleDesc:        { fontSize: 11, color: c.textSub },
+    roleDesc:        { fontSize: 11, color: c.textSub, textAlign: 'center' },
     clientBlock:     { backgroundColor: c.blueLight, borderRadius: 16, padding: 16, marginBottom: 16, borderWidth: 1, borderColor: c.blueBorder },
     freePromoCard:   { backgroundColor: '#D1FAE5', borderRadius: 14, padding: 14, marginBottom: 16, borderWidth: 1.5, borderColor: '#6EE7B7', alignItems: 'center' },
     freePromoText:   { fontSize: 13, fontWeight: '800', color: '#065F46', textAlign: 'center', lineHeight: 20 },
     cleanerBlock:    { backgroundColor: c.blueLight, borderRadius: 16, padding: 16, marginBottom: 16, borderWidth: 1, borderColor: c.blueBorder },
-    sectionTitle:    { fontSize: 13, fontWeight: '800', color: c.textDark, marginBottom: 10, marginTop: 4, textAlign: 'right' },
+    sectionTitle:    { fontSize: 13, fontWeight: '800', color: c.textDark, marginBottom: 10, marginTop: 4, textAlign: 'center' },
     pillRow:         { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 14 },
-    availRow:        { flexDirection: 'row', alignItems: 'center', paddingVertical: 10, paddingHorizontal: 10, borderBottomWidth: 1, borderBottomColor: c.blueBorder },
+    availRow:        { flexDirection: 'row-reverse', alignItems: 'center', paddingVertical: 10, paddingHorizontal: 10, borderBottomWidth: 1, borderBottomColor: c.blueBorder },
     availDayBtn:     { width: 38, height: 38, borderRadius: 10, backgroundColor: c.white, borderWidth: 1.5, borderColor: c.blueBorder, alignItems: 'center', justifyContent: 'center' },
     availDayBtnActive: { backgroundColor: c.blue, borderColor: c.blue },
     availDayText:    { fontSize: 12, fontWeight: '800', color: c.textDark },
     availDayTextActive: { color: c.white },
-    availTimePickers: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end', gap: 6, paddingLeft: 8 },
+    availTimePickers: { flex: 1, flexDirection: 'row-reverse', alignItems: 'center', justifyContent: 'flex-start', gap: 6, paddingRight: 8 },
     availTimeGroup:  { flexDirection: 'row', alignItems: 'center', gap: 4 },
     availTimeLabel:  { fontSize: 11, fontWeight: '700', color: c.textSub },
     availTimeScroll: { flexDirection: 'row' },
@@ -260,11 +264,11 @@ const TERMS = `תקנון שימוש, מדיניות פרטיות והגבלת �
 
 A&M Clean © 2026 — כל הזכויות שמורות`;
 
-function TermsModal({ visible, onClose, closeLabel, title }: { visible: boolean; onClose: () => void; closeLabel: string; title: string }) {
+function TermsModal({ visible, onClose, closeLabel, title, terms }: { visible: boolean; onClose: () => void; closeLabel: string; title: string; terms: string }) {
   const C = useAppColors();
   const tm = createTM(C);
   return (
-    <Modal visible={visible} animationType="slide" presentationStyle="pageSheet">
+    <Modal visible={visible} animationType="slide" presentationStyle="pageSheet" onRequestClose={onClose}>
       <SafeAreaView style={{ flex: 1, backgroundColor: C.white }}>
         <View style={tm.header}>
           <T style={tm.title}>{title}</T>
@@ -273,7 +277,7 @@ function TermsModal({ visible, onClose, closeLabel, title }: { visible: boolean;
           </TouchableOpacity>
         </View>
         <ScrollView contentContainerStyle={{ padding: 20 }}>
-          <T style={tm.body}>{TERMS}</T>
+          <T style={tm.body}>{terms}</T>
         </ScrollView>
         <View style={{ padding: 16 }}>
           <TouchableOpacity style={tm.agreeBtn} onPress={onClose}>
@@ -285,15 +289,15 @@ function TermsModal({ visible, onClose, closeLabel, title }: { visible: boolean;
   );
 }
 
-function Checkbox({ checked, onPress, label, linkLabel, onLinkPress }: {
+function Checkbox({ checked, onPress, label, linkLabel, onLinkPress, error }: {
   checked: boolean; onPress: () => void;
-  label: string; linkLabel?: string; onLinkPress?: () => void;
+  label: string; linkLabel?: string; onLinkPress?: () => void; error?: boolean;
 }) {
   const C = useAppColors();
   const s = createS(C);
   return (
     <TouchableOpacity style={s.checkRow} onPress={onPress} activeOpacity={0.7}>
-      <View style={[s.checkBox, checked && s.checkBoxOn]}>
+      <View style={[s.checkBox, checked && s.checkBoxOn, error && s.checkBoxError]}>
         {checked && <T style={s.checkMark}>✓</T>}
       </View>
       <T style={s.checkLabel}>
@@ -308,10 +312,10 @@ function Checkbox({ checked, onPress, label, linkLabel, onLinkPress }: {
   );
 }
 
-function SectionTitle({ children }: { children: string }) {
+function SectionTitle({ children, error }: { children: string; error?: boolean }) {
   const C = useAppColors();
   const s = createS(C);
-  return <T style={s.sectionTitle}>{children}</T>;
+  return <T style={[s.sectionTitle, error && s.sectionTitleError]}>{error ? `⚠️ ${children}` : children}</T>;
 }
 
 function TogglePill({ label, active, onPress, devanagari }: { label: string; active: boolean; onPress: () => void; devanagari?: boolean }) {
@@ -420,6 +424,7 @@ export default function RegisterScreen() {
   const [servicePricing, setServicePricing] = useState<Record<string, string>>({});
   const [photoB64,       setPhotoB64]       = useState<string | null>(null);
   const [photoLoading,   setPhotoLoading]   = useState(false);
+  const [submitAttempted, setSubmitAttempted] = useState(false);
   const [citizenship,    setCitizenship]    = useState('');
   const [isMobile,       setIsMobile]       = useState(true);
   const [experience,     setExperience]     = useState('');
@@ -484,11 +489,26 @@ export default function RegisterScreen() {
 
   const canRegister = termsOk && ageOk && privacyOk && (role === 'client' || (types.length > 0 && payment.length > 0 && workAreas.length > 0 && !!photoB64));
 
+  // ── סימון אדום לשדות חסרים אחרי ניסיון הרשמה ──
+  const fphone    = phone.replace(/[-\s]/g, '');
+  const missName  = submitAttempted && !name.trim();
+  const missEmail = submitAttempted && !email.trim();
+  const missPass  = submitAttempted && password.length < 6;
+  const missPhone = submitAttempted && !/^0\d{8,9}$/.test(fphone);
+  const missTerms = submitAttempted && !termsOk;
+  const missAge   = submitAttempted && !ageOk;
+  const missPriv  = submitAttempted && !privacyOk;
+  const missPhoto = submitAttempted && role === 'cleaner' && !photoB64;
+  const missTypes = submitAttempted && role === 'cleaner' && types.length === 0;
+  const missPay   = submitAttempted && role === 'cleaner' && payment.length === 0;
+  const missAreas = submitAttempted && role === 'cleaner' && workAreas.length === 0;
+
   const handleRegister = async () => {
+    setSubmitAttempted(true);
     if (!name.trim() || !email.trim() || password.length < 6)
       return Alert.alert(t.error, t.regErrFillFields);
     if (!phone.trim() || !/^0\d{8,9}$/.test(phone.replace(/[-\s]/g, '')))
-      return Alert.alert(t.error, 'יש להזין מספר טלפון נייד תקין (לדוגמה: 0501234567)');
+      return Alert.alert(t.error, t.regErrPhone);
     if (!termsOk)
       return Alert.alert(t.error, t.regErrTerms);
     if (!ageOk)
@@ -512,8 +532,8 @@ export default function RegisterScreen() {
         e.code === 'auth/email-already-in-use' ? `${t.regErrEmailInUse}\n\nנסה להתחבר עם המייל הזה במקום` :
         e.code === 'auth/invalid-email'         ? t.regErrInvalidEmail :
         e.code === 'auth/weak-password'         ? t.regErrWeakPassword :
-        e.code === 'auth/network-request-failed' ? 'אין חיבור לאינטרנט' :
-        e.code === 'auth/too-many-requests'      ? 'יותר מדי ניסיונות, נסה שוב מאוחר יותר' :
+        e.code === 'auth/network-request-failed' ? t.errNoInternet :
+        e.code === 'auth/too-many-requests'      ? t.errTooMany :
         `שגיאת הרשמה (${e.code || e.message || 'unknown'})`;
       Alert.alert(t.error, msg);
       setLoading(false);
@@ -614,6 +634,25 @@ await setDoc(doc(db, 'users', cred.user.uid), data);
           }
         } catch (_) {}
       }
+
+      // ── מנקה: הצג הסבר חשוב ואז בקש הרשאות מיקום + התראות ──
+      if (role === 'cleaner') {
+        const requestCleanerPermissions = async () => {
+          try {
+            const Notifications = await import('expo-notifications');
+            const notif = await Notifications.getPermissionsAsync();
+            if (notif.status !== 'granted') await Notifications.requestPermissionsAsync();
+          } catch (_) {}
+          try {
+            const Location = await import('expo-location');
+            const loc = await Location.getForegroundPermissionsAsync();
+            if (loc.status !== 'granted') await Location.requestForegroundPermissionsAsync();
+          } catch (_) {}
+        };
+        Alert.alert(t.cleanerPermTitle, t.cleanerPermBody, [
+          { text: t.cleanerPermBtn, onPress: () => { requestCleanerPermissions(); } },
+        ]);
+      }
     } catch (e: any) {
       console.error('[REGISTER FIRESTORE ERROR]', e.code, e.message);
       Alert.alert(t.error, `שגיאת שמירת פרופיל (${e.code || e.message || 'unknown'})\nהחשבון נוצר — נסה להתחבר ולפנות לתמיכה`);
@@ -632,11 +671,10 @@ await setDoc(doc(db, 'users', cred.user.uid), data);
             <MaterialIcons name="arrow-back" size={30} color="#FFFFFF" />
           </TouchableOpacity>
           <RNImage
-            source={require('../assets/images/logo-ui.png')}
-            style={{ width: 80, height: 80, marginBottom: 4 }}
+            source={require('../assets/images/logo-white.png')}
+            style={{ width: 210, height: 173 }}
             resizeMode="contain"
           />
-          <T style={s.title}>{t.joinTitle}</T>
         </View>
 
         <ScrollView
@@ -665,26 +703,26 @@ await setDoc(doc(db, 'users', cred.user.uid), data);
           {/* שדות בסיס */}
           <View style={s.field}>
             <T style={s.label}>{t.fullNameLabel}</T>
-            <TextInput style={s.input} placeholder={t.namePlaceholder} value={name} onChangeText={setName} placeholderTextColor={C.sub} textAlign="right" />
+            <TextInput style={[s.input, missName && s.inputError]} placeholder={t.namePlaceholder} value={name} onChangeText={setName} placeholderTextColor={C.sub} textAlign="center" />
           </View>
           <View style={s.field}>
             <T style={s.label}>{t.emailLabel}</T>
-            <TextInput style={s.input} placeholder="your@email.com" value={email} onChangeText={setEmail} keyboardType="email-address" autoCapitalize="none" placeholderTextColor={C.sub} textAlign="right" />
+            <TextInput style={[s.input, missEmail && s.inputError]} placeholder="your@email.com" value={email} onChangeText={setEmail} keyboardType="email-address" autoCapitalize="none" placeholderTextColor={C.sub} textAlign="center" />
           </View>
           <View style={s.field}>
             <T style={s.label}>{t.passwordLabel}</T>
-            <TextInput style={s.input} placeholder={t.passwordHint} value={password} onChangeText={setPassword} secureTextEntry placeholderTextColor={C.sub} textAlign="right" />
+            <TextInput style={[s.input, missPass && s.inputError]} placeholder={t.passwordHint} value={password} onChangeText={setPassword} secureTextEntry placeholderTextColor={C.sub} textAlign="center" />
           </View>
           <View style={s.field}>
             <T style={s.label}>📱 {t.phoneLabel} *</T>
             <TextInput
-              style={s.input}
+              style={[s.input, missPhone && s.inputError]}
               placeholder="0501234567"
               value={phone}
               onChangeText={setPhone}
               keyboardType="phone-pad"
               placeholderTextColor={C.sub}
-              textAlign="right"
+              textAlign="center"
               maxLength={10}
             />
           </View>
@@ -697,11 +735,11 @@ await setDoc(doc(db, 'users', cred.user.uid), data);
               </View>
             <View style={s.clientBlock}>
               <View style={s.field}>
-                <T style={s.label}>📍 כתובת מגורים (רחוב, מספר, עיר)</T>
+                <T style={s.label}>{t.clientAddressLabel}</T>
                 <TextInput
-                  style={s.input} placeholder="רחוב הרצל 5, תל אביב"
+                  style={s.input} placeholder={t.addressPlaceholder}
                   value={city} onChangeText={handleCityChange}
-                  placeholderTextColor={C.sub} textAlign="right"
+                  placeholderTextColor={C.sub} textAlign="center"
                 />
                 {addrSuggestions.length > 0 && (
                   <View style={s.addrDropdown}>
@@ -718,13 +756,13 @@ await setDoc(doc(db, 'users', cred.user.uid), data);
                 )}
               </View>
               <SectionTitle>{t.prefLangSection}</SectionTitle>
-              <View style={s.pillRow}>
+              <View style={[s.pillRow, { justifyContent: 'center' }]}>
                 {LANG_OPTS.map(l => (
                   <TogglePill
                     key={l.key}
                     label={`${l.flag} ${l.label}`}
                     active={prefLang === l.key}
-                    onPress={() => setPrefLang(l.key)}
+                    onPress={() => { setPrefLang(l.key); setLang(l.key as Lang); }}
                     devanagari={false}
                   />
                 ))}
@@ -749,7 +787,7 @@ await setDoc(doc(db, 'users', cred.user.uid), data);
                     {photoB64 ? (
                       <Image source={{ uri: photoB64 }} style={s.photoPickerImg} contentFit="cover" />
                     ) : (
-                      <View style={s.photoPickerPlaceholder}>
+                      <View style={[s.photoPickerPlaceholder, missPhoto && { borderColor: '#EF4444', backgroundColor: '#FEF2F2' }]}>
                         <T style={{ fontSize: 36 }}>📷</T>
                       </View>
                     )}
@@ -757,19 +795,19 @@ await setDoc(doc(db, 'users', cred.user.uid), data);
                       <T style={{ fontSize: 14 }}>✏️</T>
                     </View>
                   </TouchableOpacity>
-                  <T style={s.photoPickerLabel}>
+                  <T style={[s.photoPickerLabel, missPhoto && { color: '#EF4444' }]}>
                     {photoB64 ? t.photoAdded : t.photoRequiredMsg}
                   </T>
                 </View>
 
                 <View style={s.field}>
                   <T style={s.label}>{t.citizenshipLabel}</T>
-                  <TextInput style={s.input} placeholder={t.citizenshipPlaceholder} value={citizenship} onChangeText={setCitizenship} placeholderTextColor={C.sub} textAlign="right" />
+                  <TextInput style={s.input} placeholder={t.citizenshipPlaceholder} value={citizenship} onChangeText={setCitizenship} placeholderTextColor={C.sub} textAlign="center" />
                 </View>
 
                 <View style={s.field}>
                   <T style={s.label}>{t.ageLabel}</T>
-                  <TextInput style={s.input} placeholder={t.agePlaceholder} value={cleanerAge} onChangeText={setCleanerAge} keyboardType="numeric" placeholderTextColor={C.sub} textAlign="right" />
+                  <TextInput style={s.input} placeholder={t.agePlaceholder} value={cleanerAge} onChangeText={setCleanerAge} keyboardType="numeric" placeholderTextColor={C.sub} textAlign="center" />
                 </View>
 
                 <View style={s.field}>
@@ -790,13 +828,13 @@ await setDoc(doc(db, 'users', cred.user.uid), data);
 
                 <View style={s.field}>
                   <T style={s.label}>{t.cleanerAddressLabel}</T>
-                  <TextInput style={s.input} placeholder={t.cleanerAddressPlaceholder} value={cleanerAddress} onChangeText={setCleanerAddress} placeholderTextColor={C.sub} textAlign="right" />
+                  <TextInput style={s.input} placeholder={t.cleanerAddressPlaceholder} value={cleanerAddress} onChangeText={setCleanerAddress} placeholderTextColor={C.sub} textAlign="center" />
                 </View>
 
                 {/* מרחק הגעה מקסימלי */}
                 <View style={s.field}>
-                  <T style={s.label}>📍 מרחק הגעה מקסימלי מהכתובת שלי</T>
-                  <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 4 }}>
+                  <T style={s.label}>{t.maxDistanceLabel}</T>
+                  <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 4, justifyContent: 'center' }}>
                     {[5, 10, 20, 30, 50, 999].map(km => (
                       <TouchableOpacity
                         key={km}
@@ -804,7 +842,7 @@ await setDoc(doc(db, 'users', cred.user.uid), data);
                         onPress={() => setMaxDistance(km)}
                       >
                         <T style={[s.pillText, maxDistance === km && s.pillTextActive]}>
-                          {km === 999 ? 'ללא הגבלה' : `${km} ק"מ`}
+                          {km === 999 ? t.noLimit : `${km} ${t.kmUnit}`}
                         </T>
                       </TouchableOpacity>
                     ))}
@@ -835,7 +873,7 @@ await setDoc(doc(db, 'users', cred.user.uid), data);
                         setBio(words.slice(0, 30).join(' '));
                       }
                     }}
-                    multiline placeholderTextColor={C.sub} textAlign="right"
+                    multiline placeholderTextColor={C.sub} textAlign="center"
                   />
                   <T style={{ fontSize: 11, color: C.sub, textAlign: 'right', marginTop: 4 }}>{t.bioWordLimitHint}</T>
                 </View>
@@ -857,7 +895,7 @@ await setDoc(doc(db, 'users', cred.user.uid), data);
                 </View>
 
                 {/* סוגי שירות + מחיר לשעה */}
-                <SectionTitle>מחיר לשעה לפי שירותים (₪)</SectionTitle>
+                <SectionTitle error={missTypes}>{t.servicePricingLabel}</SectionTitle>
                 <View style={{ gap: 8, marginBottom: 14 }}>
                   {SERVICE_TYPES.map(svc => {
                     const active = types.includes(svc.key);
@@ -890,8 +928,8 @@ await setDoc(doc(db, 'users', cred.user.uid), data);
                   })}
                 </View>
 
-                <SectionTitle>{t.paymentSection}</SectionTitle>
-                <View style={s.pillRow}>
+                <SectionTitle error={missPay}>{t.paymentSection}</SectionTitle>
+                <View style={[s.pillRow, { justifyContent: 'center' }]}>
                   {PAYMENT_OPTS.map(p => (
                     <TogglePill key={p.key}
                       label={`${p.icon} ${p.key === 'cash' ? t.payCash : p.key === 'bit' ? t.payBit : p.key === 'paybox' ? t.payPaybox : t.payBank}`}
@@ -899,8 +937,8 @@ await setDoc(doc(db, 'users', cred.user.uid), data);
                   ))}
                 </View>
 
-                <SectionTitle>{`📍 ${t.workAreasTitle}`}</SectionTitle>
-                <View style={s.pillRow}>
+                <SectionTitle error={missAreas}>{`📍 ${t.workAreasTitle}`}</SectionTitle>
+                <View style={[s.pillRow, { justifyContent: 'center' }]}>
                   {AREA_OPTS.map(a => (
                     <TogglePill key={a.key}
                       label={a.key === 'north' ? t.regionNorth : a.key === 'center' ? t.regionCenter : t.regionSouth}
@@ -928,7 +966,7 @@ await setDoc(doc(db, 'users', cred.user.uid), data);
                         {info.active ? (
                           <View style={s.availTimePickers}>
                             <View style={s.availTimeGroup}>
-                              <T style={s.availTimeLabel}>מ-</T>
+                              <T style={s.availTimeLabel}>{t.availFromShort}</T>
                               <TextInput
                                 style={s.availTimeInput}
                                 value={String(info.start)}
@@ -941,7 +979,7 @@ await setDoc(doc(db, 'users', cred.user.uid), data);
                                 selectTextOnFocus
                               />
                             </View>
-                            <T style={{ fontSize: 14, color: C.textSub, marginHorizontal: 2 }}>עד</T>
+                            <T style={{ fontSize: 14, color: C.textSub, marginHorizontal: 2 }}>{t.availUntilShort}</T>
                             <View style={s.availTimeGroup}>
                               <TextInput
                                 style={s.availTimeInput}
@@ -957,7 +995,7 @@ await setDoc(doc(db, 'users', cred.user.uid), data);
                             </View>
                           </View>
                         ) : (
-                          <T style={{ flex: 1, fontSize: 12, color: C.textSub, paddingLeft: 10 }}>לא עובד</T>
+                          <T style={{ flex: 1, fontSize: 12, color: C.textSub, paddingLeft: 10 }}>{t.availOff}</T>
                         )}
                       </View>
                     );
@@ -965,13 +1003,13 @@ await setDoc(doc(db, 'users', cred.user.uid), data);
                 </View>
 
                 <SectionTitle>{t.prefLangSection}</SectionTitle>
-                <View style={s.pillRow}>
+                <View style={[s.pillRow, { justifyContent: 'center' }]}>
                   {LANG_OPTS.map(l => (
                     <TogglePill
                       key={l.key}
                       label={`${l.flag} ${l.label}`}
                       active={prefLang === l.key}
-                      onPress={() => setPrefLang(l.key)}
+                      onPress={() => { setPrefLang(l.key); setLang(l.key as Lang); }}
                       devanagari={false}
                     />
                   ))}
@@ -987,20 +1025,23 @@ await setDoc(doc(db, 'users', cred.user.uid), data);
               checked={termsOk} onPress={() => setTermsOk(v => !v)}
               label={t.termsAgreeText} linkLabel={t.termsLinkLabel}
               onLinkPress={() => setShowTerms(true)}
+              error={missTerms}
             />
             <Checkbox
               checked={ageOk} onPress={() => setAgeOk(v => !v)}
               label={role === 'cleaner' ? t.ageCheckCleaner : t.ageCheck18}
+              error={missAge}
             />
             <Checkbox
               checked={privacyOk} onPress={() => setPrivacyOk(v => !v)}
               label={t.privacyConsent}
+              error={missPriv}
             />
           </View>
 
           <TouchableOpacity
             style={[s.btn, (!canRegister || loading) && s.btnDisabled]}
-            onPress={handleRegister} disabled={!canRegister || loading}
+            onPress={handleRegister} disabled={loading}
           >
             <T style={s.btnText}>{loading ? t.registering : t.registerBtn}</T>
           </TouchableOpacity>
@@ -1011,7 +1052,7 @@ await setDoc(doc(db, 'users', cred.user.uid), data);
         </ScrollView>
 
       </KeyboardAvoidingView>
-      <TermsModal visible={showTerms} onClose={() => setShowTerms(false)} closeLabel={t.closeBtn} title={t.termsLinkLabel} />
+      <TermsModal visible={showTerms} onClose={() => setShowTerms(false)} closeLabel={t.closeBtn} title={t.termsLinkLabel} terms={TERMS_BY_LANG[lang] ?? TERMS_BY_LANG.he} />
       <View style={{ height: NAV_BAR_HEIGHT }} />
     </SafeAreaView>
   );

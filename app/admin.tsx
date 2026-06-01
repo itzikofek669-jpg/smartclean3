@@ -9,6 +9,7 @@ import {
   updateDoc, doc, addDoc, deleteDoc,
 } from 'firebase/firestore';
 import { signOut } from 'firebase/auth';
+import * as SecureStore from 'expo-secure-store';
 import { db, auth } from '../lib/firebase';
 import { useRouter } from 'expo-router';
 import { useLanguage, T } from '../lib/LanguageContext';
@@ -57,7 +58,7 @@ const HC_ADMIN = {
 };
 
 const TABS = ['📊 דשבורד', '✨ מנקים', '👤 לקוחות', '📋 הזמנות', '🚨 דיווחים', '🛠️ כלים'];
-const ADMIN_EMAIL = 'itzikofek669@gmail.com';
+const ADMIN_EMAIL = 'cleantouchapp@gmail.com';
 
 const STATUS_COLORS: Record<string, { bg: string; text: string }> = {
   pending:   { bg: '#FEF3C7', text: '#92400E' },
@@ -107,8 +108,8 @@ export default function AdminScreen() {
 
   useEffect(() => {
     // הגנה — רק אדמין מורשה
-    const currentEmail = auth.currentUser?.email || '';
-    const ADMIN_EMAILS = ['cleantouchapp@gmail.com', 'itzikofek669@gmail.com'];
+    const currentEmail = (auth.currentUser?.email || '').toLowerCase();
+    const ADMIN_EMAILS = ['cleantouchapp@gmail.com'];
     if (!ADMIN_EMAILS.includes(currentEmail)) {
       router.replace('/home');
       return;
@@ -187,6 +188,24 @@ export default function AdminScreen() {
     ]);
   };
 
+  const handleDeleteUser = (uid: string, name: string, role: string) => {
+    const roleLabel = role === 'cleaner' ? 'המנקה' : 'הלקוח';
+    Alert.alert(
+      `מחיקת ${roleLabel}`,
+      `למחוק לצמיתות את ${name || roleLabel}?\n\nהפעולה אינה הפיכה — הפרופיל יוסר מהמערכת. (חשבון ההתחברות עצמו לא נמחק.)`,
+      [
+        { text: 'ביטול', style: 'cancel' },
+        { text: '🗑️ מחק', style: 'destructive', onPress: async () => {
+          try {
+            await deleteDoc(doc(db, 'users', uid));
+          } catch (e) {
+            Alert.alert('שגיאה', 'מחיקה נכשלה — נסה שוב');
+          }
+        }},
+      ]
+    );
+  };
+
   const handleCancelBooking = (bookingId: string) => {
     Alert.alert('ביטול הזמנה', 'האם לבטל הזמנה זו?', [
       { text: 'לא', style: 'cancel' },
@@ -262,6 +281,8 @@ export default function AdminScreen() {
     Alert.alert('התנתקות', 'להתנתק מחשבון המנהל?', [
       { text: 'ביטול', style: 'cancel' },
       { text: 'יציאה', style: 'destructive', onPress: async () => {
+        await SecureStore.deleteItemAsync('remember_email').catch(() => {});
+        await SecureStore.deleteItemAsync('remember_pass').catch(() => {});
         await signOut(auth);
         router.replace('/');
       }},
@@ -332,6 +353,20 @@ export default function AdminScreen() {
         {tab === 0 && (
           <View style={s.tabContent}>
 
+            {/* Dashboard intro */}
+            <View style={s.dashHeader}>
+              <View style={{ flex: 1 }}>
+                <T style={s.dashHeaderTitle}>סקירה כללית</T>
+                <T style={s.dashHeaderSub}>
+                  {now.toLocaleDateString('he-IL', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
+                </T>
+              </View>
+              <View style={s.dashLiveBadge}>
+                <View style={s.dashLiveDot} />
+                <T style={s.dashLiveText}>בזמן אמת</T>
+              </View>
+            </View>
+
             {/* Stat cards row 1 */}
             <View style={s.statsGrid}>
               <StatCard icon="👥" label="סה״כ משתמשים"   value={users.length}    color={C.blue}   />
@@ -348,10 +383,27 @@ export default function AdminScreen() {
               <StatCard icon="❌" label="הזמנות בוטלו"   value={bookings.filter(b => b.status === 'cancelled').length} color={C.red} />
             </View>
 
-            {/* All-time revenue banner */}
+            {/* Revenue banner */}
             <View style={s.revenueBanner}>
               <T style={s.revenueBannerLabel}>💰 הכנסה כוללת מאז השקה</T>
               <T style={s.revenueBannerValue}>₪{allTimeRevenue.toLocaleString()}</T>
+              <View style={s.revenueBannerDivider} />
+              <View style={s.revenueBannerRow}>
+                <View style={s.revenueBannerCell}>
+                  <T style={s.revenueBannerCellValue}>₪{thisMonthRevenue.toLocaleString()}</T>
+                  <T style={s.revenueBannerCellLabel}>החודש</T>
+                </View>
+                <View style={s.revenueBannerCellSep} />
+                <View style={s.revenueBannerCell}>
+                  <T style={s.revenueBannerCellValue}>{bookings.filter(b => b.status === 'done').length}</T>
+                  <T style={s.revenueBannerCellLabel}>הזמנות בוצעו</T>
+                </View>
+                <View style={s.revenueBannerCellSep} />
+                <View style={s.revenueBannerCell}>
+                  <T style={s.revenueBannerCellValue}>{cleaners.length}</T>
+                  <T style={s.revenueBannerCellLabel}>מנקים</T>
+                </View>
+              </View>
             </View>
 
             {/* Revenue chart */}
@@ -440,6 +492,7 @@ export default function AdminScreen() {
                   user={c}
                   isCleaner
                   onBlock={() => handleBlock(c.uid, c.name || 'מנקה', !!c.blocked)}
+                  onDelete={() => handleDeleteUser(c.uid, c.name || 'מנקה', 'cleaner')}
                   extraBookings={bookings.filter(b => b.cleanerUid === c.uid).length}
                 />
               ))}
@@ -464,6 +517,7 @@ export default function AdminScreen() {
                   key={c.uid}
                   user={c}
                   onBlock={() => handleBlock(c.uid, c.name || 'לקוח', !!c.blocked)}
+                  onDelete={() => handleDeleteUser(c.uid, c.name || 'לקוח', 'client')}
                   extraBookings={bookings.filter(b => b.clientUid === c.uid).length}
                 />
               ))}
@@ -636,52 +690,6 @@ export default function AdminScreen() {
               </TouchableOpacity>
             </View>
 
-            {/* Promo codes */}
-            <View style={s.card}>
-              <T style={s.cardTitle}>🏷️ קודי הנחה</T>
-              <View style={{ flexDirection: 'row', gap: 8, marginBottom: 4 }}>
-                <TextInput
-                  style={[s.input, { flex: 2, marginBottom: 0 }]}
-                  value={promoCode}
-                  onChangeText={setPromoCode}
-                  placeholder="קוד (CLEAN20)"
-                  placeholderTextColor={C.sub}
-                  autoCapitalize="characters"
-                />
-                <TextInput
-                  style={[s.input, { flex: 1, marginBottom: 0, textAlign: 'center' }]}
-                  value={promoDiscount}
-                  onChangeText={setPromoDiscount}
-                  placeholder="%"
-                  placeholderTextColor={C.sub}
-                  keyboardType="numeric"
-                />
-                <TouchableOpacity
-                  style={[s.addBtn, promoAdding && { opacity: 0.6 }]}
-                  onPress={handleAddPromo}
-                  disabled={promoAdding}
-                >
-                  <T style={s.addBtnText}>+</T>
-                </TouchableOpacity>
-              </View>
-              {promoCodes.length === 0
-                ? <T style={[s.emptyText, { marginTop: 12 }]}>אין קודים פעילים</T>
-                : promoCodes.map(p => (
-                  <View key={p.id} style={s.promoRow}>
-                    <View style={s.promoChip}>
-                      <T style={s.promoChipText}>{p.code}</T>
-                    </View>
-                    <T style={s.promoDiscount}>{p.discount}% הנחה</T>
-                    <TouchableOpacity
-                      onPress={() => handleDeletePromo(p.id, p.code)}
-                      style={{ padding: 6 }}
-                    >
-                      <T style={{ fontSize: 18 }}>🗑️</T>
-                    </TouchableOpacity>
-                  </View>
-                ))}
-            </View>
-
             {/* App summary */}
             <View style={s.card}>
               <T style={s.cardTitle}>📈 סיכום כולל האפליקציה</T>
@@ -720,16 +728,20 @@ function StatCard({ icon, label, value, color }: {
 }) {
   const { s } = useAdminColors();
   return (
-    <View style={[s.statCard, { borderTopColor: color, borderTopWidth: 3 }]}>
-      <T style={{ fontSize: 24, marginBottom: 4 }}>{icon}</T>
-      <T style={[s.statValue, { color }]}>{value}</T>
-      <T style={s.statLabel}>{label}</T>
+    <View style={[s.statCard, { borderLeftColor: color, borderLeftWidth: 4 }]}>
+      <View style={[s.statIconBadge, { backgroundColor: color + '1A' }]}>
+        <T style={{ fontSize: 22 }}>{icon}</T>
+      </View>
+      <View style={{ flex: 1 }}>
+        <T style={[s.statValue, { color }]} numberOfLines={1}>{value}</T>
+        <T style={s.statLabel} numberOfLines={2}>{label}</T>
+      </View>
     </View>
   );
 }
 
-function UserCard({ user, isCleaner, onBlock, extraBookings }: {
-  user: any; isCleaner?: boolean; onBlock?: () => void; extraBookings?: number;
+function UserCard({ user, isCleaner, onBlock, onDelete, extraBookings }: {
+  user: any; isCleaner?: boolean; onBlock?: () => void; onDelete?: () => void; extraBookings?: number;
 }) {
   const { C, s } = useAdminColors();
   return (
@@ -761,13 +773,20 @@ function UserCard({ user, isCleaner, onBlock, extraBookings }: {
           )}
         </View>
       </View>
-      {onBlock && (
-        <TouchableOpacity style={[s.blockBtn, user.blocked && s.unblockBtn]} onPress={onBlock}>
-          <T style={[s.blockBtnText, user.blocked && s.unblockBtnText]}>
-            {user.blocked ? '🔓 שחרר' : '🚫 חסום'}
-          </T>
-        </TouchableOpacity>
-      )}
+      <View style={{ gap: 6, alignItems: 'stretch' }}>
+        {onBlock && (
+          <TouchableOpacity style={[s.blockBtn, user.blocked && s.unblockBtn]} onPress={onBlock}>
+            <T style={[s.blockBtnText, user.blocked && s.unblockBtnText]}>
+              {user.blocked ? '🔓 שחרר' : '🚫 חסום'}
+            </T>
+          </TouchableOpacity>
+        )}
+        {onDelete && (
+          <TouchableOpacity style={s.deleteBtn} onPress={onDelete}>
+            <T style={s.deleteBtnText}>🗑️ מחק</T>
+          </TouchableOpacity>
+        )}
+      </View>
     </View>
   );
 }
@@ -827,14 +846,29 @@ function createS(c: typeof C_DEFAULT) { return StyleSheet.create({
 
   // Stat cards
   statsGrid:        { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
-  statCard:         { backgroundColor: c.card, borderRadius: 14, padding: 14, flex: 1, minWidth: '44%', gap: 2, elevation: 3, shadowColor: '#000', shadowOpacity: 0.07, shadowRadius: 5, shadowOffset: { width: 0, height: 2 } },
-  statValue:        { fontSize: 24, fontWeight: '900', marginVertical: 2 },
-  statLabel:        { fontSize: 11, color: c.sub, fontWeight: '600' },
+  statCard:         { backgroundColor: c.card, borderRadius: 16, padding: 14, flex: 1, minWidth: '44%', flexDirection: 'row', alignItems: 'center', gap: 11, elevation: 3, shadowColor: '#000', shadowOpacity: 0.07, shadowRadius: 6, shadowOffset: { width: 0, height: 3 } },
+  statIconBadge:    { width: 44, height: 44, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
+  statValue:        { fontSize: 22, fontWeight: '900' },
+  statLabel:        { fontSize: 11, color: c.sub, fontWeight: '600', marginTop: 1 },
 
   // Revenue banner
-  revenueBanner:    { backgroundColor: c.blueDark, borderRadius: 16, padding: 20, alignItems: 'center' },
+  revenueBanner:    { backgroundColor: c.blueDark, borderRadius: 20, padding: 20, alignItems: 'center', elevation: 4, shadowColor: c.blueDark, shadowOpacity: 0.3, shadowRadius: 10, shadowOffset: { width: 0, height: 4 } },
   revenueBannerLabel:{ fontSize: 13, color: 'rgba(255,255,255,0.75)', marginBottom: 6 },
-  revenueBannerValue:{ fontSize: 32, fontWeight: '900', color: '#fff' },
+  revenueBannerValue:{ fontSize: 34, fontWeight: '900', color: '#fff', letterSpacing: 0.5 },
+  revenueBannerDivider: { height: 1, backgroundColor: 'rgba(255,255,255,0.15)', alignSelf: 'stretch', marginVertical: 16 },
+  revenueBannerRow:  { flexDirection: 'row', alignSelf: 'stretch', alignItems: 'center' },
+  revenueBannerCell: { flex: 1, alignItems: 'center', gap: 3 },
+  revenueBannerCellSep: { width: 1, height: 32, backgroundColor: 'rgba(255,255,255,0.15)' },
+  revenueBannerCellValue: { fontSize: 18, fontWeight: '900', color: '#fff' },
+  revenueBannerCellLabel: { fontSize: 11, color: 'rgba(255,255,255,0.7)', fontWeight: '600' },
+
+  // Dashboard header
+  dashHeader:        { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 2 },
+  dashHeaderTitle:   { fontSize: 22, fontWeight: '900', color: c.text },
+  dashHeaderSub:     { fontSize: 12, color: c.sub, fontWeight: '600', marginTop: 2 },
+  dashLiveBadge:     { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: c.greenBg, borderRadius: 20, paddingHorizontal: 12, paddingVertical: 6 },
+  dashLiveDot:       { width: 8, height: 8, borderRadius: 4, backgroundColor: c.green },
+  dashLiveText:      { fontSize: 11, fontWeight: '800', color: c.green },
 
   // Card
   card:             { backgroundColor: c.card, borderRadius: 16, padding: 16, gap: 10, elevation: 2, shadowColor: '#000', shadowOpacity: 0.06, shadowRadius: 4, shadowOffset: { width: 0, height: 2 } },
@@ -842,10 +876,10 @@ function createS(c: typeof C_DEFAULT) { return StyleSheet.create({
   emptyText:        { color: c.sub, textAlign: 'center', paddingVertical: 20, fontSize: 14 },
 
   // Chart
-  chart:            { flexDirection: 'row', alignItems: 'flex-end', gap: 4, height: 150, paddingTop: 16 },
+  chart:            { flexDirection: 'row', alignItems: 'flex-end', gap: 6, height: 150, paddingTop: 16 },
   chartCol:         { flex: 1, alignItems: 'center', gap: 3 },
-  chartBarWrap:     { width: '100%', height: 95, justifyContent: 'flex-end', alignItems: 'center' },
-  chartBar:         { width: '68%', backgroundColor: c.blue, borderRadius: 4 },
+  chartBarWrap:     { width: '100%', height: 95, justifyContent: 'flex-end', alignItems: 'center', backgroundColor: c.blueLight, borderRadius: 8 },
+  chartBar:         { width: '72%', backgroundColor: c.blue, borderTopLeftRadius: 6, borderTopRightRadius: 6, borderBottomLeftRadius: 2, borderBottomRightRadius: 2 },
   chartLabel:       { fontSize: 10, color: c.sub, fontWeight: '600' },
   chartVal:         { fontSize: 9, color: c.blue, fontWeight: '700' },
   chartCount:       { fontSize: 9, color: c.sub },
@@ -882,6 +916,8 @@ function createS(c: typeof C_DEFAULT) { return StyleSheet.create({
   blockBtnText:     { fontSize: 12, fontWeight: '800', color: c.red, textAlign: 'center' },
   unblockBtn:       { backgroundColor: c.greenBg, borderColor: c.green },
   unblockBtnText:   { color: c.green },
+  deleteBtn:        { backgroundColor: c.red, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 8, alignItems: 'center', justifyContent: 'center' },
+  deleteBtnText:    { fontSize: 12, fontWeight: '800', color: '#fff', textAlign: 'center' },
 
   // Booking card
   bookingCard:      { backgroundColor: c.card, borderRadius: 14, padding: 14, flexDirection: 'row', alignItems: 'flex-start', gap: 10, elevation: 2, shadowColor: '#000', shadowOpacity: 0.05, shadowRadius: 4, shadowOffset: { width: 0, height: 1 } },

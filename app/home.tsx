@@ -15,7 +15,7 @@ import * as Location from 'expo-location';
 import { useRouter } from 'expo-router';
 import { signOut } from 'firebase/auth';
 import * as SecureStore from 'expo-secure-store';
-import { collection, addDoc, getDocs, query, where, doc, getDoc, setDoc, onSnapshot, orderBy, updateDoc, arrayUnion } from 'firebase/firestore';
+import { collection, addDoc, getDocs, query, where, doc, getDoc, setDoc, onSnapshot, orderBy, updateDoc, arrayUnion, arrayRemove } from 'firebase/firestore';
 import { auth, db } from '../lib/firebase';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { useLanguage, HC, T, useAppColors, AppColors } from '../lib/LanguageContext';
@@ -24,11 +24,10 @@ import { Lang } from '../lib/translations';
 import AccessibilityModal from '../lib/AccessibilityModal';
 import { MaterialIcons } from '@expo/vector-icons';
 import { TAB_BAR_CONTENT_HEIGHT } from '../lib/BottomTabBar';
-// expo-av נטען דינמית — לא קורס ב-Expo Go אם המודול הנייטיב חסר
-let Audio: typeof import('expo-av').Audio | null = null;
-try { Audio = require('expo-av').Audio; } catch (_) {}
+// expo-audio — הקלטה והשמעה של הודעות קוליות (SDK 54, מחליף את expo-av)
+import { useAudioRecorder, createAudioPlayer, RecordingPresets, setAudioModeAsync, AudioModule } from 'expo-audio';
 import * as ImagePicker from 'expo-image-picker';
-import * as FileSystem from 'expo-file-system';
+import * as FileSystem from 'expo-file-system/legacy';
 
 
 const W = Dimensions.get('window').width;
@@ -723,7 +722,7 @@ function CleanerProfile({ cleaner, visible, onClose, onBook, onChat }: any) {
     <Modal visible={visible} animationType="slide" presentationStyle="pageSheet" onRequestClose={onClose}>
       <SafeAreaView style={{ flex: 1, backgroundColor: C.bluePale }}>
         <View style={s.profileHeader}>
-          <TouchableOpacity onPress={onClose} style={s.closeBtn}><T style={{ color: C.white, fontSize: 18 }}>←</T></TouchableOpacity>
+          <TouchableOpacity onPress={onClose} style={s.closeBtn}><MaterialIcons name="arrow-back" size={24} color={C.white} /></TouchableOpacity>
           <T style={s.profileHeaderTitle}>{t.cleanerProfileTitle}</T>
           <View style={{ width: 36 }} />
         </View>
@@ -1161,6 +1160,7 @@ function CalendarPicker({ visible, value, onChange, onClose }: {
 function MultiCalendarPicker({ selected, onChange, label }: {
   selected: string[]; onChange: (dates: string[]) => void; label: string;
 }) {
+  const { t } = useLanguage();
   const today = new Date(); today.setHours(0,0,0,0);
   const [viewYear,  setViewYear]  = useState(today.getFullYear());
   const [viewMonth, setViewMonth] = useState(today.getMonth());
@@ -1226,7 +1226,7 @@ function MultiCalendarPicker({ selected, onChange, label }: {
             style={{ backgroundColor: '#FEE2E2', borderRadius: 20, paddingHorizontal: 10, paddingVertical: 4 }}
             onPress={() => onChange([])}
           >
-            <Text style={{ fontSize: 12, color: '#EF4444', fontWeight: '700' }}>נקה הכל</Text>
+            <Text style={{ fontSize: 12, color: '#EF4444', fontWeight: '700' }}>{t.clearAll}</Text>
           </TouchableOpacity>
         </View>
       )}
@@ -1432,7 +1432,7 @@ function InlineBookingChat({ open, onToggle, messages, text, onChangeText, onSen
               </TouchableOpacity>
               <TextInput
                 style={{ flex: 1, backgroundColor: '#F9FAFB', borderRadius: 10, paddingHorizontal: 12, paddingVertical: 8, fontSize: 14, color: '#1F2937', borderWidth: 1, borderColor: '#E5E7EB' }}
-                placeholder="כתוב הודעה..."
+                placeholder={t.chatInputPh}
                 value={text}
                 onChangeText={onChangeText}
                 placeholderTextColor="#9CA3AF"
@@ -1530,10 +1530,11 @@ function AddressPicker({ selectedId, onSelect, savedAddresses }: {
   savedAddresses: SavedAddress[];
 }) {
   const C = useAppColors();
+  const { t } = useLanguage();
   if (savedAddresses.length === 0) return null;
   return (
     <View style={{ gap: 6, marginBottom: 8 }}>
-      <T style={{ fontSize: 12, color: C.textSub, fontWeight: '600' }}>כתובות שמורות:</T>
+      <T style={{ fontSize: 12, color: C.textSub, fontWeight: '600' }}>{t.savedAddrLabel}</T>
       <ScrollView horizontal showsHorizontalScrollIndicator={false}>
         <View style={{ flexDirection: 'row', gap: 8 }}>
           {savedAddresses.map(a => {
@@ -1761,6 +1762,33 @@ function BookingModal({ cleaner, visible, onClose, onBookingCreated, prebookData
       } catch (_) {}
     }
 
+    // ── ולידציה: בדיקת חפיפה מצד המנקה ──────────────────────────────────
+    {
+      const cleanerUid = cleaner.uid || cleaner.id;
+      const newStart = selectedDateTime;
+      const newEnd   = new Date(newStart.getTime() + hours * 3600000);
+      const bookingDateStr = bookingDate.toISOString().split('T')[0];
+      try {
+        const cleanerSnap = await getDocs(query(
+          collection(db, 'bookings'),
+          where('cleanerId', '==', cleanerUid),
+          where('bookingDate', '==', bookingDateStr),
+        ));
+        const cleanerOverlap = cleanerSnap.docs.some(d => {
+          const ex = d.data();
+          if (['cancelled', 'done'].includes(ex.status)) return false;
+          const [eh, em] = (ex.startTime || '00:00').split(':').map(Number);
+          const exStart = new Date(bookingDate);
+          exStart.setHours(eh, em, 0, 0);
+          const exEnd = new Date(exStart.getTime() + (ex.hours || 1) * 3600000);
+          return newStart < exEnd && newEnd > exStart;
+        });
+        if (cleanerOverlap) {
+          return Alert.alert('❌ ' + t.overlapTitle, t.cleanerBusyMsg ?? 'המנקה תפוס/ה בשעות אלה — נסה שעה אחרת');
+        }
+      } catch (_) {}
+    }
+
     // ── שמור כתובת ותשלום אחרונים ───────────────────────────────────────
     upsertStructuredAddress({ address, city: addrCity, street: addrStreet, floor: addrFloor, apt: addrApt, isPrivate: addrPrivate }).then(() =>
       getSavedAddresses().then(setSavedAddresses)
@@ -1865,6 +1893,8 @@ function BookingModal({ cleaner, visible, onClose, onBookingCreated, prebookData
             amount: total,
             bitLink,
             senderUid: clientUid,
+            fromUid: clientUid,
+            from: 'client',
             createdAt: new Date().toISOString(),
             bookingId: bookingRef.id,
           });
@@ -1900,8 +1930,11 @@ function BookingModal({ cleaner, visible, onClose, onBookingCreated, prebookData
         }
       } catch (_) {}
       onBookingCreated?.(cleaner.id);
-    } catch (_) {
+    } catch (err: any) {
       setSaving(false);
+      setShowWaiting(false);
+      setBookedDetails(null);
+      Alert.alert(t.error, t.bookingCreateError ?? 'שגיאה ביצירת ההזמנה — נסה שוב');
     }
   };
 
@@ -1911,6 +1944,8 @@ function BookingModal({ cleaner, visible, onClose, onBookingCreated, prebookData
     if (!shouldListen) return;
     const clientUid = auth.currentUser?.uid || '';
     const chatId = [clientUid, bookedDetails!.cleanerUid].sort().join('_');
+    // סמן כנקרא — הסר uid מ-unreadBy
+    updateDoc(doc(db, 'chats', chatId), { unreadBy: arrayRemove(clientUid) }).catch(() => {});
     if (inlineChatUnsubRef.current) inlineChatUnsubRef.current();
     const q = query(collection(db, 'chats', chatId, 'messages'), orderBy('createdAt', 'asc'));
     prevInlineMsgCount.current = 0;
@@ -1977,6 +2012,16 @@ function BookingModal({ cleaner, visible, onClose, onBookingCreated, prebookData
     setCancellingBooking(true);
     try {
       await updateDoc(doc(db, 'bookings', pendingBookingId), { status: 'cancelled' });
+      // הסר busySlot שנוסף בעת יצירת ההזמנה
+      if (bookedDetails?.cleanerUid) {
+        const bSnap = await getDoc(doc(db, 'bookings', pendingBookingId)).catch(() => null);
+        const bData = bSnap?.data?.();
+        if (bData?.busyFrom && bData?.busyUntil) {
+          await updateDoc(doc(db, 'users', bookedDetails.cleanerUid), {
+            busySlots: arrayRemove({ from: bData.busyFrom, until: bData.busyUntil }),
+          }).catch(() => {});
+        }
+      }
     } catch (_) {}
     setCancellingBooking(false);
     setShowWaiting(false);
@@ -2261,7 +2306,7 @@ function BookingModal({ cleaner, visible, onClose, onBookingCreated, prebookData
                 )}
                 {serviceType && SERVICE_DESCRIPTIONS[serviceType] && (
                   <View style={{ backgroundColor: C.bluePale, borderRadius: 12, padding: 12, gap: 4, borderWidth: 1, borderColor: C.blueBorder, marginTop: 4 }}>
-                    <T style={{ fontSize: 12, fontWeight: '800', color: C.textDark, marginBottom: 4 }}>📋 מה כולל השירות:</T>
+                    <T style={{ fontSize: 12, fontWeight: '800', color: C.textDark, marginBottom: 4 }}>{t.serviceIncludesTitle}</T>
                     {SERVICE_DESCRIPTIONS[serviceType].map((line, i) => (
                       <T key={i} style={{ fontSize: 12, color: C.textDark, lineHeight: 20 }}>{line}</T>
                     ))}
@@ -2298,7 +2343,7 @@ function BookingModal({ cleaner, visible, onClose, onBookingCreated, prebookData
               {/* עיר */}
               <TextInput
                 style={[s.input, { textAlign: 'right' }]}
-                placeholder="עיר (אופציונלי)"
+                placeholder={t.cityOptionalPh}
                 value={addrCity}
                 onChangeText={t => { setAddrCity(t); setSelectedAddrId(''); }}
                 placeholderTextColor={C.textSub}
@@ -2306,7 +2351,7 @@ function BookingModal({ cleaner, visible, onClose, onBookingCreated, prebookData
               {/* רחוב + מספר בית */}
               <TextInput
                 style={[s.input, { textAlign: 'right' }]}
-                placeholder="רחוב + מספר בית (לדוג׳: הרצל 15) *"
+                placeholder={t.streetNumberPh}
                 value={addrStreet}
                 onChangeText={t => { setAddrStreet(t); setSelectedAddrId(''); }}
                 placeholderTextColor={C.textSub}
@@ -2318,14 +2363,14 @@ function BookingModal({ cleaner, visible, onClose, onBookingCreated, prebookData
                   onPress={() => setAddrPrivate(false)}
                 >
                   <T style={{ fontSize: 18 }}>{!addrPrivate ? '🔵' : '⚪'}</T>
-                  <T style={{ fontWeight: '700', color: !addrPrivate ? C.white : C.textDark, fontSize: 14 }}>דירה</T>
+                  <T style={{ fontWeight: '700', color: !addrPrivate ? C.white : C.textDark, fontSize: 14 }}>{t.apartmentLabel}</T>
                 </TouchableOpacity>
                 <TouchableOpacity
                   style={{ flex: 1, flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: addrPrivate ? C.blue : C.bluePale, borderRadius: 12, padding: 12, borderWidth: 1.5, borderColor: addrPrivate ? C.blue : C.blueBorder }}
                   onPress={() => setAddrPrivate(true)}
                 >
                   <T style={{ fontSize: 18 }}>{addrPrivate ? '🔵' : '⚪'}</T>
-                  <T style={{ fontWeight: '700', color: addrPrivate ? C.white : C.textDark, fontSize: 14 }}>בית פרטי</T>
+                  <T style={{ fontWeight: '700', color: addrPrivate ? C.white : C.textDark, fontSize: 14 }}>{t.privateHouseLabel}</T>
                 </TouchableOpacity>
               </View>
               {/* קומה + דירה (רק אם לא בית פרטי) */}
@@ -2333,7 +2378,7 @@ function BookingModal({ cleaner, visible, onClose, onBookingCreated, prebookData
                 <View style={{ flexDirection: 'row', gap: 10 }}>
                   <TextInput
                     style={[s.input, { flex: 1, textAlign: 'right' }]}
-                    placeholder="קומה *"
+                    placeholder={t.floorPh}
                     value={addrFloor}
                     onChangeText={t => { setAddrFloor(t); setSelectedAddrId(''); }}
                     keyboardType="numeric"
@@ -2341,7 +2386,7 @@ function BookingModal({ cleaner, visible, onClose, onBookingCreated, prebookData
                   />
                   <TextInput
                     style={[s.input, { flex: 1, textAlign: 'right' }]}
-                    placeholder="מספר דירה *"
+                    placeholder={t.aptNumberPh}
                     value={addrApt}
                     onChangeText={t => { setAddrApt(t); setSelectedAddrId(''); }}
                     keyboardType="numeric"
@@ -2352,7 +2397,7 @@ function BookingModal({ cleaner, visible, onClose, onBookingCreated, prebookData
               {/* תצוגה מקדימה של הכתובת */}
               {(addrCity || addrStreet) && (
                 <View style={{ backgroundColor: C.bluePale, borderRadius: 10, padding: 10, borderWidth: 1, borderColor: C.blueBorder }}>
-                  <T style={{ fontSize: 12, color: C.textSub, marginBottom: 2 }}>כתובת מלאה:</T>
+                  <T style={{ fontSize: 12, color: C.textSub, marginBottom: 2 }}>{t.fullAddrLabel}</T>
                   <T style={{ fontSize: 13, fontWeight: '700', color: C.textDark }}>
                     {buildFullAddress(addrCity, addrStreet, addrFloor, addrApt, addrPrivate) || '—'}
                   </T>
@@ -2414,7 +2459,7 @@ function ChatModal({ cleaner, visible, onClose }: any) {
 
   // ── הקלטה קולית ──
   const [isRecording,  setIsRecording]  = useState(false);
-  const [recordingObj, setRecordingObj] = useState<any>(null);
+  const audioRecorder = useAudioRecorder(RecordingPresets.HIGH_QUALITY);
   const [playingId,    setPlayingId]    = useState<string | null>(null);
   const [viewerUri,    setViewerUri]    = useState<string | null>(null);
   const soundRef = useRef<any>(null);
@@ -2488,24 +2533,22 @@ function ChatModal({ cleaner, visible, onClose }: any) {
   };
 
   const startRecording = async () => {
-    if (!Audio) return Alert.alert(t.error, t.audioUnavailableMsg);
     try {
-      const perm = await Audio.requestPermissionsAsync();
+      const perm = await AudioModule.requestRecordingPermissionsAsync();
       if (!perm.granted) return Alert.alert(t.error, t.micPermDenied);
-      await Audio.setAudioModeAsync({ allowsRecordingIOS: true, playsInSilentModeIOS: true });
-      const { recording } = await Audio.Recording.createAsync(Audio.RecordingOptionsPresets.HIGH_QUALITY);
-      setRecordingObj(recording);
+      await setAudioModeAsync({ allowsRecording: true, playsInSilentMode: true });
+      await audioRecorder.prepareToRecordAsync();
+      audioRecorder.record();
       setIsRecording(true);
     } catch (_) {}
   };
 
   const stopAndSendRecording = async () => {
-    if (!recordingObj) return;
+    if (!audioRecorder.isRecording) { setIsRecording(false); return; }
     setIsRecording(false);
     try {
-      await recordingObj.stopAndUnloadAsync();
-      const uri = recordingObj.getURI();
-      setRecordingObj(null);
+      await audioRecorder.stop();
+      const uri = audioRecorder.uri;
       if (!uri || !chatId) return;
       const base64Data = await FileSystem.readAsStringAsync(uri, { encoding: 'base64' as any });
       if (!base64Data) return;
@@ -2560,23 +2603,39 @@ function ChatModal({ cleaner, visible, onClose }: any) {
   };
 
   const playAudio = async (src: string, msgId: string) => {
-    if (!Audio) return;
+    if (!src) return;
     if (soundRef.current) {
-      await soundRef.current.unloadAsync().catch(() => {});
+      try { soundRef.current.remove(); } catch (_) {}
       soundRef.current = null;
     }
     if (playingId === msgId) { setPlayingId(null); return; }
     try {
-      await Audio.setAudioModeAsync({ allowsRecordingIOS: false, playsInSilentModeIOS: true });
-      const { sound } = await Audio.Sound.createAsync({ uri: src }, { shouldPlay: true });
-      soundRef.current = sound;
+      await setAudioModeAsync({ allowsRecording: false, playsInSilentMode: true });
+      let playSrc = src;
+      if (src.startsWith('data:')) {
+        const base64 = src.substring(src.indexOf(',') + 1);
+        const path = (FileSystem.cacheDirectory || '') + `voice_${msgId}.m4a`;
+        await FileSystem.writeAsStringAsync(path, base64, { encoding: 'base64' as any });
+        playSrc = path;
+      }
+      const player = createAudioPlayer({ uri: playSrc });
+      soundRef.current = player;
       setPlayingId(msgId);
-      sound.setOnPlaybackStatusUpdate((status: any) => {
-        if (status.isLoaded && status.didJustFinish) {
+      let started = false;
+      const startPlayback = () => {
+        if (started || !player.isLoaded) return;
+        started = true;
+        try { player.volume = 1.0; player.play(); } catch (_) {}
+      };
+      player.addListener('playbackStatusUpdate', (status: any) => {
+        if (status?.isLoaded) startPlayback();
+        if (status?.didJustFinish) {
           setPlayingId(null);
+          try { player.remove(); } catch (_) {}
           soundRef.current = null;
         }
       });
+      startPlayback();
     } catch (_) { Alert.alert(t.error, t.audioPlayError); }
   };
 
@@ -2605,7 +2664,7 @@ function ChatModal({ cleaner, visible, onClose }: any) {
                 return (
                   <View key={m.id} style={{ alignItems: 'flex-start' }}>
                     <View style={s.bitCard}>
-                      <T style={s.bitCardTitle}>💙 בקשת תשלום</T>
+                      <T style={s.bitCardTitle}>{t.paymentRequestTitle}</T>
                       <T style={s.bitCardAmount}>₪{m.amount}</T>
                       <TouchableOpacity
                         style={s.bitBtn}
@@ -2663,6 +2722,11 @@ function ChatModal({ cleaner, visible, onClose }: any) {
           </ScrollView>
           <SafeAreaViewCtx edges={['bottom']} style={{ backgroundColor: C.white }}>
             <View style={[s.chatRow, { paddingVertical: 8 }]}>
+              {isRecording && (
+                <View style={{ position: 'absolute', top: -34, left: 0, right: 0, flexDirection: 'row', alignItems: 'center', justifyContent: 'center' }}>
+                  <T style={{ color: '#fff', fontWeight: '800', fontSize: 13, backgroundColor: '#EF4444', paddingHorizontal: 14, paddingVertical: 5, borderRadius: 14, overflow: 'hidden' }}>{t.recordingAudio}</T>
+                </View>
+              )}
               <TouchableOpacity style={s.sendBtn} onPress={send}><T style={{ color: C.white, fontSize: 18 }}>◀</T></TouchableOpacity>
               <TextInput style={s.chatInput} placeholder={t.chatPlaceholder} value={text} onChangeText={setText} placeholderTextColor={C.textSub} textAlign="right" onSubmitEditing={send} />
               <TouchableOpacity
@@ -2742,7 +2806,7 @@ function CleanerCard({ cleaner, selected, onSelect, onProfile, onBook, onChat, i
         {/* שירותים */}
         <View style={{ flexDirection: 'column', gap: 4, marginTop: 2, alignItems: 'center', width: '100%' }}>
           {cleaner.types.map((tp: string) => (
-            <ServiceInfoBtn key={tp} serviceKey={tp} inlinePill pillStyle={[s.typePill, { alignSelf: 'center' }]} pillTextStyle={s.typePillText} label={`${TYPE_ICONS[tp]} ${t.types[tp] || tp}`} hideInfo />
+            <ServiceInfoBtn key={tp} serviceKey={tp} inlinePill pillStyle={[s.typePill, { alignSelf: 'center' }]} pillTextStyle={s.typePillText} label={`${TYPE_ICONS[tp] || '🧹'} ${t.types[tp] || tp}`} hideInfo />
           ))}
         </View>
 
@@ -2777,7 +2841,7 @@ function CleanerCard({ cleaner, selected, onSelect, onProfile, onBook, onChat, i
       </View>
       {isSel && (
         <View style={s.cardExpanded}>
-          <View style={{ flexDirection: 'row', gap: 5, flexWrap: 'nowrap', justifyContent: 'center', marginBottom: 10 }}>
+          <View style={{ flexDirection: 'row', gap: 5, flexWrap: 'wrap', justifyContent: 'center', marginBottom: 10 }}>
             {cleaner.payment.map((p: string) => <View key={p} style={s.payChip}><T style={s.payChipText}>{PAY_ICONS[p] || '💳'} {p === 'bit' ? t.payBit : p === 'cash' ? t.payCash : p === 'paybox' ? t.payPaybox : p === 'bank' ? t.payBank : p === 'card' ? t.payCard : p === 'kochavit' ? ((t as any).payKochavit ?? 'כוכבית') : p}</T></View>)}
           </View>
           <View style={{ flexDirection: flipSide ? 'row-reverse' : 'row', gap: 8 }}>
@@ -2885,7 +2949,7 @@ function QuickRebookModal({ visible, onClose, myBookings, allCleaners, onBook }:
           <TouchableOpacity onPress={onClose} style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: 'rgba(255,255,255,0.25)', alignItems: 'center', justifyContent: 'center' }}>
             <T style={{ color: '#fff', fontSize: 18, fontWeight: '700' }}>✕</T>
           </TouchableOpacity>
-          <T style={{ fontSize: 17, fontWeight: '900', color: '#fff' }}>♻️ הזמנות קודמות</T>
+          <T style={{ fontSize: 17, fontWeight: '900', color: '#fff' }}>{t.prevBookingsTitle}</T>
           <View style={{ width: 36 }} />
         </View>
 
@@ -2893,7 +2957,7 @@ function QuickRebookModal({ visible, onClose, myBookings, allCleaners, onBook }:
           {pastBookings.length === 0 ? (
             <View style={{ alignItems: 'center', paddingVertical: 60, gap: 14 }}>
               <T style={{ fontSize: 52 }}>📋</T>
-              <T style={{ fontSize: 18, fontWeight: '800', color: C.textDark, textAlign: 'center' }}>אין הזמנות קודמות</T>
+              <T style={{ fontSize: 18, fontWeight: '800', color: C.textDark, textAlign: 'center' }}>{t.noPrevBookings}</T>
               <T style={{ fontSize: 14, color: C.textSub, textAlign: 'center', lineHeight: 22 }}>
                 לאחר הזמנה ראשונה תוכל/י לחזור עליה בלחיצה אחת — אותו מנקה, אותה כתובת.
               </T>
@@ -2939,7 +3003,7 @@ function QuickRebookModal({ visible, onClose, myBookings, allCleaners, onBook }:
                       style={{ backgroundColor: '#7C3AED', borderRadius: 12, paddingVertical: 13, alignItems: 'center', marginTop: 2 }}
                       onPress={() => handleRebook(b)}
                     >
-                      <T style={{ fontSize: 14, fontWeight: '900', color: '#fff' }}>♻️ הזמן שוב עם אותו מנקה ›</T>
+                      <T style={{ fontSize: 14, fontWeight: '900', color: '#fff' }}>{t.rebookSameCleaner}</T>
                     </TouchableOpacity>
                   </View>
                 );
@@ -3292,9 +3356,10 @@ export default function HomeScreen() {
     { key: 'south',  label: t.regionSouth  },
   ];
 
+  // מנקים אמיתיים ראשונים (בולטים), ואחריהם מספר מצומצם של מנקי דמו בלבד
   const ALL_CLEANERS = [
-    ...staticCleanerOrderRef.current,
     ...realCleaners.filter(r => !CLEANERS.some(c => c.id === r.id)),
+    ...staticCleanerOrderRef.current.slice(0, 15),
   ];
 
   // ── Search autocomplete ────────────────────────────────────────────────────
@@ -3542,9 +3607,9 @@ export default function HomeScreen() {
     return () => unsub();
   }, []);
 
-  // Load real cleaners from Firestore
+  // Load real cleaners from Firestore — בזמן אמת (מנקה חדש מופיע מיד)
   useEffect(() => {
-    getDocs(query(collection(db, 'users'), where('role', '==', 'cleaner'))).then(snap => {
+    const unsub = onSnapshot(query(collection(db, 'users'), where('role', '==', 'cleaner')), snap => {
       const list = snap.docs.map(d => {
         const data = d.data();
         const coords = getCoordsForCleaner(data);
@@ -3580,10 +3645,11 @@ export default function HomeScreen() {
           uid:           d.id,
         };
       });
-      // ערבוב פעם אחת בטעינה — סדר שונה בכל כניסה לאפליקציה
-      const shuffled = [...list].sort(() => Math.random() - 0.5);
-      setRealCleaners(shuffled);
-    }).catch(() => {});
+      // סדר יציב: זמינים קודם, ואז לפי דירוג ושם (בלי ערבוב שקופץ בכל עדכון)
+      list.sort((a, b) => (Number(b.available) - Number(a.available)) || (b.rating - a.rating) || String(a.name).localeCompare(String(b.name)));
+      setRealCleaners(list);
+    }, () => {});
+    return () => unsub();
   }, []);
 
   // Zoom to user location whenever nearbyMode turns on (or coords arrive while mode is on)
@@ -3910,8 +3976,8 @@ export default function HomeScreen() {
               >
                 <T style={{ fontSize: 26 }}>♻️</T>
                 <View style={{ flex: 1 }}>
-                  <T style={{ color: '#fff', fontSize: 14, fontWeight: '900' }}>הזמנות קודמות</T>
-                  <T style={{ color: 'rgba(255,255,255,0.8)', fontSize: 11, marginTop: 1 }}>הזמן שוב עם מנקה שכבר עבד אצלך</T>
+                  <T style={{ color: '#fff', fontSize: 14, fontWeight: '900' }}>{t.prevBookingsShort}</T>
+                  <T style={{ color: 'rgba(255,255,255,0.8)', fontSize: 11, marginTop: 1 }}>{t.rebookSubtitle}</T>
                 </View>
                 <T style={{ color: 'rgba(255,255,255,0.7)', fontSize: 20 }}>›</T>
               </TouchableOpacity>
@@ -3921,7 +3987,7 @@ export default function HomeScreen() {
               >
                 <T style={{ fontSize: 26 }}>♻️</T>
                 <View style={{ flex: 1 }}>
-                  <T style={{ color: '#6D28D9', fontSize: 13, fontWeight: '800' }}>הזמנות קודמות</T>
+                  <T style={{ color: '#6D28D9', fontSize: 13, fontWeight: '800' }}>{t.prevBookingsShort}</T>
                   <T style={{ color: '#7C3AED', fontSize: 11, marginTop: 2, lineHeight: 16 }}>
                     זמין לאחר הזמנה ראשונה — לחוויה מהירה ונוחה 😊
                   </T>
@@ -3999,7 +4065,7 @@ export default function HomeScreen() {
 
             {/* ── סינון לפי אזור ──────────────────────────────────────────── */}
             <View>
-              <T style={s.fieldLabel}>📍 סינון לפי אזור</T>
+              <T style={s.fieldLabel}>{t.filterByRegion}</T>
               <View style={{ flexDirection: 'row', gap: 8, marginTop: 8, flexWrap: 'wrap' }}>
                 {[
                   { key: 'all',    label: t.regionAll    },
@@ -4022,10 +4088,10 @@ export default function HomeScreen() {
 
             {/* ── חיפוש לפי עיר ───────────────────────────────────────────── */}
             <View>
-              <T style={s.fieldLabel}>🏙️ חיפוש לפי עיר</T>
+              <T style={s.fieldLabel}>{t.searchByCity}</T>
               <TextInput
                 style={[s.input, { marginTop: 8, textAlign: 'right' }]}
-                placeholder="הקלד שם עיר... (חיפה, תל אביב...)"
+                placeholder={t.citySearchPh}
                 placeholderTextColor={C.textSub}
                 value={filterCity}
                 onChangeText={setFilterCity}
@@ -4382,7 +4448,7 @@ export default function HomeScreen() {
 
                 {/* סה"כ */}
                 <View style={{ backgroundColor: '#FEE2E2', borderRadius: 12, padding: 12, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <T style={{ fontSize: 14, color: '#991B1B' }}>סה"כ משוער</T>
+                  <T style={{ fontSize: 14, color: '#991B1B' }}>{t.estimatedTotal}</T>
                   <T style={{ fontSize: 20, fontWeight: '900', color: '#DC2626' }}>₪{urgentHours * 80}</T>
                 </View>
 
@@ -4547,7 +4613,7 @@ function createS(c: AppColors) {
   availPill:    { backgroundColor: c.greenBg, borderRadius: 10, paddingHorizontal: 7, paddingVertical: 2 },
   availPillOff: { backgroundColor: c.grayBg, borderWidth: 1, borderColor: c.grayBorder },
   availPillText:{ fontSize: 10, fontWeight: '700', color: c.green },
-  typePill:     { backgroundColor: c.blueLight, borderRadius: 8, paddingHorizontal: 5, paddingVertical: 2, maxWidth: 120 },
+  typePill:     { backgroundColor: c.blueLight, borderRadius: 8, paddingHorizontal: 5, paddingVertical: 2 },
   typePillText: { fontSize: 9, fontWeight: '600', color: c.blueDark },
   cardExpanded: { marginTop: 12, paddingTop: 12, borderTopWidth: 1, borderColor: c.blueBorder },
   payChip:      { backgroundColor: c.grayBg, borderRadius: 8, paddingHorizontal: 8, paddingVertical: 4, borderWidth: 1, borderColor: c.grayBorder },
@@ -4564,7 +4630,7 @@ function createS(c: AppColors) {
   urgentHeaderBtnText: { fontSize: 13, color: c.white, fontWeight: '900' },
   empty:        { textAlign: 'center', color: c.textSub, fontSize: 14, marginTop: 40 },
   modalHeader:  { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: c.blueDark, padding: 16 },
-  closeBtn:     { width: 36, height: 36, borderRadius: 18, backgroundColor: 'rgba(255,255,255,0.15)', alignItems: 'center', justifyContent: 'center' },
+  closeBtn:     { width: 42, height: 42, borderRadius: 21, backgroundColor: 'rgba(255,255,255,0.15)', alignItems: 'center', justifyContent: 'center' },
   modalTitle:   { fontSize: 16, fontWeight: '800', color: c.white },
   profileHeader:     { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: c.blueDark, padding: 16 },
   profileHeaderTitle:{ fontSize: 16, fontWeight: '800', color: c.white },
