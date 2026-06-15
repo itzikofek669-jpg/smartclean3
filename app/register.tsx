@@ -35,14 +35,14 @@ function createTM(c: AppColors) {
 
 function createS(c: AppColors) {
   return StyleSheet.create({
-    wrap:            { flex: 1, backgroundColor: c.blueDark },
-    hero:            { alignItems: 'center', paddingTop: 28, paddingBottom: 14, position: 'relative' },
-    backBtn:         { position: 'absolute', top: 44, left: 20, width: 52, height: 52, borderRadius: 26, backgroundColor: 'rgba(255,255,255,0.2)', alignItems: 'center', justifyContent: 'center' },
+    wrap:            { flex: 1, backgroundColor: c.white },
+    hero:            { alignItems: 'center', paddingTop: 8, paddingBottom: 4, position: 'relative', backgroundColor: c.white },
+    backBtn:         { position: 'absolute', top: 16, left: 16, width: 48, height: 48, borderRadius: 24, backgroundColor: c.blueLight, borderWidth: 1.5, borderColor: c.blueBorder, alignItems: 'center', justifyContent: 'center', zIndex: 10 },
     logo:            { fontSize: 44, marginBottom: 8 },
     title:           { fontSize: 22, fontWeight: '800', color: c.white },
     card:            { backgroundColor: c.white, borderTopLeftRadius: 32, borderTopRightRadius: 32, flex: 1 },
     cardTitle:       { fontSize: 22, fontWeight: '800', color: c.textDark, marginBottom: 20, textAlign: 'center' },
-    label:           { fontSize: 13, fontWeight: '700', color: c.textDark, marginBottom: 8, textAlign: 'center' },
+    label:           { fontSize: 13, fontWeight: '700', color: c.textDark, marginBottom: 8, textAlign: 'right' },
     field:           { marginBottom: 14 },
     input:           { backgroundColor: c.blueLight, borderRadius: 12, padding: 14, fontSize: 15, color: c.textDark, borderWidth: 1, borderColor: c.blueBorder, textAlign: 'center' },
     inputError:      { borderColor: '#EF4444', borderWidth: 1.5, backgroundColor: '#FEF2F2' },
@@ -59,7 +59,7 @@ function createS(c: AppColors) {
     freePromoCard:   { backgroundColor: '#D1FAE5', borderRadius: 14, padding: 14, marginBottom: 16, borderWidth: 1.5, borderColor: '#6EE7B7', alignItems: 'center' },
     freePromoText:   { fontSize: 13, fontWeight: '800', color: '#065F46', textAlign: 'center', lineHeight: 20 },
     cleanerBlock:    { backgroundColor: c.blueLight, borderRadius: 16, padding: 16, marginBottom: 16, borderWidth: 1, borderColor: c.blueBorder },
-    sectionTitle:    { fontSize: 13, fontWeight: '800', color: c.textDark, marginBottom: 10, marginTop: 4, textAlign: 'center' },
+    sectionTitle:    { fontSize: 13, fontWeight: '800', color: c.textDark, marginBottom: 10, marginTop: 4, textAlign: 'right' },
     pillRow:         { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 14 },
     availRow:        { flexDirection: 'row-reverse', alignItems: 'center', paddingVertical: 10, paddingHorizontal: 10, borderBottomWidth: 1, borderBottomColor: c.blueBorder },
     availDayBtn:     { width: 38, height: 38, borderRadius: 10, backgroundColor: c.white, borderWidth: 1.5, borderColor: c.blueBorder, alignItems: 'center', justifyContent: 'center' },
@@ -119,7 +119,7 @@ const SERVICE_TYPES = [
 const PAYMENT_OPTS = [
   { key: 'cash',   label: 'מזומן',           icon: '💵' },
   { key: 'bit',    label: 'Bit',              icon: '📱' },
-  { key: 'paybox', label: 'PayBox',            icon: '💜' },
+  { key: 'paybox', label: 'PayBox',            icon: '🅿️' },
   { key: 'bank',   label: 'העברה בנקאית',   icon: '🏦' },
 ];
 
@@ -373,6 +373,7 @@ export default function RegisterScreen() {
   const [name,         setName]         = useState('');
   const [email,        setEmail]        = useState('');
   const [password,     setPassword]     = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [showPass, setShowPass] = useState(false);
   const [role,     setRole]     = useState<'client' | 'cleaner'>('client');
   const [loading,  setLoading]  = useState(false);
@@ -381,6 +382,10 @@ export default function RegisterScreen() {
   const [city,           setCity]           = useState('');
   const [addrSuggestions, setAddrSuggestions] = useState<string[]>([]);
   const addrTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // כתובת לקוח — בית פרטי או בניין דירות (בבניין חובה קומה + מספר דירה)
+  const [isPrivateHouse, setIsPrivateHouse] = useState(false);
+  const [clientFloor,    setClientFloor]    = useState('');
+  const [clientApt,      setClientApt]      = useState('');
 
   const fetchAddrSuggestions = (text: string) => {
     if (addrTimer.current) clearTimeout(addrTimer.current);
@@ -430,6 +435,10 @@ export default function RegisterScreen() {
   const [experience,     setExperience]     = useState('');
   const [cleanerAge,     setCleanerAge]     = useState('');
   const [cleanerAddress, setCleanerAddress] = useState('');
+  // כתובת מנקה — בית פרטי או בניין דירות
+  const [cleanerIsPrivate, setCleanerIsPrivate] = useState(true);
+  const [cleanerFloor, setCleanerFloor] = useState('');
+  const [cleanerApt,   setCleanerApt]   = useState('');
   const [maxDistance,    setMaxDistance]    = useState<number>(10);
   const [bringSupplies,  setBringSupplies]  = useState(true);
 
@@ -515,6 +524,17 @@ export default function RegisterScreen() {
       return Alert.alert(t.error, t.regErrAge);
     if (!privacyOk)
       return Alert.alert(t.error, t.regErrPrivacy);
+    if (role === 'client') {
+      if (!city.trim() || city.trim().length < 5)
+        return Alert.alert(t.error, t.regErrAddress ?? 'יש להזין כתובת מלאה');
+      // גר בבניין דירות — חובה קומה ומספר דירה
+      if (!isPrivateHouse) {
+        if (!clientFloor.trim())
+          return Alert.alert(t.error, t.fillFloorRequired ?? 'יש למלא קומה (או לסמן "בית פרטי")');
+        if (!clientApt.trim())
+          return Alert.alert(t.error, t.fillAptRequired ?? 'יש למלא מספר דירה (או לסמן "בית פרטי")');
+      }
+    }
     if (role === 'cleaner') {
       if (!photoB64)         return Alert.alert(t.error, t.photoRequiredMsg);
       if (!types.length)     return Alert.alert(t.error, t.regErrTypes);
@@ -551,8 +571,14 @@ export default function RegisterScreen() {
         createdAt: new Date().toISOString(),
       };
       if (role === 'client') {
-        data.address       = city.trim();   // כתובת מלאה
+        // כתובת מלאה — כולל קומה ומספר דירה אם גר בבניין
+        const fullAddress = isPrivateHouse
+          ? `${city.trim()} (בית פרטי)`
+          : `${city.trim()}, קומה ${clientFloor.trim()}, דירה ${clientApt.trim()}`;
+        data.address       = fullAddress;
         data.city          = city.trim();   // גם לאחור-תאימות
+        data.isPrivateHouse = isPrivateHouse;
+        if (!isPrivateHouse) { data.floor = clientFloor.trim(); data.apartment = clientApt.trim(); }
         data.preferredLang = prefLang;
         data.phone         = phone.replace(/[-\s]/g, '');
       }
@@ -575,6 +601,8 @@ export default function RegisterScreen() {
         if (experience)     data.experience   = Number(experience) || 0;
         if (cleanerAge)     data.age          = Number(cleanerAge) || 0;
         if (cleanerAddress) data.cleanerAddress = cleanerAddress.trim();
+        data.cleanerIsPrivateHouse = cleanerIsPrivate;
+        if (!cleanerIsPrivate) { data.cleanerFloor = cleanerFloor.trim(); data.cleanerApt = cleanerApt.trim(); }
         data.maxDistance = maxDistance;
         // Convert servicePricing string values to numbers
         const spNum: Record<string, number> = {};
@@ -593,7 +621,7 @@ await setDoc(doc(db, 'users', cred.user.uid), data);
         try {
           const { setItemAsync } = await import('expo-secure-store');
           // פצל את הכתובת המלאה לרחוב ועיר לטעינה נכונה בטופס הזמנה
-          const fullAddr = city.trim();
+          const fullAddr = (data.address || city.trim());
           const lastComma = fullAddr.lastIndexOf(',');
           const addrStreetPart = lastComma > 0 ? fullAddr.slice(0, lastComma).trim() : fullAddr;
           const addrCityPart   = lastComma > 0 ? fullAddr.slice(lastComma + 1).trim() : '';
@@ -663,16 +691,16 @@ await setDoc(doc(db, 'users', cred.user.uid), data);
 
   return (
     <SafeAreaView style={s.wrap}>
-      <StatusBar barStyle="light-content" backgroundColor={C.blueDark} />
+      <StatusBar barStyle="dark-content" backgroundColor={C.white} />
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1 }}>
 
         <View style={s.hero}>
           <TouchableOpacity style={s.backBtn} onPress={() => router.back()}>
-            <MaterialIcons name="arrow-back" size={30} color="#FFFFFF" />
+            <MaterialIcons name="arrow-back" size={28} color={C.blue} />
           </TouchableOpacity>
           <RNImage
-            source={require('../assets/images/logo-white.png')}
-            style={{ width: 210, height: 173 }}
+            source={require('../assets/images/logo-ui.png')}
+            style={{ width: 280, height: 280, marginBottom: -40 }}
             resizeMode="contain"
           />
         </View>
@@ -711,7 +739,12 @@ await setDoc(doc(db, 'users', cred.user.uid), data);
           </View>
           <View style={s.field}>
             <T style={s.label}>{t.passwordLabel}</T>
-            <TextInput style={[s.input, missPass && s.inputError]} placeholder={t.passwordHint} value={password} onChangeText={setPassword} secureTextEntry placeholderTextColor={C.sub} textAlign="center" />
+            <View style={{ position: 'relative', justifyContent: 'center' }}>
+              <TextInput style={[s.input, missPass && s.inputError, { paddingLeft: 44 }]} placeholder={t.passwordHint} value={password} onChangeText={setPassword} secureTextEntry={!showPassword} placeholderTextColor={C.sub} textAlign="center" />
+              <TouchableOpacity onPress={() => setShowPassword(v => !v)} style={{ position: 'absolute', left: 10, padding: 6 }} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }} accessibilityLabel={showPassword ? 'הסתר סיסמה' : 'הצג סיסמה'}>
+                <Text style={{ fontSize: 20 }}>{showPassword ? '🙈' : '👁️'}</Text>
+              </TouchableOpacity>
+            </View>
           </View>
           <View style={s.field}>
             <T style={s.label}>📱 {t.phoneLabel} *</T>
@@ -754,7 +787,43 @@ await setDoc(doc(db, 'users', cred.user.uid), data);
                     ))}
                   </View>
                 )}
+                {/* הערת פרטיות — הכתובת נשמרת מוסתרת עד הזמנת מנקה ספציפי */}
+                <View style={{ flexDirection: 'row-reverse', alignItems: 'center', gap: 6, marginTop: 6, backgroundColor: '#EFF6FF', borderRadius: 10, paddingHorizontal: 10, paddingVertical: 8, borderWidth: 1, borderColor: '#BFDBFE' }}>
+                  <Text style={{ fontSize: 14 }}>🔒</Text>
+                  <Text style={{ flex: 1, fontSize: 11.5, color: '#1E40AF', textAlign: 'right', lineHeight: 16 }}>
+                    {(t as any).addressPrivateNote ?? 'הפרטיות שלך חשובה לנו: הכתובת המדויקת שלך נשמרת מוסתרת ולא מוצגת לאף מנקה. היא נחשפת רק למנקה שתבחר/י להזמין — ורק לצורך אותו ניקיון.'}
+                  </Text>
+                </View>
               </View>
+
+              {/* סוג מגורים — בית פרטי או בניין דירות */}
+              <View style={[s.pillRow, { justifyContent: 'center', marginBottom: 4 }]}>
+                <TogglePill label={`🏠 ${t.privateHouseLabel ?? 'בית פרטי'}`}   active={isPrivateHouse}  onPress={() => setIsPrivateHouse(true)}  devanagari={false} />
+                <TogglePill label={`🏢 ${t.aptBuildingLabel ?? 'בניין דירות'}`} active={!isPrivateHouse} onPress={() => setIsPrivateHouse(false)} devanagari={false} />
+              </View>
+
+              {/* בבניין דירות — קומה ומספר דירה (חובה) */}
+              {!isPrivateHouse && (
+                <View style={{ flexDirection: 'row-reverse', gap: 10 }}>
+                  <View style={[s.field, { flex: 1 }]}>
+                    <T style={s.label}>{t.floorLabel ?? 'קומה'}</T>
+                    <TextInput
+                      style={[s.input, (submitAttempted && !clientFloor.trim()) && s.inputError]}
+                      placeholder={t.floorLabel ?? 'קומה'} value={clientFloor} onChangeText={setClientFloor}
+                      keyboardType="number-pad" placeholderTextColor={C.sub} textAlign="center"
+                    />
+                  </View>
+                  <View style={[s.field, { flex: 1 }]}>
+                    <T style={s.label}>{t.aptLabel ?? 'מספר דירה'}</T>
+                    <TextInput
+                      style={[s.input, (submitAttempted && !clientApt.trim()) && s.inputError]}
+                      placeholder={t.aptLabel ?? 'מספר דירה'} value={clientApt} onChangeText={setClientApt}
+                      keyboardType="number-pad" placeholderTextColor={C.sub} textAlign="center"
+                    />
+                  </View>
+                </View>
+              )}
+
               <SectionTitle>{t.prefLangSection}</SectionTitle>
               <View style={[s.pillRow, { justifyContent: 'center' }]}>
                 {LANG_OPTS.map(l => (
@@ -829,6 +898,20 @@ await setDoc(doc(db, 'users', cred.user.uid), data);
                 <View style={s.field}>
                   <T style={s.label}>{t.cleanerAddressLabel}</T>
                   <TextInput style={s.input} placeholder={t.cleanerAddressPlaceholder} value={cleanerAddress} onChangeText={setCleanerAddress} placeholderTextColor={C.sub} textAlign="center" />
+
+                  {/* סוג מגורים — בית פרטי או בניין דירות */}
+                  <View style={[s.pillRow, { justifyContent: 'center', marginTop: 8, marginBottom: 4 }]}>
+                    <TogglePill label={`🏠 ${t.privateHouseLabel ?? 'בית פרטי'}`}   active={cleanerIsPrivate}  onPress={() => setCleanerIsPrivate(true)}  devanagari={false} />
+                    <TogglePill label={`🏢 ${t.aptBuildingLabel ?? 'בניין דירות'}`} active={!cleanerIsPrivate} onPress={() => setCleanerIsPrivate(false)} devanagari={false} />
+                  </View>
+
+                  {/* בבניין — קומה ומספר דירה */}
+                  {!cleanerIsPrivate && (
+                    <View style={{ flexDirection: 'row-reverse', gap: 10 }}>
+                      <TextInput style={[s.input, { flex: 1 }]} placeholder={t.floorLabel ?? 'קומה'} value={cleanerFloor} onChangeText={setCleanerFloor} placeholderTextColor={C.sub} textAlign="center" keyboardType="number-pad" />
+                      <TextInput style={[s.input, { flex: 1 }]} placeholder={t.aptLabel ?? 'מספר דירה'} value={cleanerApt} onChangeText={setCleanerApt} placeholderTextColor={C.sub} textAlign="center" keyboardType="number-pad" />
+                    </View>
+                  )}
                 </View>
 
                 {/* מרחק הגעה מקסימלי */}
@@ -936,6 +1019,7 @@ await setDoc(doc(db, 'users', cred.user.uid), data);
                       active={payment.includes(p.key)} onPress={() => toggleItem(payment, setPayment, p.key)} />
                   ))}
                 </View>
+                <T style={{ fontSize: 14, color: '#EF4444', fontWeight: '800', textAlign: 'center', marginTop: -2, marginBottom: 16, lineHeight: 19 }}>{t.paymentDirectNote}</T>
 
                 <SectionTitle error={missAreas}>{`📍 ${t.workAreasTitle}`}</SectionTitle>
                 <View style={[s.pillRow, { justifyContent: 'center' }]}>

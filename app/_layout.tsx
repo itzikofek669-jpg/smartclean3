@@ -1,26 +1,33 @@
 ﻿import React, { useEffect, useState, useRef } from 'react';
-import { Platform, View, StyleSheet } from 'react-native';
+import { Platform, View, StyleSheet, Alert } from 'react-native';
 import { Stack, useRouter, useSegments } from 'expo-router';
 import { onAuthStateChanged, signInWithEmailAndPassword } from 'firebase/auth';
 import * as SecureStore from 'expo-secure-store';
 import * as Notifications from 'expo-notifications';
 import Constants from 'expo-constants';
-import { doc, updateDoc } from 'firebase/firestore';
+import { doc, updateDoc, collection, query, where, onSnapshot } from 'firebase/firestore';
 import { auth, db } from '../lib/firebase';
+import { getActiveChat } from '../lib/chatPresence';
 import { LanguageProvider } from '../lib/LanguageContext';
 import { ThemeProvider } from '../lib/ThemeContext';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { useFonts, NotoSansDevanagari_400Regular } from '@expo-google-fonts/noto-sans-devanagari';
 
 // ── הגדרת התנהגות כשהאפליקציה פתוחה בפורגראונד ─────────────────────────────
+// להודעות צ'אט: בפורגראונד לא מציגים באנר מערכת — הפופ-אפ הפנימי (Firestore) מטפל,
+// כדי שתהיה רק הקפצה אחת. ברקע המערכת ממילא מציגה את הפוש כרגיל.
 Notifications.setNotificationHandler({
-  handleNotification: async () => ({
-    shouldShowAlert:  true,
-    shouldShowBanner: true,
-    shouldShowList:   true,
-    shouldPlaySound:  true,
-    shouldSetBadge:   true,
-  }),
+  handleNotification: async (notification) => {
+    const type = (notification?.request?.content?.data as any)?.type;
+    const isMessage = type === 'message';
+    return {
+      shouldShowAlert:  !isMessage,
+      shouldShowBanner: !isMessage,
+      shouldShowList:   true,
+      shouldPlaySound:  true,
+      shouldSetBadge:   true,
+    };
+  },
 });
 
 // ── הגדרת ערוץ אנדרואיד עם צליל ─────────────────────────────────────────────
@@ -32,6 +39,17 @@ if (Platform.OS === 'android') {
     sound:             'default',
     enableLights:      true,
     lightColor:        '#185FA5',
+  }).catch(() => {});
+
+  // ── ערוץ ניקיון דחוף — צבע אדום בולט, רטט חזק, אור אדום ──
+  Notifications.setNotificationChannelAsync('urgent', {
+    name:              'ניקיון דחוף',
+    importance:        Notifications.AndroidImportance.MAX,
+    vibrationPattern:  [0, 400, 200, 400, 200, 400],
+    sound:             'default',
+    enableLights:      true,
+    lightColor:        '#FF1744',
+    enableVibrate:     true,
   }).catch(() => {});
 }
 
@@ -67,6 +85,21 @@ export default function RootLayout() {
   const [ready,  setReady]  = useState(false);
   const [fontsLoaded, fontError] = useFonts({ NotoSansDevanagari_400Regular });
   const readyRef = useRef(false); // ref לגישה בטוחה מתוך callbacks
+  const pendingNavRef  = useRef<any>(null);   // ניווט מפוש שהגיע לפני מוכנות
+  const launchHandledRef = useRef(false);     // טופלה ההתראה שהפעילה את האפליקציה
+
+  // ניווט לפי סוג ההתראה
+  const navForNotification = (data: any) => {
+    if (!data) return;
+    if (data.type === 'new_booking' || data.type === 'booking_confirmed') {
+      router.push('/profile');
+    } else if (data.type === 'urgent' || data.urgent === true) {
+      // הקשה על פוש דחוף = "אני לוקח/ת" → לפרופיל → קבלה אוטומטית + מסך אישור/צ'אט (overlay מכסה את ההבזק)
+      router.push({ pathname: '/profile', params: { tab: 'urgent', acceptReqId: data.requestId || '' } });
+    } else if (data.type === 'message') {
+      router.push('/messages');
+    }
+  };
 
   // ── Auth routing ──────────────────────────────────────────────────────────
   useEffect(() => {
@@ -110,36 +143,96 @@ export default function RootLayout() {
     };
   }, [segments]);
 
+  // ── פופ-אפ הודעה חדשה — גלובלי (בכל מסך), ללא תלות בהתראות פוש ──────────────
+  useEffect(() => {
+    let chatUnsub: (() => void) | undefined;
+    const stamps: Record<string, string> = {};
+    let inited = false;
+    const unsubAuth = onAuthStateChanged(auth, user => {
+      if (chatUnsub) { chatUnsub(); chatUnsub = undefined; }
+      inited = false;
+      Object.keys(stamps).forEach(k => delete stamps[k]);
+      if (!user) return;
+      const uid = user.uid;
+      const qChats = query(collection(db, 'chats'), where('participants', 'array-contains', uid));
+      chatUnsub = onSnapshot(qChats, snap => {
+        const docs = snap.docs.map(d => ({ id: d.id, ...(d.data() as any) }));
+        if (!inited) {
+          docs.forEach((c: any) => { stamps[c.id] = c.lastMessageAt || ''; });
+          inited = true;
+          return;
+        }
+        let popped = false; // פופ-אפ אחד לכל אצווה — לא אחרי כל הודעה
+        docs.forEach((c: any) => {
+          const prev = stamps[c.id] || '';
+          const cur  = c.lastMessageAt || '';
+          stamps[c.id] = cur;
+          if (!cur || cur === prev || popped) return;
+          if (getActiveChat() === c.id) return;   // המשתמש כבר בצ'אט הזה — לא להקפיץ
+          const forMe     = Array.isArray(c.unreadBy) && c.unreadBy.includes(uid);
+          // הודעה נכנסת בלבד — לא הודעה ששלחתי בעצמי (לפי lastSenderUid אם קיים)
+          const fromOther = c.lastSenderUid ? c.lastSenderUid !== uid : forMe;
+          if (forMe && fromOther) {
+            popped = true;
+            const otherUid  = (Array.isArray(c.participants) ? c.participants.find((p: string) => p !== uid) : '') || '';
+            const otherName = (c.participantNames && c.participantNames[otherUid]) || '';
+            Alert.alert('📩 הודעה חדשה', 'קיבלת הודעה חדשה.', [
+              { text: 'סגור', style: 'cancel' },
+              { text: 'פתח צ\'אט', onPress: () => {
+                if (!readyRef.current) return;
+                router.push({ pathname: '/messages', params: { openChatId: c.id, openOtherUid: otherUid, openOtherName: otherName } });
+              } },
+            ]);
+          }
+        });
+      }, () => {});
+    });
+    return () => { if (chatUnsub) chatUnsub(); unsubAuth(); };
+  }, []);
+
   // ── מאזיני התראות — רק פעם אחת, נפרד מה-auth effect ────────────────────
   useEffect(() => {
     // לחיצה על התראה כשהאפליקציה סגורה/ברקע
     const responseSub = Notifications.addNotificationResponseReceivedListener(response => {
       try {
         const data = response.notification.request.content.data as any;
-        if (!readyRef.current) return;
-        if (data?.type === 'new_booking') {
-          router.push('/profile');
-        } else if (data?.type === 'urgent' || data?.urgent === true) {
-          router.push('/profile?tab=urgent');
-        }
+        // אם האפליקציה עוד לא מוכנה (נפתחה מהלחיצה) — נשמור ונבצע כשתהיה מוכנה
+        if (!readyRef.current) { pendingNavRef.current = data; return; }
+        navForNotification(data);
       } catch (_) {}
     });
 
-    // התראה שמגיעה כשהאפליקציה פתוחה (foreground)
-    const receiveSub = Notifications.addNotificationReceivedListener(notification => {
-      try {
-        const data = notification.request.content.data as any;
-        if ((data?.type === 'urgent' || data?.urgent === true) && readyRef.current) {
-          router.push('/profile?tab=urgent');
-        }
-      } catch (_) {}
-    });
+    // התראה שמגיעה כשהאפליקציה פתוחה (foreground):
+    // לא מנווטים! הכל (כולל דחוף) מטופל ע"י מאזיני Firestore בזמן-אמת (home.tsx) —
+    // פופ-אפ דחוף מותאם נשאר במסך הראשי, וניווט קורה רק כשלוחצים "אשר".
+    const receiveSub = Notifications.addNotificationReceivedListener(() => {});
 
     return () => {
       responseSub.remove();
       receiveSub.remove();
     };
   }, []); // רץ רק פעם אחת!
+
+  // כשהאפליקציה מוכנה — בצע את הניווט מהלחיצה על הפוש (גם cold start)
+  useEffect(() => {
+    if (!ready) return;
+    // 1) ניווט שנשמר ממאזין שרץ לפני מוכנות
+    if (pendingNavRef.current) {
+      const d = pendingNavRef.current; pendingNavRef.current = null;
+      launchHandledRef.current = true;
+      setTimeout(() => navForNotification(d), 350);
+      return;
+    }
+    // 2) ההתראה שהפעילה את האפליקציה מהמצב הסגור (פעם אחת בלבד)
+    if (!launchHandledRef.current) {
+      launchHandledRef.current = true;
+      Notifications.getLastNotificationResponseAsync().then((resp: any) => {
+        if (!resp) return;
+        const data = resp?.notification?.request?.content?.data;
+        if (data) setTimeout(() => navForNotification(data), 350);
+      }).catch(() => {});
+    }
+  }, [ready]);
 
   if (!ready || (!fontsLoaded && !fontError)) return null;
 

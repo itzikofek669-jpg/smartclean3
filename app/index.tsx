@@ -182,15 +182,24 @@ export default function LoginScreen() {
 
           <View style={s.field}>
             <T style={s.label}>{t.passwordLabel}</T>
-            <TextInput
-              style={s.input}
-              placeholder={t.passwordHint}
-              value={password}
-              onChangeText={setPassword}
-              secureTextEntry
-              placeholderTextColor={C.sub}
-              textAlign="right"
-            />
+            <View style={{ position: 'relative', justifyContent: 'center' }}>
+              <TextInput
+                style={[s.input, { paddingLeft: 48 }]}
+                placeholder={t.passwordHint}
+                value={password}
+                onChangeText={setPassword}
+                secureTextEntry={!showPass}
+                placeholderTextColor={C.sub}
+                textAlign="right"
+              />
+              <TouchableOpacity
+                onPress={() => setShowPass(v => !v)}
+                style={{ position: 'absolute', left: 8, top: 0, bottom: 0, justifyContent: 'center', paddingHorizontal: 8 }}
+                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+              >
+                <T style={{ fontSize: 20 }}>{showPass ? '🙈' : '👁️'}</T>
+              </TouchableOpacity>
+            </View>
           </View>
 
           {/* זכור אותי + שכחתי סיסמה */}
@@ -204,6 +213,7 @@ export default function LoginScreen() {
           <TouchableOpacity onPress={async () => {
             if (!email.trim()) return Alert.alert(t.error, t.enterEmailFirst);
             try {
+              try { auth.languageCode = 'he'; } catch (_) {}
               await sendPasswordResetEmail(auth, email.trim());
               Alert.alert(t.resetSentTitle, t.resetSentMsg);
             } catch {

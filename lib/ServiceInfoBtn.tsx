@@ -32,7 +32,7 @@ export default function ServiceInfoBtn({ serviceKey, inlinePill, label, pillStyl
           accessibilityLabel={`${label} — לחץ לפרטים`}
         >
           {desc && !hideInfo && <T style={{ fontSize: 10, color: C.blue, fontWeight: '700' }}>ℹ </T>}
-          <T style={pillTextStyle}>{label}</T>
+          <T style={pillTextStyle} numberOfLines={1}>{label}</T>
         </TouchableOpacity>
 
         {desc && (

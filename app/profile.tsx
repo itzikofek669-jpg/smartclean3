@@ -3,7 +3,7 @@ import DateTimePicker from '@react-native-community/datetimepicker';
 import {
   View, Text, StyleSheet, ScrollView, FlatList, TouchableOpacity,
   StatusBar, ActivityIndicator, Alert, Modal, Switch, Share, Linking,
-  TextInput, KeyboardAvoidingView, Platform, BackHandler, Clipboard,
+  TextInput, KeyboardAvoidingView, Platform, BackHandler, Clipboard, Keyboard,
 } from 'react-native';
 import { Image } from 'expo-image';
 import * as ImagePicker from 'expo-image-picker';
@@ -11,10 +11,11 @@ import { useRouter, useLocalSearchParams } from 'expo-router';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
   doc, getDoc, setDoc, updateDoc, addDoc, deleteDoc,
-  collection, query, where, orderBy, arrayRemove, arrayUnion, onSnapshot,
+  collection, query, where, orderBy, arrayRemove, arrayUnion, onSnapshot, runTransaction,
 } from 'firebase/firestore';
 import { auth, db } from '../lib/firebase';
 import { storage } from '../lib/firebase';
+import { setActiveChat } from '../lib/chatPresence';
 import { ref as storageRef, uploadBytes, getDownloadURL } from 'firebase/storage';
 // expo-audio — הקלטה והשמעה של הודעות קוליות (SDK 54, מחליף את expo-av)
 import { useAudioRecorder, createAudioPlayer, RecordingPresets, setAudioModeAsync, AudioModule } from 'expo-audio';
@@ -159,10 +160,10 @@ function createS(c: AppColors) {
     referralShareBtnText:{ fontSize: 13, fontWeight: '800', color: c.white, textAlign: 'center' },
 
     // Booking history compact row + modal
-    historyCompactRow:  { flexDirection: 'row', alignItems: 'center', backgroundColor: c.white, borderRadius: 16, padding: 14, borderWidth: 1, borderColor: c.blueBorder, gap: 12 },
+    historyCompactRow:  { flexDirection: 'row-reverse', alignItems: 'center', backgroundColor: c.white, borderRadius: 16, padding: 14, borderWidth: 1, borderColor: c.blueBorder, gap: 12 },
     historyCompactIcon: { fontSize: 26 },
-    historyCompactTitle:{ fontSize: 15, fontWeight: '800', color: c.textDark },
-    historyCompactSub:  { fontSize: 13, color: c.textSub, marginTop: 2 },
+    historyCompactTitle:{ fontSize: 15, fontWeight: '800', color: c.textDark, textAlign: 'right' },
+    historyCompactSub:  { fontSize: 13, color: c.textSub, marginTop: 2, textAlign: 'right' },
     historyCompactArrow:{ fontSize: 26, color: c.textSub, fontWeight: '300' },
     historySheet:       { backgroundColor: c.white, borderTopLeftRadius: 24, borderTopRightRadius: 24, maxHeight: '85%' },
 
@@ -238,7 +239,11 @@ function createS(c: AppColors) {
   });
 }
 
-const PAY_ICONS: Record<string, string> = { bit: '📱', cash: '💵', paybox: '💜', bank: '🏦' };
+const PAY_ICONS: Record<string, string> = { bit: '📱', cash: '💵', paybox: '🅿️', bank: '🏦' };
+// מעקב הזמנות שכבר הוצגו לאישור — ברמת המודול כדי לשרוד טעינות-מחדש של הפרופיל (ניווט מפוש)
+const SHOWN_PENDING = new Set<string>();
+// מעקב הזמנות שכבר אושרו — מונע שליחת פוש/הודעת אישור פעמיים
+const CONFIRM_SENT = new Set<string>();
 
 const SERVICE_ICONS: Record<string, string> = {
   'ניקיון רגיל': '🏠', 'ניקוי לפסח': '🧹', 'חלונות': '🪟', 'לאחר שיפוץ': '🔨',
@@ -310,7 +315,7 @@ const SERVICE_DETAIL: Record<string, string[]> = {
 
 const DAYS_KEYS = ['sun','mon','tue','wed','thu','fri','sat'] as const;
 
-async function sendPushNotification(token: string, title: string, body: string) {
+async function sendPushNotification(token: string, title: string, body: string, data?: any) {
   try {
     await fetch('https://exp.host/--/api/v2/push/send', {
       method: 'POST',
@@ -320,6 +325,7 @@ async function sendPushNotification(token: string, title: string, body: string) 
         sound: 'default',
         channelId: 'messages',
         priority: 'high',
+        ...(data ? { data } : {}),
       }),
     });
   } catch (_) {}
@@ -396,7 +402,7 @@ function RateModal({ booking, visible, isCleaner, onClose, onSubmit }: any) {
 // ─── Main Screen ──────────────────────────────────────────────────────────────
 export default function ProfileScreen() {
   const router = useRouter();
-  const { tab, requestId, section } = useLocalSearchParams<{ tab?: string; requestId?: string; section?: string }>();
+  const { tab, requestId, section, acceptReqId } = useLocalSearchParams<{ tab?: string; requestId?: string; section?: string; acceptReqId?: string }>();
   const { t, lang, setLang, flipSide } = useLanguage();
   const C = useAppColors();
   const s = createS(C);
@@ -408,7 +414,7 @@ export default function ProfileScreen() {
 
   useEffect(() => {
     const sub = BackHandler.addEventListener('hardwareBackPress', () => {
-      router.back();
+      if (router.canGoBack()) router.back(); else router.replace('/home');
       return true;
     });
     return () => sub.remove();
@@ -495,20 +501,84 @@ export default function ProfileScreen() {
     if (tab === 'urgent') setActiveTab('urgent');
   }, [tab]);
 
+  // אישור אוטומטי של בקשה דחופה כשמגיעים מפופ-אפ "אשר ניקיון" (מסך הבית)
+  // הערה: ה-effect עצמו מוגדר מתחת להכרזת urgentRequests (אחרת TDZ)
+  const autoAcceptedRef = useRef<string>('');
+
   // הצג מודל אישור הזמנה — כולל הזמנות חדשות שמגיעות בזמן אמת
   useEffect(() => {
     if (!userRole || userRole !== 'cleaner') return;
-    const pendingBks = incomingBks.filter((b: any) => b.status === 'pending');
-    const newOnes = pendingBks.filter((b: any) => !shownPendingRef.current.has(b.id));
-    if (newOnes.length > 0) {
-      // הצג את החדשה ביותר
-      setPendingConfirmBooking(newOnes[0]);
-      newOnes.forEach((b: any) => shownPendingRef.current.add(b.id));
+    const todayStr = (() => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; })();
+    const nowMs = Date.now();
+    const pendingBks = incomingBks.filter((b: any) => b.status === 'pending' && (!b.bookingDate || b.bookingDate >= todayStr));
+    // מסמנים את כל הממתינות כ"הוצגו" כדי שלא יקפצו שוב; קופצים אוטומטית רק להזמנה חדשה ממש (נוצרה ב-5 הדקות האחרונות)
+    const fresh = pendingBks.filter((b: any) => !SHOWN_PENDING.has(b.id) && b.createdAt && (nowMs - new Date(b.createdAt).getTime()) < 5 * 60 * 1000);
+    pendingBks.forEach((b: any) => SHOWN_PENDING.add(b.id));
+    if (fresh.length > 0) {
+      setPendingConfirmBooking(fresh.sort((a: any, b: any) => String(b.createdAt).localeCompare(String(a.createdAt)))[0]);
     }
   }, [incomingBks, userRole]);
 
   // Urgent requests
   const [urgentRequests, setUrgentRequests] = useState<any[]>([]);
+
+  // פתיחת פרטי בקשה דחופה כשמגיעים מפוש — בדיקה ישירה של סטטוס הבקשה
+  useEffect(() => {
+    if (!acceptReqId || autoAcceptedRef.current === acceptReqId) return;
+    autoAcceptedRef.current = acceptReqId as string;
+    (async () => {
+      try {
+        const snap = await getDoc(doc(db, 'urgentRequests', acceptReqId as string));
+        setAcceptOverlay(false);
+        const data: any = snap.data();
+        const st = data?.status;
+        // הבקשה עדיין פתוחה — פותחים את פרטי ההזמנה (אישור/דחייה)
+        if (snap.exists() && st === 'open') {
+          setActiveTab('urgent');
+          handleAcceptUrgent({ id: snap.id, ...data });
+          return;
+        }
+        // אני זה שכבר תפס/תי — פשוט לפרופיל, בלי הודעת "נלקחה"
+        if (snap.exists() && st === 'taken' && data?.takenByUid === uid) {
+          setActiveTab('bookings');
+          return;
+        }
+        // הבקשה אינה זמינה (נלקחה ע"י אחר/בוטלה/פגה) — הודעה בתוך האפליקציה
+        Alert.alert('⚡', (t as any).urgentAlreadyTakenInApp ?? 'ההזמנה הדחופה כבר נלקחה על ידי מנקה אחר/ת 🙂 הישאר/י זמין/ה — הבאה בדרך!');
+      } catch (_) { setAcceptOverlay(false); }
+    })();
+  }, [acceptReqId]);
+
+  // מודאל אישור הזמנה — מוכרז כאן (לפני האפקטים שמשתמשים בו)
+  const [pendingConfirmBooking, setPendingConfirmBooking] = useState<any>(null);
+
+  // מסך טעינה שמכסה את הפרופיל כשמגיעים מפוש דחוף — עד שמסך האישור נפתח
+  // אתחול מיידי מ-acceptReqId — מונע פלאש של פריים אחד לפני שה-overlay נדלק
+  const [acceptOverlay, setAcceptOverlay] = useState(!!acceptReqId);
+  useEffect(() => { if (acceptReqId) setAcceptOverlay(true); }, [acceptReqId]);
+  useEffect(() => { if (pendingConfirmBooking) setAcceptOverlay(false); }, [pendingConfirmBooking]);
+  useEffect(() => {
+    if (!acceptOverlay) return;
+    const tm = setTimeout(() => setAcceptOverlay(false), 7000); // בטיחות — אם הבקשה נתפסה/לא נמצאה
+    return () => clearTimeout(tm);
+  }, [acceptOverlay]);
+
+  // מאזין בזמן-אמת: אם מנקה אחר תפס את הבקשה הדחופה בזמן שאני במסך האישור — סמן "נלקחה"
+  const [urgentTakenByOther, setUrgentTakenByOther] = useState(false);
+  useEffect(() => {
+    const pcb = pendingConfirmBooking;
+    setUrgentTakenByOther(false);
+    // מנוי לכל הזמנה דחופה שעדיין לא אושרה על ידי המנקה (יש לה urgentRequestId)
+    if (!pcb?.urgentRequestId || pcb?.status === 'confirmed') return;
+    // באנר "נלקחה" רק אם מנקה אחר (לא אני) תפס. אם אני תפסתי — המסך ממילא נסגר.
+    const unsub = onSnapshot(doc(db, 'urgentRequests', pcb.urgentRequestId), (snap) => {
+      const d: any = snap.data();
+      if (snap.exists() && d?.status && d.status !== 'open' && d.takenByUid && d.takenByUid !== uid) {
+        setUrgentTakenByOther(true);
+      }
+    }, () => {});
+    return () => unsub();
+  }, [pendingConfirmBooking?.id, pendingConfirmBooking?.urgentRequestId]);
 
   // Active booking detail modal (client tap)
   const [activeBookingDetail, setActiveBookingDetail] = useState<any>(null);
@@ -516,14 +586,12 @@ export default function ProfileScreen() {
   // Booking history modal (client)
   const [historyOpen, setHistoryOpen] = useState(false);
 
-  // Pending booking confirmation modal
-  const [pendingConfirmBooking, setPendingConfirmBooking] = useState<any>(null);
+  // Pending booking confirmation modal (pendingConfirmBooking הוכרז למעלה, לפני האפקטים שמשתמשים בו)
   const [confirmedBookingView,  setConfirmedBookingView]  = useState<any>(null);
   const [confirmChatMsgs,       setConfirmChatMsgs]       = useState<any[]>([]);
   const [confirmChatInput,      setConfirmChatInput]      = useState('');
   const confirmChatScrollRef = useRef<FlatList>(null);
   const confirmChatUnsubRef  = useRef<(() => void) | null>(null);
-  const shownPendingRef = useRef<Set<string>>(new Set());
 
   // צ'אט במסך הזמנה מאושרת
   useEffect(() => {
@@ -557,10 +625,22 @@ export default function ProfileScreen() {
       await setDoc(doc(db, 'chats', chatId), {
         participants: [myUid, clientUid],
         lastMessage: msg, lastMessageAt: new Date().toISOString(),
+        lastSenderUid: myUid,
         unreadBy: [clientUid],
       }, { merge: true });
     } catch (_) {}
   };
+
+  // ── תפריט נפתח: הזמנות שקיבלתי (מנקה) ──
+  const [incomingOpen, setIncomingOpen] = useState(false);
+
+  // ── מצב מקלדת (כדי לצמצם רווח מתחת לכפתורים כשהמקלדת פתוחה) ──
+  const [keyboardOpen, setKeyboardOpen] = useState(false);
+  useEffect(() => {
+    const sh = Keyboard.addListener('keyboardDidShow', () => setKeyboardOpen(true));
+    const hd = Keyboard.addListener('keyboardDidHide', () => setKeyboardOpen(false));
+    return () => { sh.remove(); hd.remove(); };
+  }, []);
 
   // ── צ'אט לפני אישור הזמנה ──
   const [pendingChatMsgs,      setPendingChatMsgs]      = useState<any[]>([]);
@@ -576,17 +656,18 @@ export default function ProfileScreen() {
 
   useEffect(() => {
     if (pendingChatUnsubRef.current) { pendingChatUnsubRef.current(); pendingChatUnsubRef.current = null; }
-    if (!pendingConfirmBooking) { setPendingChatMsgs([]); setShowPendingTimeChange(false); return; }
+    if (!pendingConfirmBooking) { setPendingChatMsgs([]); setShowPendingTimeChange(false); setActiveChat(null); return; }
     const clientUid = pendingConfirmBooking.clientUid;
     if (!uid || !clientUid) return;
     const chatId = [uid, clientUid].sort().join('_');
+    setActiveChat(chatId);   // המנקה בצ'אט ההזמנה הזה — לא להקפיץ פופ-אפ
     const q = query(collection(db, 'chats', chatId, 'messages'), orderBy('createdAt', 'asc'));
     pendingChatUnsubRef.current = onSnapshot(q, snap => {
       const msgs = snap.docs.map(d => ({ id: d.id, ...d.data() }));
       setPendingChatMsgs(msgs);
       setTimeout(() => pendingChatScrollRef.current?.scrollToEnd({ animated: true }), 80);
     }, () => {});
-    return () => { if (pendingChatUnsubRef.current) pendingChatUnsubRef.current(); };
+    return () => { if (pendingChatUnsubRef.current) pendingChatUnsubRef.current(); setActiveChat(null); };
   }, [pendingConfirmBooking]);
 
   const sendPendingChat = async (overrideText?: string) => {
@@ -603,6 +684,7 @@ export default function ProfileScreen() {
       await setDoc(doc(db, 'chats', chatId), {
         participants: [uid, clientUid],
         lastMessage: msg, lastMessageAt: new Date().toISOString(),
+        lastSenderUid: uid,
         unreadBy: [clientUid],
       }, { merge: true });
     } catch (_) {}
@@ -798,9 +880,32 @@ export default function ProfileScreen() {
     try {
       const spNum: Record<string,number> = {};
       Object.entries(editServicePricing).forEach(([k,v]) => { if (v) spNum[k] = Number(v); });
+
+      // מנקה: איתור מיקום לפי הכתובת (גיאוקודינג) — שמירת קואורדינטות + עיר מתוך הכתובת
+      let geoExtra: { lat?: number; lng?: number; city?: string } = {};
+      if (isCleaner && editCleanerAddress.trim()) {
+        try {
+          const Location = await import('expo-location');
+          const res = await Location.geocodeAsync(editCleanerAddress.trim());
+          if (res && res[0]) { geoExtra.lat = res[0].latitude; geoExtra.lng = res[0].longitude; }
+        } catch (_) {}
+        const parts = editCleanerAddress.trim().split(',');
+        geoExtra.city = (parts.length > 1 ? parts[parts.length - 1] : parts[0]).trim();
+      }
+
+      // לקוח: הרכבת כתובת מלאה (כמו בתצוגה המקדימה) — לשמירה והצגה
+      const clientFullAddr = [
+        editStreet.trim(),
+        editCity.trim(),
+        editAddrPrivate ? 'בית פרטי' : (editFloor.trim() ? `קומה ${editFloor.trim()}` : ''),
+        (!editAddrPrivate && editApt.trim()) ? `דירה ${editApt.trim()}` : '',
+      ].filter(Boolean).join(', ');
+
       await updateDoc(doc(db, 'users', uid), {
         name:          editName.trim(),
-        city:          editCity.trim(),
+        city:          isCleaner ? (geoExtra.city || editCity.trim()) : editCity.trim(),
+        ...(geoExtra.lat != null ? { lat: geoExtra.lat, lng: geoExtra.lng } : {}),
+        ...(!isCleaner && clientFullAddr ? { address: clientFullAddr } : {}),
         street:        editStreet.trim(),
         floor:         editFloor.trim(),
         apt:           editApt.trim(),
@@ -824,6 +929,18 @@ export default function ProfileScreen() {
         bankBranch:       editBankBranch.trim(),
         bankAccount:      editBankAccount.trim(),
       });
+      // לקוח: עדכן/הוסף את הכתובת הראשית ב"הכתובות שלי" כדי שתופיע מיד
+      if (!isCleaner && clientFullAddr) {
+        let list = [...savedAddrs];
+        const primaryIdx = list.findIndex(a => a.isPrimary);
+        if (primaryIdx >= 0) {
+          list[primaryIdx] = { ...list[primaryIdx], address: clientFullAddr, lastUsed: new Date().toISOString() };
+        } else {
+          list = [{ id: Date.now().toString(), address: clientFullAddr, isPrimary: true, lastUsed: new Date().toISOString() }, ...list];
+        }
+        await saveAddrs(list);
+      }
+
       // update local state
       setCleanerBitPhone(editBitPhone.trim());
       setCleanerPayboxLink(editPayboxLink.trim());
@@ -857,6 +974,7 @@ export default function ProfileScreen() {
           setUserName(d.name        || '');
           setUserEmail(d.email      || '');
           setUserRole(d.role        || '');
+          setHasPushToken(!!d.pushToken);
           setPhotoB64(d.photoB64    || null);
           setWorkAreas(d.workAreas  || []);
           const rawAvail = d.availability || {};
@@ -943,6 +1061,13 @@ export default function ProfileScreen() {
 
     return () => { unsubClient(); unsubCleaner(); urgentUnsub(); };
   }, [uid]);
+
+  // ── פופאפ ניקוי דחוף — מטופל ע"י המודל המותאם ב-home.tsx (שמרונדר מעל הכל).
+  // כאן רק עוקבים אחרי הספירה כדי לפתוח את לשונית הדחוף (בלי Alert כפול).
+  const prevUrgentPopupRef = useRef(-1);
+  useEffect(() => {
+    prevUrgentPopupRef.current = urgentRequests.length;
+  }, [urgentRequests, userRole]);
 
   const pickImage = () => {
     Alert.alert(t.profilePhotoTitle, '', [
@@ -1201,9 +1326,10 @@ export default function ProfileScreen() {
 
   // subscription אוטומטי — מופעל בכל פעם שנפתח צ'אט (גם מ-confirmedBookingView)
   useEffect(() => {
-    if (!chatOpen || !chatClientUid || !uid) return;
+    if (!chatOpen || !chatClientUid || !uid) { setActiveChat(null); return; }
     if (chatUnsubRef.current) chatUnsubRef.current();
     const chatId = [uid, chatClientUid].sort().join('_');
+    setActiveChat(chatId);   // המנקה בצ'אט הזה — לא להקפיץ פופ-אפ עליו
     // סמן כנקרא — הסר uid מ-unreadBy
     updateDoc(doc(db, 'chats', chatId), { unreadBy: arrayRemove(uid) }).catch(() => {});
     const q = query(collection(db, 'chats', chatId, 'messages'), orderBy('createdAt', 'asc'));
@@ -1212,7 +1338,7 @@ export default function ProfileScreen() {
       setChatMessages(msgs);
       setTimeout(() => chatScrollRef.current?.scrollToEnd({ animated: true }), 100);
     }, () => {});
-    return () => { if (chatUnsubRef.current) { chatUnsubRef.current(); chatUnsubRef.current = null; } };
+    return () => { if (chatUnsubRef.current) { chatUnsubRef.current(); chatUnsubRef.current = null; } setActiveChat(null); };
   }, [chatOpen, chatClientUid]);
 
   const sendCleanerMessage = async () => {
@@ -1229,6 +1355,7 @@ export default function ProfileScreen() {
         participants: [uid, chatClientUid].sort(),
         lastMessage: msg,
         lastMessageAt: new Date().toISOString(),
+        lastSenderUid: uid,
         participantNames: { [uid]: userName, [chatClientUid]: chatClientName },
         unreadBy: arrayUnion(chatClientUid),
       }, { merge: true });
@@ -1237,7 +1364,7 @@ export default function ProfileScreen() {
         const clientSnap = await getDoc(doc(db, 'users', chatClientUid));
         const pushToken  = clientSnap.data()?.pushToken;
         if (pushToken) {
-          await sendPushNotification(pushToken, `💬 הודעה מ-${userName}`, msg);
+          await sendPushNotification(pushToken, `💬 הודעה מ-${userName}`, msg, { type: 'message' });
         }
       } catch (_) {}
     } catch (_) {}
@@ -1271,6 +1398,7 @@ export default function ProfileScreen() {
         participants: [uid, chatClientUid].sort(),
         lastMessage: t.chatImageMsg,
         lastMessageAt: new Date().toISOString(),
+        lastSenderUid: uid,
         participantNames: { [uid]: userName, [chatClientUid]: chatClientName },
         unreadBy: arrayUnion(chatClientUid),
       }, { merge: true });
@@ -1312,6 +1440,7 @@ export default function ProfileScreen() {
         participants: [uid, chatClientUid].sort(),
         lastMessage: t.chatVoiceMsg,
         lastMessageAt: new Date().toISOString(),
+        lastSenderUid: uid,
         unreadBy: arrayUnion(chatClientUid),
       }, { merge: true });
     } catch (_) { Alert.alert(t.error, t.audioSendError); }
@@ -1504,15 +1633,18 @@ export default function ProfileScreen() {
     try {
       await updateDoc(doc(db, 'bookings', rateTarget.id), { cleanerRating: stars });
       const cleanerRef = doc(db, 'users', rateTarget.cleanerId);
-      const cleanerSnap = await getDoc(cleanerRef);
-      if (cleanerSnap.exists()) {
-        const d = cleanerSnap.data();
-        const oldCount = d.reviewCount || 0;
-        const oldRating = d.rating || 0;
-        const newCount = oldCount + 1;
-        const newRating = ((oldRating * oldCount) + stars) / newCount;
-        await updateDoc(cleanerRef, { rating: newRating, reviewCount: newCount });
-      }
+      try {
+        await runTransaction(db, async (tx) => {
+          const snap = await tx.get(cleanerRef);
+          if (!snap.exists()) return;
+          const d = snap.data();
+          const oldCount = d.reviewCount || d.reviews || 0;
+          const oldRating = d.rating || 0;
+          const newCount = oldCount + 1;
+          const newRating = Math.round(((oldRating * oldCount) + stars) / newCount * 10) / 10;
+          tx.update(cleanerRef, { rating: newRating, reviewCount: newCount, reviews: newCount });
+        });
+      } catch (_) {}
       setBookings(prev => prev.map(b =>
         b.id === rateTarget.id ? { ...b, cleanerRating: stars } : b
       ));
@@ -1532,19 +1664,19 @@ export default function ProfileScreen() {
     setRateTarget(null);
   };
 
-  const totalSpent  = bookings.reduce((sum, b) => sum + (b.total || 0), 0);
-  const totalEarned = incomingBks.reduce((sum, b) => sum + (b.total || 0), 0);
+  const totalSpent  = bookings.filter(b => b.status !== 'cancelled').reduce((sum, b) => sum + (b.total || 0), 0);
+  const totalEarned = incomingBks.filter(b => b.status !== 'cancelled').reduce((sum, b) => sum + (b.total || 0), 0);
   const isCleaner   = userRole === 'cleaner';
   const DAYS_LABELS = [t.availSun, t.availMon, t.availTue, t.availWed, t.availThu, t.availFri, t.availSat];
 
   // Business dashboard stats
   const nowDate = new Date();
   const thisMonthBks    = incomingBks.filter(b => { const d = new Date(b.createdAt); return d.getMonth() === nowDate.getMonth() && d.getFullYear() === nowDate.getFullYear(); });
-  const thisMonthEarned = thisMonthBks.reduce((sum, b) => sum + (b.total || 0), 0);
+  const thisMonthEarned = thisMonthBks.filter(b => b.status !== 'cancelled').reduce((sum, b) => sum + (b.total || 0), 0);
   const completedBks    = incomingBks.filter(b => b.status === 'done');
   const cancelledBks    = incomingBks.filter(b => b.status === 'cancelled');
   const cancelRate      = incomingBks.length > 0 ? Math.round((cancelledBks.length / incomingBks.length) * 100) : 0;
-  const allTimeEarned   = incomingBks.reduce((sum, b) => sum + (b.actualTotal || b.total || 0), 0);
+  const allTimeEarned   = incomingBks.filter(b => b.status !== 'cancelled').reduce((sum, b) => sum + (b.actualTotal || b.total || 0), 0);
   const clientFreq: Record<string, number> = {};
   incomingBks.forEach(b => { if (b.clientUid) clientFreq[b.clientUid] = (clientFreq[b.clientUid] || 0) + 1; });
   const repeatClients   = Object.values(clientFreq).filter(n => n >= 2).length;
@@ -1553,7 +1685,7 @@ export default function ProfileScreen() {
 
   // Weekly schedule
   const weekStart = (() => { const d = new Date(nowDate); d.setDate(d.getDate() - d.getDay()); d.setHours(0,0,0,0); return d; })();
-  const weekBookings = incomingBks.filter(b => { const d = new Date(b.bookingDate || b.createdAt); return d >= weekStart && d < new Date(weekStart.getTime() + 7*24*60*60*1000); });
+  const weekBookings = incomingBks.filter(b => { if (b.status === 'cancelled') return false; const d = new Date(b.bookingDate || b.createdAt); return d >= weekStart && d < new Date(weekStart.getTime() + 7*24*60*60*1000); });
 
   // Bar chart — last 6 months earnings
   const last6Months = Array.from({ length: 6 }, (_, i) => {
@@ -1562,7 +1694,7 @@ export default function ProfileScreen() {
   });
   const monthlyEarnings = last6Months.map(m =>
     incomingBks
-      .filter(b => { const d = new Date(b.createdAt); return d.getMonth() === m.month && d.getFullYear() === m.year; })
+      .filter(b => b.status !== 'cancelled' && (() => { const d = new Date(b.createdAt); return d.getMonth() === m.month && d.getFullYear() === m.year; })())
       .reduce((sum, b) => sum + (b.actualTotal || b.total || 0), 0)
   );
   const maxMonthly = Math.max(...monthlyEarnings, 1);
@@ -1579,6 +1711,30 @@ export default function ProfileScreen() {
 
   // ─── Status display ───────────────────────────────────────────────────────────
   const handleConfirmBooking = async (b: any) => {
+    // הזמנה דחופה שעדיין לא נתפסה — תפיסה אטומית מתבצעת עכשיו, באישור בפועל
+    if (b?.urgentUnclaimed && b?.urgentReq) {
+      return claimAndConfirmUrgent(b.urgentReq);
+    }
+    // ── מניעת חפיפה: אסור לאשר שתי הזמנות לאותו תאריך+שעה ──
+    {
+      const changed = showPendingTimeChange && (pendingNewDate || pendingNewTime);
+      const tDate = changed ? `${pendingPickerDate.getFullYear()}-${String(pendingPickerDate.getMonth()+1).padStart(2,'0')}-${String(pendingPickerDate.getDate()).padStart(2,'0')}` : b.bookingDate;
+      const tTime = changed ? `${String(pendingPickerDate.getHours()).padStart(2,'0')}:${String(pendingPickerDate.getMinutes()).padStart(2,'0')}` : b.startTime;
+      if (tDate && tTime) {
+        const ns = new Date(`${tDate}T${tTime}`);
+        const ne = new Date(ns.getTime() + (Number(b.hours) || 1) * 3600000);
+        const overlap = incomingBks.some((x: any) => x.id !== b.id && ['confirmed','active','onway'].includes(x.status) && x.bookingDate === tDate && x.startTime && (() => {
+          const [h, m] = String(x.startTime).split(':').map(Number);
+          const xs = new Date(ns); xs.setHours(h || 0, m || 0, 0, 0);
+          const xe = new Date(xs.getTime() + (Number(x.hours) || 1) * 3600000);
+          return ns < xe && ne > xs;
+        })());
+        if (overlap) { Alert.alert(t.error, (t as any).overlapConfirmMsg ?? 'כבר יש לך הזמנה מאושרת בשעה זו — לא ניתן לאשר שתי הזמנות חופפות.'); return; }
+      }
+    }
+    // נעילה — אישור (כולל פוש/הודעה) ירוץ פעם אחת בלבד לכל הזמנה
+    if (CONFIRM_SENT.has(b.id)) { setPendingConfirmBooking(null); return; }
+    CONFIRM_SENT.add(b.id);
     try {
       // אם בוצע שינוי זמן — עדכן בהזמנה
       const updates: any = { status: 'confirmed' };
@@ -1593,12 +1749,16 @@ export default function ProfileScreen() {
         updates.bookingDate = `${y}-${mm}-${dd}`;
         updates.startTime   = `${hh}:${mi}`;
       }
+      SHOWN_PENDING.add(b.id); // לא להקפיץ שוב את אותה הזמנה
       await updateDoc(doc(db, 'bookings', b.id), updates);
       const confirmed = { ...b, ...updates };
       setIncomingBks(prev => prev.map(x => x.id === b.id ? confirmed : x));
       setPendingConfirmBooking(null);
       setShowPendingTimeChange(false);
-      setConfirmedBookingView(confirmed);
+      // אחרי אישור — חזרה לפרופיל (רשימת ההזמנות), בלי שיקפוץ מסך אישור נוסף.
+      // מסמנים את כל ההזמנות הממתינות הנוכחיות כ"הוצגו" — אפשר לאשר אותן מרשימת ההזמנות.
+      incomingBks.forEach((x: any) => { if (x.status === 'pending') SHOWN_PENDING.add(x.id); });
+      setActiveTab('bookings');
 
       // שלח push + הודעת צ'אט ללקוח
       try {
@@ -1609,11 +1769,12 @@ export default function ProfileScreen() {
         const pushBody  = dateChanged
           ? `${userName} אישר עם שינוי זמן: ${dateLabel} ב-${timeLabel}`
           : `${userName} אישר את ההזמנה שלך — ${dateLabel} ב-${timeLabel}`;
-        if (token) {
+        // בהזמנה דחופה הלקוח כבר קיבל פוש "נמצא מנקה" בקבלה — לא שולחים פוש אישור כפול
+        if (token && b.source !== 'urgent') {
           await fetch('https://exp.host/--/api/v2/push/send', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ to: token, title: '✅ ההזמנה אושרה!', body: pushBody, sound: 'default', priority: 'high' }),
+            body: JSON.stringify({ to: token, title: '✅ ההזמנה אושרה!', body: pushBody, sound: 'default', priority: 'high', channelId: 'default', data: { type: 'booking_confirmed' } }),
           });
         }
         // שלח גם הודעת צ'אט אוטומטית ללקוח
@@ -1628,6 +1789,7 @@ export default function ProfileScreen() {
         await setDoc(doc(db, 'chats', chatId), {
           participants: [uid, b.clientUid],
           lastMessage: chatMsg, lastMessageAt: new Date().toISOString(),
+          lastSenderUid: uid,
           unreadBy: [b.clientUid],
         }, { merge: true });
       } catch (_) {}
@@ -1736,45 +1898,90 @@ export default function ProfileScreen() {
   };
 
   // ─── Accept urgent request ───────────────────────────────────────────────────
+  const acceptingUrgentRef = useRef(false);
   const handleAcceptUrgent = async (req: any) => {
+    // מנע לחיצה כפולה מקומית
+    if (acceptingUrgentRef.current) return;
+    acceptingUrgentRef.current = true;
     try {
-      const reqRef = doc(db, 'urgentRequests', req.id);
-      const snap = await getDoc(reqRef);
-      if (!snap.exists() || snap.data()?.status !== 'open') {
-        Alert.alert('', t.urgentAlreadyTaken);
-        return;
-      }
-      const cleanerSnap = await getDoc(doc(db, 'users', uid));
-      const cleanerName = cleanerSnap.data()?.name || 'מנקה';
-      // סמן כנלקח
-      await updateDoc(reqRef, { status: 'taken', takenByUid: uid, takenByName: cleanerName, takenAt: new Date().toISOString() });
-      // צור הזמנה
-      await addDoc(collection(db, 'bookings'), {
-        cleanerId: uid, cleanerName,
+      // ⚠️ לא תופסים עדיין! ההקשה רק פותחת את פרטי ההזמנה.
+      // התפיסה האטומית (כולל ההודעה לשאר המנקים) קורית רק באישור בפועל (handleConfirmBooking).
+      const pseudo = {
+        id: `urgent_${req.id}`,        // מזהה זמני — עדיין אין הזמנה אמיתית
+        urgentUnclaimed: true,
+        urgentReq: req,
+        cleanerId: uid,
         clientUid: req.clientUid, clientName: req.clientName,
         hours: req.hours, payment: req.paymentMethod, paymentStatus: `awaiting_${req.paymentMethod}`,
         address: req.address, total: req.total,
         status: 'pending', createdAt: new Date().toISOString(),
-        bookingDate: req.dateStr,
-        startTime: req.startTime,
-        recurring: 'once', serviceType: '',
+        bookingDate: req.dateStr, startTime: req.startTime,
+        recurring: 'once', serviceType: req.serviceType || '',
         pricePerHour: Math.round(req.total / req.hours),
-        source: 'urgent',
-      });
-      // Push ללקוח
+        source: 'urgent', urgentRequestId: req.id,
+      };
+      setActiveTab('urgent');
+      setPendingConfirmBooking(pseudo);
+    } catch (_) {
+      Alert.alert(t.error, t.acceptRequestError);
+    } finally {
+      acceptingUrgentRef.current = false;
+    }
+  };
+
+  // תפיסה אטומית + אישור של בקשה דחופה — נקרא רק כשהמנקה לוחץ "אשר הזמנה"
+  const claimAndConfirmUrgent = async (req: any) => {
+    if (CONFIRM_SENT.has(req.id)) { setPendingConfirmBooking(null); return; }
+    CONFIRM_SENT.add(req.id);
+    try {
+      const reqRef = doc(db, 'urgentRequests', req.id);
+      const cleanerSnap = await getDoc(doc(db, 'users', uid));
+      const cleanerName = cleanerSnap.data()?.name || 'מנקה';
+      const bookingRef = doc(collection(db, 'bookings'));
+      try {
+        await runTransaction(db, async (tx) => {
+          const fresh = await tx.get(reqRef);
+          if (!fresh.exists() || fresh.data()?.status !== 'open') throw new Error('TAKEN');
+          tx.update(reqRef, { status: 'taken', takenByUid: uid, takenByName: cleanerName, takenAt: new Date().toISOString() });
+          tx.set(bookingRef, {
+            cleanerId: uid, cleanerName,
+            clientUid: req.clientUid, clientName: req.clientName,
+            hours: req.hours, payment: req.paymentMethod, paymentStatus: `awaiting_${req.paymentMethod}`,
+            address: req.address, total: req.total,
+            status: 'confirmed', createdAt: new Date().toISOString(),
+            bookingDate: req.dateStr, startTime: req.startTime,
+            recurring: 'once', serviceType: req.serviceType || '',
+            pricePerHour: Math.round(req.total / req.hours),
+            source: 'urgent', urgentRequestId: req.id,
+          });
+        });
+      } catch (txErr: any) {
+        if (txErr?.message === 'TAKEN') {
+          CONFIRM_SENT.delete(req.id);
+          Alert.alert('', t.urgentAlreadyTaken);
+          setPendingConfirmBooking(null);
+          return;
+        }
+        throw txErr;
+      }
+      // נתפס בהצלחה ע"י המנקה הזה — פוש ללקוח
       try {
         const clientSnap = await getDoc(doc(db, 'users', req.clientUid));
         const pushToken = clientSnap.data()?.pushToken;
         if (pushToken) {
           await fetch('https://exp.host/--/api/v2/push/send', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ to: pushToken, title: t.urgentFoundMsg, body: `${cleanerName} קיבל את הבקשה שלך!`, sound: 'default', channelId: 'messages', priority: 'high' }),
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ to: pushToken, title: t.urgentFoundMsg, body: `${cleanerName} קיבל את הבקשה שלך!`, sound: 'default', channelId: 'default', priority: 'high', data: { type: 'booking_confirmed' } }),
           });
         }
       } catch (_) {}
-      Alert.alert('✅', `${req.clientName}\n${req.address}`);
+      // הערה: אין שולחים פוש "ההזמנה נתפסה" לשאר המנקים — מי שנמצא במסך האישור מקבל באנר באפליקציה.
+      SHOWN_PENDING.add(bookingRef.id);
+      incomingBks.forEach((x: any) => { if (x.status === 'pending') SHOWN_PENDING.add(x.id); });
+      setActiveTab('bookings');
+      setPendingConfirmBooking(null);
     } catch (_) {
+      CONFIRM_SENT.delete(req.id);
       Alert.alert(t.error, t.acceptRequestError);
     }
   };
@@ -1782,7 +1989,7 @@ export default function ProfileScreen() {
   const handleCancelBooking = (b: any) => {
     Alert.alert(
       t.cancelConfirmTitle,
-      t.cancelConfirmMsg + '\n\n' + t.cancelRefundPolicy,
+      t.cancelConfirmMsg,
       [
       { text: t.cancelKeepBooking, style: 'cancel' },
       {
@@ -1790,7 +1997,7 @@ export default function ProfileScreen() {
         style: 'destructive',
         onPress: async () => {
           try {
-            await updateDoc(doc(db, 'bookings', b.id), { status: 'cancelled' });
+            await updateDoc(doc(db, 'bookings', b.id), { status: 'cancelled', cancelledBy: userRole || 'client', cancelledAt: new Date().toISOString() });
             setBookings(prev => prev.filter(x => x.id !== b.id));
             setIncomingBks(prev => prev.filter(x => x.id !== b.id));
             // הסר את חלון הזמן מ-busySlots של המנקה
@@ -1799,6 +2006,24 @@ export default function ProfileScreen() {
                 busySlots: arrayRemove({ from: b.busyFrom, until: b.busyUntil }),
               }).catch(() => {});
             }
+            // שלח פוש לצד השני על הביטול
+            try {
+              const otherUid = userRole === 'cleaner' ? b.clientUid : b.cleanerId;
+              if (otherUid) {
+                const otherSnap = await getDoc(doc(db, 'users', otherUid));
+                const token = otherSnap.data()?.pushToken;
+                if (token) {
+                  const byName = userRole === 'cleaner' ? (b.cleanerName || 'המנקה') : (b.clientName || 'הלקוח');
+                  const dateLabel = `${b.bookingDate || ''}${b.startTime ? ' ' + b.startTime : ''}`.trim();
+                  await sendPushNotification(
+                    token,
+                    (t as any).pushBookingCancelledTitle ?? '❌ הזמנה בוטלה',
+                    ((t as any).pushBookingCancelledBody ?? 'ההזמנה בוטלה על ידי {who}').replace('{who}', byName) + (dateLabel ? ` · ${dateLabel}` : ''),
+                    { type: 'booking_cancelled', bookingId: b.id },
+                  );
+                }
+              }
+            } catch (_) {}
           } catch (e: any) {
             Alert.alert(t.error, e?.message || 'שגיאה');
           }
@@ -1864,6 +2089,14 @@ export default function ProfileScreen() {
               </T>
             </View>
           )}
+
+          {/* סוג ניקיון */}
+          {(() => {
+            const svc = (Array.isArray(b.serviceTypes) && b.serviceTypes.length
+              ? b.serviceTypes.map((st: string) => t.types[st] || st).join(', ')
+              : (b.serviceType ? String(b.serviceType).split(' + ').map((st: string) => t.types[st] || st).join(', ') : ''));
+            return svc ? <T style={{ fontSize: 13, fontWeight: '800', color: C.blue }}>🧹 {svc}</T> : null;
+          })()}
 
           {/* שעות + תשלום + סטטוס */}
           <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>
@@ -1972,10 +2205,10 @@ export default function ProfileScreen() {
           </View>
         )}
 
-        {/* Cancel button — pending only, both client and cleaner */}
-        {b.status === 'pending' && (
+        {/* Cancel button — pending/confirmed/onway, both client and cleaner (כולל דחוף) */}
+        {(b.status === 'pending' || b.status === 'confirmed' || b.status === 'onway') && (
           <TouchableOpacity style={s.cancelBtn} onPress={() => handleCancelBooking(b)}>
-            <T style={s.cancelBtnText}>✕ {t.cancelBookingBtn}</T>
+            <T style={s.cancelBtnText}>{t.cancelBookingBtn}</T>
           </TouchableOpacity>
         )}
 
@@ -2030,7 +2263,7 @@ export default function ProfileScreen() {
         {/* Chat button */}
         {forCleaner && (
           <TouchableOpacity style={s.chatCardBtn} onPress={() => openCleanerChat(b)}>
-            <T style={s.chatCardBtnText}>💬 {t.chatBtnShort || "צ'אט"}</T>
+            <T style={s.chatCardBtnText}>{t.chatWithClient || "💬 צ'אט"}</T>
           </TouchableOpacity>
         )}
 
@@ -2084,18 +2317,18 @@ export default function ProfileScreen() {
           </T>
         )}
 
-        {/* Rating row */}
-        {isDone && (
+        {/* Rating row — רק הלקוח מדרג את המנקה (אין דירוג לקוח) */}
+        {isDone && !forCleaner && (
           alreadyRated ? (
             <View style={s.ratedRow}>
               <T style={s.ratedLabel}>{t.ratedLabel}: </T>
               {[1,2,3,4,5].map(i => (
-                <T key={i} style={{ color: i <= (forCleaner ? b.clientRating : b.cleanerRating) ? C.gold : C.blueBorder, fontSize: 14 }}>★</T>
+                <T key={i} style={{ color: i <= b.cleanerRating ? C.gold : C.blueBorder, fontSize: 14 }}>★</T>
               ))}
             </View>
           ) : (
             <TouchableOpacity style={s.rateBtn} onPress={() => handleRate(b)}>
-              <T style={s.rateBtnText}>⭐ {forCleaner ? t.rateCleanerLbl : t.rateTitle}</T>
+              <T style={s.rateBtnText}>⭐ {t.rateTitle}</T>
             </TouchableOpacity>
           )
         )}
@@ -2108,7 +2341,7 @@ export default function ProfileScreen() {
       <StatusBar barStyle="light-content" backgroundColor={C.blueDark} />
 
       <View style={[s.header, { paddingTop: (StatusBar.currentHeight || 0) + 12 }]}>
-        <TouchableOpacity onPress={() => router.back()} style={s.backBtn}>
+        <TouchableOpacity onPress={() => { if (router.canGoBack()) router.back(); else router.replace('/home'); }} style={s.backBtn}>
           <MaterialIcons name="arrow-back" size={30} color="#FFFFFF" />
         </TouchableOpacity>
         <T style={s.headerTitle}>{t.myProfileTitle}</T>
@@ -2123,6 +2356,15 @@ export default function ProfileScreen() {
         <AccessibilityModal visible={a11yOpen} onClose={() => setA11yOpen(false)} />
       </View>
 
+      {/* ── מסך טעינה כשמגיעים מפוש דחוף — מכסה את הפרופיל עד שמסך האישור נפתח ── */}
+      <Modal visible={acceptOverlay && !pendingConfirmBooking} transparent={false} animationType="none">
+        <View style={{ flex: 1, backgroundColor: C.blueDark, alignItems: 'center', justifyContent: 'center', gap: 16 }}>
+          <T style={{ fontSize: 44 }}>⚡</T>
+          <ActivityIndicator size="large" color="#fff" />
+          <T style={{ fontSize: 16, fontWeight: '900', color: '#fff' }}>מקבל/ת את ההזמנה הדחופה…</T>
+        </View>
+      </Modal>
+
       {/* ── מסך אישור הזמנה + צ'אט ── */}
       <Modal
         visible={!!pendingConfirmBooking}
@@ -2131,7 +2373,7 @@ export default function ProfileScreen() {
         onRequestClose={() => setPendingConfirmBooking(null)}
       >
         <SafeAreaView style={{ flex: 1, backgroundColor: C.bg }} edges={['top','left','right']}>
-          <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'} keyboardVerticalOffset={0}>
+          <KeyboardAvoidingView style={{ flex: 1 }} behavior="padding" keyboardVerticalOffset={0}>
 
             {/* ─── Header ─── */}
             <View style={{ backgroundColor: '#FFF7ED', paddingHorizontal: 16, paddingVertical: 12, borderBottomWidth: 1.5, borderBottomColor: '#FED7AA' }}>
@@ -2142,6 +2384,8 @@ export default function ProfileScreen() {
 
             {pendingConfirmBooking && (
               <>
+                {/* החלק העליון מוסתר כשהמקלדת פתוחה — כדי שהצ'אט יקבל את כל המקום */}
+                {!keyboardOpen && (<>
                 {/* ─── כרטיס הזמנה קומפקטי ─── */}
                 <View style={{ backgroundColor: C.blueLight, marginHorizontal: 12, marginTop: 10, borderRadius: 16, padding: 14, gap: 6, borderWidth: 1.5, borderColor: C.blueBorder }}>
                   <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
@@ -2149,6 +2393,12 @@ export default function ProfileScreen() {
                     <T style={{ fontSize: 16, fontWeight: '900', color: C.blue }}>₪{pendingConfirmBooking.total}</T>
                   </View>
                   <T style={{ fontSize: 13, color: C.textDark }}>📍 {pendingConfirmBooking.address}</T>
+                  {(() => {
+                    const svc = (Array.isArray(pendingConfirmBooking.serviceTypes) && pendingConfirmBooking.serviceTypes.length
+                      ? pendingConfirmBooking.serviceTypes.map((st: string) => t.types[st] || st).join(', ')
+                      : (pendingConfirmBooking.serviceType ? String(pendingConfirmBooking.serviceType).split(' + ').map((st: string) => t.types[st] || st).join(', ') : ''));
+                    return svc ? <T style={{ fontSize: 13, fontWeight: '800', color: C.blue }}>🧹 {svc}</T> : null;
+                  })()}
                   <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 10 }}>
                     <T style={{ fontSize: 12, color: C.textSub }}>📅 {pendingConfirmBooking.bookingDate}  🕐 {pendingConfirmBooking.startTime}</T>
                     <T style={{ fontSize: 12, color: C.textSub }}>⏱️ {pendingConfirmBooking.hours} {t.hoursUnit}</T>
@@ -2249,6 +2499,7 @@ export default function ProfileScreen() {
                     </TouchableOpacity>
                   </View>
                 )}
+                </>)}
 
                 {/* ─── צ'אט ─── */}
                 <T style={{ fontSize: 12, fontWeight: '800', color: C.textSub, paddingHorizontal: 16, marginTop: 10, marginBottom: 2 }}>{t.chatWithClient}</T>
@@ -2267,13 +2518,41 @@ export default function ProfileScreen() {
                   }
                   renderItem={({ item }) => {
                     const isMe = item.from === 'cleaner';
+                    const timeLabel = item.createdAt ? new Date(item.createdAt).toLocaleTimeString(LOCALE_MAP[lang] || 'he-IL', { hour: '2-digit', minute: '2-digit' }) : '';
+                    // הודעה קולית
+                    if (item.type === 'audio') {
+                      const isPlaying = chatPlayingId === item.id;
+                      return (
+                        <View style={{ alignItems: isMe ? 'flex-end' : 'flex-start' }}>
+                          <TouchableOpacity
+                            onPress={() => playCleanerAudio(item.audioUrl, item.id)}
+                            style={{ flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: isMe ? C.blue : C.white, borderRadius: 16, paddingHorizontal: 14, paddingVertical: 10, maxWidth: '80%', borderWidth: isMe ? 0 : 1, borderColor: C.blueBorder, elevation: 1 }}
+                          >
+                            <T style={{ fontSize: 22 }}>{isPlaying ? '⏸' : '▶️'}</T>
+                            <T style={{ color: isMe ? '#fff' : C.textDark, fontSize: 13 }}>🎤 {isPlaying ? t.recordingAudio ?? 'מנגן...' : 'הודעה קולית'}</T>
+                          </TouchableOpacity>
+                          <T style={{ fontSize: 10, color: C.textSub, marginTop: 2 }}>{timeLabel}</T>
+                        </View>
+                      );
+                    }
+                    // תמונה
+                    if (item.type === 'image') {
+                      const uri = item.imageBase64 || item.imageUrl;
+                      return (
+                        <View style={{ alignItems: isMe ? 'flex-end' : 'flex-start' }}>
+                          <TouchableOpacity onPress={() => uri && setChatViewerUri(uri)} activeOpacity={0.85}>
+                            <Image source={{ uri }} style={{ width: 180, height: 135, borderRadius: 12, borderWidth: 1, borderColor: C.blueBorder }} contentFit="cover" />
+                          </TouchableOpacity>
+                          <T style={{ fontSize: 10, color: C.textSub, marginTop: 2 }}>{timeLabel}</T>
+                        </View>
+                      );
+                    }
+                    // טקסט
                     return (
                       <View style={{ alignItems: isMe ? 'flex-end' : 'flex-start' }}>
                         <View style={{ backgroundColor: isMe ? C.blue : C.white, borderRadius: 16, borderBottomRightRadius: isMe ? 3 : 16, borderBottomLeftRadius: isMe ? 16 : 3, paddingHorizontal: 13, paddingVertical: 9, maxWidth: '80%', elevation: 1, shadowColor: '#000', shadowOpacity: 0.05, shadowRadius: 3, shadowOffset: { width: 0, height: 1 } }}>
                           <T style={{ fontSize: 14, color: isMe ? '#fff' : C.textDark, lineHeight: 20 }}>{item.text}</T>
-                          <T style={{ fontSize: 10, color: isMe ? 'rgba(255,255,255,0.6)' : C.textSub, marginTop: 2 }}>
-                            {item.createdAt ? new Date(item.createdAt).toLocaleTimeString(LOCALE_MAP[lang] || 'he-IL', { hour: '2-digit', minute: '2-digit' }) : ''}
-                          </T>
+                          <T style={{ fontSize: 10, color: isMe ? 'rgba(255,255,255,0.6)' : C.textSub, marginTop: 2 }}>{timeLabel}</T>
                         </View>
                       </View>
                     );
@@ -2301,8 +2580,27 @@ export default function ProfileScreen() {
                   </TouchableOpacity>
                 </View>
 
-                {/* ─── כפתורי אישור/דחייה ─── */}
-                <View style={{ flexDirection: 'row', gap: 10, paddingHorizontal: 12, paddingTop: 10, paddingBottom: insets.bottom + 10, backgroundColor: C.white, borderTopWidth: 1, borderTopColor: C.blueBorder }}>
+                {/* ─── כפתורים — אשר/דחה רק אם ההזמנה עדיין ממתינה; אחרת רק סגור ─── */}
+                {(() => {
+                  const live = incomingBks.find((x: any) => x.id === pendingConfirmBooking?.id);
+                  const status = live?.status || pendingConfirmBooking?.status || 'pending';
+                  // נלקחה ע"י מנקה אחר (תוך כדי שאני במסך), או כבר לא ממתינה — רק כפתור סגור + הודעה
+                  if (urgentTakenByOther || status !== 'pending') {
+                    return (
+                      <View style={{ paddingHorizontal: 12, paddingTop: 10, paddingBottom: keyboardOpen ? 8 : insets.bottom + 10, backgroundColor: C.white, borderTopWidth: 1, borderTopColor: C.blueBorder, gap: 8 }}>
+                        {urgentTakenByOther && (
+                          <View style={{ backgroundColor: '#FEF2F2', borderWidth: 1.5, borderColor: '#FCA5A5', borderRadius: 12, paddingVertical: 10, alignItems: 'center' }}>
+                            <T style={{ fontSize: 14, fontWeight: '900', color: '#DC2626' }}>⚡ ההזמנה נלקחה על ידי מנקה אחר/ת</T>
+                          </View>
+                        )}
+                        <TouchableOpacity style={{ backgroundColor: C.blue, borderRadius: 14, paddingVertical: 14, alignItems: 'center' }} onPress={() => setPendingConfirmBooking(null)}>
+                          <T style={{ fontSize: 15, fontWeight: '900', color: '#fff' }}>{(t as any).understoodClose ?? 'סגור'}</T>
+                        </TouchableOpacity>
+                      </View>
+                    );
+                  }
+                  return (
+                <View style={{ flexDirection: 'row', gap: 10, paddingHorizontal: 12, paddingTop: 10, paddingBottom: keyboardOpen ? 8 : insets.bottom + 10, backgroundColor: C.white, borderTopWidth: 1, borderTopColor: C.blueBorder }}>
                   <TouchableOpacity
                     style={{ flex: 1, backgroundColor: '#10B981', borderRadius: 14, paddingVertical: 14, alignItems: 'center' }}
                     onPress={() => handleConfirmBooking(pendingConfirmBooking)}
@@ -2312,13 +2610,31 @@ export default function ProfileScreen() {
                   <TouchableOpacity
                     style={{ flex: 1, backgroundColor: '#FEE2E2', borderRadius: 14, paddingVertical: 14, alignItems: 'center', borderWidth: 1.5, borderColor: '#FCA5A5' }}
                     onPress={() => {
+                      // דחוף שעדיין לא נתפס — סגירה מיידית בלי אישור כפול (אין מה לבטל)
+                      if (pendingConfirmBooking?.urgentUnclaimed) { setPendingConfirmBooking(null); return; }
                       Alert.alert(t.cancelConfirmTitle, t.cancelConfirmMsg, [
                         { text: t.cancelKeepBooking, style: 'cancel' },
                         { text: t.cancelConfirmBtn, style: 'destructive', onPress: async () => {
                           try {
-                            await updateDoc(doc(db, 'bookings', pendingConfirmBooking.id), { status: 'cancelled' });
-                            setIncomingBks(prev => prev.filter(x => x.id !== pendingConfirmBooking.id));
+                            const pcb = pendingConfirmBooking;
+                            // דחוף שעדיין לא נתפס — פשוט סוגרים; הבקשה נשארת פתוחה למנקים אחרים
+                            if (pcb?.urgentUnclaimed) { setPendingConfirmBooking(null); return; }
+                            SHOWN_PENDING.add(pcb.id); // לא להקפיץ שוב את אותה הזמנה
+                            await updateDoc(doc(db, 'bookings', pcb.id), { status: 'cancelled', cancelledBy: 'cleaner', cancelledAt: new Date().toISOString() });
+                            setIncomingBks(prev => prev.filter(x => x.id !== pcb.id));
+                            // פוש ללקוח על הדחייה
+                            try {
+                              if (pcb.clientUid) {
+                                const cs = await getDoc(doc(db, 'users', pcb.clientUid));
+                                const tok = cs.data()?.pushToken;
+                                if (tok) {
+                                  const dl = `${pcb.bookingDate || ''}${pcb.startTime ? ' ' + pcb.startTime : ''}`.trim();
+                                  await sendPushNotification(tok, (t as any).pushBookingCancelledTitle ?? '❌ הזמנה בוטלה', ((t as any).pushBookingCancelledBody ?? 'ההזמנה בוטלה על ידי {who}').replace('{who}', pcb.cleanerName || 'המנקה') + (dl ? ` · ${dl}` : ''), { type: 'booking_cancelled', bookingId: pcb.id });
+                                }
+                              }
+                            } catch (_) {}
                           } catch (_) {}
+                          incomingBks.forEach((x: any) => { if (x.status === 'pending') SHOWN_PENDING.add(x.id); });
                           setPendingConfirmBooking(null);
                         }},
                       ]);
@@ -2327,6 +2643,8 @@ export default function ProfileScreen() {
                     <T style={{ fontSize: 15, fontWeight: '900', color: '#EF4444' }}>{t.rejectBtn}</T>
                   </TouchableOpacity>
                 </View>
+                  );
+                })()}
               </>
             )}
           </KeyboardAvoidingView>
@@ -2405,7 +2723,7 @@ export default function ProfileScreen() {
                         setTimeout(() => handleCancelBooking(b), 300);
                       }}
                     >
-                      <T style={{ fontSize: 15, fontWeight: '900', color: '#DC2626' }}>❌ {t.cancelBookingBtn}</T>
+                      <T style={{ fontSize: 15, fontWeight: '900', color: '#DC2626' }}>{t.cancelBookingBtn}</T>
                     </TouchableOpacity>
                   )}
 
@@ -2468,21 +2786,6 @@ export default function ProfileScreen() {
                   </View>
                 </View>
 
-                {/* כפתור צ'אט */}
-                <TouchableOpacity
-                  style={{ backgroundColor: C.blueLight, borderRadius: 14, paddingVertical: 14, alignItems: 'center', borderWidth: 1.5, borderColor: C.blueBorder, flexDirection: 'row', justifyContent: 'center', gap: 8 }}
-                  onPress={() => {
-                    setConfirmedBookingView(null);
-                    // פתח את הצ'אט הקיים עם הלקוח
-                    setChatOpen(true);
-                    setChatClientUid(confirmedBookingView.clientUid);
-                    setChatClientName(confirmedBookingView.clientName);
-                  }}
-                >
-                  <T style={{ fontSize: 18 }}>💬</T>
-                  <T style={{ fontSize: 15, fontWeight: '800', color: C.blue }}>{t.sendMsgToClient}</T>
-                </TouchableOpacity>
-
                 {/* כפתור סגירה */}
                 <TouchableOpacity
                   style={{ backgroundColor: C.blue, borderRadius: 14, paddingVertical: 14, alignItems: 'center' }}
@@ -2531,7 +2834,7 @@ export default function ProfileScreen() {
           {/* Stats */}
           <View style={s.statsRow}>
             <View style={s.statBox}>
-              <T style={s.statVal}>{isCleaner ? incomingBks.length : bookings.length}</T>
+              <T style={s.statVal}>{(isCleaner ? incomingBks : bookings).filter(b => b.status !== 'cancelled').length}</T>
               <T style={s.statLabel}>{t.bookingsLabel}</T>
             </View>
             <View style={s.statDivider} />
@@ -2618,6 +2921,24 @@ export default function ProfileScreen() {
           {/* ── CLEANER: דף אחד ─────────────────────────────────────────────── */}
           {isCleaner && (
             <View style={s.section}>
+
+              {/* התראות והודעות פוש */}
+              <View style={{ backgroundColor: hasPushToken ? '#ECFDF5' : '#FEF2F2', borderRadius: 16, borderWidth: 1.5, borderColor: hasPushToken ? '#6EE7B7' : '#FCA5A5', padding: 14, marginBottom: 16 }}>
+                <View style={{ flexDirection: 'row-reverse', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+                  <T style={{ fontSize: 15, fontWeight: '800', color: C.textDark }}>{t.notifSectionTitle}</T>
+                  <T style={{ fontSize: 13, fontWeight: '800', color: hasPushToken ? '#059669' : '#DC2626' }}>{hasPushToken ? t.notifStatusOn : t.notifStatusOff}</T>
+                </View>
+                <T style={{ fontSize: 12, color: C.textSub, textAlign: 'right', marginBottom: 12 }}>{t.notifHint}</T>
+                <TouchableOpacity
+                  onPress={handleTogglePush}
+                  disabled={pushToggleLoading}
+                  style={{ backgroundColor: hasPushToken ? '#EF4444' : '#10B981', borderRadius: 12, paddingVertical: 12, alignItems: 'center', opacity: pushToggleLoading ? 0.6 : 1 }}
+                >
+                  {pushToggleLoading
+                    ? <ActivityIndicator size="small" color="#fff" />
+                    : <T style={{ fontSize: 14, fontWeight: '900', color: '#fff' }}>{hasPushToken ? t.notifDisableBtn : t.notifEnableBtn}</T>}
+                </TouchableOpacity>
+              </View>
 
               {/* 1. בקשות דחופות — רק אם יש */}
               {urgentRequests.length > 0 && (
@@ -2714,22 +3035,36 @@ export default function ProfileScreen() {
 
               <View style={{ height: 1, backgroundColor: C.blueBorder, marginVertical: 20 }} />
 
-              {/* 3. הזמנות נכנסות */}
-              <View style={{ alignItems: 'center', marginBottom: 12, gap: 6 }}>
-                <T style={[s.sectionTitle, { textAlign: 'center' }]}>📥 {t.incomingBookings}</T>
-                {incomingBks.filter(b => b.status === 'active' || b.status === 'onway').length > 0 && (
-                  <View style={s.activeBadge}>
-                    <T style={s.activeBadgeText}>🔄 {incomingBks.filter(b => b.status === 'active' || b.status === 'onway').length} פעיל</T>
-                  </View>
-                )}
-              </View>
-              {incomingBks.length === 0 ? (
-                <View style={s.emptyBox}>
-                  <T style={{ fontSize: 36, marginBottom: 8 }}>📭</T>
-                  <T style={s.emptyText}>{t.noBookingsText}</T>
+              {/* 3. הזמנות נכנסות — תפריט נפתח */}
+              <TouchableOpacity
+                onPress={() => setIncomingOpen(v => !v)}
+                activeOpacity={0.7}
+                style={{ flexDirection: 'row-reverse', alignItems: 'center', justifyContent: 'space-between', backgroundColor: C.blueLight, borderRadius: 14, paddingVertical: 14, paddingHorizontal: 16, borderWidth: 1, borderColor: C.blueBorder, marginBottom: incomingOpen ? 12 : 0 }}
+              >
+                <View style={{ flexDirection: 'row-reverse', alignItems: 'center', gap: 8 }}>
+                  <T style={[s.sectionTitle, { textAlign: 'right', marginBottom: 0 }]}>📥 {t.incomingBookings}</T>
+                  {incomingBks.length > 0 && (
+                    <View style={{ backgroundColor: C.blue, borderRadius: 11, minWidth: 22, height: 22, paddingHorizontal: 6, alignItems: 'center', justifyContent: 'center' }}>
+                      <T style={{ color: C.white, fontSize: 12, fontWeight: '800' }}>{incomingBks.length}</T>
+                    </View>
+                  )}
+                  {incomingBks.filter(b => b.status === 'active' || b.status === 'onway').length > 0 && (
+                    <View style={s.activeBadge}>
+                      <T style={s.activeBadgeText}>🔄 {incomingBks.filter(b => b.status === 'active' || b.status === 'onway').length} פעיל</T>
+                    </View>
+                  )}
                 </View>
-              ) : (
-                incomingBks.map(b => renderBookingCard(b, true))
+                <T style={{ fontSize: 16, color: C.blue, fontWeight: '800' }}>{incomingOpen ? '▲' : '▼'}</T>
+              </TouchableOpacity>
+              {incomingOpen && (
+                incomingBks.length === 0 ? (
+                  <View style={s.emptyBox}>
+                    <T style={{ fontSize: 36, marginBottom: 8 }}>📭</T>
+                    <T style={s.emptyText}>{t.noBookingsText}</T>
+                  </View>
+                ) : (
+                  incomingBks.map(b => renderBookingCard(b, true))
+                )
               )}
 
               <View style={{ height: 1, backgroundColor: C.blueBorder, marginVertical: 20 }} />
@@ -2818,7 +3153,7 @@ export default function ProfileScreen() {
                         {historyBookings.length} {t.historyTitle}{lastB ? ` · ${lastB.cleanerName || ''}` : ''}
                       </T>
                     </View>
-                    <T style={s.historyCompactArrow}>›</T>
+                    <T style={s.historyCompactArrow}>‹</T>
                   </TouchableOpacity>
                 )}
               </View>
@@ -2911,15 +3246,15 @@ export default function ProfileScreen() {
                       borderRadius: 14, padding: 14,
                       borderWidth: a.isPrimary ? 2 : 1,
                       borderColor: a.isPrimary ? C.blue : C.blueBorder,
-                      flexDirection: 'row', alignItems: 'center', gap: 10,
+                      flexDirection: 'row-reverse', alignItems: 'center', gap: 10,
                     }}>
                       {/* כתובת + תווית ראשית */}
                       <View style={{ flex: 1, gap: 2 }}>
                         {a.isPrimary && (
-                          <T style={{ fontSize: 10, fontWeight: '800', color: C.blue }}>{t.primaryAutoFill}</T>
+                          <T style={{ fontSize: 10, fontWeight: '800', color: C.blue, textAlign: 'right' }}>{t.primaryAutoFill}</T>
                         )}
-                        <T style={{ fontSize: 13, fontWeight: '700', color: C.textDark }}>{a.address}</T>
-                        <T style={{ fontSize: 10, color: C.textSub }}>
+                        <T style={{ fontSize: 13, fontWeight: '700', color: C.textDark, textAlign: 'right' }}>{a.address}</T>
+                        <T style={{ fontSize: 10, color: C.textSub, textAlign: 'right' }}>
                           {t.lastUsedLabel}: {new Date(a.lastUsed).toLocaleDateString(LOCALE_MAP[lang] || 'he-IL')}
                         </T>
                       </View>
@@ -3218,7 +3553,7 @@ export default function ProfileScreen() {
               <View style={{ width: 36 }} />
             </View>
           </SafeAreaView>
-          <ScrollView ref={chatScrollRef} style={{ flex: 1 }} contentContainerStyle={{ padding: 16, gap: 8 }}>
+          <ScrollView ref={chatScrollRef} style={{ flex: 1 }} contentContainerStyle={{ padding: 16, gap: 8 }} onContentSizeChange={() => chatScrollRef.current?.scrollToEnd({ animated: true })}>
             {chatMessages.map(m => {
               const isMe = m.fromUid === uid;
               if (m.type === 'audio') {
@@ -3419,14 +3754,6 @@ export default function ProfileScreen() {
                 <TextInput style={ep.input} value={editName} onChangeText={setEditName} placeholder={t.editFullNameLabel} placeholderTextColor={C.textSub} textAlign="right" />
               </View>
 
-              {/* עיר — מנקה בלבד */}
-              {isCleaner && (
-                <View>
-                  <T style={ep.label}>{t.editCityLabel}</T>
-                  <TextInput style={ep.input} value={editCity} onChangeText={setEditCity} placeholder={t.cityExamplePh} placeholderTextColor={C.textSub} textAlign="right" />
-                </View>
-              )}
-
               {/* כתובת מלאה — לקוח בלבד */}
               {!isCleaner && (
                 <View style={{ gap: 10 }}>
@@ -3527,6 +3854,12 @@ export default function ProfileScreen() {
               {/* שדות מנקה בלבד */}
               {isCleaner && (<>
 
+              {/* כתובת מנקה מלאה — מתחת לטלפון */}
+              <View>
+                <T style={ep.label}>{t.cleanerAddressLabel}</T>
+                <TextInput style={ep.input} value={editCleanerAddress} onChangeText={setEditCleanerAddress} placeholder={t.cleanerAddressPlaceholder} placeholderTextColor={C.textSub} textAlign="right" />
+              </View>
+
               {/* תיאור */}
               <View>
                 <T style={ep.label}>
@@ -3558,12 +3891,6 @@ export default function ProfileScreen() {
                     </TouchableOpacity>
                   ))}
                 </View>
-              </View>
-
-              {/* כתובת מגורים */}
-              <View>
-                <T style={ep.label}>{t.cleanerAddressLabel}</T>
-                <TextInput style={ep.input} value={editCleanerAddress} onChangeText={setEditCleanerAddress} placeholder={t.cleanerAddressPlaceholder} placeholderTextColor={C.textSub} textAlign="right" />
               </View>
 
               {/* ציוד */}
@@ -3643,92 +3970,6 @@ export default function ProfileScreen() {
                     <TouchableOpacity key={a.key} style={[ep.pill, editWorkAreas.includes(a.key) && ep.pillActive, { flex: 1, alignItems: 'center' }]} onPress={() => toggleEdit(editWorkAreas, setEditWorkAreas, a.key)}>
                       <T style={[ep.pillText, editWorkAreas.includes(a.key) && ep.pillTextActive]}>{a.label}</T>
                     </TouchableOpacity>
-                  ))}
-                </View>
-              </View>
-
-              {/* קבוצת וואצאפ */}
-              <View style={{ backgroundColor: '#F0FFF4', borderRadius: 12, padding: 14, gap: 8, borderWidth: 1, borderColor: '#A7F3D0' }}>
-                <T style={{ fontSize: 13, fontWeight: '700', color: '#065F46' }}>{t.whatsappGroupTitle}</T>
-                <T style={{ fontSize: 12, color: '#047857', lineHeight: 18 }}>
-                  {'הזן את ה-Group ID של הקבוצה שנפתחה עם מנהל האפליקציה.\nהפורמט: XXXXXXXXXX@g.us\n(ניתן לקבל מ-UltraMsg Dashboard → Contacts)'}
-                </T>
-                <TextInput
-                  style={[ep.input, { fontFamily: 'monospace', fontSize: 13, textAlign: 'left' }]}
-                  value={editWhatsappGroupId}
-                  onChangeText={setEditWhatsappGroupId}
-                  placeholder="972XXXXXXXXX-XXXXXXXXXX@g.us"
-                  placeholderTextColor="#9CA3AF"
-                  autoCapitalize="none"
-                  autoCorrect={false}
-                  keyboardType="default"
-                  textAlign="left"
-                />
-                {editWhatsappGroupId ? (
-                  <T style={{ fontSize: 11, color: '#10B981' }}>{t.whatsappGroupActive}</T>
-                ) : (
-                  <T style={{ fontSize: 11, color: '#F59E0B' }}>{t.whatsappNoGroup}</T>
-                )}
-              </View>
-
-              {/* ── פרטי תשלום ── */}
-              <View style={{ backgroundColor: '#EFF6FF', borderRadius: 16, padding: 16, borderWidth: 1.5, borderColor: '#BFDBFE', gap: 14 }}>
-                <View style={{ alignItems: 'center', gap: 4 }}>
-                  <T style={{ fontSize: 16, fontWeight: '900', color: '#1E3A8A' }}>{t.payDetailsTitle}</T>
-                  <T style={{ fontSize: 12, color: '#3B82F6', textAlign: 'center' }}>{t.payDetailsSub}</T>
-                </View>
-
-                {/* Bit */}
-                <View style={{ backgroundColor: '#DBEAFE', borderRadius: 12, padding: 12, gap: 6, borderWidth: 1, borderColor: '#93C5FD' }}>
-                  <T style={{ fontSize: 13, fontWeight: '800', color: '#1D4ED8' }}>💙 Bit</T>
-                  <TextInput
-                    style={[ep.input, { backgroundColor: C.white }]}
-                    value={editBitPhone}
-                    onChangeText={setEditBitPhone}
-                    placeholder={t.payBitPhonePlaceholder}
-                    placeholderTextColor={C.textSub}
-                    keyboardType="phone-pad"
-                    textAlign="right"
-                  />
-                  <T style={{ fontSize: 11, color: '#3B82F6' }}>{t.payBitPhoneLabel}</T>
-                </View>
-
-                {/* Paybox */}
-                <View style={{ backgroundColor: '#F3E8FF', borderRadius: 12, padding: 12, gap: 6, borderWidth: 1, borderColor: '#C084FC' }}>
-                  <T style={{ fontSize: 13, fontWeight: '800', color: '#7C3AED' }}>💜 Paybox</T>
-                  <TextInput
-                    style={[ep.input, { backgroundColor: C.white, textAlign: 'left' }]}
-                    value={editPayboxLink}
-                    onChangeText={setEditPayboxLink}
-                    placeholder={t.payPayboxLinkPlaceholder}
-                    placeholderTextColor={C.textSub}
-                    autoCapitalize="none"
-                    keyboardType="url"
-                  />
-                  <T style={{ fontSize: 11, color: '#9333EA' }}>{t.payPayboxLinkLabel}</T>
-                </View>
-
-                {/* העברה בנקאית */}
-                <View style={{ backgroundColor: '#F0F9FF', borderRadius: 12, padding: 12, gap: 8, borderWidth: 1, borderColor: '#7DD3FC' }}>
-                  <T style={{ fontSize: 13, fontWeight: '800', color: '#0369A1' }}>🏦 {t.paySheetBankTab}</T>
-                  {[
-                    { label: t.payBankNameLabel,    val: editBankName,    set: setEditBankName,    kbType: 'default' as const },
-                    { label: t.payBankNumLabel,      val: editBankNum,     set: setEditBankNum,     kbType: 'number-pad' as const },
-                    { label: t.payBankBranchLabel,   val: editBankBranch,  set: setEditBankBranch,  kbType: 'number-pad' as const },
-                    { label: t.payBankAccountLabel,  val: editBankAccount, set: setEditBankAccount, kbType: 'number-pad' as const },
-                  ].map(row => (
-                    <View key={row.label}>
-                      <T style={{ fontSize: 11, color: '#0369A1', marginBottom: 4 }}>{row.label}</T>
-                      <TextInput
-                        style={[ep.input, { backgroundColor: C.white }]}
-                        value={row.val}
-                        onChangeText={row.set}
-                        placeholder={row.label}
-                        placeholderTextColor={C.textSub}
-                        keyboardType={row.kbType}
-                        textAlign="right"
-                      />
-                    </View>
                   ))}
                 </View>
               </View>

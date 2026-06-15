@@ -1,0 +1,708 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="Generator" content="Microsoft Word compatible">
+<style>
+  @page { size: A4; margin: 2.5cm; }
+  body {
+    font-family: Arial, sans-serif;
+    font-size: 12pt;
+    color: #042C53;
+    direction: rtl;
+    text-align: right;
+    line-height: 1.6;
+    background: white;
+    margin: 0;
+    padding: 40px;
+    max-width: 800px;
+    margin: auto;
+  }
+
+  /* ─── Title Page ─── */
+  .title-page {
+    text-align: center;
+    padding: 60px 0 40px;
+    border-bottom: 3px solid #185FA5;
+    margin-bottom: 40px;
+  }
+  .app-emoji { font-size: 72pt; display: block; margin-bottom: 16px; }
+  .app-title { font-size: 36pt; font-weight: 900; color: #0D4F96; margin: 0 0 8px; }
+  .doc-subtitle { font-size: 20pt; color: #185FA5; margin: 0 0 6px; }
+  .doc-desc { font-size: 13pt; color: #888; margin: 0 0 30px; }
+  .meta-table { margin: 0 auto 20px; border-collapse: collapse; width: 80%; max-width: 500px; }
+  .meta-table td {
+    padding: 10px 18px;
+    border: 1px solid #B5D4F4;
+    background: #E6F1FB;
+    font-size: 11pt;
+    text-align: center;
+    color: #0D4F96;
+  }
+  .meta-table td strong { display: block; font-size: 10pt; color: #185FA5; }
+
+  /* ─── Section Headers ─── */
+  h1 {
+    font-size: 18pt;
+    font-weight: 900;
+    color: #0D4F96;
+    border-bottom: 2px solid #B5D4F4;
+    padding-bottom: 6px;
+    margin-top: 36px;
+    margin-bottom: 16px;
+    page-break-after: avoid;
+  }
+  h2 {
+    font-size: 14pt;
+    font-weight: 800;
+    color: #185FA5;
+    margin-top: 28px;
+    margin-bottom: 10px;
+    page-break-after: avoid;
+  }
+  h3 {
+    font-size: 12pt;
+    font-weight: 700;
+    color: #042C53;
+    margin-top: 20px;
+    margin-bottom: 8px;
+  }
+
+  /* ─── Part Banners ─── */
+  .part-banner {
+    text-align: center;
+    padding: 16px 24px;
+    border-radius: 8px;
+    font-size: 18pt;
+    font-weight: 900;
+    color: white;
+    margin: 32px 0 24px;
+    page-break-before: always;
+  }
+  .part-a { background: #185FA5; }
+  .part-b { background: #10B981; }
+  .part-c { background: #F59E0B; }
+
+  /* ─── Step Cards ─── */
+  .step-card {
+    border: 1px solid #B5D4F4;
+    border-radius: 8px;
+    margin-bottom: 20px;
+    overflow: hidden;
+    page-break-inside: avoid;
+  }
+  .step-header {
+    background: #185FA5;
+    color: white;
+    padding: 8px 16px;
+    font-size: 11pt;
+    font-weight: 800;
+  }
+  .step-body {
+    display: table;
+    width: 100%;
+    border-collapse: collapse;
+  }
+  .step-screen {
+    display: table-cell;
+    width: 35%;
+    background: #E6F1FB;
+    padding: 14px 16px;
+    vertical-align: top;
+    font-size: 11pt;
+    border-left: 1px solid #B5D4F4;
+    color: #0D4F96;
+  }
+  .step-narration {
+    display: table-cell;
+    width: 65%;
+    padding: 14px 16px;
+    vertical-align: top;
+    font-size: 11pt;
+    background: white;
+    color: #042C53;
+  }
+  .step-label {
+    font-size: 9.5pt;
+    font-weight: 800;
+    margin-bottom: 6px;
+    display: block;
+  }
+  .screen-label { color: #0D4F96; }
+  .narration-label { color: #185FA5; }
+
+  /* ─── Lists ─── */
+  ul {
+    padding-right: 20px;
+    margin: 8px 0;
+  }
+  ul li { margin-bottom: 4px; }
+
+  /* ─── Summary Table ─── */
+  .summary-table { width: 100%; border-collapse: collapse; margin-top: 16px; }
+  .summary-table th {
+    background: #185FA5;
+    color: white;
+    padding: 10px 14px;
+    font-size: 11pt;
+    text-align: center;
+    border: 1px solid #185FA5;
+  }
+  .summary-table td {
+    padding: 8px 14px;
+    border: 1px solid #B5D4F4;
+    font-size: 11pt;
+    vertical-align: top;
+  }
+  .summary-table tr:nth-child(even) td { background: #F4F8FD; }
+
+  /* ─── Page Breaks ─── */
+  .page-break { page-break-before: always; }
+
+  /* ─── Spacer ─── */
+  .spacer { height: 12px; }
+
+  /* ─── Footer ─── */
+  .doc-footer {
+    text-align: center;
+    margin-top: 48px;
+    padding-top: 16px;
+    border-top: 1px solid #B5D4F4;
+    font-size: 10pt;
+    color: #888;
+  }
+</style>
+</head>
+<body>
+
+<!-- ═══════════════════════════════════════════════════
+     TITLE PAGE
+═══════════════════════════════════════════════════ -->
+<div class="title-page">
+  <span class="app-emoji">🧹</span>
+  <h1 class="app-title" style="border:none; margin-top:0;">A&amp;M Clean</h1>
+  <p class="doc-subtitle">סקריפט הדרכה לסרטון</p>
+  <p class="doc-desc">מדריך שלב-אחר-שלב ללקוחות ולמנקים</p>
+  <table class="meta-table">
+    <tr>
+      <td><strong>👥 קהל יעד</strong>לקוחות + מנקים</td>
+      <td><strong>⏱ אורך מוצע</strong>5–8 דקות</td>
+      <td><strong>📱 פלטפורמה</strong>Android / iOS</td>
+    </tr>
+  </table>
+</div>
+
+<!-- ═══════════════════════════════════════════════════
+     INTRO
+═══════════════════════════════════════════════════ -->
+<h1>מבוא</h1>
+<p>
+  <strong>A&amp;M Clean</strong> היא פלטפורמת ניקיון ישראלית המחברת בין לקוחות למנקים מקצועיים —
+  ללא עמלות וללא דמי שירות. הסרטון הבא ידריך אתכם כיצד להשתמש באפליקציה מההתחלה ועד הסוף.
+</p>
+<p><strong>נושאים שיוצגו:</strong></p>
+<ul>
+  <li>הרשמה וכניסה לאפליקציה</li>
+  <li>חיפוש וסינון מנקים לפי אזור ושירות</li>
+  <li>הזמנת שירות וצ'אט עם מנקה</li>
+  <li>הרשמה והגדרות עבור מנקים</li>
+  <li>תכונות נגישות, שפות ומצב לילה</li>
+</ul>
+
+<!-- ═══════════════════════════════════════════════════
+     PART A — CLIENTS
+═══════════════════════════════════════════════════ -->
+<div class="part-banner part-a">חלק א׳ — מדריך ללקוחות</div>
+
+<h2>1. הרשמה</h2>
+<div class="spacer"></div>
+
+<div class="step-card">
+  <div class="step-header">שלב 1</div>
+  <div class="step-body">
+    <div class="step-narration">
+      <span class="step-label narration-label">🎤 קריינות:</span>
+      ברוכים הבאים ל-A&amp;M Clean — הפלטפורמה החינמית לניקיון בישראל. לפתיחת חשבון חדש, לחצו על "הרשמה" בתחתית המסך.
+    </div>
+    <div class="step-screen">
+      <span class="step-label screen-label">📱 מסך:</span>
+      מסך פתיחה עם לוגו A&amp;M Clean ולחצן "הרשמה"
+    </div>
+  </div>
+</div>
+
+<div class="step-card">
+  <div class="step-header">שלב 2</div>
+  <div class="step-body">
+    <div class="step-narration">
+      <span class="step-label narration-label">🎤 קריינות:</span>
+      בחרו "לקוח" — אתם מחפשים שירותי ניקיון. בחירה זו תוביל לטופס הרשמה מהיר.
+    </div>
+    <div class="step-screen">
+      <span class="step-label screen-label">📱 מסך:</span>
+      מסך הרשמה — בחירת תפקיד: לקוח / מנקה
+    </div>
+  </div>
+</div>
+
+<div class="step-card">
+  <div class="step-header">שלב 3</div>
+  <div class="step-body">
+    <div class="step-narration">
+      <span class="step-label narration-label">🎤 קריינות:</span>
+      הזינו את פרטיכם: שם מלא, כתובת אימייל, סיסמה חזקה ועיר מגורים. לאחר מכן אשרו את תנאי השימוש ולחצו "הירשם".
+    </div>
+    <div class="step-screen">
+      <span class="step-label screen-label">📱 מסך:</span>
+      טופס הרשמה: שם, אימייל, סיסמה, עיר
+    </div>
+  </div>
+</div>
+
+<h2>2. כניסה לאפליקציה</h2>
+<div class="spacer"></div>
+
+<div class="step-card">
+  <div class="step-header">שלב 4</div>
+  <div class="step-body">
+    <div class="step-narration">
+      <span class="step-label narration-label">🎤 קריינות:</span>
+      הזינו את כתובת האימייל והסיסמה שלכם. סמנו "זכור אותי" כדי שלא תצטרכו להתחבר בכל פעם מחדש.
+    </div>
+    <div class="step-screen">
+      <span class="step-label screen-label">📱 מסך:</span>
+      מסך כניסה — שדות אימייל וסיסמה, "זכור אותי"
+    </div>
+  </div>
+</div>
+
+<div class="step-card">
+  <div class="step-header">שלב 5</div>
+  <div class="step-body">
+    <div class="step-narration">
+      <span class="step-label narration-label">🎤 קריינות:</span>
+      שכחתם סיסמה? הזינו את האימייל שלכם ולחצו "שכחתי סיסמה" — נשלח לכם קישור לאיפוס ישירות לתיבת הדואר.
+    </div>
+    <div class="step-screen">
+      <span class="step-label screen-label">📱 מסך:</span>
+      אפשרות "שכחתי סיסמה" — שדה אימייל
+    </div>
+  </div>
+</div>
+
+<h2>3. דף הבית — חיפוש מנקים</h2>
+<div class="spacer"></div>
+
+<div class="step-card">
+  <div class="step-header">שלב 6</div>
+  <div class="step-body">
+    <div class="step-narration">
+      <span class="step-label narration-label">🎤 קריינות:</span>
+      לאחר הכניסה תגיעו לדף הבית. כאן תמצאו את כל המנקים הזמינים. בחלק העליון תוכלו לסנן לפי אזור: הכל, צפון, מרכז או דרום.
+    </div>
+    <div class="step-screen">
+      <span class="step-label screen-label">📱 מסך:</span>
+      דף הבית עם רשימת מנקים, סרגל חיפוש ופילטר אזורי (צפון / מרכז / דרום)
+    </div>
+  </div>
+</div>
+
+<div class="step-card">
+  <div class="step-header">שלב 7</div>
+  <div class="step-body">
+    <div class="step-narration">
+      <span class="step-label narration-label">🎤 קריינות:</span>
+      השתמשו בתיבת החיפוש לחיפוש לפי שם מנקה, עיר, או סוג שירות — לדוגמה "ניקוי לפסח" או "חיפה".
+    </div>
+    <div class="step-screen">
+      <span class="step-label screen-label">📱 מסך:</span>
+      תיבת חיפוש עם טקסט "חיפוש עיר, שם, שירות..."
+    </div>
+  </div>
+</div>
+
+<div class="step-card">
+  <div class="step-header">שלב 8</div>
+  <div class="step-body">
+    <div class="step-narration">
+      <span class="step-label narration-label">🎤 קריינות:</span>
+      כל כרטיסיית מנקה מציגה את השם, העיר, הדירוג, המחיר לשעה, וסוגי השירותים שהוא מציע. תווית ירוקה "זמין" מסמנת שהמנקה פנוי לעבודה.
+    </div>
+    <div class="step-screen">
+      <span class="step-label screen-label">📱 מסך:</span>
+      כרטיסיית מנקה עם שם, עיר, דירוג ⭐, מחיר לשעה, וסוגי שירות
+    </div>
+  </div>
+</div>
+
+<h2>4. תצוגת מפה</h2>
+<div class="spacer"></div>
+
+<div class="step-card">
+  <div class="step-header">שלב 9</div>
+  <div class="step-body">
+    <div class="step-narration">
+      <span class="step-label narration-label">🎤 קריינות:</span>
+      לחצו על אייקון המפה לתצוגה גיאוגרפית. כל מנקה מסומן על המפה לפי מיקומו. לחצו על סיכה לפרטים מהירים.
+    </div>
+    <div class="step-screen">
+      <span class="step-label screen-label">📱 מסך:</span>
+      תצוגת Google Maps עם סיכות מנקים — לחיצה על סיכה פותחת מידע מהיר
+    </div>
+  </div>
+</div>
+
+<h2>5. פרופיל המנקה</h2>
+<div class="spacer"></div>
+
+<div class="step-card">
+  <div class="step-header">שלב 10</div>
+  <div class="step-body">
+    <div class="step-narration">
+      <span class="step-label narration-label">🎤 קריינות:</span>
+      לחצו על "פרופיל" בכרטיסיית המנקה לצפייה בפרטים מלאים: ביוגרפיה, סוגי שירותים, אמצעי תשלום מקובלים וביקורות של לקוחות קודמים.
+    </div>
+    <div class="step-screen">
+      <span class="step-label screen-label">📱 מסך:</span>
+      מסך פרופיל מנקה — תמונה, ביו, שירותים, ביקורות ⭐
+    </div>
+  </div>
+</div>
+
+<div class="step-card">
+  <div class="step-header">שלב 11</div>
+  <div class="step-body">
+    <div class="step-narration">
+      <span class="step-label narration-label">🎤 קריינות:</span>
+      לחצו על אייקון המידע ליד כל שירות לקבלת תיאור מפורט — למשל "ניקוי לפסח" מפרט כל שלב בתהליך: בדיקת חמץ, חיטוי מגירות, ניקוי תנור ועוד.
+    </div>
+    <div class="step-screen">
+      <span class="step-label screen-label">📱 מסך:</span>
+      פופ-אפ שירות עם רשימת פעולות מפורטת לכל סוג ניקיון
+    </div>
+  </div>
+</div>
+
+<h2>6. הזמנת שירות</h2>
+<div class="spacer"></div>
+
+<div class="step-card">
+  <div class="step-header">שלב 12</div>
+  <div class="step-body">
+    <div class="step-narration">
+      <span class="step-label narration-label">🎤 קריינות:</span>
+      לחצו על "📅 הזמן עכשיו" בפרופיל המנקה. בחרו תאריך ושעה מועדפים באמצעות בוחר התאריכים.
+    </div>
+    <div class="step-screen">
+      <span class="step-label screen-label">📱 מסך:</span>
+      לחצן "הזמן עכשיו" → בוחר תאריך ושעה
+    </div>
+  </div>
+</div>
+
+<div class="step-card">
+  <div class="step-header">שלב 13</div>
+  <div class="step-body">
+    <div class="step-narration">
+      <span class="step-label narration-label">🎤 קריינות:</span>
+      בחרו את סוג השירות הרצוי, הזינו את הכתובת, והוסיפו הערות מיוחדות אם יש. לחצו "שלח הזמנה" לסיום.
+    </div>
+    <div class="step-screen">
+      <span class="step-label screen-label">📱 מסך:</span>
+      טופס הזמנה — בחירת שירות, כתובת, הערות ולחצן שלח
+    </div>
+  </div>
+</div>
+
+<h2>7. צ'אט עם המנקה</h2>
+<div class="spacer"></div>
+
+<div class="step-card">
+  <div class="step-header">שלב 14</div>
+  <div class="step-body">
+    <div class="step-narration">
+      <span class="step-label narration-label">🎤 קריינות:</span>
+      לחצו על אייקון הצ'אט לפתיחת שיחה ישירה עם המנקה. תוכלו לשלוח הודעות טקסט, תמונות, ואפילו הקלטות קוליות.
+    </div>
+    <div class="step-screen">
+      <span class="step-label screen-label">📱 מסך:</span>
+      לחצן 💬 → מסך צ'אט עם שדה הודעה, כפתור תמונה וכפתור הקלטה קולית
+    </div>
+  </div>
+</div>
+
+<div class="step-card">
+  <div class="step-header">שלב 15</div>
+  <div class="step-body">
+    <div class="step-narration">
+      <span class="step-label narration-label">🎤 קריינות:</span>
+      בלשונית "הודעות" בתחתית תמצאו את כל השיחות שלכם. הודעות לא נקראות מסומנות בנקודה כחולה.
+    </div>
+    <div class="step-screen">
+      <span class="step-label screen-label">📱 מסך:</span>
+      לשונית הודעות — רשימת שיחות פעילות עם אינדיקטור הודעה חדשה
+    </div>
+  </div>
+</div>
+
+<h2>8. פרופיל אישי</h2>
+<div class="spacer"></div>
+
+<div class="step-card">
+  <div class="step-header">שלב 16</div>
+  <div class="step-body">
+    <div class="step-narration">
+      <span class="step-label narration-label">🎤 קריינות:</span>
+      בלשונית הפרופיל תוכלו לערוך את פרטיכם האישיים, לצפות בהיסטוריית ההזמנות ולנהל את ההגדרות.
+    </div>
+    <div class="step-screen">
+      <span class="step-label screen-label">📱 מסך:</span>
+      לשונית פרופיל — עריכת פרטים, היסטוריית הזמנות, הגדרות
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════
+     PART B — CLEANERS
+═══════════════════════════════════════════════════ -->
+<div class="part-banner part-b">חלק ב׳ — מדריך למנקים</div>
+
+<h2>9. הרשמה כמנקה</h2>
+<div class="spacer"></div>
+
+<div class="step-card">
+  <div class="step-header">שלב 17</div>
+  <div class="step-body">
+    <div class="step-narration">
+      <span class="step-label narration-label">🎤 קריינות:</span>
+      בעת ההרשמה בחרו "מנקה". תועברו לטופס הרשמה מורחב הכולל פרטים מקצועיים.
+    </div>
+    <div class="step-screen">
+      <span class="step-label screen-label">📱 מסך:</span>
+      מסך בחירת תפקיד — לחצן "מנקה" מסומן
+    </div>
+  </div>
+</div>
+
+<div class="step-card">
+  <div class="step-header">שלב 18</div>
+  <div class="step-body">
+    <div class="step-narration">
+      <span class="step-label narration-label">🎤 קריינות:</span>
+      בחרו את סוגי השירותים שאתם מציעים: ניקיון רגיל, ניקוי לפסח, חלונות, שטיפת רכב, לאחר שיפוץ, ניקיון משרדים ועוד — ניתן לבחור מספר שירותים.
+    </div>
+    <div class="step-screen">
+      <span class="step-label screen-label">📱 מסך:</span>
+      בחירת שירותים — 9 אפשרויות עם אייקונים, בחירה מרובה
+    </div>
+  </div>
+</div>
+
+<div class="step-card">
+  <div class="step-header">שלב 19</div>
+  <div class="step-body">
+    <div class="step-narration">
+      <span class="step-label narration-label">🎤 קריינות:</span>
+      הגדירו את המחיר שלכם לשעת עבודה ואת אמצעי התשלום שאתם מקבלים: מזומן, Bit, Paybox או שילוב.
+    </div>
+    <div class="step-screen">
+      <span class="step-label screen-label">📱 מסך:</span>
+      שדה מחיר לשעה + בחירת אמצעי תשלום (מזומן / Bit / Paybox)
+    </div>
+  </div>
+</div>
+
+<div class="step-card">
+  <div class="step-header">שלב 20</div>
+  <div class="step-body">
+    <div class="step-narration">
+      <span class="step-label narration-label">🎤 קריינות:</span>
+      קבעו את הימים והשעות שבהן אתם זמינים לעבודה. ניתן להגדיר שעות שונות לכל יום בשבוע.
+    </div>
+    <div class="step-screen">
+      <span class="step-label screen-label">📱 מסך:</span>
+      לוח זמינות שבועי — בחירת ימים ושעות לכל יום
+    </div>
+  </div>
+</div>
+
+<h2>10. ניהול הפרופיל המקצועי</h2>
+<div class="spacer"></div>
+
+<div class="step-card">
+  <div class="step-header">שלב 21</div>
+  <div class="step-body">
+    <div class="step-narration">
+      <span class="step-label narration-label">🎤 קריינות:</span>
+      העלו תמונת פרופיל מקצועית ומלאו ביוגרפיה קצרה שתציג אתכם ללקוחות. ניתן לעדכן את השירותים, המחיר והזמינות בכל עת.
+    </div>
+    <div class="step-screen">
+      <span class="step-label screen-label">📱 מסך:</span>
+      פרופיל מנקה — תמונה, ביו, עריכת שירותים ומחיר
+    </div>
+  </div>
+</div>
+
+<div class="step-card">
+  <div class="step-header">שלב 22</div>
+  <div class="step-body">
+    <div class="step-narration">
+      <span class="step-label narration-label">🎤 קריינות:</span>
+      השתמשו במתג הזמינות בפרופיל שלכם להפיכתכם "זמין" ו"לא זמין" בלחיצה אחת — שימושי בימים שאתם עסוקים.
+    </div>
+    <div class="step-screen">
+      <span class="step-label screen-label">📱 מסך:</span>
+      מתג "זמין / לא זמין" בולט בראש הפרופיל
+    </div>
+  </div>
+</div>
+
+<h2>11. קבלת הזמנות ותקשורת עם לקוחות</h2>
+<div class="spacer"></div>
+
+<div class="step-card">
+  <div class="step-header">שלב 23</div>
+  <div class="step-body">
+    <div class="step-narration">
+      <span class="step-label narration-label">🎤 קריינות:</span>
+      כאשר לקוח שולח הזמנה תקבלו התראה מיידית לטלפון. לחצו על ההתראה לצפייה בפרטי ההזמנה.
+    </div>
+    <div class="step-screen">
+      <span class="step-label screen-label">📱 מסך:</span>
+      התראת Push — "הזמנה חדשה מ[שם לקוח]"
+    </div>
+  </div>
+</div>
+
+<div class="step-card">
+  <div class="step-header">שלב 24</div>
+  <div class="step-body">
+    <div class="step-narration">
+      <span class="step-label narration-label">🎤 קריינות:</span>
+      צ'טו ישירות עם הלקוח לתיאום פרטים: כתובת, שעת הגעה מדויקת, ודרישות מיוחדות. ניתן גם לשלוח הודעות קוליות לנוחות.
+    </div>
+    <div class="step-screen">
+      <span class="step-label screen-label">📱 מסך:</span>
+      צ'אט עם לקוח — הודעות טקסט, תמונות והקלטות קוליות
+    </div>
+  </div>
+</div>
+
+<div class="step-card">
+  <div class="step-header">שלב 25</div>
+  <div class="step-body">
+    <div class="step-narration">
+      <span class="step-label narration-label">🎤 קריינות:</span>
+      בלשונית "הודעות" תמצאו את כל השיחות שלכם עם לקוחות, ממוינות לפי זמן — השיחה הפעילה האחרונה תמיד בראש הרשימה.
+    </div>
+    <div class="step-screen">
+      <span class="step-label screen-label">📱 מסך:</span>
+      לשונית הודעות — רשימת שיחות ממוינת לפי זמן
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════
+     PART C — GENERAL
+═══════════════════════════════════════════════════ -->
+<div class="part-banner part-c">חלק ג׳ — תכונות כלליות</div>
+
+<h2>12. שפות</h2>
+<div class="spacer"></div>
+
+<div class="step-card">
+  <div class="step-header">שלב 26</div>
+  <div class="step-body">
+    <div class="step-narration">
+      <span class="step-label narration-label">🎤 קריינות:</span>
+      A&amp;M Clean תומכת ב-6 שפות: עברית 🇮🇱, אנגלית 🇬🇧, רוסית 🇷🇺, ערבית 🇸🇦, צרפתית 🇫🇷 והינדית 🇮🇳. לחצו על לחצן השפה בכל עת לשינוי — הממשק כולו ישתנה מיד.
+    </div>
+    <div class="step-screen">
+      <span class="step-label screen-label">📱 מסך:</span>
+      לחצן שפה במסך הכניסה → תפריט עם 6 שפות ודגלים
+    </div>
+  </div>
+</div>
+
+<h2>13. נגישות</h2>
+<div class="spacer"></div>
+
+<div class="step-card">
+  <div class="step-header">שלב 27</div>
+  <div class="step-body">
+    <div class="step-narration">
+      <span class="step-label narration-label">🎤 קריינות:</span>
+      לחצו על אייקון הנגישות לפתיחת הגדרות נגישות: הגדלת טקסט, ניגודיות גבוהה ועוד — לחוויית שימוש נוחה לכל אחד.
+    </div>
+    <div class="step-screen">
+      <span class="step-label screen-label">📱 מסך:</span>
+      מודל נגישות — הגדרות טקסט, ניגודיות וגודל
+    </div>
+  </div>
+</div>
+
+<h2>14. מצב לילה</h2>
+<div class="spacer"></div>
+
+<div class="step-card">
+  <div class="step-header">שלב 28</div>
+  <div class="step-body">
+    <div class="step-narration">
+      <span class="step-label narration-label">🎤 קריינות:</span>
+      האפליקציה תומכת במצב לילה אוטומטי לפי הגדרות המכשיר. ניתן גם להפעיל ידנית מהגדרות הפרופיל לנוחות בשימוש בשעות החשכה.
+    </div>
+    <div class="step-screen">
+      <span class="step-label screen-label">📱 מסך:</span>
+      הגדרות פרופיל — מתג "מצב לילה" עם תצוגה לפני/אחרי
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════
+     SUMMARY
+═══════════════════════════════════════════════════ -->
+<div class="page-break"></div>
+<h1>סיכום — נקודות מפתח לסרטון</h1>
+
+<table class="summary-table">
+  <tr>
+    <th>✅ יתרונות עיקריים להדגשה</th>
+    <th>📋 תזכורות להפקה</th>
+  </tr>
+  <tr>
+    <td>💚 0% עמלה — חינמי לגמרי</td>
+    <td>🎬 הקליטו על מכשיר אמיתי (לא סימולטור)</td>
+  </tr>
+  <tr>
+    <td>🇮🇱 כל ישראל — צפון, מרכז, דרום</td>
+    <td>📋 השתמשו בנתוני Demo מוכנים</td>
+  </tr>
+  <tr>
+    <td>🧹 9 סוגי שירות ניקיון</td>
+    <td>🗺️ הראו את תצוגת המפה עם מנקים</td>
+  </tr>
+  <tr>
+    <td>💬 צ'אט + הודעות קוליות</td>
+    <td>💚 הדגישו "0% עמלה" בכל חלק</td>
+  </tr>
+  <tr>
+    <td>🌍 6 שפות נתמכות</td>
+    <td>🎵 הוסיפו מוזיקת רקע קלה</td>
+  </tr>
+  <tr>
+    <td>🗺️ תצוגת מפה (Google Maps)</td>
+    <td>📝 כתוביות בעברית מומלצות</td>
+  </tr>
+  <tr>
+    <td>🌙 מצב לילה ♿ נגישות</td>
+    <td>⏱ אורך מוצע: 5–8 דקות</td>
+  </tr>
+</table>
+
+<div class="doc-footer">
+  <strong style="font-size:18pt; color:#185FA5;">🎬 בהצלחה!</strong><br>
+  נוצר עבור A&amp;M Clean — פלטפורמת ניקיון ישראלית | 2025
+</div>
+
+</body>
+</html>

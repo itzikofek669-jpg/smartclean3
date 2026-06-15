@@ -8,10 +8,13 @@ service cloud.firestore {
       allow read: if request.auth != null;
       // יצירה: רק המשתמש עצמו (מיד אחרי הרשמה)
       allow create: if request.auth != null && request.auth.uid == userId;
-      // עדכון: רק המשתמש עצמו
-      allow update: if request.auth != null && request.auth.uid == userId;
-      // מחיקה: אסורה
-      allow delete: if false;
+      // עדכון: המשתמש עצמו, או כל משתמש מחובר שמעדכן אך ורק שדות דירוג (ביקורת מלקוח)
+      allow update: if request.auth != null && (
+        request.auth.uid == userId ||
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['rating', 'reviewCount', 'reviews'])
+      );
+      // מחיקה: רק אדמין (למחיקת מנקים/לקוחות ממסך הניהול)
+      allow delete: if request.auth != null && request.auth.token.email == 'cleantouchapp@gmail.com';
 
       // ביקורות תת-אוסף
       match /reviews/{reviewId} {

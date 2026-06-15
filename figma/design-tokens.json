@@ -1,0 +1,57 @@
+{
+  "global": {
+    "color": {
+      "blue":        { "value": "#185FA5", "type": "color" },
+      "blueDark":    { "value": "#1E3A5F", "type": "color" },
+      "blueLight":   { "value": "#EAF2FB", "type": "color" },
+      "bluePale":    { "value": "#F2F7FD", "type": "color" },
+      "blueBorder":  { "value": "#BFD7EF", "type": "color" },
+      "orange":      { "value": "#FF8A00", "type": "color" },
+      "green":       { "value": "#10B981", "type": "color" },
+      "greenDark":   { "value": "#059669", "type": "color" },
+      "red":         { "value": "#DC2626", "type": "color" },
+      "gold":        { "value": "#F59E0B", "type": "color" },
+      "payboxBlue":  { "value": "#11AEE8", "type": "color" },
+      "textDark":    { "value": "#1F2937", "type": "color" },
+      "textSub":     { "value": "#6B7280", "type": "color" },
+      "white":       { "value": "#FFFFFF", "type": "color" },
+      "bg":          { "value": "#F8F9FA", "type": "color" }
+    },
+    "radius": {
+      "sm":   { "value": "8",  "type": "borderRadius" },
+      "md":   { "value": "12", "type": "borderRadius" },
+      "lg":   { "value": "16", "type": "borderRadius" },
+      "xl":   { "value": "22", "type": "borderRadius" },
+      "pill": { "value": "999","type": "borderRadius" }
+    },
+    "spacing": {
+      "xs": { "value": "4",  "type": "spacing" },
+      "sm": { "value": "8",  "type": "spacing" },
+      "md": { "value": "12", "type": "spacing" },
+      "lg": { "value": "16", "type": "spacing" },
+      "xl": { "value": "24", "type": "spacing" }
+    },
+    "fontFamilies": {
+      "base": { "value": "Inter", "type": "fontFamilies" }
+    },
+    "fontWeights": {
+      "regular": { "value": "400", "type": "fontWeights" },
+      "bold":    { "value": "700", "type": "fontWeights" },
+      "black":   { "value": "900", "type": "fontWeights" }
+    },
+    "fontSizes": {
+      "caption": { "value": "11", "type": "fontSizes" },
+      "body":    { "value": "14", "type": "fontSizes" },
+      "title":   { "value": "16", "type": "fontSizes" },
+      "h2":      { "value": "20", "type": "fontSizes" },
+      "h1":      { "value": "28", "type": "fontSizes" }
+    },
+    "typography": {
+      "h1":      { "value": { "fontFamily": "Inter", "fontWeight": "900", "fontSize": "28", "lineHeight": "34" }, "type": "typography" },
+      "h2":      { "value": { "fontFamily": "Inter", "fontWeight": "900", "fontSize": "20", "lineHeight": "26" }, "type": "typography" },
+      "title":   { "value": { "fontFamily": "Inter", "fontWeight": "800", "fontSize": "16", "lineHeight": "22" }, "type": "typography" },
+      "body":    { "value": { "fontFamily": "Inter", "fontWeight": "400", "fontSize": "14", "lineHeight": "20" }, "type": "typography" },
+      "caption": { "value": { "fontFamily": "Inter", "fontWeight": "600", "fontSize": "11", "lineHeight": "16" }, "type": "typography" }
+    }
+  }
+}

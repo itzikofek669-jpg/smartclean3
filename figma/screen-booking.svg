@@ -1,0 +1,64 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="390" height="844" viewBox="0 0 390 844" font-family="Inter, Arial, sans-serif">
+  <rect width="390" height="844" fill="#F2F7FD"/>
+
+  <!-- Header -->
+  <rect width="390" height="64" fill="#185FA5"/>
+  <text x="195" y="40" fill="#FFFFFF" font-size="17" font-weight="900" text-anchor="middle">הזמנת ניקיון</text>
+  <text x="356" y="40" fill="#FFFFFF" font-size="18" text-anchor="end">✕</text>
+
+  <!-- Cleaner row -->
+  <rect x="16" y="84" width="358" height="60" rx="14" fill="#FFFFFF" stroke="#BFD7EF"/>
+  <circle cx="338" cy="114" r="20" fill="#EAF2FB"/>
+  <text x="338" y="120" font-size="15" text-anchor="middle">🧹</text>
+  <text x="308" y="108" fill="#185FA5" font-size="15" font-weight="900" text-anchor="end">קרן · חריש</text>
+  <text x="308" y="128" fill="#6B7280" font-size="12" text-anchor="end">★ 4.9 · ₪90 לשעה</text>
+
+  <!-- Service type (required, red) -->
+  <text x="356" y="172" fill="#1F2937" font-size="13" font-weight="800" text-anchor="end">סוג ניקיון <tspan fill="#DC2626">*</tspan></text>
+  <rect x="16" y="182" width="358" height="48" rx="12" fill="#FFFFFF" stroke="#DC2626" stroke-width="2"/>
+  <text x="356" y="211" fill="#DC2626" font-size="14" font-weight="700" text-anchor="end">בחר סוג ניקיון (אפשר כמה)  ▼</text>
+  <text x="356" y="246" fill="#DC2626" font-size="11" font-weight="700" text-anchor="end">⚠️ יש לבחור סוג ניקיון</text>
+
+  <!-- Date -->
+  <text x="356" y="278" fill="#1F2937" font-size="13" font-weight="800" text-anchor="end">📅 תאריך</text>
+  <rect x="16" y="288" width="358" height="46" rx="12" fill="#FFFFFF" stroke="#BFD7EF"/>
+  <text x="356" y="316" fill="#1F2937" font-size="14" text-anchor="end">08/06/2026</text>
+
+  <!-- Time -->
+  <text x="356" y="360" fill="#1F2937" font-size="13" font-weight="800" text-anchor="end">🕐 שעת התחלה</text>
+  <rect x="16" y="370" width="358" height="70" rx="12" fill="#FFFFFF" stroke="#BFD7EF"/>
+  <rect x="150" y="386" width="90" height="38" rx="9" fill="#185FA5"/>
+  <text x="195" y="410" fill="#FFFFFF" font-size="16" font-weight="800" text-anchor="middle">14:00</text>
+  <text x="300" y="410" fill="#9CA3AF" font-size="14" text-anchor="middle">13:30</text>
+  <text x="90"  y="410" fill="#9CA3AF" font-size="14" text-anchor="middle">14:30</text>
+
+  <!-- Address -->
+  <text x="356" y="466" fill="#1F2937" font-size="13" font-weight="800" text-anchor="end">📍 כתובת</text>
+  <rect x="16" y="476" width="358" height="46" rx="12" fill="#FFFFFF" stroke="#BFD7EF"/>
+  <text x="356" y="504" fill="#1F2937" font-size="14" text-anchor="end">רקפת 57, חריש, קומה 3, דירה 12</text>
+
+  <!-- Payment -->
+  <text x="356" y="548" fill="#1F2937" font-size="13" font-weight="800" text-anchor="end">💳 אמצעי תשלום</text>
+  <rect x="16"  y="558" width="84" height="60" rx="12" fill="#FFFFFF" stroke="#185FA5" stroke-width="2"/>
+  <text x="58"  y="585" font-size="18" text-anchor="middle">💵</text>
+  <text x="58"  y="604" fill="#185FA5" font-size="11" font-weight="700" text-anchor="middle">מזומן</text>
+  <rect x="108" y="558" width="84" height="60" rx="12" fill="#FFFFFF" stroke="#BFD7EF"/>
+  <text x="150" y="585" font-size="18" text-anchor="middle">📱</text>
+  <text x="150" y="604" fill="#1F2937" font-size="11" text-anchor="middle">ביט</text>
+  <rect x="200" y="558" width="84" height="60" rx="12" fill="#FFFFFF" stroke="#BFD7EF"/>
+  <circle cx="242" cy="578" r="7" fill="#11AEE8"/>
+  <text x="242" y="604" fill="#1F2937" font-size="11" text-anchor="middle">PayBox</text>
+  <rect x="292" y="558" width="82" height="60" rx="12" fill="#FFFFFF" stroke="#BFD7EF"/>
+  <text x="333" y="585" font-size="18" text-anchor="middle">🏦</text>
+  <text x="333" y="604" fill="#1F2937" font-size="11" text-anchor="middle">בנקאי</text>
+  <text x="356" y="636" fill="#DC2626" font-size="11" font-weight="700" text-anchor="end">התשלום ישיר בין הלקוח לנותן השירות בלבד</text>
+
+  <!-- Summary -->
+  <rect x="16" y="652" width="358" height="56" rx="14" fill="#EAF2FB"/>
+  <text x="32"  y="686" fill="#6B7280" font-size="14" text-anchor="start">סה"כ לתשלום</text>
+  <text x="358" y="688" fill="#185FA5" font-size="22" font-weight="900" text-anchor="end">₪180</text>
+
+  <!-- Confirm button -->
+  <rect x="16" y="724" width="358" height="52" rx="14" fill="#10B981"/>
+  <text x="195" y="757" fill="#FFFFFF" font-size="16" font-weight="900" text-anchor="middle">אשר הזמנה ✅</text>
+</svg>

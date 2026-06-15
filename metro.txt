@@ -1,0 +1,436 @@
+Starting project at C:\Users\itzik\Downloads\5\5\smartclean3
+React Compiler enabled
+Starting Metro Bundler
+Waiting on http://localhost:8081
+Logs for your project will appear below.
+Android node_modules\expo-router\entry.js ░░░░░░░░░░░░░░░░  0.0% (0/1)
+Android node_modules\expo-router\entry.js ░░░░░░░░░░░░░░░░  1.0% (1/1)
+Android node_modules\expo-router\entry.js ▓▓░░░░░░░░░░░░░░ 16.0% ( 29/175)
+Android node_modules\expo-router\entry.js ▓▓░░░░░░░░░░░░░░ 16.0% (102/300)
+Android node_modules\expo-router\entry.js ▓▓▓▓░░░░░░░░░░░░ 25.0% (212/430)
+Android node_modules\expo-router\entry.js ▓▓▓▓░░░░░░░░░░░░ 29.6% (302/555)
+Android node_modules\expo-router\entry.js ▓▓▓▓▓▓▓░░░░░░░░░ 47.9% (473/713)
+Android node_modules\expo-router\entry.js ▓▓▓▓▓▓▓░░░░░░░░░ 47.9% (496/746)
+Android node_modules\expo-router\entry.js ▓▓▓▓▓▓▓▓▓░░░░░░░ 59.2% (614/798)
+Android node_modules\expo-router\entry.js ▓▓▓▓▓▓▓▓▓▓▓░░░░░ 69.7% (734/885)
+Android node_modules\expo-router\entry.js ▓▓▓▓▓▓▓▓▓▓▓░░░░░ 69.7% ( 804/1002)
+Android node_modules\expo-router\entry.js ▓▓▓▓▓▓▓▓▓▓▓░░░░░ 74.8% ( 914/1057)
+Android node_modules\expo-router\entry.js ▓▓▓▓▓▓▓▓▓▓▓▓░░░░ 78.4% (1008/1176)
+Android node_modules\expo-router\entry.js ▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░ 92.0% (1176/1226)
+Android node_modules\expo-router\entry.js ▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░ 95.1% (1305/1352)
+Android Bundled 64926ms node_modules\expo-router\entry.js (1430 modules)
+Android node_modules\expo-router\entry.js ░░░░░░░░░░░░░░░░  0.0% (0/1)
+Android Bundled 84ms node_modules\expo-router\entry.js (1 module)
+ WARN  SafeAreaView has been deprecated and will be removed in a future release. Please use 'react-native-safe-area-context' instead. See https://github.com/th3rdwave/react-native-safe-area-context
+Android node_modules\expo-router\entry.js ░░░░░░░░░░░░░░░░  0.0% (0/1)
+Android Bundled 83ms node_modules\expo-router\entry.js (1 module)
+ WARN  SafeAreaView has been deprecated and will be removed in a future release. Please use 'react-native-safe-area-context' instead. See https://github.com/th3rdwave/react-native-safe-area-context
+Android node_modules\expo-router\entry.js ░░░░░░░░░░░░░░░░  0.0% (0/1)
+Android Bundled 73ms node_modules\expo-router\entry.js (1 module)
+ WARN  SafeAreaView has been deprecated and will be removed in a future release. Please use 'react-native-safe-area-context' instead. See https://github.com/th3rdwave/react-native-safe-area-context
+Android node_modules\expo-router\entry.js ░░░░░░░░░░░░░░░░  0.0% (0/1)
+Android Bundled 82ms node_modules\expo-router\entry.js (1 module)
+ WARN  SafeAreaView has been deprecated and will be removed in a future release. Please use 'react-native-safe-area-context' instead. See https://github.com/th3rdwave/react-native-safe-area-context
+Android node_modules\expo-router\entry.js ░░░░░░░░░░░░░░░░  0.0% (0/1)
+Android Bundled 1019ms node_modules\expo-router\entry.js (1 module)
+ WARN  SafeAreaView has been deprecated and will be removed in a future release. Please use 'react-native-safe-area-context' instead. See https://github.com/th3rdwave/react-native-safe-area-context
+Android node_modules\expo-router\entry.js ░░░░░░░░░░░░░░░░  0.0% (0/1)
+Android Bundled 81ms node_modules\expo-router\entry.js (1 module)
+ WARN  SafeAreaView has been deprecated and will be removed in a future release. Please use 'react-native-safe-area-context' instead. See https://github.com/th3rdwave/react-native-safe-area-context
+Android node_modules\expo-router\entry.js ░░░░░░░░░░░░░░░░  0.0% (0/1)
+Android Bundled 91ms node_modules\expo-router\entry.js (1 module)
+ WARN  SafeAreaView has been deprecated and will be removed in a future release. Please use 'react-native-safe-area-context' instead. See https://github.com/th3rdwave/react-native-safe-area-context
+Android node_modules\expo-secure-store\build\SecureStore.js ░░░░░░░░░░░░░░░░  0.0% (0/1)
+Android Bundled 817ms node_modules\expo-secure-store\build\SecureStore.js (616 modules)
+Android Bundled 1216ms node_modules\expo-router\entry.js (1 module)
+ WARN  SafeAreaView has been deprecated and will be removed in a future release. Please use 'react-native-safe-area-context' instead. See https://github.com/th3rdwave/react-native-safe-area-context
+ WARN  `setBackgroundColorAsync` is not supported with edge-to-edge enabled.
+Android node_modules\expo-router\entry.js ░░░░░░░░░░░░░░░░  0.0% (0/1)
+Android Bundled 92ms node_modules\expo-router\entry.js (1 module)
+ WARN  SafeAreaView has been deprecated and will be removed in a future release. Please use 'react-native-safe-area-context' instead. See https://github.com/th3rdwave/react-native-safe-area-context
+ WARN  `setBackgroundColorAsync` is not supported with edge-to-edge enabled.
+Android node_modules\expo-secure-store\build\SecureStore.js ░░░░░░░░░░░░░░░░  0.0% (0/1)
+Android Bundled 63ms node_modules\expo-secure-store\build\SecureStore.js (1 module)
+Android Bundled 80ms node_modules\expo-router\entry.js (1 module)
+ WARN  SafeAreaView has been deprecated and will be removed in a future release. Please use 'react-native-safe-area-context' instead. See https://github.com/th3rdwave/react-native-safe-area-context
+ WARN  `setBackgroundColorAsync` is not supported with edge-to-edge enabled.
+Android node_modules\expo-secure-store\build\SecureStore.js ░░░░░░░░░░░░░░░░  0.0% (0/1)
+Android Bundled 32ms node_modules\expo-secure-store\build\SecureStore.js (1 module)
+Android Bundled 84ms node_modules\expo-router\entry.js (1 module)
+ WARN  SafeAreaView has been deprecated and will be removed in a future release. Please use 'react-native-safe-area-context' instead. See https://github.com/th3rdwave/react-native-safe-area-context
+ WARN  `setBackgroundColorAsync` is not supported with edge-to-edge enabled.
+Android node_modules\expo-secure-store\build\SecureStore.js ░░░░░░░░░░░░░░░░  0.0% (0/1)
+Android Bundled 33ms node_modules\expo-secure-store\build\SecureStore.js (1 module)
+Android Bundled 402ms node_modules\expo-router\entry.js (1 module)
+ WARN  SafeAreaView has been deprecated and will be removed in a future release. Please use 'react-native-safe-area-context' instead. See https://github.com/th3rdwave/react-native-safe-area-context
+ WARN  `setBackgroundColorAsync` is not supported with edge-to-edge enabled.
+ WARN  `setBackgroundColorAsync` is not supported with edge-to-edge enabled.
+ WARN  `setBackgroundColorAsync` is not supported with edge-to-edge enabled.
+Android node_modules\expo-secure-store\build\SecureStore.js ░░░░░░░░░░░░░░░░  0.0% (0/1)
+Android Bundled 22ms node_modules\expo-secure-store\build\SecureStore.js (1 module)
+Android Bundled 110ms node_modules\expo-router\entry.js (1 module)
+ WARN  SafeAreaView has been deprecated and will be removed in a future release. Please use 'react-native-safe-area-context' instead. See https://github.com/th3rdwave/react-native-safe-area-context
+ WARN  `setBackgroundColorAsync` is not supported with edge-to-edge enabled.
+Android node_modules\expo-router\entry.js ░░░░░░░░░░░░░░░░  0.0% (0/1)
+Android Bundled 77ms node_modules\expo-router\entry.js (1 module)
+ WARN  SafeAreaView has been deprecated and will be removed in a future release. Please use 'react-native-safe-area-context' instead. See https://github.com/th3rdwave/react-native-safe-area-context
+ WARN  `setBackgroundColorAsync` is not supported with edge-to-edge enabled.
+Android node_modules\expo-secure-store\build\SecureStore.js ░░░░░░░░░░░░░░░░  0.0% (0/1)
+Android Bundled 32ms node_modules\expo-secure-store\build\SecureStore.js (1 module)
+Android node_modules\expo-secure-store\build\SecureStore.js ░░░░░░░░░░░░░░░░  0.0% (0/1)
+Android Bundled 27ms node_modules\expo-secure-store\build\SecureStore.js (1 module)
+Android node_modules\expo-router\entry.js ░░░░░░░░░░░░░░░░  0.0% (0/1)
+Android Bundled 91ms node_modules\expo-router\entry.js (1 module)
+ WARN  SafeAreaView has been deprecated and will be removed in a future release. Please use 'react-native-safe-area-context' instead. See https://github.com/th3rdwave/react-native-safe-area-context
+ WARN  `setBackgroundColorAsync` is not supported with edge-to-edge enabled.
+ WARN  `setBackgroundColorAsync` is not supported with edge-to-edge enabled.
+Android node_modules\expo-router\entry.js ░░░░░░░░░░░░░░░░  0.0% (0/1)
+Android Bundled 93ms node_modules\expo-router\entry.js (1 module)
+ WARN  SafeAreaView has been deprecated and will be removed in a future release. Please use 'react-native-safe-area-context' instead. See https://github.com/th3rdwave/react-native-safe-area-context
+ WARN  `setBackgroundColorAsync` is not supported with edge-to-edge enabled.
+Android node_modules\expo-router\entry.js ░░░░░░░░░░░░░░░░  0.0% (0/1)
+Android Bundled 116ms node_modules\expo-router\entry.js (1 module)
+ WARN  SafeAreaView has been deprecated and will be removed in a future release. Please use 'react-native-safe-area-context' instead. See https://github.com/th3rdwave/react-native-safe-area-context
+ WARN  `setBackgroundColorAsync` is not supported with edge-to-edge enabled.
+Android node_modules\expo-secure-store\build\SecureStore.js ░░░░░░░░░░░░░░░░  0.0% (0/1)
+Android Bundled 34ms node_modules\expo-secure-store\build\SecureStore.js (1 module)
+Android node_modules\expo-router\entry.js ░░░░░░░░░░░░░░░░  0.0% (0/1)
+Android Bundled 96ms node_modules\expo-router\entry.js (1 module)
+ WARN  SafeAreaView has been deprecated and will be removed in a future release. Please use 'react-native-safe-area-context' instead. See https://github.com/th3rdwave/react-native-safe-area-context
+ WARN  `setBackgroundColorAsync` is not supported with edge-to-edge enabled.
+Android node_modules\expo-router\entry.js ░░░░░░░░░░░░░░░░  0.0% (0/1)
+Android Bundled 74ms node_modules\expo-router\entry.js (1 module)
+ WARN  SafeAreaView has been deprecated and will be removed in a future release. Please use 'react-native-safe-area-context' instead. See https://github.com/th3rdwave/react-native-safe-area-context
+ WARN  `setBackgroundColorAsync` is not supported with edge-to-edge enabled.
+Android node_modules\expo-secure-store\build\SecureStore.js ░░░░░░░░░░░░░░░░  0.0% (0/1)
+Android Bundled 32ms node_modules\expo-secure-store\build\SecureStore.js (1 module)
+ WARN  `setBackgroundColorAsync` is not supported with edge-to-edge enabled.
+Android node_modules\expo-router\entry.js ░░░░░░░░░░░░░░░░  0.0% (0/1)
+Android Bundled 75ms node_modules\expo-router\entry.js (1 module)
+ WARN  SafeAreaView has been deprecated and will be removed in a future release. Please use 'react-native-safe-area-context' instead. See https://github.com/th3rdwave/react-native-safe-area-context
+ WARN  `setBackgroundColorAsync` is not supported with edge-to-edge enabled.
+Android node_modules\expo-secure-store\build\SecureStore.js ░░░░░░░░░░░░░░░░  0.0% (0/1)
+Android Bundled 24ms node_modules\expo-secure-store\build\SecureStore.js (1 module)
+Android node_modules\expo-router\entry.js ░░░░░░░░░░░░░░░░  0.0% (0/1)
+Android Bundled 86ms node_modules\expo-router\entry.js (1 module)
+ WARN  SafeAreaView has been deprecated and will be removed in a future release. Please use 'react-native-safe-area-context' instead. See https://github.com/th3rdwave/react-native-safe-area-context
+ WARN  `setBackgroundColorAsync` is not supported with edge-to-edge enabled.
+Android node_modules\expo-secure-store\build\SecureStore.js ░░░░░░░░░░░░░░░░  0.0% (0/1)
+Android Bundled 34ms node_modules\expo-secure-store\build\SecureStore.js (1 module)
+Android node_modules\expo-secure-store\build\SecureStore.js ░░░░░░░░░░░░░░░░  0.0% (0/1)
+Android Bundled 3ms node_modules\expo-secure-store\build\SecureStore.js (1 module)
+Android Bundled 83ms node_modules\expo-router\entry.js (1 module)
+ WARN  SafeAreaView has been deprecated and will be removed in a future release. Please use 'react-native-safe-area-context' instead. See https://github.com/th3rdwave/react-native-safe-area-context
+ WARN  `setBackgroundColorAsync` is not supported with edge-to-edge enabled.
+ WARN  `setBackgroundColorAsync` is not supported with edge-to-edge enabled.
+Android node_modules\expo-secure-store\build\SecureStore.js ░░░░░░░░░░░░░░░░  0.0% (0/1)
+Android Bundled 2ms node_modules\expo-secure-store\build\SecureStore.js (1 module)
+Android Bundled 77ms node_modules\expo-router\entry.js (1 module)
+ WARN  SafeAreaView has been deprecated and will be removed in a future release. Please use 'react-native-safe-area-context' instead. See https://github.com/th3rdwave/react-native-safe-area-context
+ WARN  `setBackgroundColorAsync` is not supported with edge-to-edge enabled.
+Android node_modules\expo-secure-store\build\SecureStore.js ░░░░░░░░░░░░░░░░  0.0% (0/1)
+Android Bundled 33ms node_modules\expo-secure-store\build\SecureStore.js (1 module)
+Android node_modules\expo-router\entry.js ░░░░░░░░░░░░░░░░  0.0% (0/1)
+Android Bundled 7620ms node_modules\expo-router\entry.js (1 module)
+Android node_modules\expo-router\entry.js ░░░░░░░░░░░░░░░░  0.0% (0/1)
+ WARN  SafeAreaView has been deprecated and will be removed in a future release. Please use 'react-native-safe-area-context' instead. See https://github.com/th3rdwave/react-native-safe-area-context
+ WARN  `setBackgroundColorAsync` is not supported with edge-to-edge enabled.
+Android node_modules\expo-secure-store\build\SecureStore.js ░░░░░░░░░░░░░░░░  0.0% (0/1)
+Android Bundled 28ms node_modules\expo-secure-store\build\SecureStore.js (1 module)
+ WARN  `setBackgroundColorAsync` is not supported with edge-to-edge enabled.
+ WARN  `setBackgroundColorAsync` is not supported with edge-to-edge enabled.
+ WARN  `setBackgroundColorAsync` is not supported with edge-to-edge enabled.
+ WARN  `setBackgroundColorAsync` is not supported with edge-to-edge enabled.
+ WARN  `setBackgroundColorAsync` is not supported with edge-to-edge enabled.
+ WARN  `setBackgroundColorAsync` is not supported with edge-to-edge enabled.
+ WARN  `setBackgroundColorAsync` is not supported with edge-to-edge enabled.
+ WARN  `setBackgroundColorAsync` is not supported with edge-to-edge enabled.
+ WARN  `setBackgroundColorAsync` is not supported with edge-to-edge enabled.
+Android node_modules\expo-router\entry.js ░░░░░░░░░░░░░░░░  0.0% (0/1)
+Android Bundled 6123ms node_modules\expo-router\entry.js (1 module)
+Android node_modules\expo-router\entry.js ░░░░░░░░░░░░░░░░  0.0% (0/1)
+ WARN  SafeAreaView has been deprecated and will be removed in a future release. Please use 'react-native-safe-area-context' instead. See https://github.com/th3rdwave/react-native-safe-area-context
+ WARN  `setBackgroundColorAsync` is not supported with edge-to-edge enabled.
+ WARN  `setBackgroundColorAsync` is not supported with edge-to-edge enabled.
+ WARN  `setBackgroundColorAsync` is not supported with edge-to-edge enabled.
+ WARN  `setBackgroundColorAsync` is not supported with edge-to-edge enabled.
+ WARN  `setBackgroundColorAsync` is not supported with edge-to-edge enabled.
+ LOG  [PUSH result] {"data": {"details": {"error": "InvalidCredentials", "fault": "developer"}, "message": "Unable to retrieve the FCM server key for the recipient's app. Make sure you have provided a server key as directed by the Expo FCM documentation.", "status": "error"}}
+ LOG  [PUSH → urgent] קרציה
+ WARN  [PUSH] אין pushToken למנקה: Isns
+Android node_modules\expo-router\entry.js ░░░░░░░░░░░░░░░░  0.0% (0/1)
+Android Bundled 90ms node_modules\expo-router\entry.js (1 module)
+ WARN  SafeAreaView has been deprecated and will be removed in a future release. Please use 'react-native-safe-area-context' instead. See https://github.com/th3rdwave/react-native-safe-area-context
+ WARN  `setBackgroundColorAsync` is not supported with edge-to-edge enabled.
+Android node_modules\expo-router\entry.js ░░░░░░░░░░░░░░░░  0.0% (0/1)
+Android Bundled 90ms node_modules\expo-router\entry.js (1 module)
+ WARN  SafeAreaView has been deprecated and will be removed in a future release. Please use 'react-native-safe-area-context' instead. See https://github.com/th3rdwave/react-native-safe-area-context
+ WARN  `setBackgroundColorAsync` is not supported with edge-to-edge enabled.
+ WARN  `setBackgroundColorAsync` is not supported with edge-to-edge enabled.
+ WARN  `setBackgroundColorAsync` is not supported with edge-to-edge enabled.
+Android node_modules\expo-secure-store\build\SecureStore.js ░░░░░░░░░░░░░░░░  0.0% (0/1)
+Android Bundled 29ms node_modules\expo-secure-store\build\SecureStore.js (1 module)
+ WARN  `setBackgroundColorAsync` is not supported with edge-to-edge enabled.
+ WARN  `setBackgroundColorAsync` is not supported with edge-to-edge enabled.
+Android node_modules\expo-router\entry.js ░░░░░░░░░░░░░░░░  0.0% (0/1)
+Android Bundled 85ms node_modules\expo-router\entry.js (1 module)
+ WARN  SafeAreaView has been deprecated and will be removed in a future release. Please use 'react-native-safe-area-context' instead. See https://github.com/th3rdwave/react-native-safe-area-context
+ WARN  `setBackgroundColorAsync` is not supported with edge-to-edge enabled.
+Android node_modules\expo-router\entry.js ░░░░░░░░░░░░░░░░  0.0% (0/1)
+Android Bundled 6327ms node_modules\expo-router\entry.js (1 module)
+Android node_modules\expo-router\entry.js ░░░░░░░░░░░░░░░░  0.0% (0/1)
+ WARN  SafeAreaView has been deprecated and will be removed in a future release. Please use 'react-native-safe-area-context' instead. See https://github.com/th3rdwave/react-native-safe-area-context
+ WARN  `setBackgroundColorAsync` is not supported with edge-to-edge enabled.
+ WARN  `setBackgroundColorAsync` is not supported with edge-to-edge enabled.
+ WARN  `setBackgroundColorAsync` is not supported with edge-to-edge enabled.
+ WARN  `setBackgroundColorAsync` is not supported with edge-to-edge enabled.
+ WARN  `setBackgroundColorAsync` is not supported with edge-to-edge enabled.
+ WARN  `setBackgroundColorAsync` is not supported with edge-to-edge enabled.
+ WARN  `setBackgroundColorAsync` is not supported with edge-to-edge enabled.
+ WARN  `setBackgroundColorAsync` is not supported with edge-to-edge enabled.
+ WARN  `setBackgroundColorAsync` is not supported with edge-to-edge enabled.
+Android node_modules\expo-router\entry.js ░░░░░░░░░░░░░░░░  0.0% (0/1)
+Android Bundled 4675ms node_modules\expo-router\entry.js (1 module)
+Android node_modules\expo-router\entry.js ░░░░░░░░░░░░░░░░  0.0% (0/1)
+ WARN  SafeAreaView has been deprecated and will be removed in a future release. Please use 'react-native-safe-area-context' instead. See https://github.com/th3rdwave/react-native-safe-area-context
+ WARN  `setBackgroundColorAsync` is not supported with edge-to-edge enabled.
+Android node_modules\expo-router\entry.js ░░░░░░░░░░░░░░░░  0.0% (0/1)
+Android Bundled 5878ms node_modules\expo-router\entry.js (1 module)
+Android node_modules\expo-router\entry.js ░░░░░░░░░░░░░░░░  0.0% (0/1)
+ WARN  SafeAreaView has been deprecated and will be removed in a future release. Please use 'react-native-safe-area-context' instead. See https://github.com/th3rdwave/react-native-safe-area-context
+ WARN  `setBackgroundColorAsync` is not supported with edge-to-edge enabled.
+ WARN  `setBackgroundColorAsync` is not supported with edge-to-edge enabled.
+ WARN  `setBackgroundColorAsync` is not supported with edge-to-edge enabled.
+Android node_modules\expo-router\entry.js ░░░░░░░░░░░░░░░░  0.0% (0/1)
+Android Bundled 85ms node_modules\expo-router\entry.js (1 module)
+ WARN  SafeAreaView has been deprecated and will be removed in a future release. Please use 'react-native-safe-area-context' instead. See https://github.com/th3rdwave/react-native-safe-area-context
+ WARN  `setBackgroundColorAsync` is not supported with edge-to-edge enabled.
+Android node_modules\expo-router\entry.js ░░░░░░░░░░░░░░░░  0.0% (0/1)
+Android Bundled 4792ms node_modules\expo-router\entry.js (1 module)
+Android node_modules\expo-router\entry.js ░░░░░░░░░░░░░░░░  0.0% (0/1)
+ WARN  SafeAreaView has been deprecated and will be removed in a future release. Please use 'react-native-safe-area-context' instead. See https://github.com/th3rdwave/react-native-safe-area-context
+ WARN  `setBackgroundColorAsync` is not supported with edge-to-edge enabled.
+Android node_modules\expo-secure-store\build\SecureStore.js ░░░░░░░░░░░░░░░░  0.0% (0/1)
+Android Bundled 30ms node_modules\expo-secure-store\build\SecureStore.js (1 module)
+ ERROR  Your app just crashed. See the error below.
+java.lang.OutOfMemoryError: Failed to allocate a 24 byte allocation with 2236224 free bytes and 2183KB until OOM, target footprint 268435456, growth limit 268435456; giving up on allocation because <1% of heap free after GC.
+  java.nio.HeapByteBuffer.<init>(HeapByteBuffer.java:87)
+  java.nio.HeapByteBuffer.<init>(HeapByteBuffer.java:71)
+  java.nio.ByteBuffer.allocate(ByteBuffer.java:380)
+  m140.dhy.a(:com.google.android.gms.policy_maps_core_dynamite@260830207@260830202025.896086277.896086277:3)
+  com.google.maps.api.android.lib6.phoenix.dm.n(:com.google.android.gms.policy_maps_core_dynamite@260830207@260830202025.896086277.896086277:836)
+  com.google.maps.api.android.lib6.phoenix.dm.g(:com.google.android.gms.policy_maps_core_dynamite@260830207@260830202025.896086277.896086277:164)
+  com.google.maps.api.android.lib6.impl.ez.b(:com.google.android.gms.policy_maps_core_dynamite@260830207@260830202025.896086277.896086277:19)
+  com.google.maps.api.android.lib6.impl.eq.Y(:com.google.android.gms.policy_maps_core_dynamite@260830207@260830202025.896086277.896086277:8)
+  com.google.maps.api.android.lib6.impl.eq.x(:com.google.android.gms.policy_maps_core_dynamite@260830207@260830202025.896086277.896086277:61)
+  com.google.android.gms.maps.model.internal.u.br(:com.google.android.gms.policy_maps_core_dynamite@260830207@260830202025.896086277.896086277:329)
+  m140.azc.onTransact(:com.google.android.gms.policy_maps_core_dynamite@260830207@260830202025.896086277.896086277:21)
+  android.os.Binder.transact(Binder.java:1361)
+  com.google.android.gms.internal.maps.zza.zzc(com.google.android.gms:play-services-maps@@18.2.0:2)
+  com.google.android.gms.internal.maps.zzab.zzt(com.google.android.gms:play-services-maps@@18.2.0:3)
+  com.google.android.gms.maps.model.Marker.setIcon(com.google.android.gms:play-services-maps@@18.2.0:2)
+  com.rnmaps.maps.MapMarker.updateMarkerIcon(MapMarker.java:295)
+  com.rnmaps.maps.MapMarker.updateCustomForTracking(MapMarker.java:287)
+  com.rnmaps.maps.ViewChangesTracker.update(ViewChangesTracker.java:64)
+  com.rnmaps.maps.ViewChangesTracker$1.run(ViewChangesTracker.java:22)
+  android.os.Handler.handleCallback(Handler.java:1070)
+  android.os.Handler.dispatchMessage(Handler.java:125)
+  android.os.Looper.dispatchMessage(Looper.java:358)
+  android.os.Looper.loopOnce(Looper.java:288)
+  android.os.Looper.loop(Looper.java:392)
+  android.app.ActivityThread.main(ActivityThread.java:10346)
+  java.lang.reflect.Method.invoke(Native Method)
+  com.android.internal.os.RuntimeInit$MethodAndArgsCaller.run(RuntimeInit.java:638)
+  com.android.internal.os.ZygoteInit.main(ZygoteInit.java:972)
+Android node_modules\expo-router\entry.js ░░░░░░░░░░░░░░░░  0.0% (0/1)
+Android Bundled 9707ms node_modules\expo-router\entry.js (1 module)
+Android node_modules\expo-router\entry.js ░░░░░░░░░░░░░░░░  0.0% (0/1)
+ WARN  SafeAreaView has been deprecated and will be removed in a future release. Please use 'react-native-safe-area-context' instead. See https://github.com/th3rdwave/react-native-safe-area-context
+ WARN  `setBackgroundColorAsync` is not supported with edge-to-edge enabled.
+Android node_modules\expo-router\entry.js ░░░░░░░░░░░░░░░░  0.0% (0/1)
+Android Bundled 79ms node_modules\expo-router\entry.js (1 module)
+ WARN  SafeAreaView has been deprecated and will be removed in a future release. Please use 'react-native-safe-area-context' instead. See https://github.com/th3rdwave/react-native-safe-area-context
+ WARN  `setBackgroundColorAsync` is not supported with edge-to-edge enabled.
+Android node_modules\expo-secure-store\build\SecureStore.js ░░░░░░░░░░░░░░░░  0.0% (0/1)
+Android Bundled 27ms node_modules\expo-secure-store\build\SecureStore.js (1 module)
+Android node_modules\expo-router\entry.js ░░░░░░░░░░░░░░░░  0.0% (0/1)
+Android Bundled 281ms node_modules\expo-router\entry.js (1 module)
+ WARN  SafeAreaView has been deprecated and will be removed in a future release. Please use 'react-native-safe-area-context' instead. See https://github.com/th3rdwave/react-native-safe-area-context
+ WARN  `setBackgroundColorAsync` is not supported with edge-to-edge enabled.
+Android node_modules\expo-router\entry.js ░░░░░░░░░░░░░░░░  0.0% (0/1)
+Android Bundled 253ms node_modules\expo-router\entry.js (1 module)
+ WARN  SafeAreaView has been deprecated and will be removed in a future release. Please use 'react-native-safe-area-context' instead. See https://github.com/th3rdwave/react-native-safe-area-context
+ WARN  `setBackgroundColorAsync` is not supported with edge-to-edge enabled.
+Android node_modules\expo-secure-store\build\SecureStore.js ░░░░░░░░░░░░░░░░  0.0% (0/1)
+Android Bundled 50ms node_modules\expo-secure-store\build\SecureStore.js (1 module)
+Android Bundled 122ms node_modules\expo-router\entry.js (1 module)
+ WARN  SafeAreaView has been deprecated and will be removed in a future release. Please use 'react-native-safe-area-context' instead. See https://github.com/th3rdwave/react-native-safe-area-context
+ WARN  `setBackgroundColorAsync` is not supported with edge-to-edge enabled.
+ WARN  `setBackgroundColorAsync` is not supported with edge-to-edge enabled.
+Android node_modules\expo-router\entry.js ░░░░░░░░░░░░░░░░  0.0% (0/1)
+Android Bundled 10991ms node_modules\expo-router\entry.js (1 module)
+Android node_modules\expo-router\entry.js ░░░░░░░░░░░░░░░░  0.0% (0/1)
+ WARN  SafeAreaView has been deprecated and will be removed in a future release. Please use 'react-native-safe-area-context' instead. See https://github.com/th3rdwave/react-native-safe-area-context
+ WARN  `setBackgroundColorAsync` is not supported with edge-to-edge enabled.
+Android node_modules\expo-router\entry.js ░░░░░░░░░░░░░░░░  0.0% (0/1)
+Android Bundled 116ms node_modules\expo-router\entry.js (1 module)
+ WARN  SafeAreaView has been deprecated and will be removed in a future release. Please use 'react-native-safe-area-context' instead. See https://github.com/th3rdwave/react-native-safe-area-context
+ WARN  `setBackgroundColorAsync` is not supported with edge-to-edge enabled.
+ LOG  VirtualizedList: You have a large list that is slow to update - make sure your renderItem function renders components that follow React performance best practices like PureComponent, shouldComponentUpdate, etc. {"contentLength": 4553.75, "dt": 544, "prevDt": 3185}
+ WARN  `setBackgroundColorAsync` is not supported with edge-to-edge enabled.
+ WARN  `setBackgroundColorAsync` is not supported with edge-to-edge enabled.
+ WARN  `setBackgroundColorAsync` is not supported with edge-to-edge enabled.
+ WARN  `setBackgroundColorAsync` is not supported with edge-to-edge enabled.
+Android node_modules\expo-router\entry.js ░░░░░░░░░░░░░░░░  0.0% (0/1)
+Android Bundled 245ms node_modules\expo-router\entry.js (1 module)
+ WARN  SafeAreaView has been deprecated and will be removed in a future release. Please use 'react-native-safe-area-context' instead. See https://github.com/th3rdwave/react-native-safe-area-context
+ WARN  `setBackgroundColorAsync` is not supported with edge-to-edge enabled.
+ WARN  `setBackgroundColorAsync` is not supported with edge-to-edge enabled.
+ WARN  `setBackgroundColorAsync` is not supported with edge-to-edge enabled.
+ WARN  `setBackgroundColorAsync` is not supported with edge-to-edge enabled.
+ WARN  `setBackgroundColorAsync` is not supported with edge-to-edge enabled.
+Android node_modules\expo-router\entry.js ░░░░░░░░░░░░░░░░  0.0% (0/1)
+Android Bundled 128ms node_modules\expo-router\entry.js (1 module)
+ WARN  SafeAreaView has been deprecated and will be removed in a future release. Please use 'react-native-safe-area-context' instead. See https://github.com/th3rdwave/react-native-safe-area-context
+ WARN  `setBackgroundColorAsync` is not supported with edge-to-edge enabled.
+ WARN  `setBackgroundColorAsync` is not supported with edge-to-edge enabled.
+ WARN  `setBackgroundColorAsync` is not supported with edge-to-edge enabled.
+Android node_modules\expo-secure-store\build\SecureStore.js ░░░░░░░░░░░░░░░░  0.0% (0/1)
+Android Bundled 54ms node_modules\expo-secure-store\build\SecureStore.js (1 module)
+Android node_modules\expo-secure-store\build\SecureStore.js ░░░░░░░░░░░░░░░░  0.0% (0/1)
+Android Bundled 8ms node_modules\expo-secure-store\build\SecureStore.js (1 module)
+Android Bundled 106ms node_modules\expo-router\entry.js (1 module)
+ WARN  SafeAreaView has been deprecated and will be removed in a future release. Please use 'react-native-safe-area-context' instead. See https://github.com/th3rdwave/react-native-safe-area-context
+ WARN  `setBackgroundColorAsync` is not supported with edge-to-edge enabled.
+Android Bundled 61ms node_modules\expo-secure-store\build\SecureStore.js (1 module)
+ WARN  `setBackgroundColorAsync` is not supported with edge-to-edge enabled.
+ WARN  `setBackgroundColorAsync` is not supported with edge-to-edge enabled.
+ WARN  `setBackgroundColorAsync` is not supported with edge-to-edge enabled.
+Android node_modules\expo-router\entry.js ░░░░░░░░░░░░░░░░  0.0% (0/1)
+Android Bundled 149ms node_modules\expo-router\entry.js (1 module)
+ WARN  SafeAreaView has been deprecated and will be removed in a future release. Please use 'react-native-safe-area-context' instead. See https://github.com/th3rdwave/react-native-safe-area-context
+ WARN  `setBackgroundColorAsync` is not supported with edge-to-edge enabled.
+Android node_modules\expo-router\entry.js ░░░░░░░░░░░░░░░░  0.0% (0/1)
+Android Bundled 819ms node_modules\expo-router\entry.js (1 module)
+ WARN  SafeAreaView has been deprecated and will be removed in a future release. Please use 'react-native-safe-area-context' instead. See https://github.com/th3rdwave/react-native-safe-area-context
+ WARN  `setBackgroundColorAsync` is not supported with edge-to-edge enabled.
+Android node_modules\expo-router\entry.js ░░░░░░░░░░░░░░░░  0.0% (0/1)
+Android Bundled 301ms node_modules\expo-router\entry.js (1 module)
+ WARN  SafeAreaView has been deprecated and will be removed in a future release. Please use 'react-native-safe-area-context' instead. See https://github.com/th3rdwave/react-native-safe-area-context
+ WARN  `setBackgroundColorAsync` is not supported with edge-to-edge enabled.
+ WARN  `setBackgroundColorAsync` is not supported with edge-to-edge enabled.
+Android Bundled 270ms node_modules\expo-router\entry.js (1 module)
+ WARN  SafeAreaView has been deprecated and will be removed in a future release. Please use 'react-native-safe-area-context' instead. See https://github.com/th3rdwave/react-native-safe-area-context
+ WARN  `setBackgroundColorAsync` is not supported with edge-to-edge enabled.
+Android node_modules\expo-router\entry.js ░░░░░░░░░░░░░░░░  0.0% (0/1)
+Android Bundled 10553ms node_modules\expo-router\entry.js (1 module)
+Android node_modules\expo-router\entry.js ░░░░░░░░░░░░░░░░  0.0% (0/1)
+ WARN  SafeAreaView has been deprecated and will be removed in a future release. Please use 'react-native-safe-area-context' instead. See https://github.com/th3rdwave/react-native-safe-area-context
+ WARN  `setBackgroundColorAsync` is not supported with edge-to-edge enabled.
+ WARN  [expo-notifications]: `shouldShowAlert` is deprecated. Specify `shouldShowBanner` and / or `shouldShowList` instead.
+ WARN  `setBackgroundColorAsync` is not supported with edge-to-edge enabled.
+Android node_modules\expo-router\entry.js ░░░░░░░░░░░░░░░░  0.0% (0/1)
+Android Bundled 308ms node_modules\expo-router\entry.js (1 module)
+ WARN  SafeAreaView has been deprecated and will be removed in a future release. Please use 'react-native-safe-area-context' instead. See https://github.com/th3rdwave/react-native-safe-area-context
+ WARN  `setBackgroundColorAsync` is not supported with edge-to-edge enabled.
+Android node_modules\expo-router\entry.js ░░░░░░░░░░░░░░░░  0.0% (0/1)
+Android Bundled 6041ms node_modules\expo-router\entry.js (1 module)
+Android node_modules\expo-router\entry.js ░░░░░░░░░░░░░░░░  0.0% (0/1)
+ WARN  SafeAreaView has been deprecated and will be removed in a future release. Please use 'react-native-safe-area-context' instead. See https://github.com/th3rdwave/react-native-safe-area-context
+ WARN  `setBackgroundColorAsync` is not supported with edge-to-edge enabled.
+Android node_modules\expo-secure-store\build\SecureStore.js ░░░░░░░░░░░░░░░░  0.0% (0/1)
+Android Bundled 24ms node_modules\expo-secure-store\build\SecureStore.js (1 module)
+Android node_modules\expo-router\entry.js ░░░░░░░░░░░░░░░░  0.0% (0/1)
+Android Bundled 81ms node_modules\expo-router\entry.js (1 module)
+ WARN  SafeAreaView has been deprecated and will be removed in a future release. Please use 'react-native-safe-area-context' instead. See https://github.com/th3rdwave/react-native-safe-area-context
+ WARN  `setBackgroundColorAsync` is not supported with edge-to-edge enabled.
+ WARN  `setBackgroundColorAsync` is not supported with edge-to-edge enabled.
+ WARN  `setBackgroundColorAsync` is not supported with edge-to-edge enabled.
+ WARN  `setBackgroundColorAsync` is not supported with edge-to-edge enabled.
+Android node_modules\expo-router\entry.js ░░░░░░░░░░░░░░░░  0.0% (0/1)
+Android Bundled 88ms node_modules\expo-router\entry.js (1 module)
+ WARN  SafeAreaView has been deprecated and will be removed in a future release. Please use 'react-native-safe-area-context' instead. See https://github.com/th3rdwave/react-native-safe-area-context
+ WARN  `setBackgroundColorAsync` is not supported with edge-to-edge enabled.
+ WARN  `setBackgroundColorAsync` is not supported with edge-to-edge enabled.
+Android node_modules\expo-router\entry.js ░░░░░░░░░░░░░░░░  0.0% (0/1)
+Android Bundled 80ms node_modules\expo-router\entry.js (1 module)
+ WARN  SafeAreaView has been deprecated and will be removed in a future release. Please use 'react-native-safe-area-context' instead. See https://github.com/th3rdwave/react-native-safe-area-context
+ WARN  `setBackgroundColorAsync` is not supported with edge-to-edge enabled.
+Android node_modules\expo-router\entry.js ░░░░░░░░░░░░░░░░  0.0% (0/1)
+Android Bundled 4927ms node_modules\expo-router\entry.js (1 module)
+Android node_modules\expo-router\entry.js ░░░░░░░░░░░░░░░░  0.0% (0/1)
+ WARN  SafeAreaView has been deprecated and will be removed in a future release. Please use 'react-native-safe-area-context' instead. See https://github.com/th3rdwave/react-native-safe-area-context
+ WARN  `setBackgroundColorAsync` is not supported with edge-to-edge enabled.
+ ERROR  [ReferenceError: Property 'C' doesn't exist] 
+
+Call Stack
+  CleanerMapMarker (app\home.tsx)
+  callComponent.reactStackBottomFrame (node_modules\react-native\Libraries\Renderer\implementations\ReactFabric-dev.js)
+  renderWithHooks (node_modules\react-native\Libraries\Renderer\implementations\ReactFabric-dev.js)
+  updateFunctionComponent (node_modules\react-native\Libraries\Renderer\implementations\ReactFabric-dev.js)
+  beginWork (node_modules\react-native\Libraries\Renderer\implementations\ReactFabric-dev.js)
+  runWithFiberInDEV (node_modules\react-native\Libraries\Renderer\implementations\ReactFabric-dev.js)
+  performUnitOfWork (node_modules\react-native\Libraries\Renderer\implementations\ReactFabric-dev.js)
+  workLoopSync (node_modules\react-native\Libraries\Renderer\implementations\ReactFabric-dev.js)
+  renderRootSync (node_modules\react-native\Libraries\Renderer\implementations\ReactFabric-dev.js)
+  performWorkOnRoot (node_modules\react-native\Libraries\Renderer\implementations\ReactFabric-dev.js)
+  performSyncWorkOnRoot (node_modules\react-native\Libraries\Renderer\implementations\ReactFabric-dev.js)
+  flushSyncWorkAcrossRoots_impl (node_modules\react-native\Libraries\Renderer\implementations\ReactFabric-dev.js)
+  processRootScheduleInMicrotask (node_modules\react-native\Libraries\Renderer\implementations\ReactFabric-dev.js)
+  scheduleMicrotask$argument_0 (node_modules\react-native\Libraries\Renderer\implementations\ReactFabric-dev.js) 
+
+Call Stack
+  map$argument_0 (app\home.tsx)
+  map (<native>)
+  HomeScreen (app\home.tsx)
+  BaseRoute (node_modules\expo-router\build\useScreens.js)
+  SceneView (node_modules\@react-navigation\core\lib\module\SceneView.js)
+  render (node_modules\@react-navigation\core\lib\module\useDescriptors.js)
+  routes.reduce$argument_0 (node_modules\@react-navigation\core\lib\module\useDescriptors.js)
+  reduce (<native>)
+  useDescriptors (node_modules\@react-navigation\core\lib\module\useDescriptors.js)
+  useNavigationBuilder (node_modules\@react-navigation\core\lib\module\useNavigationBuilder.js)
+  NativeStackNavigator (node_modules\expo-router\build\fork\native-stack\createNativeStackNavigator.js)
+  <anonymous> (node_modules\expo-router\build\layouts\withLayoutContext.js)
+  Object.assign$argument_0 (node_modules\expo-router\build\layouts\StackClient.js)
+  RootLayout (app\_layout.tsx)
+  BaseRoute (node_modules\expo-router\build\useScreens.js)
+  SceneView (node_modules\@react-navigation\core\lib\module\SceneView.js)
+  render (node_modules\@react-navigation\core\lib\module\useDescriptors.js)
+  routes.reduce$argument_0 (node_modules\@react-navigation\core\lib\module\useDescriptors.js)
+  reduce (<native>)
+  useDescriptors (node_modules\@react-navigation\core\lib\module\useDescriptors.js)
+  useNavigationBuilder (node_modules\@react-navigation\core\lib\module\useNavigationBuilder.js)
+  Content (node_modules\expo-router\build\ExpoRoot.js)
+  ContextNavigator (node_modules\expo-router\build\ExpoRoot.js)
+  ExpoRoot (node_modules\expo-router\build\ExpoRoot.js)
+  App (node_modules\expo-router\build\qualified-entry.js)
+  WithDevTools (node_modules\expo\src\launch\withDevTools.tsx)
+Android node_modules\expo-router\entry.js ░░░░░░░░░░░░░░░░  0.0% (0/1)
+Android Bundled 5175ms node_modules\expo-router\entry.js (1 module)
+Android node_modules\expo-router\entry.js ░░░░░░░░░░░░░░░░  0.0% (0/1)
+ WARN  SafeAreaView has been deprecated and will be removed in a future release. Please use 'react-native-safe-area-context' instead. See https://github.com/th3rdwave/react-native-safe-area-context
+ WARN  `setBackgroundColorAsync` is not supported with edge-to-edge enabled.
+Android node_modules\expo-router\entry.js ░░░░░░░░░░░░░░░░  0.0% (0/1)
+Android Bundled 8983ms node_modules\expo-router\entry.js (1 module)
+Android node_modules\expo-router\entry.js ░░░░░░░░░░░░░░░░  0.0% (0/1)
+ WARN  SafeAreaView has been deprecated and will be removed in a future release. Please use 'react-native-safe-area-context' instead. See https://github.com/th3rdwave/react-native-safe-area-context
+ WARN  `setBackgroundColorAsync` is not supported with edge-to-edge enabled.
+ WARN  `setBackgroundColorAsync` is not supported with edge-to-edge enabled.
+ WARN  `setBackgroundColorAsync` is not supported with edge-to-edge enabled.
+Android node_modules\expo-router\entry.js ░░░░░░░░░░░░░░░░  0.0% (0/1)
+Android Bundled 77ms node_modules\expo-router\entry.js (1 module)
+ WARN  SafeAreaView has been deprecated and will be removed in a future release. Please use 'react-native-safe-area-context' instead. See https://github.com/th3rdwave/react-native-safe-area-context
+ WARN  `setBackgroundColorAsync` is not supported with edge-to-edge enabled.
+Android node_modules\expo-router\entry.js ░░░░░░░░░░░░░░░░  0.0% (0/1)
+Android Bundled 82ms node_modules\expo-router\entry.js (1 module)
+ WARN  SafeAreaView has been deprecated and will be removed in a future release. Please use 'react-native-safe-area-context' instead. See https://github.com/th3rdwave/react-native-safe-area-context
+ WARN  `setBackgroundColorAsync` is not supported with edge-to-edge enabled.
+ LOG  [PUSH result] {"data": {"id": "019e8cfe-e14c-706e-9673-3ca0cf29459a", "status": "ok"}}
+Android node_modules\expo-router\entry.js ░░░░░░░░░░░░░░░░  0.0% (0/1)
+Android Bundled 79ms node_modules\expo-router\entry.js (1 module)
+ WARN  SafeAreaView has been deprecated and will be removed in a future release. Please use 'react-native-safe-area-context' instead. See https://github.com/th3rdwave/react-native-safe-area-context
+ WARN  `setBackgroundColorAsync` is not supported with edge-to-edge enabled.
+Android node_modules\expo-secure-store\build\SecureStore.js ░░░░░░░░░░░░░░░░  0.0% (0/1)
+Android Bundled 59ms node_modules\expo-secure-store\build\SecureStore.js (1 module)
+ LOG  VirtualizedList: You have a large list that is slow to update - make sure your renderItem function renders components that follow React performance best practices like PureComponent, shouldComponentUpdate, etc. {"contentLength": 1024.2667236328125, "dt": 6735, "prevDt": 3356}

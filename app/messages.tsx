@@ -2,16 +2,17 @@ import React, { useState, useEffect, useRef } from 'react';
 import {
   View, Text, StyleSheet, FlatList, TouchableOpacity, TextInput,
   Modal, StatusBar, ActivityIndicator, Alert,
-  ScrollView, KeyboardAvoidingView, BackHandler,
+  ScrollView, KeyboardAvoidingView, BackHandler, Keyboard,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useRouter } from 'expo-router';
+import { useRouter, useLocalSearchParams } from 'expo-router';
 import { TAB_BAR_CONTENT_HEIGHT } from '../lib/BottomTabBar';
 import {
   collection, query, where, onSnapshot, orderBy,
   addDoc, doc, getDoc, setDoc, updateDoc, deleteDoc, arrayUnion, arrayRemove,
 } from 'firebase/firestore';
 import { auth, db } from '../lib/firebase';
+import { setActiveChat } from '../lib/chatPresence';
 // Firebase Storage לא נדרש — תמונות ואודיו נשמרים כ-base64 ב-Firestore
 import * as ImagePicker from 'expo-image-picker';
 import * as FileSystem from 'expo-file-system/legacy';
@@ -93,8 +94,17 @@ function InlineChatModal({ chatId, otherUid, otherName, visible, onClose }: any)
   const scrollRef                     = useRef<ScrollView>(null);
   const myUid                         = auth.currentUser?.uid || '';
 
+  // גלילה לסוף הצ'אט כשהמקלדת נפתחת — שההודעה האחרונה תמיד גלויה
   useEffect(() => {
-    if (!chatId || !visible) return;
+    const sub = Keyboard.addListener('keyboardDidShow', () => {
+      setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 50);
+    });
+    return () => sub.remove();
+  }, []);
+
+  useEffect(() => {
+    if (!chatId || !visible) { setActiveChat(null); return; }
+    setActiveChat(chatId);   // המשתמש נמצא בצ'אט הזה — לא להקפיץ פופ-אפ עליו
     const myUid = auth.currentUser?.uid;
     if (myUid) {
       updateDoc(doc(db, 'chats', chatId), { unreadBy: arrayRemove(myUid) }).catch(() => {});
@@ -107,7 +117,7 @@ function InlineChatModal({ chatId, otherUid, otherName, visible, onClose }: any)
       }
       setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 100);
     });
-    return unsub;
+    return () => { unsub(); setActiveChat(null); };
   }, [chatId, visible]);
 
   // איפוס מצב בחירה בסגירה
@@ -130,6 +140,7 @@ function InlineChatModal({ chatId, otherUid, otherName, visible, onClose }: any)
           participants: [myUid, otherUid].sort(),
           lastMessage: msg,
           lastMessageAt: new Date().toISOString(),
+          lastSenderUid: myUid,
           participantNames: { [myUid]: myName, [otherUid]: otherName },
           unreadBy: arrayUnion(otherUid),
         }, { merge: true });
@@ -173,6 +184,7 @@ function InlineChatModal({ chatId, otherUid, otherName, visible, onClose }: any)
         participants: [myUid, otherUid].sort(),
         lastMessage: t.chatImageMsg,
         lastMessageAt: new Date().toISOString(),
+        lastSenderUid: myUid,
         participantNames: { [myUid]: myName, [otherUid]: otherName },
         unreadBy: arrayUnion(otherUid),
       }, { merge: true });
@@ -221,6 +233,7 @@ function InlineChatModal({ chatId, otherUid, otherName, visible, onClose }: any)
           participants: [myUid, otherUid].sort(),
           lastMessage: t.chatVoiceMsg,
           lastMessageAt: new Date().toISOString(),
+          lastSenderUid: myUid,
           participantNames: { [myUid]: myName, [otherUid]: otherName },
           unreadBy: arrayUnion(otherUid),
         }, { merge: true });
@@ -369,6 +382,7 @@ function InlineChatModal({ chatId, otherUid, otherName, visible, onClose }: any)
             style={{ flex: 1 }}
             contentContainerStyle={{ padding: 16, gap: 8 }}
             keyboardShouldPersistTaps="handled"
+            onContentSizeChange={() => scrollRef.current?.scrollToEnd({ animated: true })}
           >
             {messages.map(m => {
               const isMe       = m.fromUid === myUid;
@@ -519,6 +533,7 @@ export default function MessagesScreen() {
   const s = createS(C);
   const insets = useSafeAreaInsets();
   const uid    = auth.currentUser?.uid || '';
+  const params = useLocalSearchParams();
 
   const [conversations,    setConversations]    = useState<any[]>([]);
   const [loading,          setLoading]          = useState(true);
@@ -535,7 +550,7 @@ export default function MessagesScreen() {
     const sub = BackHandler.addEventListener('hardwareBackPress', () => {
       if (convSelecting) { cancelConvSelection(); return true; }
       if (activeChatId)  { setActiveChatId(''); return true; }
-      router.back();
+      if (router.canGoBack()) router.back(); else router.replace('/home');
       return true;
     });
     return () => sub.remove();
@@ -573,6 +588,16 @@ export default function MessagesScreen() {
     setActiveOtherUid(conv.otherUid);
     setActiveOtherName(conv.otherName);
   };
+
+  // פתיחת צ'אט אוטומטית מתוך פופ-אפ "הודעה חדשה" (ניווט עם פרמטרים)
+  useEffect(() => {
+    const cid = String(params.openChatId || '');
+    if (cid) {
+      setActiveChatId(cid);
+      setActiveOtherUid(String(params.openOtherUid || ''));
+      setActiveOtherName(String(params.openOtherName || ''));
+    }
+  }, [params.openChatId]);
 
   const handleLongPressConv = (chatId: string) => {
     setConvSelecting(true);
@@ -651,7 +676,7 @@ export default function MessagesScreen() {
         </View>
       ) : (
         <View style={[s.header, { paddingTop: (StatusBar.currentHeight || 0) + 12 }]}>
-          <TouchableOpacity onPress={() => router.back()} style={s.backBtn}>
+          <TouchableOpacity onPress={() => { if (router.canGoBack()) router.back(); else router.replace('/home'); }} style={s.backBtn}>
             <MaterialIcons name="arrow-back" size={24} color={C.white} />
           </TouchableOpacity>
           <T style={s.headerTitle}>{t.messagesTitle}</T>
