@@ -962,7 +962,7 @@ function TypingDots({ s }: { s: ReturnType<typeof createS> }) {
 
 // ─── Main Screen ──────────────────────────────────────────────────────────────
 export default function SupportScreen() {
-  const { highContrast } = useLanguage();
+  const { highContrast, flipSide } = useLanguage();
   const insets = useSafeAreaInsets();
   const C = highContrast ? {
     bg:        '#FFFFFF', botBg:  '#F0F0F0', userBg: '#0040CC',
@@ -1194,11 +1194,11 @@ export default function SupportScreen() {
 
   // ── Render ─────────────────────────────────────────────────────────────────
   return (
-    <View style={[s.root, { paddingTop: StatusBar.currentHeight || 0 }]}>
+    <View style={[s.root, { paddingTop: Platform.OS === 'ios' ? insets.top : (StatusBar.currentHeight || 0) }]}>
       <StatusBar barStyle="light-content" backgroundColor={C.blueDark} />
 
       {/* Header */}
-      <View style={s.header}>
+      <View style={[s.header, flipSide && { flexDirection: 'row-reverse' }]}>
         <TouchableOpacity onPress={() => router.back()} style={s.backBtn}>
           <T style={s.backBtnText}>‹</T>
         </TouchableOpacity>

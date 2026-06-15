@@ -91,7 +91,10 @@ export default function RootLayout() {
   // ניווט לפי סוג ההתראה
   const navForNotification = (data: any) => {
     if (!data) return;
-    if (data.type === 'new_booking' || data.type === 'booking_confirmed') {
+    if (data.type === 'new_booking') {
+      // open the cleaner's bookings tab and the confirm modal for THIS booking
+      router.push({ pathname: '/profile', params: { tab: data.tab || 'bookings', confirmBookingId: data.bookingId || '' } });
+    } else if (data.type === 'booking_confirmed') {
       router.push('/profile');
     } else if (data.type === 'urgent' || data.urgent === true) {
       // הקשה על פוש דחוף = "אני לוקח/ת" → לפרופיל → קבלה אוטומטית + מסך אישור/צ'אט (overlay מכסה את ההבזק)

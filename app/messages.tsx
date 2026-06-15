@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import {
   View, Text, StyleSheet, FlatList, TouchableOpacity, TextInput,
   Modal, StatusBar, ActivityIndicator, Alert,
-  ScrollView, KeyboardAvoidingView, BackHandler, Keyboard,
+  ScrollView, KeyboardAvoidingView, BackHandler, Keyboard, Platform,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter, useLocalSearchParams } from 'expo-router';
@@ -15,6 +15,7 @@ import { auth, db } from '../lib/firebase';
 import { setActiveChat } from '../lib/chatPresence';
 // Firebase Storage לא נדרש — תמונות ואודיו נשמרים כ-base64 ב-Firestore
 import * as ImagePicker from 'expo-image-picker';
+import * as ImageManipulator from 'expo-image-manipulator';
 import * as FileSystem from 'expo-file-system/legacy';
 import { Image } from 'expo-image';
 import { useLanguage, T, useAppColors, AppColors } from '../lib/LanguageContext';
@@ -77,7 +78,7 @@ async function sendPushNotification(token: string, title: string, body: string) 
 
 // ─── Inline Chat Modal ────────────────────────────────────────────────────────
 function InlineChatModal({ chatId, otherUid, otherName, visible, onClose }: any) {
-  const { t } = useLanguage();
+  const { t, flipSide } = useLanguage();
   const C = useAppColors();
   const cs = createCS(C);
   const insets = useSafeAreaInsets();
@@ -90,7 +91,21 @@ function InlineChatModal({ chatId, otherUid, otherName, visible, onClose }: any)
   const [playingId, setPlayingId]     = useState<string | null>(null);
   const [viewerUri, setViewerUri]     = useState<string | null>(null);
   const audioRecorder                 = useAudioRecorder(RecordingPresets.LOW_QUALITY);
+  const micReadyRef                   = useRef(false);
   const playerRef                     = useRef<any>(null);
+
+  // Pre-acquire mic permission + recording audio mode when the chat opens, so
+  // the first press-and-hold doesn't lose its start to the permission dialog.
+  useEffect(() => {
+    (async () => {
+      try {
+        const perm = await AudioModule.requestRecordingPermissionsAsync();
+        if (!perm.granted) return;
+        await setAudioModeAsync({ allowsRecording: true, playsInSilentMode: true });
+        micReadyRef.current = true;
+      } catch (_) {}
+    })();
+  }, []);
   const scrollRef                     = useRef<ScrollView>(null);
   const myUid                         = auth.currentUser?.uid || '';
 
@@ -159,14 +174,34 @@ function InlineChatModal({ chatId, otherUid, otherName, visible, onClose }: any)
     const res = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ImagePicker.MediaTypeOptions.Images,
       allowsEditing: false,
-      quality: 0.25,
-      base64: true,
+      quality: 1,
+      base64: false,
       exif: false,
     });
     if (res.canceled || !res.assets[0]) return;
-    const base64Data = res.assets[0].base64;
+    // Resize + compress so the image always fits Firestore's ~700KB base64 limit
+    // (iOS photos are large; rejecting them was the "image too large" error).
+    const srcUri = res.assets[0].uri;
+    let base64Data: string | null | undefined;
+    try {
+      const steps: { width: number; compress: number }[] = [
+        { width: 1080, compress: 0.5 },
+        { width: 900, compress: 0.4 },
+        { width: 720, compress: 0.35 },
+      ];
+      for (const st of steps) {
+        const out = await ImageManipulator.manipulateAsync(
+          srcUri,
+          [{ resize: { width: st.width } }],
+          { compress: st.compress, format: ImageManipulator.SaveFormat.JPEG, base64: true },
+        );
+        base64Data = out.base64;
+        if (base64Data && base64Data.length <= 700_000) break;
+      }
+    } catch (_) {
+      return Alert.alert(t.error, t.imageReadError);
+    }
     if (!base64Data) return Alert.alert(t.error, t.imageReadError);
-    // בדוק גודל — Firestore מוגבל ל-~700KB base64
     if (base64Data.length > 700_000) {
       return Alert.alert(t.imageTooLargeTitle, t.imageTooLargeMsg);
     }
@@ -199,14 +234,18 @@ function InlineChatModal({ chatId, otherUid, otherName, visible, onClose }: any)
   };
 
   const startRecording = async () => {
+    setIsRecording(true);   // instant UI feedback (don't wait on async setup)
     try {
-      const perm = await AudioModule.requestRecordingPermissionsAsync();
-      if (!perm.granted) return Alert.alert(t.error, t.micPermDenied);
+      if (!micReadyRef.current) {
+        const perm = await AudioModule.requestRecordingPermissionsAsync();
+        if (!perm.granted) { setIsRecording(false); return Alert.alert(t.error, t.micPermDenied); }
+        micReadyRef.current = true;
+      }
+      // playback may have switched the session to playback mode — switch back
       await setAudioModeAsync({ allowsRecording: true, playsInSilentMode: true });
       await audioRecorder.prepareToRecordAsync();
       audioRecorder.record();
-      setIsRecording(true);
-    } catch (_) {}
+    } catch (_) { setIsRecording(false); }
   };
 
   const stopAndSendRecording = async () => {
@@ -353,7 +392,7 @@ function InlineChatModal({ chatId, otherUid, otherName, visible, onClose }: any)
 
         {/* ── Header ── */}
         {msgSelecting ? (
-          <View style={[cs.header, { backgroundColor: '#1E293B' }]}>
+          <View style={[cs.header, { backgroundColor: '#1E293B' }, flipSide && { flexDirection: 'row-reverse' }]}>
             <TouchableOpacity onPress={cancelSelection} style={cs.closeBtn}>
               <T style={{ color: '#fff', fontSize: 18 }}>✕</T>
             </TouchableOpacity>
@@ -367,7 +406,7 @@ function InlineChatModal({ chatId, otherUid, otherName, visible, onClose }: any)
             </TouchableOpacity>
           </View>
         ) : (
-          <View style={cs.header}>
+          <View style={[cs.header, flipSide && { flexDirection: 'row-reverse' }]}>
             <TouchableOpacity onPress={onClose} style={cs.closeBtn}>
               <MaterialIcons name="arrow-back" size={24} color={C.white} />
             </TouchableOpacity>
@@ -527,7 +566,7 @@ function InlineChatModal({ chatId, otherUid, otherName, visible, onClose }: any)
 // ─── Messages Screen ──────────────────────────────────────────────────────────
 export default function MessagesScreen() {
   const router = useRouter();
-  const { t, lang }  = useLanguage();
+  const { t, lang, flipSide }  = useLanguage();
   const LOCALE_MAP: Record<string, string> = { he: 'he-IL', en: 'en-GB', ru: 'ru-RU', ar: 'ar-SA', fr: 'fr-FR', hi: 'hi-IN' };
   const C = useAppColors();
   const s = createS(C);
@@ -562,17 +601,34 @@ export default function MessagesScreen() {
       collection(db, 'chats'),
       where('participants', 'array-contains', uid),
     );
-    const unsub = onSnapshot(q, snap => {
+    const nameCache: Record<string, string> = {};
+    const unsub = onSnapshot(q, async snap => {
       const convs = snap.docs.map(d => {
         const data = d.data();
-        const otherUid  = (data.participants || []).find((p: string) => p !== uid) || '';
-        const otherName = data.participantNames?.[otherUid] || '?';
+        // self-chat (participants are all the same uid) → fall back to own uid
+        const otherUid  = (data.participants || []).find((p: string) => p !== uid) || uid;
+        const stored    = data.participantNames?.[otherUid];
+        const otherName = (stored && stored !== '?') ? stored : '';   // treat '?' as missing
         return {
           chatId: d.id, otherUid, otherName,
           lastMessage:   data.lastMessage   || '',
           lastMessageAt: data.lastMessageAt || '',
         };
       }).sort((a, b) => b.lastMessageAt.localeCompare(a.lastMessageAt));
+      // Fill in any missing names from the users collection (some chat docs are
+      // created by voice/image/confirm flows that don't write participantNames).
+      await Promise.all(convs.map(async c => {
+        if (c.otherName || !c.otherUid) return;
+        if (nameCache[c.otherUid]) { c.otherName = nameCache[c.otherUid]; return; }
+        try {
+          const us = await getDoc(doc(db, 'users', c.otherUid));
+          const d  = (us.data() as any) || {};
+          const nm = d.name || d.fullName || d.displayName || d.cleanerName ||
+                     (d.email ? String(d.email).split('@')[0] : '');
+          if (nm) { nameCache[c.otherUid] = nm; c.otherName = nm; }
+        } catch (_) {}
+      }));
+      convs.forEach(c => { if (!c.otherName) c.otherName = '?'; });
       setConversations(convs);
       setLoading(false);
     }, () => setLoading(false));
@@ -656,7 +712,7 @@ export default function MessagesScreen() {
 
       {/* ── Header ── */}
       {convSelecting ? (
-        <View style={[s.header, { paddingTop: (StatusBar.currentHeight || 0) + 12, backgroundColor: '#1E293B' }]}>
+        <View style={[s.header, { paddingTop: (Platform.OS === 'ios' ? insets.top : (StatusBar.currentHeight || 0)) + 12, backgroundColor: '#1E293B' }, flipSide && { flexDirection: 'row-reverse' }]}>
           <TouchableOpacity onPress={cancelConvSelection} style={s.backBtn}>
             <T style={{ color: C.white, fontSize: 18 }}>✕</T>
           </TouchableOpacity>
@@ -675,7 +731,7 @@ export default function MessagesScreen() {
           </TouchableOpacity>
         </View>
       ) : (
-        <View style={[s.header, { paddingTop: (StatusBar.currentHeight || 0) + 12 }]}>
+        <View style={[s.header, { paddingTop: (Platform.OS === 'ios' ? insets.top : (StatusBar.currentHeight || 0)) + 12 }, flipSide && { flexDirection: 'row-reverse' }]}>
           <TouchableOpacity onPress={() => { if (router.canGoBack()) router.back(); else router.replace('/home'); }} style={s.backBtn}>
             <MaterialIcons name="arrow-back" size={24} color={C.white} />
           </TouchableOpacity>

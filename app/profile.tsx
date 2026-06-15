@@ -7,6 +7,7 @@ import {
 } from 'react-native';
 import { Image } from 'expo-image';
 import * as ImagePicker from 'expo-image-picker';
+import * as ImageManipulator from 'expo-image-manipulator';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
@@ -402,7 +403,7 @@ function RateModal({ booking, visible, isCleaner, onClose, onSubmit }: any) {
 // ─── Main Screen ──────────────────────────────────────────────────────────────
 export default function ProfileScreen() {
   const router = useRouter();
-  const { tab, requestId, section, acceptReqId } = useLocalSearchParams<{ tab?: string; requestId?: string; section?: string; acceptReqId?: string }>();
+  const { tab, requestId, section, acceptReqId, confirmBookingId } = useLocalSearchParams<{ tab?: string; requestId?: string; section?: string; acceptReqId?: string; confirmBookingId?: string }>();
   const { t, lang, setLang, flipSide } = useLanguage();
   const C = useAppColors();
   const s = createS(C);
@@ -518,6 +519,18 @@ export default function ProfileScreen() {
       setPendingConfirmBooking(fresh.sort((a: any, b: any) => String(b.createdAt).localeCompare(String(a.createdAt)))[0]);
     }
   }, [incomingBks, userRole]);
+
+  // Tapped a "new booking" push → open the confirm modal for THAT booking,
+  // regardless of how old it is (the auto-popup above only covers the last 5 min).
+  const confirmFromPushRef = useRef<string>('');
+  useEffect(() => {
+    if (!confirmBookingId || confirmFromPushRef.current === confirmBookingId) return;
+    const bk = incomingBks.find((b: any) => b.id === confirmBookingId);
+    if (!bk) return;   // wait until the bookings list has loaded
+    confirmFromPushRef.current = confirmBookingId as string;
+    setActiveTab('bookings');
+    if (bk.status === 'pending') setPendingConfirmBooking(bk);
+  }, [confirmBookingId, incomingBks]);
 
   // Urgent requests
   const [urgentRequests, setUrgentRequests] = useState<any[]>([]);
@@ -660,6 +673,10 @@ export default function ProfileScreen() {
     const clientUid = pendingConfirmBooking.clientUid;
     if (!uid || !clientUid) return;
     const chatId = [uid, clientUid].sort().join('_');
+    // point the shared image/voice senders at this client so the modal's
+    // 📷/🎤 buttons write to the same chat
+    setChatClientUid(clientUid);
+    setChatClientName(pendingConfirmBooking.clientName || 'לקוח');
     setActiveChat(chatId);   // המנקה בצ'אט ההזמנה הזה — לא להקפיץ פופ-אפ
     const q = query(collection(db, 'chats', chatId, 'messages'), orderBy('createdAt', 'asc'));
     pendingChatUnsubRef.current = onSnapshot(q, snap => {
@@ -755,6 +772,19 @@ export default function ProfileScreen() {
   // Voice recording (cleaner chat)
   const [chatIsRecording,  setChatIsRecording]  = useState(false);
   const cleanerRecorder = useAudioRecorder(RecordingPresets.HIGH_QUALITY);
+  const cleanerMicReadyRef = useRef(false);
+  // Pre-acquire mic permission + recording audio mode so press-and-hold starts
+  // capturing instantly (otherwise the permission dialog eats the start on iOS).
+  useEffect(() => {
+    (async () => {
+      try {
+        const perm = await AudioModule.requestRecordingPermissionsAsync();
+        if (!perm.granted) return;
+        await setAudioModeAsync({ allowsRecording: true, playsInSilentMode: true });
+        cleanerMicReadyRef.current = true;
+      } catch (_) {}
+    })();
+  }, []);
   const [chatPlayingId,    setChatPlayingId]    = useState<string | null>(null);
   const [chatViewerUri,    setChatViewerUri]    = useState<string | null>(null);
   const chatSoundRef = useRef<any>(null);
@@ -1377,12 +1407,21 @@ export default function ProfileScreen() {
     const res = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ImagePicker.MediaTypeOptions.Images,
       allowsEditing: false,
-      quality: 0.25,
-      base64: true,
+      quality: 1,
+      base64: false,
       exif: false,
     });
     if (res.canceled || !res.assets[0]) return;
-    const base64Data = res.assets[0].base64;
+    // Resize + compress so the image always fits Firestore's ~700KB base64 limit
+    const srcUri = res.assets[0].uri;
+    let base64Data: string | null | undefined;
+    try {
+      for (const st of [{ width: 1080, compress: 0.5 }, { width: 900, compress: 0.4 }, { width: 720, compress: 0.35 }]) {
+        const out = await ImageManipulator.manipulateAsync(srcUri, [{ resize: { width: st.width } }], { compress: st.compress, format: ImageManipulator.SaveFormat.JPEG, base64: true });
+        base64Data = out.base64;
+        if (base64Data && base64Data.length <= 700_000) break;
+      }
+    } catch (_) { return Alert.alert(t.error, t.imageReadError); }
     if (!base64Data) return Alert.alert(t.error, t.imageReadError);
     if (base64Data.length > 700_000) return Alert.alert(t.imageTooLargeTitle, t.imageTooLargeMsg);
     const chatId = [uid, chatClientUid].sort().join('_');
@@ -1408,14 +1447,18 @@ export default function ProfileScreen() {
   };
 
   const startCleanerRecording = async () => {
+    setChatIsRecording(true);   // instant feedback
     try {
-      const perm = await AudioModule.requestRecordingPermissionsAsync();
-      if (!perm.granted) return Alert.alert(t.error, t.micPermDenied);
+      if (!cleanerMicReadyRef.current) {
+        const perm = await AudioModule.requestRecordingPermissionsAsync();
+        if (!perm.granted) { setChatIsRecording(false); return Alert.alert(t.error, t.micPermDenied); }
+        cleanerMicReadyRef.current = true;
+      }
+      // playback may have switched the session to playback mode — switch back
       await setAudioModeAsync({ allowsRecording: true, playsInSilentMode: true });
       await cleanerRecorder.prepareToRecordAsync();
       cleanerRecorder.record();
-      setChatIsRecording(true);
-    } catch (_) {}
+    } catch (_) { setChatIsRecording(false); }
   };
 
   const stopAndSendCleanerRecording = async () => {
@@ -2340,7 +2383,7 @@ export default function ProfileScreen() {
     <SafeAreaView style={s.wrap} edges={['left', 'right']}>
       <StatusBar barStyle="light-content" backgroundColor={C.blueDark} />
 
-      <View style={[s.header, { paddingTop: (StatusBar.currentHeight || 0) + 12 }]}>
+      <View style={[s.header, { paddingTop: (Platform.OS === 'ios' ? insets.top : (StatusBar.currentHeight || 0)) + 12 }, flipSide && { flexDirection: 'row-reverse' }]}>
         <TouchableOpacity onPress={() => { if (router.canGoBack()) router.back(); else router.replace('/home'); }} style={s.backBtn}>
           <MaterialIcons name="arrow-back" size={30} color="#FFFFFF" />
         </TouchableOpacity>
@@ -2375,8 +2418,8 @@ export default function ProfileScreen() {
         <SafeAreaView style={{ flex: 1, backgroundColor: C.bg }} edges={['top','left','right']}>
           <KeyboardAvoidingView style={{ flex: 1 }} behavior="padding" keyboardVerticalOffset={0}>
 
-            {/* ─── Header ─── */}
-            <View style={{ backgroundColor: '#FFF7ED', paddingHorizontal: 16, paddingVertical: 12, borderBottomWidth: 1.5, borderBottomColor: '#FED7AA' }}>
+            {/* ─── Header ─── (insets.top because SafeAreaView is 0 inside a Modal) */}
+            <View style={{ backgroundColor: '#FFF7ED', paddingHorizontal: 16, paddingTop: insets.top + 12, paddingBottom: 12, borderBottomWidth: 1.5, borderBottomColor: '#FED7AA' }}>
               <T style={{ fontSize: 16, fontWeight: '900', color: '#92400E', textAlign: 'center' }}>
                 📥 הזמנה חדשה ממתינה לאישורך
               </T>
@@ -2517,7 +2560,9 @@ export default function ProfileScreen() {
                     </View>
                   }
                   renderItem={({ item }) => {
-                    const isMe = item.from === 'cleaner';
+                    // identify "mine" by sender uid so it stays in sync with the
+                    // main chat (which sends only fromUid, no `from` field)
+                    const isMe = item.fromUid ? item.fromUid === uid : item.from === 'cleaner';
                     const timeLabel = item.createdAt ? new Date(item.createdAt).toLocaleTimeString(LOCALE_MAP[lang] || 'he-IL', { hour: '2-digit', minute: '2-digit' }) : '';
                     // הודעה קולית
                     if (item.type === 'audio') {
@@ -2561,6 +2606,11 @@ export default function ProfileScreen() {
 
                 {/* ─── שורת קלט ─── */}
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: C.white, paddingHorizontal: 12, paddingTop: 8, paddingBottom: 8, borderTopWidth: 1, borderTopColor: C.blueBorder }}>
+                  {chatIsRecording && (
+                    <View style={{ position: 'absolute', top: -30, left: 0, right: 0, alignItems: 'center' }}>
+                      <T style={{ color: '#fff', fontWeight: '800', fontSize: 13, backgroundColor: '#EF4444', paddingHorizontal: 14, paddingVertical: 5, borderRadius: 14, overflow: 'hidden' }}>{t.recordingAudio}</T>
+                    </View>
+                  )}
                   <TextInput
                     style={{ flex: 1, backgroundColor: C.bg, borderRadius: 20, paddingHorizontal: 14, paddingVertical: 9, fontSize: 14, color: C.textDark, borderWidth: 1, borderColor: C.blueBorder, textAlign: 'right', maxHeight: 70 }}
                     value={pendingChatInput}
@@ -2571,13 +2621,30 @@ export default function ProfileScreen() {
                     returnKeyType="send"
                     onSubmitEditing={() => sendPendingChat()}
                   />
-                  <TouchableOpacity
-                    style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: pendingChatInput.trim() ? C.blue : C.grayBorder, alignItems: 'center', justifyContent: 'center' }}
-                    onPress={() => sendPendingChat()}
-                    disabled={!pendingChatInput.trim()}
-                  >
-                    <T style={{ fontSize: 16, color: '#fff' }}>➤</T>
-                  </TouchableOpacity>
+                  {pendingChatInput.trim() ? (
+                    <TouchableOpacity
+                      style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: C.blue, alignItems: 'center', justifyContent: 'center' }}
+                      onPress={() => sendPendingChat()}
+                    >
+                      <T style={{ fontSize: 16, color: '#fff' }}>➤</T>
+                    </TouchableOpacity>
+                  ) : (
+                    <>
+                      <TouchableOpacity
+                        style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: C.blueLight, alignItems: 'center', justifyContent: 'center' }}
+                        onPress={sendCleanerImage}
+                      >
+                        <T style={{ fontSize: 20 }}>📷</T>
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: chatIsRecording ? '#EF4444' : '#25D366', alignItems: 'center', justifyContent: 'center' }}
+                        onPressIn={startCleanerRecording}
+                        onPressOut={stopAndSendCleanerRecording}
+                      >
+                        <MaterialIcons name="mic" size={22} color="#fff" />
+                      </TouchableOpacity>
+                    </>
+                  )}
                 </View>
 
                 {/* ─── כפתורים — אשר/דחה רק אם ההזמנה עדיין ממתינה; אחרת רק סגור ─── */}
@@ -2859,7 +2926,6 @@ export default function ProfileScreen() {
             return (
               <View style={[s.section, { backgroundColor: '#F0FDF4', borderRadius: 20, borderWidth: 2, borderColor: '#10B981' }]}>
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 10 }}>
-                  <View style={{ width: 10, height: 10, borderRadius: 5, backgroundColor: '#10B981' }} />
                   <T style={[s.sectionTitle, { color: '#065F46', marginBottom: 0, flex: 1, textAlign: 'center' }]}>{t.activeCleaningsTitle}</T>
                   {activeBookings.length > 0 && (
                     <View style={{ backgroundColor: '#10B981', borderRadius: 12, paddingHorizontal: 10, paddingVertical: 3, marginRight: 'auto' }}>
@@ -3544,7 +3610,9 @@ export default function ProfileScreen() {
       {/* Cleaner Chat Modal */}
       <Modal visible={chatOpen} animationType="slide" presentationStyle="fullScreen" onRequestClose={() => { setChatOpen(false); if (chatUnsubRef.current) chatUnsubRef.current(); }}>
         <View style={{ flex: 1, backgroundColor: C.bluePale }}>
-          <SafeAreaView edges={['top']} style={{ backgroundColor: C.blue }}>
+          {/* safe-area-context insets are 0 inside a Modal, so use the screen's
+              insets.top directly to clear the notch */}
+          <View style={{ backgroundColor: C.blue, paddingTop: insets.top }}>
             <View style={s.header}>
               <TouchableOpacity onPress={() => { setChatOpen(false); if (chatUnsubRef.current) chatUnsubRef.current(); }} style={s.backBtn}>
                 <MaterialIcons name="arrow-back" size={24} color={C.white} />
@@ -3552,7 +3620,7 @@ export default function ProfileScreen() {
               <T style={s.headerTitle}>💬 {chatClientName}</T>
               <View style={{ width: 36 }} />
             </View>
-          </SafeAreaView>
+          </View>
           <ScrollView ref={chatScrollRef} style={{ flex: 1 }} contentContainerStyle={{ padding: 16, gap: 8 }} onContentSizeChange={() => chatScrollRef.current?.scrollToEnd({ animated: true })}>
             {chatMessages.map(m => {
               const isMe = m.fromUid === uid;

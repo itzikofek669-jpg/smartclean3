@@ -2,7 +2,7 @@
 import {
   View, ScrollView, TouchableOpacity, TextInput,
   Alert, StyleSheet, StatusBar, ActivityIndicator,
-  Animated,
+  Animated, Platform,
 } from 'react-native';
 import {
   collection, onSnapshot, query, orderBy, limit,
@@ -80,7 +80,7 @@ const STATUS_LABELS: Record<string, string> = {
 // ─── Main screen ──────────────────────────────────────────────────────────────
 export default function AdminScreen() {
   const router = useRouter();
-  const { highContrast } = useLanguage();
+  const { highContrast, flipSide } = useLanguage();
   const C = highContrast ? HC_ADMIN : C_DEFAULT;
   const s = createS(C);
   const insets = useSafeAreaInsets();
@@ -317,7 +317,7 @@ export default function AdminScreen() {
       <StatusBar barStyle="light-content" backgroundColor={C.blueDark} />
 
       {/* ── Header ── */}
-      <View style={[s.header, { paddingTop: (StatusBar.currentHeight || 0) + 12 }]}>
+      <View style={[s.header, { paddingTop: (Platform.OS === 'ios' ? insets.top : (StatusBar.currentHeight || 0)) + 12 }, flipSide && { flexDirection: 'row-reverse' }]}>
         <View>
           <T style={s.headerTitle}>🛡️ A&M Clean Admin</T>
           <T style={s.headerSub}>

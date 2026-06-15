@@ -28,6 +28,7 @@ import { TAB_BAR_CONTENT_HEIGHT } from '../lib/BottomTabBar';
 // expo-audio — הקלטה והשמעה של הודעות קוליות (SDK 54, מחליף את expo-av)
 import { useAudioRecorder, createAudioPlayer, RecordingPresets, setAudioModeAsync, AudioModule } from 'expo-audio';
 import * as ImagePicker from 'expo-image-picker';
+import * as ImageManipulator from 'expo-image-manipulator';
 import * as FileSystem from 'expo-file-system/legacy';
 
 
@@ -2206,9 +2207,16 @@ function BookingModal({ cleaner, visible, onClose, onBookingCreated, prebookData
     if (!bookedDetails?.cleanerUid) return;
     const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (!perm.granted) return Alert.alert(t.error, t.galleryPermDenied);
-    const res = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ImagePicker.MediaTypeOptions.Images, allowsEditing: false, quality: 0.25, base64: true, exif: false });
+    const res = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ImagePicker.MediaTypeOptions.Images, allowsEditing: false, quality: 1, base64: false, exif: false });
     if (res.canceled || !res.assets[0]) return;
-    const base64Data = res.assets[0].base64;
+    let base64Data: string | null | undefined;
+    try {
+      for (const st of [{ width: 1080, compress: 0.5 }, { width: 900, compress: 0.4 }, { width: 720, compress: 0.35 }]) {
+        const out = await ImageManipulator.manipulateAsync(res.assets[0].uri, [{ resize: { width: st.width } }], { compress: st.compress, format: ImageManipulator.SaveFormat.JPEG, base64: true });
+        base64Data = out.base64;
+        if (base64Data && base64Data.length <= 700_000) break;
+      }
+    } catch (_) { return Alert.alert(t.error, t.imageReadError); }
     if (!base64Data) return Alert.alert(t.error, t.imageReadError);
     if (base64Data.length > 700_000) return Alert.alert(t.imageTooLargeTitle, t.imageTooLargeMsg);
     const clientUid = auth.currentUser?.uid || '';
@@ -2880,12 +2888,20 @@ function ChatModal({ cleaner, visible, onClose }: any) {
     const res = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ImagePicker.MediaTypeOptions.Images,
       allowsEditing: false,
-      quality: 0.25,
-      base64: true,
+      quality: 1,
+      base64: false,
       exif: false,
     });
     if (res.canceled || !res.assets[0]) return;
-    const base64Data = res.assets[0].base64;
+    // resize + compress so it always fits Firestore's ~700KB base64 limit
+    let base64Data: string | null | undefined;
+    try {
+      for (const st of [{ width: 1080, compress: 0.5 }, { width: 900, compress: 0.4 }, { width: 720, compress: 0.35 }]) {
+        const out = await ImageManipulator.manipulateAsync(res.assets[0].uri, [{ resize: { width: st.width } }], { compress: st.compress, format: ImageManipulator.SaveFormat.JPEG, base64: true });
+        base64Data = out.base64;
+        if (base64Data && base64Data.length <= 700_000) break;
+      }
+    } catch (_) { return Alert.alert(t.error, t.imageReadError); }
     if (!base64Data) return Alert.alert(t.error, t.imageReadError);
     if (base64Data.length > 700_000) return Alert.alert(t.imageTooLargeTitle, t.imageTooLargeMsg);
     const otherUid = cleaner.uid || cleaner.id;
@@ -2949,13 +2965,14 @@ function ChatModal({ cleaner, visible, onClose }: any) {
   return (
     <Modal visible={visible} animationType="slide" presentationStyle="fullScreen" onRequestClose={onClose}>
       <View style={{ flex: 1, backgroundColor: C.bluePale }}>
-        <SafeAreaViewCtx edges={['top']} style={{ backgroundColor: C.blueDark }}>
+        {/* safe-area-context insets are 0 inside a Modal — use insets.top directly */}
+        <View style={{ backgroundColor: C.blueDark, paddingTop: insets.top }}>
           <View style={s.modalHeader}>
             <TouchableOpacity onPress={onClose} style={s.closeBtn}><T style={{ color: C.white, fontSize: 18 }}>✕</T></TouchableOpacity>
             <T style={s.modalTitle}>{t.chatWithPrefix}{cleaner.name}</T>
             <View style={{ width: 36 }} />
           </View>
-        </SafeAreaViewCtx>
+        </View>
         <KeyboardAvoidingView style={{ flex: 1 }} behavior="padding">
           <ScrollView ref={scrollRef} style={{ flex: 1 }} contentContainerStyle={{ padding: 16, gap: 8 }} onContentSizeChange={() => scrollRef.current?.scrollToEnd({ animated: true })}>
             {messages.length === 0 && (
@@ -4364,7 +4381,7 @@ export default function HomeScreen() {
     <SafeAreaViewCtx style={s.wrap} edges={['left', 'right']}>
       <StatusBar barStyle="light-content" backgroundColor={C.blueDark} />
 
-      <View style={{ backgroundColor: C.blueDark, flexShrink: 0, paddingTop: StatusBar.currentHeight || 0 }}>
+      <View style={{ backgroundColor: C.blueDark, flexShrink: 0, paddingTop: Platform.OS === 'ios' ? insets.top : (StatusBar.currentHeight || 0) }}>
         <View style={s.header}>
           <View style={[s.headerLogoRow, flipSide && { flexDirection: 'row-reverse' }]}>
             {/* כפתור נגישות — צד שמאל (מוחלף לימין במצב שמאלי) */}
