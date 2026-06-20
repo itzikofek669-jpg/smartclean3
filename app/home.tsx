@@ -5,12 +5,13 @@ import {
   View, Text, StyleSheet, FlatList, TouchableOpacity,
   TextInput, ScrollView, Modal, SafeAreaView, StatusBar,
   Alert, Dimensions, Animated, Platform, Linking, Switch,
-  KeyboardAvoidingView, ActivityIndicator, BackHandler,
+  KeyboardAvoidingView, ActivityIndicator, BackHandler, Keyboard,
 } from 'react-native';
 import { SafeAreaView as SafeAreaViewCtx } from 'react-native-safe-area-context';
 import { Image } from 'expo-image';
 
-import MapView, { Marker, Callout, Circle } from 'react-native-maps';
+import MapView, { Marker, Callout, Circle, PROVIDER_GOOGLE } from 'react-native-maps';
+import Constants from 'expo-constants';
 import * as Location from 'expo-location';
 import { useRouter } from 'expo-router';
 import { signOut } from 'firebase/auth';
@@ -422,10 +423,32 @@ const BOTS: any[] = (() => {
   return out;
 })();
 
+// city names sorted longest-first so e.g. "קריית אתא" matches before "אתא"
+const CITY_KEYS_BY_LEN = Object.keys(CITY_COORDS).sort((a, b) => b.length - a.length);
+
+// cleaners whose address we've already geocoded this session (avoid re-hitting the geocoder)
+const _geocodedCleaners = new Set<string>();
+
+// Extract just the city name from a cleaner's city/address (e.g. "רקפת 50 חריש" → "חריש")
+function cityNameOf(cleaner: any): string {
+  const raw = String(cleaner?.city || cleaner?.cleanerAddress || cleaner?.address || '').trim();
+  if (!raw) return '';
+  if (CITY_COORDS[raw]) return raw;
+  for (const key of CITY_KEYS_BY_LEN) { if (raw.includes(key)) return key; }
+  const parts = raw.split(/[,]+/).map(p => p.trim()).filter(Boolean);
+  return parts.length ? parts[parts.length - 1] : raw;
+}
+
 function getCoordsForCleaner(d: any): { lat: number; lng: number } {
   // קואורדינטות מדויקות מהכתובת (גיאוקודינג שנשמר) — עדיפות עליונה
   if (typeof d.lat === 'number' && typeof d.lng === 'number' && !isNaN(d.lat) && !isNaN(d.lng)) return { lat: d.lat, lng: d.lng };
-  if (d.city && CITY_COORDS[d.city]) return CITY_COORDS[d.city];
+  const cityRaw = String(d.city || '').trim();
+  if (cityRaw && CITY_COORDS[cityRaw]) return CITY_COORDS[cityRaw];
+  // נסה למצוא שם עיר ידוע בתוך העיר/הכתובת המלאה (מנקה שומר כתובת ב-cleanerAddress)
+  const hay = `${cityRaw} ${d.cleanerAddress || ''} ${d.address || ''}`;
+  for (const key of CITY_KEYS_BY_LEN) {
+    if (hay.includes(key)) return CITY_COORDS[key];
+  }
   // נסה עיר ראשונה בworkAreas
   if (d.workAreas) {
     for (const area of d.workAreas) {
@@ -2763,6 +2786,12 @@ function ChatModal({ cleaner, visible, onClose }: any) {
   const insets = useSafeAreaInsets();
   const [messages, setMessages] = useState<any[]>([]);
   const [text, setText] = useState('');
+  const [kbOpen, setKbOpen] = useState(false);
+  useEffect(() => {
+    const sh = Keyboard.addListener('keyboardWillShow', () => setKbOpen(true));
+    const hd = Keyboard.addListener('keyboardWillHide', () => setKbOpen(false));
+    return () => { sh.remove(); hd.remove(); };
+  }, []);
   const scrollRef = useRef<ScrollView>(null);
   const clientUid = auth.currentUser?.uid || '';
   const prevMsgCount = useRef(0);
@@ -2974,7 +3003,7 @@ function ChatModal({ cleaner, visible, onClose }: any) {
           </View>
         </View>
         <KeyboardAvoidingView style={{ flex: 1 }} behavior="padding">
-          <ScrollView ref={scrollRef} style={{ flex: 1 }} contentContainerStyle={{ padding: 16, gap: 8 }} onContentSizeChange={() => scrollRef.current?.scrollToEnd({ animated: true })}>
+          <ScrollView ref={scrollRef} style={{ flex: 1 }} contentContainerStyle={{ padding: 16, gap: 8 }} keyboardDismissMode="on-drag" keyboardShouldPersistTaps="handled" onContentSizeChange={() => scrollRef.current?.scrollToEnd({ animated: true })}>
             {messages.length === 0 && (
               <View style={{ alignItems: 'flex-start' }}>
                 <View style={[s.bubble, s.bubbleCleaner]}>
@@ -3043,7 +3072,7 @@ function ChatModal({ cleaner, visible, onClose }: any) {
               );
             })}
           </ScrollView>
-          <SafeAreaViewCtx edges={['bottom']} style={{ backgroundColor: C.white }}>
+          <View style={{ backgroundColor: C.white, paddingBottom: kbOpen ? 6 : insets.bottom }}>
             <View style={[s.chatRow, { paddingVertical: 8 }]}>
               {isRecording && (
                 <View style={{ position: 'absolute', top: -34, left: 0, right: 0, flexDirection: 'row', alignItems: 'center', justifyContent: 'center' }}>
@@ -3066,7 +3095,7 @@ function ChatModal({ cleaner, visible, onClose }: any) {
                 <MaterialIcons name="mic" size={22} color="#fff" />
               </TouchableOpacity>
             </View>
-          </SafeAreaViewCtx>
+          </View>
         </KeyboardAvoidingView>
 
         {/* מציג תמונה במסך מלא */}
@@ -3091,6 +3120,7 @@ function CleanerCardInner({ cleaner, isSel, onSelect, onProfile, onBook, onChat,
   const C = useAppColors();
   const s = createS(C);
   const fs = (base: number) => Math.round(base * textScale);
+  const [insuranceOpen, setInsuranceOpen] = useState(false);
   const photoUri = cleaner.photoB64 || cleaner.photo ||
     (!isNaN(parseInt(cleaner.id))
       ? `https://i.pravatar.cc/150?img=${((parseInt(cleaner.id) - 1) % 70) + 1}`
@@ -3122,7 +3152,7 @@ function CleanerCardInner({ cleaner, isSel, onSelect, onProfile, onBook, onChat,
 
         {/* עיר + מחיר באותה שורה */}
         <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 12 }}>
-          <T style={[s.cardCity, { fontSize: fs(11), color: highContrast ? HC.sub : C.textSub }]}>📍 {t.cities[cleaner.city] || cleaner.city}</T>
+          <T style={[s.cardCity, { fontSize: fs(11), color: highContrast ? HC.sub : C.textSub }]}>📍 {(() => { const cn = cityNameOf(cleaner); return t.cities[cn] || cn; })()}</T>
           <T style={[s.cardCity, { fontSize: fs(11), color: highContrast ? HC.sub : C.textSub }]}>·</T>
           <T style={[s.priceText, { fontSize: fs(13), color: highContrast ? HC.blue : C.blue }]}>₪{cleaner.price}<T style={[s.priceSub, { fontSize: fs(9), color: highContrast ? HC.sub : C.textSub }]}> {t.perHour}</T></T>
         </View>
@@ -3207,9 +3237,24 @@ function CleanerCardInner({ cleaner, isSel, onSelect, onProfile, onBook, onChat,
               </T>
             </TouchableOpacity>
           </View>
-          <TouchableOpacity style={s.insuranceBtn} onPress={() => Alert.alert(t.insuranceBtn, t.insuranceSub)}>
+          <TouchableOpacity style={s.insuranceBtn} onPress={() => setInsuranceOpen(true)}>
             <T style={s.insuranceBtnText}>{t.insuranceBtn}</T>
           </TouchableOpacity>
+
+          {/* insurance "coming soon" — custom modal so the text is centred (RTL) */}
+          <Modal visible={insuranceOpen} transparent animationType="fade" onRequestClose={() => setInsuranceOpen(false)}>
+            <TouchableOpacity activeOpacity={1} onPress={() => setInsuranceOpen(false)}
+              style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.45)', alignItems: 'center', justifyContent: 'center', padding: 32 }}>
+              <View style={{ backgroundColor: '#fff', borderRadius: 20, padding: 22, width: '100%', maxWidth: 340, alignItems: 'center', gap: 10 }}>
+                <T style={{ fontSize: 17, fontWeight: '900', color: '#1E3A8A', textAlign: 'center' }}>{t.insuranceBtn}</T>
+                <T style={{ fontSize: 14, color: '#3B82F6', textAlign: 'center', lineHeight: 21 }}>{t.insuranceSub}</T>
+                <TouchableOpacity onPress={() => setInsuranceOpen(false)}
+                  style={{ marginTop: 8, backgroundColor: '#2563EB', borderRadius: 12, paddingVertical: 11, alignItems: 'center', width: '100%' }}>
+                  <T style={{ color: '#fff', fontWeight: '800', fontSize: 15 }}>{(t as any).understoodClose ?? 'הבנתי'}</T>
+                </TouchableOpacity>
+              </View>
+            </TouchableOpacity>
+          </Modal>
         </View>
       )}
     </TouchableOpacity>
@@ -3794,12 +3839,6 @@ export default function HomeScreen() {
     }
   };
 
-  const REGIONS = [
-    { key: 'all',    label: t.regionAll    },
-    { key: 'north',  label: t.regionNorth  },
-    { key: 'center', label: t.regionCenter },
-    { key: 'south',  label: t.regionSouth  },
-  ];
 
   // מנקים אמיתיים ראשונים, ואחריהם 200 בוטים מפוזרים בכל הערים
   const ALL_CLEANERS = [
@@ -4249,6 +4288,29 @@ export default function HomeScreen() {
       // סדר יציב: זמינים קודם, ואז לפי דירוג ושם (בלי ערבוב שקופץ בכל עדכון)
       list.sort((a, b) => (Number(b.available) - Number(a.available)) || (b.rating - a.rating) || String(a.name).localeCompare(String(b.name)));
       setRealCleaners(list);
+
+      // One-time precise geocoding: cleaners with an address but no saved lat/lng
+      // get their full address geocoded so the pin sits on the real street
+      // address (not the city centre). Update the displayed coords locally, and
+      // persist back to Firestore only for the current user's own doc (rules).
+      const myUid = auth.currentUser?.uid;
+      snap.docs.forEach(async d => {
+        const data: any = d.data();
+        const hasCoords = typeof data.lat === 'number' && typeof data.lng === 'number' && !isNaN(data.lat) && !isNaN(data.lng);
+        const addr = data.cleanerAddress || data.address;
+        if (hasCoords || !addr || _geocodedCleaners.has(d.id)) return;
+        _geocodedCleaners.add(d.id);
+        try {
+          const results = await Location.geocodeAsync(String(addr));
+          const r = results && results[0];
+          if (r && typeof r.latitude === 'number') {
+            setRealCleaners(prev => prev.map(c => c.id === d.id ? { ...c, lat: r.latitude, lng: r.longitude } : c));
+            if (myUid && d.id === myUid) {
+              await updateDoc(doc(db, 'users', d.id), { lat: r.latitude, lng: r.longitude });
+            }
+          }
+        } catch (_) {}
+      });
     }, () => {});
     return () => unsub();
   }, []);
@@ -4515,18 +4577,13 @@ export default function HomeScreen() {
           </View>
         </View>
 
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ height: 40 }} contentContainerStyle={[s.tabsBar, flipSide && { flexDirection: 'row-reverse' }]}>
-        {REGIONS.map(r => (
-          <TouchableOpacity key={r.key} style={[s.tab, region === r.key && s.tabActive]} onPress={() => handleRegion(r.key)}>
-            <T style={[s.tabText, region === r.key && s.tabTextActive]}>{r.label}</T>
-          </TouchableOpacity>
-        ))}
-      </ScrollView>
       </View>
 
       <View style={[s.body, { paddingBottom: insets.bottom }, flipSide && { flexDirection: 'row-reverse' }]}>
         <View style={[s.mapWrap, flipSide && { borderRightWidth: 0, borderLeftWidth: 1, borderColor: C.blueBorder }]}>
-          <MapView ref={mapRef} style={s.map} initialRegion={REGION_DEFAULTS.all} showsUserLocation={false} showsMyLocationButton={false} onRegionChangeComplete={setMapRegion}>
+          <MapView ref={mapRef} style={s.map}
+            provider={(Platform.OS === 'ios' && Constants.appOwnership === 'expo') ? undefined : PROVIDER_GOOGLE}
+            initialRegion={REGION_DEFAULTS.all} showsUserLocation={false} showsMyLocationButton={false} onRegionChangeComplete={setMapRegion}>
             {nearbyMode && userCoords && (
               <Circle
                 center={{ latitude: userCoords.lat, longitude: userCoords.lng }}

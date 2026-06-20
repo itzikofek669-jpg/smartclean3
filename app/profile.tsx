@@ -2552,6 +2552,8 @@ export default function ProfileScreen() {
                   keyExtractor={m => m.id}
                   style={{ flex: 1, paddingHorizontal: 12 }}
                   contentContainerStyle={{ paddingVertical: 6, gap: 8 }}
+                  keyboardDismissMode="on-drag"
+                  keyboardShouldPersistTaps="handled"
                   onContentSizeChange={() => pendingChatScrollRef.current?.scrollToEnd({ animated: true })}
                   ListEmptyComponent={
                     <View style={{ alignItems: 'center', paddingVertical: 20, gap: 6 }}>
@@ -3621,7 +3623,7 @@ export default function ProfileScreen() {
               <View style={{ width: 36 }} />
             </View>
           </View>
-          <ScrollView ref={chatScrollRef} style={{ flex: 1 }} contentContainerStyle={{ padding: 16, gap: 8 }} onContentSizeChange={() => chatScrollRef.current?.scrollToEnd({ animated: true })}>
+          <ScrollView ref={chatScrollRef} style={{ flex: 1 }} contentContainerStyle={{ padding: 16, gap: 8 }} keyboardDismissMode="on-drag" keyboardShouldPersistTaps="handled" onContentSizeChange={() => chatScrollRef.current?.scrollToEnd({ animated: true })}>
             {chatMessages.map(m => {
               const isMe = m.fromUid === uid;
               if (m.type === 'audio') {

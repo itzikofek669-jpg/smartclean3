@@ -421,6 +421,7 @@ function InlineChatModal({ chatId, otherUid, otherName, visible, onClose }: any)
             style={{ flex: 1 }}
             contentContainerStyle={{ padding: 16, gap: 8 }}
             keyboardShouldPersistTaps="handled"
+            keyboardDismissMode="on-drag"
             onContentSizeChange={() => scrollRef.current?.scrollToEnd({ animated: true })}
           >
             {messages.map(m => {
