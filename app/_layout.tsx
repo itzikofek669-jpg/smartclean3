@@ -1,5 +1,5 @@
 ﻿import React, { useEffect, useState, useRef } from 'react';
-import { Platform, View, StyleSheet, Alert } from 'react-native';
+import { Platform, View, StyleSheet, Alert, LogBox } from 'react-native';
 import { Stack, useRouter, useSegments } from 'expo-router';
 import { onAuthStateChanged, signInWithEmailAndPassword } from 'firebase/auth';
 import * as SecureStore from 'expo-secure-store';
@@ -12,6 +12,14 @@ import { LanguageProvider } from '../lib/LanguageContext';
 import { ThemeProvider } from '../lib/ThemeContext';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { useFonts, NotoSansDevanagari_400Regular } from '@expo-google-fonts/noto-sans-devanagari';
+
+// Hide the Expo Go push-notification warnings (remote push isn't supported in
+// Expo Go since SDK 53; works in a real build). Avoids the red error overlay.
+LogBox.ignoreLogs([
+  /expo-notifications/i,
+  'Android Push notifications',
+  '`expo-notifications` functionality is not fully supported in Expo Go',
+]);
 
 // ── הגדרת התנהגות כשהאפליקציה פתוחה בפורגראונד ─────────────────────────────
 // להודעות צ'אט: בפורגראונד לא מציגים באנר מערכת — הפופ-אפ הפנימי (Firestore) מטפל,
@@ -55,6 +63,8 @@ if (Platform.OS === 'android') {
 
 // ── רישום push token ושמירה ב-Firestore ──────────────────────────────────────
 async function registerPushToken(uid: string) {
+  // Remote push tokens don't work in Expo Go (SDK 53+) — skip to avoid the error.
+  if (Constants.appOwnership === 'expo') return;
   try {
     const { status: existing } = await Notifications.getPermissionsAsync();
     let finalStatus = existing;

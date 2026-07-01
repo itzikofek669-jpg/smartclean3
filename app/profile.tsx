@@ -1913,7 +1913,7 @@ export default function ProfileScreen() {
             Constants.expoConfig?.extra?.eas?.projectId ??
             (Constants as any).easConfig?.projectId ??
             Constants.expoConfig?.slug ?? '';
-          if (projectId) {
+          if (projectId && Constants.appOwnership !== 'expo') {
             const td = await Notifications.getExpoPushTokenAsync({ projectId });
             token = td?.data ?? '';
           }

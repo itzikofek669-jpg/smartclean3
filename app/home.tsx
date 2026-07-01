@@ -9,6 +9,7 @@ import {
 } from 'react-native';
 import { SafeAreaView as SafeAreaViewCtx } from 'react-native-safe-area-context';
 import { Image } from 'expo-image';
+import { LinearGradient } from 'expo-linear-gradient';
 
 import MapView, { Marker, Callout, Circle, PROVIDER_GOOGLE } from 'react-native-maps';
 import Constants from 'expo-constants';
@@ -34,6 +35,7 @@ import * as FileSystem from 'expo-file-system/legacy';
 
 
 const W = Dimensions.get('window').width;
+const H = Dimensions.get('window').height;
 const NAV_BAR_HEIGHT = Platform.OS === 'android'
   ? Math.max(0, Dimensions.get('screen').height - Dimensions.get('window').height - (StatusBar.currentHeight || 0))
   : 0;
@@ -43,7 +45,7 @@ const C_DEFAULT = {
   blue:       '#185FA5',
   blueDark:   '#0D4F96',
   blueLight:  '#E6F1FB',
-  bluePale:   '#F4F8FD',
+  bluePale:   '#E8F2FC',
   blueBorder: '#B5D4F4',
   textDark:   '#042C53',
   textMid:    '#378ADD',
@@ -1062,7 +1064,7 @@ function CleanerProfile({ cleaner, visible, onClose, onBook, onChat }: any) {
             </View>
           )}
         </ScrollView>
-        <View style={[s.profileFooter, { paddingBottom: insets.bottom + 16 }]}>
+        <View style={[s.profileFooter, { paddingBottom: insets.bottom + 6 }]}>
           <TouchableOpacity style={s.footerChat} onPress={() => { onClose(); onChat(cleaner); }}>
             <T style={s.footerChatText}>{t.chatBtn}</T>
           </TouchableOpacity>
@@ -3135,37 +3137,48 @@ function CleanerCardInner({ cleaner, isSel, onSelect, onProfile, onBook, onChat,
       accessibilityLabel={`${cleaner.name}${cleaner.rating ? `, דירוג ${cleaner.rating.toFixed(1)}` : ''}${cleaner.available ? ', זמין' : ', לא זמין'}`}
       accessibilityHint="לחיצה להצגה במפה ולפרטים, לחיצה על השם להרחבה, לחיצה ארוכה לפרופיל"
     >
-      <View style={{ alignItems: 'center', gap: 3 }}>
-        {/* שורת אווטאר + שם — תמונה=הגדלה, שם=הרחבת כרטיס */}
-        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, alignSelf: 'center' }}>
+      <View style={{ gap: 8 }}>
+        {/* top row: price pill (left) · identity (right) · gradient avatar (far right) */}
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+          {/* price pill */}
+          <LinearGradient colors={['#3E8DE3', '#1E6FB8']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={s.pricePill}>
+            <T style={s.pricePillNum}>₪{cleaner.price}</T>
+            <T style={s.pricePillSub}>{t.perHour}</T>
+          </LinearGradient>
+          {/* identity — right-aligned, fills the middle */}
+          <View style={{ flex: 1, alignItems: 'flex-end', gap: 2 }}>
+            <TouchableOpacity onPress={() => onSelect(cleaner.id)} activeOpacity={0.7} style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }} accessibilityLabel={`הרחב כרטיס של ${cleaner.name}`}>
+              {cleaner.identityVerified && (
+                <View style={s.verifiedBadge}><MaterialIcons name="check" size={11} color="#fff" /></View>
+              )}
+              <T style={[s.cardName, { fontSize: fs(16), color: highContrast ? HC.blue : C.blue }]}>{cleaner.name}</T>
+            </TouchableOpacity>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+              <T style={[s.cardCity, { fontSize: fs(12), color: highContrast ? HC.sub : C.textSub }]}>{(() => { const cn = cityNameOf(cleaner); return t.cities[cn] || cn; })()}</T>
+            </View>
+          </View>
+          {/* gradient avatar */}
           <TouchableOpacity onPress={() => photoUri && onEnlarge?.(photoUri)} activeOpacity={0.8} accessibilityLabel={`הגדל תמונה של ${cleaner.name}`}>
-            <View style={[s.avatar, !cleaner.available && { opacity: 0.75 }]}>
-              {photoUri
-                ? <Image source={{ uri: photoUri }} style={{ width: 44, height: 44, borderRadius: 22 }} contentFit="cover" />
-                : <T style={s.avatarText}>{cleaner.initials}</T>}
+            <View style={{ position: 'relative' }}>
+              <LinearGradient colors={['#5BA8F0', '#1E6FB8']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={[s.avatarLg, !cleaner.available && { opacity: 0.75 }]}>
+                {photoUri
+                  ? <Image source={{ uri: photoUri }} style={{ width: 52, height: 52, borderRadius: 26 }} contentFit="cover" />
+                  : <T style={[s.avatarText, { fontSize: 18 }]}>{cleaner.initials}</T>}
+              </LinearGradient>
+              {cleaner.available && <View style={s.onlineDot} />}
             </View>
           </TouchableOpacity>
-          <TouchableOpacity onPress={() => onSelect(cleaner.id)} activeOpacity={0.7} accessibilityLabel={`הרחב כרטיס של ${cleaner.name}`}>
-            <T style={[s.cardName, { fontSize: fs(15), color: highContrast ? HC.blue : C.blue }]}>{cleaner.name}</T>
-          </TouchableOpacity>
-        </View>
-
-        {/* עיר + מחיר באותה שורה */}
-        <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 12 }}>
-          <T style={[s.cardCity, { fontSize: fs(11), color: highContrast ? HC.sub : C.textSub }]}>📍 {(() => { const cn = cityNameOf(cleaner); return t.cities[cn] || cn; })()}</T>
-          <T style={[s.cardCity, { fontSize: fs(11), color: highContrast ? HC.sub : C.textSub }]}>·</T>
-          <T style={[s.priceText, { fontSize: fs(13), color: highContrast ? HC.blue : C.blue }]}>₪{cleaner.price}<T style={[s.priceSub, { fontSize: fs(9), color: highContrast ? HC.sub : C.textSub }]}> {t.perHour}</T></T>
         </View>
 
         {/* שירותים — פילים קומפקטיים אחד ליד השני, פירוט נפתח בלחיצה (בלי ℹ) */}
         {/* שירותים — תגיות קטנות לפי רוחב התוכן, בלי איקונים, נצמדות */}
-        <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 5, marginTop: 2, justifyContent: 'center' }}>
+        <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 5, justifyContent: 'center' }}>
           {cleaner.types.map((tp: string) => (
             <ServiceInfoBtn
               key={tp}
               serviceKey={tp}
               inlinePill
-              pillStyle={[s.typePill, { paddingVertical: 4, paddingHorizontal: 8, borderRadius: 7 }]}
+              pillStyle={[s.typePill, { paddingVertical: 5, paddingHorizontal: 10, borderRadius: 9 }]}
               pillTextStyle={{ fontSize: fs(10), fontWeight: '600', color: C.blue }}
               label={String(t.types[tp] || tp).replace(/[\u{1F000}-\u{1FFFF}\u{2600}-\u{27BF}\u{2B00}-\u{2BFF}\u{FE0F}\u{200D}]/gu, '').replace(/\s+/g, ' ').trim()}
               hideInfo
@@ -3173,32 +3186,19 @@ function CleanerCardInner({ cleaner, isSel, onSelect, onProfile, onBook, onChat,
           ))}
         </View>
 
-        {/* תגים */}
-        {(() => {
-          const badges = getBadges(cleaner);
-          return (
-            <View style={{ flexDirection: 'row', gap: 4, flexWrap: 'wrap', justifyContent: 'center', marginTop: 2 }}>
-              <View style={s.freeCommissionBadge}>
-                <T style={s.freeCommissionBadgeText}>{t.freeCommissionBadge}</T>
-              </View>
-              {badges.map(b => (
-                <View key={b} style={[s.badgePill, { backgroundColor: BADGE_COLORS[b]?.bg || '#F0F0F0' }]}>
-                  <T style={[s.badgePillText, { color: BADGE_COLORS[b]?.color || '#666' }]}>
-                    {badgeLabel(b, t)}
-                  </T>
-                </View>
-              ))}
-            </View>
-          );
-        })()}
-
-        {/* דירוג — תחתית הכרטיס */}
-        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5, flexWrap: 'wrap', justifyContent: 'center', borderTopWidth: 1, borderTopColor: C.blueBorder, paddingTop: 6, marginTop: 1, width: '100%' }}>
-          <Stars rating={cleaner.rating} size={11} />
-          <T style={[s.ratingVal, { fontSize: fs(12), color: highContrast ? HC.text : C.textDark }]}>{cleaner.rating}</T>
-          <TouchableOpacity onPress={() => onProfile(cleaner)}><T style={s.reviewsLink}>({cleaner.reviews} {t.reviewsSuffix})</T></TouchableOpacity>
+        {/* status row — all tags in one evenly-spaced row */}
+        <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'nowrap', gap: 4, borderTopWidth: 1, borderTopColor: C.blueBorder, paddingTop: 8, marginTop: 1 }}>
+          <TouchableOpacity onPress={() => onProfile(cleaner)}><T style={s.reviewsLink} numberOfLines={1}>({cleaner.reviews})</T></TouchableOpacity>
           <View style={[s.availPill, !cleaner.available && s.availPillOff]}>
-            <T style={[s.availPillText, !cleaner.available && { color: C.textSub }]}>{cleaner.available ? t.availPill : t.notAvailPill}</T>
+            <T style={[s.availPillText, !cleaner.available && { color: C.textSub }]} numberOfLines={1}>{(cleaner.available ? t.availPill : t.notAvailPill).replace(/[●○]\s*/g, '')}</T>
+          </View>
+          {getBadges(cleaner).map(b => (
+            <View key={b} style={[s.badgePill, { backgroundColor: BADGE_COLORS[b]?.bg || '#F0F0F0' }]}>
+              <T style={[s.badgePillText, { color: BADGE_COLORS[b]?.color || '#666' }]} numberOfLines={1}>{badgeLabel(b, t)}</T>
+            </View>
+          ))}
+          <View style={s.freeCommissionBadge}>
+            <T style={s.freeCommissionBadgeText} numberOfLines={1}>{t.freeCommissionBadge}</T>
           </View>
         </View>
       </View>
@@ -3321,7 +3321,7 @@ function QuickRebookModal({ visible, onClose, myBookings, allCleaners, onBook }:
     <Modal visible={visible} animationType="slide" presentationStyle="pageSheet" onRequestClose={onClose}>
       <SafeAreaView style={{ flex: 1, backgroundColor: C.bluePale }}>
         {/* Header */}
-        <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: '#7C3AED', padding: 16 }}>
+        <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: '#1E5FA8', padding: 16 }}>
           <TouchableOpacity onPress={onClose} style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: 'rgba(255,255,255,0.25)', alignItems: 'center', justifyContent: 'center' }}>
             <T style={{ color: '#fff', fontSize: 18, fontWeight: '700' }}>✕</T>
           </TouchableOpacity>
@@ -3340,8 +3340,8 @@ function QuickRebookModal({ visible, onClose, myBookings, allCleaners, onBook }:
             </View>
           ) : (
             <>
-              <View style={{ backgroundColor: '#EDE9FE', borderRadius: 14, padding: 12, borderWidth: 1, borderColor: '#DDD6FE' }}>
-                <T style={{ fontSize: 13, color: '#4C1D95', textAlign: 'center', lineHeight: 20 }}>
+              <View style={{ backgroundColor: '#E8F1FB', borderRadius: 14, padding: 12, borderWidth: 1, borderColor: '#C7DEF5' }}>
+                <T style={{ fontSize: 13, color: '#1E5FA8', textAlign: 'center', lineHeight: 20 }}>
                   ♻️ בחר הזמנה קודמת ← פתח טופס הזמנה עם אותו מנקה
                 </T>
               </View>
@@ -3376,7 +3376,7 @@ function QuickRebookModal({ visible, onClose, myBookings, allCleaners, onBook }:
                     <T style={{ fontSize: 13, color: C.textSub }} numberOfLines={1}>📍 {b.address}</T>
                     {b.total ? <T style={{ fontSize: 13, color: C.blue, fontWeight: '700' }}>₪{b.total}</T> : null}
                     <TouchableOpacity
-                      style={{ backgroundColor: '#7C3AED', borderRadius: 12, paddingVertical: 13, alignItems: 'center', marginTop: 2 }}
+                      style={{ backgroundColor: '#1E6FB8', borderRadius: 12, paddingVertical: 13, alignItems: 'center', marginTop: 2 }}
                       onPress={() => handleRebook(b)}
                     >
                       <T style={{ fontSize: 14, fontWeight: '900', color: '#fff' }}>{t.rebookSameCleaner}</T>
@@ -4441,9 +4441,9 @@ export default function HomeScreen() {
 
   return (
     <SafeAreaViewCtx style={s.wrap} edges={['left', 'right']}>
-      <StatusBar barStyle="light-content" backgroundColor={C.blueDark} />
+      <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
 
-      <View style={{ backgroundColor: C.blueDark, flexShrink: 0, paddingTop: Platform.OS === 'ios' ? insets.top : (StatusBar.currentHeight || 0) }}>
+      <View style={{ backgroundColor: '#FFFFFF', flexShrink: 0, paddingTop: Platform.OS === 'ios' ? insets.top : (StatusBar.currentHeight || 0) }}>
         <View style={s.header}>
           <View style={[s.headerLogoRow, flipSide && { flexDirection: 'row-reverse' }]}>
             {/* כפתור נגישות — צד שמאל (מוחלף לימין במצב שמאלי) */}
@@ -4453,7 +4453,7 @@ export default function HomeScreen() {
               accessibilityRole="button"
               accessibilityLabel={t.accessibilityTitle || 'נגישות'}
             >
-              <MaterialIcons name="accessibility" size={22} color="#FFFFFF" />
+              <MaterialIcons name="accessibility" size={22} color={C.blueDark} />
             </TouchableOpacity>
 
             {/* כפתורי אמצע */}
@@ -4476,21 +4476,20 @@ export default function HomeScreen() {
               {myRole === 'client' && (
                 <TouchableOpacity
                   onPress={() => setFilterVisible(true)}
-                  style={[s.urgentHeaderBtn, { backgroundColor: activeFilterCount > 0 ? C.white : 'rgba(255,255,255,0.15)' }]}
+                  style={[s.urgentHeaderBtn, { backgroundColor: activeFilterCount > 0 ? C.blue : '#EEF4FB' }]}
                   accessibilityRole="button"
                   accessibilityLabel={activeFilterCount > 0 ? `${t.filterBtn} — ${activeFilterCount} פילטרים פעילים` : t.filterBtn}
                 >
-                  <T style={[s.urgentHeaderBtnText, { color: activeFilterCount > 0 ? C.blue : C.white }]}>
+                  <T style={[s.urgentHeaderBtnText, { color: activeFilterCount > 0 ? '#fff' : C.blueDark }]}>
                     {t.filterBtn}{activeFilterCount > 0 ? ` (${activeFilterCount})` : ''}
                   </T>
                 </TouchableOpacity>
               )}
               {myRole === 'client' && (
-                <TouchableOpacity
-                  onPress={() => setUrgentOpen(true)}
-                  style={[s.urgentHeaderBtn, { backgroundColor: '#EF4444' }]}
-                >
-                  <T style={s.urgentHeaderBtnText}>{t.urgentBtn}</T>
+                <TouchableOpacity onPress={() => setUrgentOpen(true)} activeOpacity={0.85} style={{ borderRadius: 12, overflow: 'hidden', shadowColor: '#F43F5E', shadowOpacity: 0.4, shadowRadius: 8, shadowOffset: { width: 0, height: 3 }, elevation: 4 }}>
+                  <LinearGradient colors={['#FF7A59', '#F43F5E']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={s.urgentHeaderBtn}>
+                    <T style={s.urgentHeaderBtnText}>{t.urgentBtn}</T>
+                  </LinearGradient>
                 </TouchableOpacity>
               )}
             </View>
@@ -4544,19 +4543,19 @@ export default function HomeScreen() {
 
           <View style={{ zIndex: 999, elevation: 999 }}>
             <View style={[s.searchWrap, flipSide && { flexDirection: 'row-reverse' }]}>
-              <T style={{ fontSize: 14, color: 'rgba(255,255,255,0.7)' }}>🔍</T>
+              <T style={{ fontSize: 14, color: C.textSub }}>🔍</T>
               <TextInput
                 style={s.searchInput}
                 placeholder={t.searchPlaceholder}
                 value={search}
                 onChangeText={handleSearchChange}
-                placeholderTextColor="rgba(255,255,255,0.5)"
+                placeholderTextColor={C.textSub}
                 textAlign="right"
                 onBlur={() => setTimeout(() => setShowSearchSugg(false), 180)}
               />
               {search.length > 0 && (
                 <TouchableOpacity onPress={() => { setSearch(''); setSearchSugg([]); setShowSearchSugg(false); }}>
-                  <T style={{ color: 'rgba(255,255,255,0.7)', fontSize: 16 }}>✕</T>
+                  <T style={{ color: C.textSub, fontSize: 16 }}>✕</T>
                 </TouchableOpacity>
               )}
             </View>
@@ -4579,8 +4578,8 @@ export default function HomeScreen() {
 
       </View>
 
-      <View style={[s.body, { paddingBottom: insets.bottom }, flipSide && { flexDirection: 'row-reverse' }]}>
-        <View style={[s.mapWrap, flipSide && { borderRightWidth: 0, borderLeftWidth: 1, borderColor: C.blueBorder }]}>
+      <View style={[s.body, { paddingBottom: insets.bottom }]}>
+        <View style={s.mapWrap}>
           <MapView ref={mapRef} style={s.map}
             provider={(Platform.OS === 'ios' && Constants.appOwnership === 'expo') ? undefined : PROVIDER_GOOGLE}
             initialRegion={REGION_DEFAULTS.all} showsUserLocation={false} showsMyLocationButton={false} onRegionChangeComplete={setMapRegion}>
@@ -4661,24 +4660,26 @@ export default function HomeScreen() {
             myBookings.length > 0 ? (
               <TouchableOpacity
                 onPress={() => setQuickRebookOpen(true)}
-                style={{ backgroundColor: '#7C3AED', borderRadius: 16, padding: 14, marginBottom: 4, flexDirection: 'row', alignItems: 'center', gap: 12, elevation: 4, shadowColor: '#7C3AED', shadowOpacity: 0.35, shadowRadius: 8, shadowOffset: { width: 0, height: 3 } }}
+                style={{ borderRadius: 16, marginBottom: 4, overflow: 'hidden', elevation: 4, shadowColor: '#1E6FB8', shadowOpacity: 0.35, shadowRadius: 8, shadowOffset: { width: 0, height: 3 } }}
                 activeOpacity={0.85}
               >
-                <T style={{ fontSize: 26 }}>♻️</T>
-                <View style={{ flex: 1 }}>
-                  <T style={{ color: '#fff', fontSize: 14, fontWeight: '900' }}>{t.prevBookingsShort}</T>
-                  <T style={{ color: 'rgba(255,255,255,0.8)', fontSize: 11, marginTop: 1 }}>{t.rebookSubtitle}</T>
-                </View>
-                <T style={{ color: 'rgba(255,255,255,0.7)', fontSize: 20 }}>›</T>
+                <LinearGradient colors={['#3E8DE3', '#1E5FA8']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={{ padding: 14, flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+                  <T style={{ fontSize: 26 }}>♻️</T>
+                  <View style={{ flex: 1, alignItems: 'center' }}>
+                    <T style={{ color: '#fff', fontSize: 14, fontWeight: '900', textAlign: 'center' }}>{t.prevBookingsShort}</T>
+                    <T style={{ color: 'rgba(255,255,255,0.85)', fontSize: 11, marginTop: 1, textAlign: 'center' }}>{t.rebookSubtitle}</T>
+                  </View>
+                  <T style={{ color: 'rgba(255,255,255,0.75)', fontSize: 20 }}>›</T>
+                </LinearGradient>
               </TouchableOpacity>
             ) : (
               <View
-                style={{ backgroundColor: '#F3E8FF', borderRadius: 16, padding: 14, marginBottom: 4, flexDirection: 'row', alignItems: 'center', gap: 12, borderWidth: 1.5, borderColor: '#DDD6FE' }}
+                style={{ backgroundColor: '#E8F1FB', borderRadius: 16, padding: 14, marginBottom: 4, flexDirection: 'row', alignItems: 'center', gap: 12, borderWidth: 1.5, borderColor: '#C7DEF5' }}
               >
                 <T style={{ fontSize: 26 }}>♻️</T>
                 <View style={{ flex: 1 }}>
-                  <T style={{ color: '#6D28D9', fontSize: 13, fontWeight: '800' }}>{t.prevBookingsShort}</T>
-                  <T style={{ color: '#7C3AED', fontSize: 11, marginTop: 2, lineHeight: 16 }}>
+                  <T style={{ color: '#1E5FA8', fontSize: 13, fontWeight: '800' }}>{t.prevBookingsShort}</T>
+                  <T style={{ color: '#2E7BC4', fontSize: 11, marginTop: 2, lineHeight: 16 }}>
                     זמין לאחר הזמנה ראשונה — לחוויה מהירה ונוחה 😊
                   </T>
                 </View>
@@ -5411,14 +5412,14 @@ function createDS(c: AppColors) {
 function createS(c: AppColors) {
   return StyleSheet.create({
   wrap:         { flex: 1, backgroundColor: c.bluePale },
-  header:       { backgroundColor: c.blueDark, paddingHorizontal: 14, paddingTop: 8, paddingBottom: 6 },
+  header:       { backgroundColor: '#FFFFFF', paddingHorizontal: 14, paddingTop: 8, paddingBottom: 8, borderBottomWidth: 1, borderBottomColor: '#E6EEF7' },
   headerLogoRow:{ marginBottom: 6, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   headerTitle:  { fontSize: 24, fontWeight: '900', color: c.white, letterSpacing: -0.5, flex: 1, textAlign: 'center' },
   headerSub:    { fontSize: 11, color: c.blueBorder, width: 48, textAlign: 'left' },
-  hamburgerBtn: { backgroundColor: 'rgba(255,255,255,0.15)', borderRadius: 10, paddingHorizontal: 12, paddingVertical: 6, alignItems: 'center', justifyContent: 'center' },
-  hamburgerText:{ fontSize: 20, color: c.white, fontWeight: '700', lineHeight: 22 },
+  hamburgerBtn: { backgroundColor: '#EEF4FB', borderRadius: 10, paddingHorizontal: 12, paddingVertical: 6, alignItems: 'center', justifyContent: 'center' },
+  hamburgerText:{ fontSize: 20, color: c.blueDark, fontWeight: '700', lineHeight: 22 },
   // Messages icon
-  msgIconBtn:   { backgroundColor: 'rgba(255,255,255,0.15)', borderRadius: 10, width: 38, height: 32, alignItems: 'center', justifyContent: 'center' },
+  msgIconBtn:   { backgroundColor: '#EEF4FB', borderRadius: 10, width: 38, height: 32, alignItems: 'center', justifyContent: 'center' },
   msgIconText:  { fontSize: 18 },
   msgBadge:     { position: 'absolute', top: -5, right: -5, backgroundColor: '#EF4444', borderRadius: 9, minWidth: 18, height: 18, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 3, borderWidth: 1.5, borderColor: c.blueDark },
   msgBadgeText: { color: c.white, fontSize: 10, fontWeight: '800' },
@@ -5426,8 +5427,8 @@ function createS(c: AppColors) {
   nearbyBtnActive:   { backgroundColor: c.white },
   nearbyBtnText:     { fontSize: 14, color: c.white, fontWeight: '700', textAlign: 'center' },
   nearbyBtnTextActive: { color: c.blue },
-  searchWrap:      { flexDirection: 'row', alignItems: 'center', backgroundColor: 'rgba(255,255,255,0.15)', borderRadius: 12, paddingHorizontal: 12, height: 40, gap: 8 },
-  searchInput:     { flex: 1, fontSize: 13, color: c.white, padding: 0 },
+  searchWrap:      { flexDirection: 'row', alignItems: 'center', backgroundColor: '#F1F6FC', borderWidth: 1, borderColor: '#E1EAF5', borderRadius: 14, paddingHorizontal: 12, height: 42, gap: 8 },
+  searchInput:     { flex: 1, fontSize: 13, color: c.textDark, padding: 0 },
   searchDropdown:  { position: 'absolute', top: 44, left: 0, right: 0, backgroundColor: c.white, borderRadius: 14, elevation: 12, shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.18, shadowRadius: 10, zIndex: 9999, overflow: 'hidden' },
   searchSuggItem:  { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 14, paddingVertical: 11 },
   searchSuggText:  { flex: 1, fontSize: 14, color: c.textDark, textAlign: 'right', fontWeight: '500' },
@@ -5436,8 +5437,8 @@ function createS(c: AppColors) {
   tabActive:    { backgroundColor: c.white, borderColor: c.white },
   tabText:      { fontSize: 12, fontWeight: '600', color: 'rgba(255,255,255,0.75)' },
   tabTextActive:{ color: c.blueDark, fontWeight: '700' },
-  body:         { flex: 1, flexDirection: 'row' },
-  mapWrap:      { width: W * 0.42, borderRightWidth: 1, borderColor: c.blueBorder },
+  body:         { flex: 1, flexDirection: 'column' },
+  mapWrap:      { width: '100%', height: H * 0.256, borderBottomWidth: 1, borderColor: c.blueBorder },
   map:          { flex: 1 },
   list:         { flex: 1 },
   pinHead:      { alignItems: 'center', justifyContent: 'center', borderWidth: 2.5, borderColor: c.white, elevation: 6, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.3, shadowRadius: 3 },
@@ -5452,6 +5453,12 @@ function createS(c: AppColors) {
   cardSel:      { borderColor: c.blue, borderWidth: 1.5, elevation: 6 },
   cardTop:      { flexDirection: 'row', gap: 10, alignItems: 'flex-start' },
   avatar:       { width: 44, height: 44, borderRadius: 22, backgroundColor: c.blue, alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
+  avatarLg:     { width: 52, height: 52, borderRadius: 26, alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
+  onlineDot:    { position: 'absolute', bottom: 1, right: 1, width: 13, height: 13, borderRadius: 7, backgroundColor: '#22C55E', borderWidth: 2, borderColor: '#fff' },
+  verifiedBadge:{ width: 17, height: 17, borderRadius: 9, backgroundColor: '#3B82F6', alignItems: 'center', justifyContent: 'center' },
+  pricePill:    { borderRadius: 14, paddingHorizontal: 12, paddingVertical: 7, alignItems: 'center', justifyContent: 'center', shadowColor: '#185FA5', shadowOpacity: 0.25, shadowRadius: 6, shadowOffset: { width: 0, height: 3 }, elevation: 3 },
+  pricePillNum: { color: '#fff', fontWeight: '900', fontSize: 16, lineHeight: 18 },
+  pricePillSub: { color: 'rgba(255,255,255,0.9)', fontWeight: '600', fontSize: 9, marginTop: 1 },
   avatarText:   { color: c.white, fontWeight: '900', fontSize: 15 },
   cardName:     { fontSize: 14, fontWeight: '700', color: c.blue },
   cardCity:     { fontSize: 11, color: c.textSub },
@@ -5476,7 +5483,7 @@ function createS(c: AppColors) {
   insuranceBtnText: { fontSize: 12, fontWeight: '700', color: '#1D4ED8' },
   urgentHeaderBtn:  { backgroundColor: '#7C3AED', borderRadius: 10, paddingHorizontal: 10, paddingVertical: 6, alignItems: 'center', justifyContent: 'center' },
   darkModeToggle:   { backgroundColor: 'rgba(255,255,255,0.15)', borderRadius: 10, paddingHorizontal: 9, paddingVertical: 6, alignItems: 'center', justifyContent: 'center' },
-  a11yBtn:          { backgroundColor: 'rgba(255,255,255,0.15)', borderRadius: 10, width: 36, height: 32, alignItems: 'center', justifyContent: 'center' },
+  a11yBtn:          { backgroundColor: '#EEF4FB', borderRadius: 10, width: 36, height: 32, alignItems: 'center', justifyContent: 'center' },
   urgentHeaderBtnText: { fontSize: 13, color: c.white, fontWeight: '900' },
   empty:        { textAlign: 'center', color: c.textSub, fontSize: 14, marginTop: 40 },
   modalHeader:  { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: c.blueDark, padding: 16 },
@@ -5508,7 +5515,7 @@ function createS(c: AppColors) {
   seeAllBtn:    { fontSize: 13, color: c.blue, fontWeight: '700' },
   allReviewsBtn:     { backgroundColor: c.blueLight, borderRadius: 10, padding: 12, alignItems: 'center', marginTop: 8, borderWidth: 1, borderColor: c.blueBorder },
   allReviewsBtnText: { fontSize: 13, fontWeight: '700', color: c.blue },
-  profileFooter:     { flexDirection: 'row', gap: 10, padding: 16, backgroundColor: c.white, borderTopWidth: 1, borderColor: c.blueBorder },
+  profileFooter:     { flexDirection: 'row', gap: 10, paddingHorizontal: 14, paddingTop: 10, paddingBottom: 6, backgroundColor: c.bluePale, borderTopWidth: 1, borderColor: c.blueBorder },
   footerChat:   { flex: 1, backgroundColor: c.blueLight, borderRadius: 12, padding: 14, alignItems: 'center', borderWidth: 1, borderColor: c.blueBorder },
   footerChatText: { fontSize: 14, fontWeight: '700', color: c.blue },
   footerBook:   { flex: 2, backgroundColor: c.blue, borderRadius: 12, padding: 14, alignItems: 'center' },
