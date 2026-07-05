@@ -223,12 +223,12 @@ export default function LoginScreen() {
             <T style={{ color: C.blue, fontSize: 13, fontWeight: '600' }}>{t.forgotPasswordBtn}</T>
           </TouchableOpacity>
 
-          <TouchableOpacity style={s.registerBtn} onPress={() => router.push('/register')}>
-            <T style={s.registerBtnText}>{t.registerLink}</T>
-          </TouchableOpacity>
-
           <TouchableOpacity style={[s.btn, loading && { opacity: 0.7 }]} onPress={handleLogin} disabled={loading}>
             <T style={s.btnText}>{loading ? t.loggingIn : t.loginBtn}</T>
+          </TouchableOpacity>
+
+          <TouchableOpacity style={[s.registerBtn, { marginTop: 12 }]} onPress={() => router.push('/register')}>
+            <T style={s.registerBtnText}>{t.registerLink}</T>
           </TouchableOpacity>
 
         </ScrollView>
