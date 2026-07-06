@@ -3122,7 +3122,6 @@ function CleanerCardInner({ cleaner, isSel, onSelect, onProfile, onBook, onChat,
   const C = useAppColors();
   const s = createS(C);
   const fs = (base: number) => Math.round(base * textScale);
-  const [insuranceOpen, setInsuranceOpen] = useState(false);
   const photoUri = cleaner.photoB64 || cleaner.photo ||
     (!isNaN(parseInt(cleaner.id))
       ? `https://i.pravatar.cc/150?img=${((parseInt(cleaner.id) - 1) % 70) + 1}`
@@ -3237,24 +3236,6 @@ function CleanerCardInner({ cleaner, isSel, onSelect, onProfile, onBook, onChat,
               </T>
             </TouchableOpacity>
           </View>
-          <TouchableOpacity style={s.insuranceBtn} onPress={() => setInsuranceOpen(true)}>
-            <T style={s.insuranceBtnText}>{t.insuranceBtn}</T>
-          </TouchableOpacity>
-
-          {/* insurance "coming soon" — custom modal so the text is centred (RTL) */}
-          <Modal visible={insuranceOpen} transparent animationType="fade" onRequestClose={() => setInsuranceOpen(false)}>
-            <TouchableOpacity activeOpacity={1} onPress={() => setInsuranceOpen(false)}
-              style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.45)', alignItems: 'center', justifyContent: 'center', padding: 32 }}>
-              <View style={{ backgroundColor: '#fff', borderRadius: 20, padding: 22, width: '100%', maxWidth: 340, alignItems: 'center', gap: 10 }}>
-                <T style={{ fontSize: 17, fontWeight: '900', color: '#1E3A8A', textAlign: 'center' }}>{t.insuranceBtn}</T>
-                <T style={{ fontSize: 14, color: '#3B82F6', textAlign: 'center', lineHeight: 21 }}>{t.insuranceSub}</T>
-                <TouchableOpacity onPress={() => setInsuranceOpen(false)}
-                  style={{ marginTop: 8, backgroundColor: '#2563EB', borderRadius: 12, paddingVertical: 11, alignItems: 'center', width: '100%' }}>
-                  <T style={{ color: '#fff', fontWeight: '800', fontSize: 15 }}>{(t as any).understoodClose ?? 'הבנתי'}</T>
-                </TouchableOpacity>
-              </View>
-            </TouchableOpacity>
-          </Modal>
         </View>
       )}
     </TouchableOpacity>

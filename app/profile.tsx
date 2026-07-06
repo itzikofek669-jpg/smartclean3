@@ -3251,19 +3251,6 @@ export default function ProfileScreen() {
             </View>
           </Modal>
 
-          {/* ביטוח (לקוח) */}
-          {!isCleaner && (
-            <View style={s.section}>
-              <View style={s.insuranceCard}>
-                <T style={s.insuranceCardTitle}>{t.insuranceTitle}</T>
-                <T style={s.insuranceCardSub}>{t.insuranceSub}</T>
-                <TouchableOpacity style={s.insuranceBtnLarge} onPress={() => { setInsuranceOpen(true); setInsuranceSent(false); setInsuranceMsg(''); }}>
-                  <T style={s.insuranceBtnLargeText}>{t.insuranceBtn}</T>
-                </TouchableOpacity>
-              </View>
-            </View>
-          )}
-
           {/* שפה מועדפת (לקוח) */}
           {!isCleaner && (
             <View style={s.section}>
