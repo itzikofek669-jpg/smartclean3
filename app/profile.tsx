@@ -3263,6 +3263,7 @@ export default function ProfileScreen() {
                   { key: 'ar', label: 'العربية',  flag: '🇸🇦' },
                   { key: 'fr', label: 'Français', flag: '🇫🇷' },
                   { key: 'hi', label: 'हिन्दी',  flag: '🇮🇳' },
+                  { key: 'uk', label: 'Українська', flag: '🇺🇦' },
                 ].map(l => (
                   <TouchableOpacity
                     key={l.key}
@@ -4060,6 +4061,7 @@ export default function ProfileScreen() {
                     { key: 'ar', label: 'العربية',  flag: '🇸🇦' },
                     { key: 'fr', label: 'Français', flag: '🇫🇷' },
                     { key: 'hi', label: 'हिन्दी',  flag: '🇮🇳' },
+                  { key: 'uk', label: 'Українська', flag: '🇺🇦' },
                   ].map(l => (
                     <TouchableOpacity
                       key={l.key}

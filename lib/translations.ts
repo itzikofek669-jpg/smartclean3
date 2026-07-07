@@ -1,4 +1,6 @@
-export type Lang = 'he' | 'en' | 'ru' | 'ar' | 'fr' | 'hi';
+import { ukData } from './ukData';
+
+export type Lang = 'he' | 'en' | 'ru' | 'ar' | 'fr' | 'hi' | 'uk';
 
 const he = {
   // Bottom tab bar
@@ -3428,6 +3430,15 @@ const hi: typeof he = {
   availEndTime: 'समाप्ति का समय',
 };
 
-const translations = { he, en, ru, ar, fr, hi };
+// Ukrainian — full map generated from the web app, merged over English so any
+// app-only key falls back to English rather than a blank/Hebrew string.
+const uk = {
+  ...en,
+  ...ukData,
+  types: { ...(en as any).types, ...(ukData as any).types },
+  cities: { ...(en as any).cities, ...(ukData as any).cities },
+} as typeof he;
+
+const translations = { he, en, ru, ar, fr, hi, uk };
 export type Translations = typeof he;
 export default translations;

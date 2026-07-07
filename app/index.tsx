@@ -69,6 +69,7 @@ const LANGS: { code: Lang; flag: string; label: string; nativeName: string }[] =
   { code: 'ar', flag: '🇸🇦', label: 'عر',  nativeName: 'العربية' },
   { code: 'fr', flag: '🇫🇷', label: 'FR',  nativeName: 'Français' },
   { code: 'hi', flag: '🇮🇳', label: 'हिं', nativeName: 'हिन्दी'  },
+  { code: 'uk', flag: '🇺🇦', label: 'UK', nativeName: 'Українська' },
 ];
 
 // ─── יוצר פרופיל ב-Firestore למשתמש חדש שנכנס ברשת חברתית ─────────────────

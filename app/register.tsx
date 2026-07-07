@@ -136,6 +136,7 @@ const LANG_OPTS = [
   { key: 'ar', label: 'العربية',  flag: '🇸🇦' },
   { key: 'fr', label: 'Français', flag: '🇫🇷' },
   { key: 'hi', label: 'Hindi',   flag: '🇮🇳' },
+  { key: 'uk', label: 'Ukrainian', flag: '🇺🇦' },
 ];
 
 const TERMS = `תקנון שימוש, מדיניות פרטיות והגבלת אחריות

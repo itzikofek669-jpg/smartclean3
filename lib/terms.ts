@@ -762,4 +762,4 @@ A&M Clean ऐप
 
 A&M Clean © 2026 — सर्वाधिकार सुरक्षित`;
 
-export const TERMS_BY_LANG: Record<Lang, string> = { he, en, ru, ar, fr, hi };
+export const TERMS_BY_LANG: Record<Lang, string> = { he, en, ru, ar, fr, hi, uk: en };

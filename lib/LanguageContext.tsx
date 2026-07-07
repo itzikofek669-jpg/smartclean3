@@ -18,7 +18,7 @@ type LanguageContextType = {
   setHighContrast: (v: boolean) => void;
 };
 
-const VALID_LANGS: Lang[] = ['he', 'en', 'ru', 'ar', 'fr', 'hi'];
+const VALID_LANGS: Lang[] = ['he', 'en', 'ru', 'ar', 'fr', 'hi', 'uk'];
 const STORAGE_KEY    = 'app_lang';
 const FLIP_KEY       = 'flip_side';
 const SCALE_KEY      = 'text_scale';

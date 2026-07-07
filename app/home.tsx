@@ -318,6 +318,7 @@ const LANGS: { code: Lang; label: string; flag: string; nativeName: string }[] =
   { code: 'ar', label: 'العربية', flag: '🇸🇦', nativeName: 'العربية' },
   { code: 'fr', label: 'Français', flag: '🇫🇷', nativeName: 'Français' },
   { code: 'hi', label: 'हिन्दी',  flag: '🇮🇳', nativeName: 'हिन्दी' },
+  { code: 'uk', label: 'Українська', flag: '🇺🇦', nativeName: 'Українська' },
 ];
 
 const NEARBY_KM = 30;
