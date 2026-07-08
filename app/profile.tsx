@@ -1714,9 +1714,16 @@ export default function ProfileScreen() {
 
   // Business dashboard stats
   const nowDate = new Date();
+  // הזמנה שתאריכה עבר נחשבת כהושלמה (גם אם התשלום לא אושר) — למעט מבוטלות
+  const isPastBooking = (b: any) => {
+    if (!b.bookingDate) return false;
+    const d = new Date(b.bookingDate); d.setHours(0, 0, 0, 0);
+    const today = new Date(); today.setHours(0, 0, 0, 0);
+    return d < today;
+  };
   const thisMonthBks    = incomingBks.filter(b => { const d = new Date(b.createdAt); return d.getMonth() === nowDate.getMonth() && d.getFullYear() === nowDate.getFullYear(); });
   const thisMonthEarned = thisMonthBks.filter(b => b.status !== 'cancelled').reduce((sum, b) => sum + (b.total || 0), 0);
-  const completedBks    = incomingBks.filter(b => b.status === 'done');
+  const completedBks    = incomingBks.filter(b => b.status === 'done' || (isPastBooking(b) && b.status !== 'cancelled'));
   const cancelledBks    = incomingBks.filter(b => b.status === 'cancelled');
   const cancelRate      = incomingBks.length > 0 ? Math.round((cancelledBks.length / incomingBks.length) * 100) : 0;
   const allTimeEarned   = incomingBks.filter(b => b.status !== 'cancelled').reduce((sum, b) => sum + (b.actualTotal || b.total || 0), 0);
@@ -2915,8 +2922,8 @@ export default function ProfileScreen() {
             <View style={s.statBox}>
               <T style={s.statVal}>
                 {isCleaner
-                  ? incomingBks.filter(b => b.status === 'active').length
-                  : bookings.filter(b => b.status === 'pending').length}
+                  ? incomingBks.filter(b => b.status === 'active' && !isPastBooking(b)).length
+                  : bookings.filter(b => b.status === 'pending' && !isPastBooking(b)).length}
               </T>
               <T style={s.statLabel}>{isCleaner ? '🔄 פעיל' : t.pendingLabel}</T>
             </View>
@@ -2924,7 +2931,8 @@ export default function ProfileScreen() {
 
           {/* ── ניקיונות פעילים (מנקה) — ראשון בדף ──────────────────────── */}
           {isCleaner && (() => {
-            const activeBookings = incomingBks.filter(b => ['confirmed','onway','active'].includes(b.status));
+            // הזמנות שתאריכן עבר עוברות ל"הושלמו" — לא מוצגות כפעילות
+            const activeBookings = incomingBks.filter(b => ['confirmed','onway','active'].includes(b.status) && !isPastBooking(b));
             return (
               <View style={[s.section, { backgroundColor: '#F0FDF4', borderRadius: 20, borderWidth: 2, borderColor: '#10B981' }]}>
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 10 }}>
@@ -2950,14 +2958,9 @@ export default function ProfileScreen() {
 
           {/* ── הזמנות פעילות (לקוח) — ראשון בדף ───────────────────────── */}
           {!isCleaner && (() => {
-            const todayStart = new Date(); todayStart.setHours(0,0,0,0);
-            const activeBookings = bookings.filter(b => {
-              if (!['pending','confirmed','onway','active'].includes(b.status)) return false;
-              if (['onway','active'].includes(b.status)) return true; // בעיצומן — תמיד הצג
-              if (!b.bookingDate) return true;
-              const d = new Date(b.bookingDate); d.setHours(0,0,0,0);
-              return d >= todayStart; // הסר הזמנות שתאריכן עבר
-            });
+            // כל הזמנה שתאריכה עבר — גם אם התשלום לא אושר — עוברת להיסטוריה
+            const activeBookings = bookings.filter(b =>
+              ['pending','confirmed','onway','active'].includes(b.status) && !isPastBooking(b));
             return (
               <View style={[s.section, { backgroundColor: '#F0FDF4', borderRadius: 20, borderWidth: 2, borderColor: '#10B981' }]}>
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 10 }}>
@@ -3116,9 +3119,9 @@ export default function ProfileScreen() {
                       <T style={{ color: C.white, fontSize: 12, fontWeight: '800' }}>{incomingBks.length}</T>
                     </View>
                   )}
-                  {incomingBks.filter(b => b.status === 'active' || b.status === 'onway').length > 0 && (
+                  {incomingBks.filter(b => (b.status === 'active' || b.status === 'onway') && !isPastBooking(b)).length > 0 && (
                     <View style={s.activeBadge}>
-                      <T style={s.activeBadgeText}>🔄 {incomingBks.filter(b => b.status === 'active' || b.status === 'onway').length} פעיל</T>
+                      <T style={s.activeBadgeText}>🔄 {incomingBks.filter(b => (b.status === 'active' || b.status === 'onway') && !isPastBooking(b)).length} פעיל</T>
                     </View>
                   )}
                 </View>
@@ -3198,7 +3201,9 @@ export default function ProfileScreen() {
 
           {/* ── לקוח: היסטוריית הזמנות (compact row) ──────────────────── */}
           {!isCleaner && (() => {
-            const historyBookings = bookings.filter(b => !['pending','confirmed','onway','active'].includes(b.status));
+            // היסטוריה כוללת גם הזמנות שתאריכן עבר (גם אם עדיין לא סומנו כהושלמו)
+            const historyBookings = bookings.filter(b =>
+              !['pending','confirmed','onway','active'].includes(b.status) || isPastBooking(b));
             const lastB = historyBookings[0];
             return (
               <View style={s.section}>
