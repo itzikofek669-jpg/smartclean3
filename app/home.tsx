@@ -5421,7 +5421,7 @@ function createS(c: AppColors) {
   tabText:      { fontSize: 12, fontWeight: '600', color: 'rgba(255,255,255,0.75)' },
   tabTextActive:{ color: c.blueDark, fontWeight: '700' },
   body:         { flex: 1, flexDirection: 'column' },
-  mapWrap:      { width: '100%', height: H * 0.256, borderBottomWidth: 1, borderColor: c.blueBorder },
+  mapWrap:      { width: '100%', height: H * 0.205, borderBottomWidth: 1, borderColor: c.blueBorder },
   map:          { flex: 1 },
   list:         { flex: 1 },
   pinHead:      { alignItems: 'center', justifyContent: 'center', borderWidth: 2.5, borderColor: c.white, elevation: 6, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.3, shadowRadius: 3 },
