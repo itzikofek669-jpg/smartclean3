@@ -3182,6 +3182,7 @@ function CleanerCardInner({ cleaner, isSel, onSelect, onProfile, onBook, onChat,
               pillTextStyle={{ fontSize: fs(10), fontWeight: '600', color: C.blue }}
               label={String(t.types[tp] || tp).replace(/[\u{1F000}-\u{1FFFF}\u{2600}-\u{27BF}\u{2B00}-\u{2BFF}\u{FE0F}\u{200D}]/gu, '').replace(/\s+/g, ' ').trim()}
               hideInfo
+              onPressOverride={!isSel ? () => { onShowOnMap?.(cleaner); onSelect(cleaner.id); } : undefined}
             />
           ))}
         </View>

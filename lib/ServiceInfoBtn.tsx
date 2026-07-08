@@ -13,9 +13,12 @@ interface Props {
   pillStyle?: any;
   pillTextStyle?: any;
   hideInfo?: boolean; // הסתר סימן ℹ, אבל הפיל עדיין לחיץ
+  // כשמוגדר — לחיצה מפעילה את זה במקום לפתוח את פירוט השירות
+  // (כרטיס מכווץ: לחיצה ראשונה מרחיבה, ורק במורחב לחיצה פותחת פירוט)
+  onPressOverride?: () => void;
 }
 
-export default function ServiceInfoBtn({ serviceKey, inlinePill, label, pillStyle, pillTextStyle, hideInfo }: Props) {
+export default function ServiceInfoBtn({ serviceKey, inlinePill, label, pillStyle, pillTextStyle, hideInfo, onPressOverride }: Props) {
   const C = useAppColors();
   const [open, setOpen] = useState(false);
   const desc = SERVICE_DESCRIPTIONS[serviceKey];
@@ -26,7 +29,7 @@ export default function ServiceInfoBtn({ serviceKey, inlinePill, label, pillStyl
     return (
       <>
         <TouchableOpacity
-          onPress={() => setOpen(true)}
+          onPress={() => (onPressOverride ? onPressOverride() : setOpen(true))}
           style={[pillStyle, { flexDirection: 'row', alignItems: 'center', gap: 4 }]}
           accessibilityRole="button"
           accessibilityLabel={`${label} — לחץ לפרטים`}
