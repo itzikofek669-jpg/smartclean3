@@ -511,7 +511,6 @@ export default function RegisterScreen() {
   const missPhoto = submitAttempted && role === 'cleaner' && !photoB64;
   const missTypes = submitAttempted && role === 'cleaner' && types.length === 0;
   const missPay   = submitAttempted && role === 'cleaner' && payment.length === 0;
-  const missAreas = submitAttempted && role === 'cleaner' && workAreas.length === 0;
 
   const handleRegister = async () => {
     setSubmitAttempted(true);
@@ -540,7 +539,6 @@ export default function RegisterScreen() {
       if (!photoB64)         return Alert.alert(t.error, t.photoRequiredMsg);
       if (!types.length)     return Alert.alert(t.error, t.regErrTypes);
       if (!payment.length)   return Alert.alert(t.error, t.regErrPayment);
-      if (!workAreas.length) return Alert.alert(t.error, t.regErrAreas);
     }
     setLoading(true);
     // ── שלב 1: יצירת חשבון Auth ──────────────────────────────────────────
@@ -1021,15 +1019,6 @@ await setDoc(doc(db, 'users', cred.user.uid), data);
                   ))}
                 </View>
                 <T style={{ fontSize: 14, color: '#EF4444', fontWeight: '800', textAlign: 'center', marginTop: -2, marginBottom: 16, lineHeight: 19 }}>{t.paymentDirectNote}</T>
-
-                <SectionTitle error={missAreas}>{`📍 ${t.workAreasTitle}`}</SectionTitle>
-                <View style={[s.pillRow, { justifyContent: 'center' }]}>
-                  {AREA_OPTS.map(a => (
-                    <TogglePill key={a.key}
-                      label={a.key === 'north' ? t.regionNorth : a.key === 'center' ? t.regionCenter : t.regionSouth}
-                      active={workAreas.includes(a.key)} onPress={() => toggleItem(workAreas, setWorkAreas, a.key)} />
-                  ))}
-                </View>
 
                 {/* ─── ימי ושעות עבודה ─── */}
                 <SectionTitle>{`🕐 ${t.availTitle}`}</SectionTitle>

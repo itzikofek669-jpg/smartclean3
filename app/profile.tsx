@@ -734,6 +734,11 @@ export default function ProfileScreen() {
   const [editWorkAreas,    setEditWorkAreas]    = useState<string[]>([]);
   const [editBringSupplies,setEditBringSupplies]= useState(true);
   const [editIsMobile,     setEditIsMobile]     = useState(true);
+  // נתוני הרשמה נוספים — גיל, אזרחות, ניסיון, מרחק הגעה
+  const [editAge,          setEditAge]          = useState('');
+  const [editCitizenship,  setEditCitizenship]  = useState('');
+  const [editExperience,   setEditExperience]   = useState('');
+  const [editMaxDistance,  setEditMaxDistance]  = useState('');
   const [editCleanerAddress, setEditCleanerAddress] = useState('');
   const [editServicePricing,setEditServicePricing]= useState<Record<string,string>>({});
   const [editSaving,       setEditSaving]       = useState(false);
@@ -886,6 +891,10 @@ export default function ProfileScreen() {
         setEditBringSupplies(d.bringSupplies !== false);
         setEditIsMobile(d.isMobile !== false);
         setEditCleanerAddress(d.cleanerAddress || '');
+        setEditAge(d.age ? String(d.age) : '');
+        setEditCitizenship(d.citizenship || '');
+        setEditExperience(d.experience != null ? String(d.experience) : '');
+        setEditMaxDistance(d.maxDistance != null ? String(d.maxDistance) : '');
         const sp = d.servicePricing || {};
         const spStr: Record<string,string> = {};
         Object.entries(sp).forEach(([k,v]) => { spStr[k] = String(v); });
@@ -948,6 +957,10 @@ export default function ProfileScreen() {
         workAreas:     editWorkAreas,
         bringSupplies: editBringSupplies,
         isMobile:      editIsMobile,
+        age:           Number(editAge) || null,
+        citizenship:   editCitizenship.trim(),
+        experience:    Number(editExperience) || 0,
+        maxDistance:   Number(editMaxDistance) || 10,
         cleanerAddress:   editCleanerAddress.trim(),
         servicePricing:   spNum,
         whatsappGroupId:  editWhatsappGroupId.trim(),
@@ -3923,6 +3936,30 @@ export default function ProfileScreen() {
                 <TextInput style={ep.input} value={editCleanerAddress} onChangeText={setEditCleanerAddress} placeholder={t.cleanerAddressPlaceholder} placeholderTextColor={C.textSub} textAlign="right" />
               </View>
 
+              {/* גיל + אזרחות — כמו בהרשמה */}
+              <View style={{ flexDirection: 'row-reverse', gap: 10 }}>
+                <View style={{ flex: 1 }}>
+                  <T style={ep.label}>{t.ageLabel}</T>
+                  <TextInput style={ep.input} value={editAge} onChangeText={setEditAge} placeholder={t.agePlaceholder} keyboardType="number-pad" placeholderTextColor={C.textSub} textAlign="center" />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <T style={ep.label}>{t.citizenshipLabel}</T>
+                  <TextInput style={ep.input} value={editCitizenship} onChangeText={setEditCitizenship} placeholder={t.citizenshipPlaceholder} placeholderTextColor={C.textSub} textAlign="center" />
+                </View>
+              </View>
+
+              {/* ניסיון + מרחק הגעה מקסימלי — כמו בהרשמה */}
+              <View style={{ flexDirection: 'row-reverse', gap: 10 }}>
+                <View style={{ flex: 1 }}>
+                  <T style={ep.label}>{t.experienceLabel}</T>
+                  <TextInput style={ep.input} value={editExperience} onChangeText={setEditExperience} placeholder={t.experiencePlaceholder} keyboardType="number-pad" placeholderTextColor={C.textSub} textAlign="center" />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <T style={ep.label}>{t.maxDistanceLabel}</T>
+                  <TextInput style={ep.input} value={editMaxDistance} onChangeText={setEditMaxDistance} placeholder="10" keyboardType="number-pad" placeholderTextColor={C.textSub} textAlign="center" />
+                </View>
+              </View>
+
               {/* תיאור */}
               <View>
                 <T style={ep.label}>
@@ -4020,18 +4057,6 @@ export default function ProfileScreen() {
                   {[{ key: 'cash', label: '💵 ' + t.payCash }, { key: 'bit', label: '📱 ' + t.payBit }, { key: 'paybox', label: '💜 ' + t.payPaybox }, { key: 'bank', label: '🏦 ' + t.payBank }].map(p => (
                     <TouchableOpacity key={p.key} style={[ep.pill, editPayment.includes(p.key) && ep.pillActive, { flex: 1, alignItems: 'center' }]} onPress={() => toggleEdit(editPayment, setEditPayment, p.key)}>
                       <T style={[ep.pillText, editPayment.includes(p.key) && ep.pillTextActive]}>{p.label}</T>
-                    </TouchableOpacity>
-                  ))}
-                </View>
-              </View>
-
-              {/* אזורי עבודה */}
-              <View>
-                <T style={ep.label}>{t.editWorkAreasLabel}</T>
-                <View style={{ flexDirection: 'row', gap: 8, marginTop: 6 }}>
-                  {[{ key: 'north', label: t.regionNorth }, { key: 'center', label: t.regionCenter }, { key: 'south', label: t.regionSouth }].map(a => (
-                    <TouchableOpacity key={a.key} style={[ep.pill, editWorkAreas.includes(a.key) && ep.pillActive, { flex: 1, alignItems: 'center' }]} onPress={() => toggleEdit(editWorkAreas, setEditWorkAreas, a.key)}>
-                      <T style={[ep.pillText, editWorkAreas.includes(a.key) && ep.pillTextActive]}>{a.label}</T>
                     </TouchableOpacity>
                   ))}
                 </View>

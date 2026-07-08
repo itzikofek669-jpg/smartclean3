@@ -995,21 +995,6 @@ function CleanerProfile({ cleaner, visible, onClose, onBook, onChat }: any) {
             </View>
           </View>
           <View style={s.profileSection}>
-            <T style={s.profileSectionTitle}>{t.workAreasTitle}</T>
-            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, justifyContent: 'center' }}>
-              {cleaner.workAreas && cleaner.workAreas.length > 0
-                ? cleaner.workAreas.map((area: string) => (
-                    <View key={area} style={s.areaPill}>
-                      <T style={s.areaPillText}>
-                        {area === 'north' ? t.regionNorth : area === 'center' ? t.regionCenter : t.regionSouth}
-                      </T>
-                    </View>
-                  ))
-                : <T style={{ fontSize: 12, color: C.textSub }}>{t.workAreasNone}</T>
-              }
-            </View>
-          </View>
-          <View style={s.profileSection}>
             <T style={s.profileSectionTitle}>{t.paymentLabel}</T>
             <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, justifyContent: 'center' }}>
               {cleaner.payment.map((p: string) => <View key={p} style={[s.payPill, p === 'paybox' && { flexDirection: 'row', alignItems: 'center', gap: 3 }]}>{p === 'paybox' && <PayboxIcon size={13} />}<T style={s.payPillText}>{p === 'paybox' ? t.payPaybox : `${PAY_ICONS[p] || '💳'} ${p === 'bit' ? t.payBit : p === 'cash' ? t.payCash : p === 'bank' ? t.payBank : p === 'card' ? t.payCard : p === 'kochavit' ? ((t as any).payKochavit ?? 'כוכבית') : p}`}</T></View>)}
@@ -3118,7 +3103,7 @@ function ChatModal({ cleaner, visible, onClose }: any) {
 }
 
 // ─── Cleaner card ─────────────────────────────────────────────────────────────
-function CleanerCardInner({ cleaner, isSel, onSelect, onProfile, onBook, onChat, isPending, onShowOnMap, onEnlarge }: any) {
+function CleanerCardInner({ cleaner, isSel, onSelect, onProfile, onBook, onChat, isPending, onShowOnMap, onEnlarge, onReviews }: any) {
   const { t, flipSide, highContrast, textScale } = useLanguage();
   const C = useAppColors();
   const s = createS(C);
@@ -3189,7 +3174,7 @@ function CleanerCardInner({ cleaner, isSel, onSelect, onProfile, onBook, onChat,
 
         {/* status row — all tags in one evenly-spaced row */}
         <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'nowrap', gap: 4, borderTopWidth: 1, borderTopColor: C.blueBorder, paddingTop: 8, marginTop: 1 }}>
-          <TouchableOpacity onPress={() => onProfile(cleaner)}><T style={s.reviewsLink} numberOfLines={1}>({cleaner.reviews})</T></TouchableOpacity>
+          <TouchableOpacity onPress={() => (onReviews ? onReviews(cleaner) : onProfile(cleaner))}><T style={s.reviewsLink} numberOfLines={1}>({cleaner.reviews})</T></TouchableOpacity>
           <View style={[s.availPill, !cleaner.available && s.availPillOff]}>
             <T style={[s.availPillText, !cleaner.available && { color: C.textSub }]} numberOfLines={1}>{(cleaner.available ? t.availPill : t.notAvailPill).replace(/[●○]\s*/g, '')}</T>
           </View>
@@ -3426,6 +3411,7 @@ export default function HomeScreen() {
   const [showSearchSugg, setShowSearchSugg] = useState(false);
   const [selected,   setSelected]   = useState<string | null>(null);
   const [profile,    setProfile]    = useState<any>(null);
+  const [reviewsFor, setReviewsFor] = useState<any>(null);   // ביקורות בלבד מכרטיס
   const [booking,    setBooking]    = useState<any>(null);
   const [prebookData, setPrebookData] = useState<any>(null); // הזמנה קודמת לחזרה
   const [chatWith,   setChatWith]   = useState<any>(null);
@@ -4694,7 +4680,7 @@ export default function HomeScreen() {
           renderItem={({ item: c }) => (
             <CleanerCard
               cleaner={c} isSel={selected === c.id} onSelect={handleSelectCleaner}
-              onProfile={setProfile} onBook={setBooking} onChat={setChatWith}
+              onProfile={setProfile} onReviews={setReviewsFor} onBook={setBooking} onChat={setChatWith}
               isPending={pendingCleanerIds.has(c.id)}
               onShowOnMap={handleShowOnMap} onEnlarge={setEnlargedPhoto}
             />
@@ -4714,6 +4700,7 @@ export default function HomeScreen() {
         }}
       />
       <ChatModal      cleaner={chatWith} visible={!!chatWith} onClose={() => setChatWith(null)} />
+      <ReviewsModal   cleaner={reviewsFor} visible={!!reviewsFor} onClose={() => setReviewsFor(null)} />
       <AccessibilityModal visible={a11yOpen} onClose={() => setA11yOpen(false)} />
 
       {/* מציג תמונת מנקה במסך מלא */}
