@@ -1006,7 +1006,7 @@ function CleanerProfile({ cleaner, visible, onClose, onBook, onChat }: any) {
               <TouchableOpacity onPress={() => setShowReviews(true)}><T style={s.seeAllBtn}>{t.seeAllBtn}</T></TouchableOpacity>
             </View>
             <Stars rating={cleaner.rating} size={20} />
-            {reviewsToShow.slice(0, 2).map((r: any, i: number) => {
+            {reviewsToShow.slice(0, 3).map((r: any, i: number) => {
               const rName = r.name || r.clientName || t.clientWord || 'לקוח';
               const rDate = r.createdAt || r.date ? new Date(r.createdAt || r.date).toLocaleDateString('he-IL', { day: '2-digit', month: '2-digit', year: 'numeric' }) : '';
               return (
@@ -1024,7 +1024,7 @@ function CleanerProfile({ cleaner, visible, onClose, onBook, onChat }: any) {
               </View>
               );
             })}
-            {(cleaner.reviewsList || []).length > 2 && (
+            {reviewsToShow.length > 3 && (
               <TouchableOpacity style={s.allReviewsBtn} onPress={() => setShowReviews(true)}>
                 <T style={s.allReviewsBtnText}>{t.allReviewsPrefix} ({cleaner.reviews}) ›</T>
               </TouchableOpacity>
