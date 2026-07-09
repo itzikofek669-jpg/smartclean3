@@ -497,7 +497,9 @@ export default function RegisterScreen() {
     setArr(arr.includes(key) ? arr.filter(k => k !== key) : [...arr, key]);
   };
 
-  const canRegister = termsOk && ageOk && privacyOk && (role === 'client' || (types.length > 0 && payment.length > 0 && workAreas.length > 0 && !!photoB64));
+  // work-areas picker was removed — don't gate registration on it any more,
+  // otherwise the button stays disabled forever with no reason shown.
+  const canRegister = termsOk && ageOk && privacyOk && (role === 'client' || (types.length > 0 && payment.length > 0 && !!photoB64));
 
   // ── סימון אדום לשדות חסרים אחרי ניסיון הרשמה ──
   const fphone    = phone.replace(/[-\s]/g, '');

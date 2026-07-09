@@ -3629,6 +3629,7 @@ export default function ProfileScreen() {
               <View style={{ width: 36 }} />
             </View>
           </View>
+          <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'} keyboardVerticalOffset={Platform.OS === 'ios' ? insets.top + 60 : 0}>
           <ScrollView ref={chatScrollRef} style={{ flex: 1 }} contentContainerStyle={{ padding: 16, gap: 8 }} keyboardDismissMode="on-drag" keyboardShouldPersistTaps="handled" onContentSizeChange={() => chatScrollRef.current?.scrollToEnd({ animated: true })}>
             {chatMessages.map(m => {
               const isMe = m.fromUid === uid;
@@ -3671,7 +3672,6 @@ export default function ProfileScreen() {
               );
             })}
           </ScrollView>
-          <KeyboardAvoidingView behavior="padding">
             <SafeAreaView edges={['bottom']} style={{ backgroundColor: C.white }}>
               <View style={[s.chatInputRow, { alignItems: 'center', paddingVertical: 8, paddingHorizontal: 8 }]}>
                 {chatIsRecording && (
@@ -3709,6 +3709,7 @@ export default function ProfileScreen() {
           </KeyboardAvoidingView>
         </View>
       </Modal>
+      {/* end cleaner chat */}
 
       {/* Chat Image Viewer */}
       <Modal visible={!!chatViewerUri} transparent animationType="fade" onRequestClose={() => setChatViewerUri(null)}>
