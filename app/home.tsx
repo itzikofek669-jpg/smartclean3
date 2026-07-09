@@ -1732,29 +1732,27 @@ function AddressPicker({ selectedId, onSelect, savedAddresses }: {
   return (
     <View style={{ gap: 6, marginBottom: 8 }}>
       <T style={{ fontSize: 12, color: C.textSub, fontWeight: '600', textAlign: 'right' }}>{t.savedAddrLabel}</T>
-      <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-        <View style={{ flexDirection: 'row-reverse', gap: 8 }}>
-          {savedAddresses.map(a => {
-            const isSelected = selectedId === a.id;
-            return (
-              <TouchableOpacity
-                key={a.id}
-                onPress={() => onSelect(a)}
-                style={{
-                  flexDirection: 'row', alignItems: 'center', gap: 4,
-                  backgroundColor: isSelected ? C.blue : C.white,
-                  borderRadius: 20, paddingHorizontal: 12, paddingVertical: 7,
-                  borderWidth: 1.5, borderColor: isSelected ? C.blue : C.blueBorder,
-                  maxWidth: 240,
-                }}
-              >
-                {a.isPrimary && <T style={{ fontSize: 11 }}>⭐</T>}
-                <T style={{ fontSize: 12, fontWeight: '600', color: isSelected ? C.white : C.textDark }} numberOfLines={1}>{a.address}</T>
-              </TouchableOpacity>
-            );
-          })}
-        </View>
-      </ScrollView>
+      {/* רשימה אנכית ברוחב מלא — הכתובת המלאה נראית, בלי חיתוך */}
+      <View style={{ gap: 6 }}>
+        {savedAddresses.map(a => {
+          const isSelected = selectedId === a.id;
+          return (
+            <TouchableOpacity
+              key={a.id}
+              onPress={() => onSelect(a)}
+              style={{
+                flexDirection: 'row-reverse', alignItems: 'center', gap: 6,
+                backgroundColor: isSelected ? C.blue : C.white,
+                borderRadius: 14, paddingHorizontal: 12, paddingVertical: 9,
+                borderWidth: 1.5, borderColor: isSelected ? C.blue : C.blueBorder,
+              }}
+            >
+              {a.isPrimary && <T style={{ fontSize: 12 }}>⭐</T>}
+              <T style={{ flex: 1, fontSize: 12.5, fontWeight: '600', textAlign: 'right', color: isSelected ? C.white : C.textDark }} numberOfLines={2}>{a.address}</T>
+            </TouchableOpacity>
+          );
+        })}
+      </View>
     </View>
   );
 }
@@ -2640,21 +2638,6 @@ function BookingModal({ cleaner, visible, onClose, onBookingCreated, prebookData
               </View>
             ) : (<>
             <AddressPicker selectedId={selectedAddrId} onSelect={fillFromSaved} savedAddresses={savedAddresses} />
-
-            {/* כפתור איתור מיקום */}
-            <TouchableOpacity
-              style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: C.blue, borderRadius: 12, paddingVertical: 10, marginBottom: 10 }}
-              onPress={detectMyLocation}
-              disabled={detectingLoc}
-            >
-              {detectingLoc
-                ? <ActivityIndicator size="small" color="#fff" />
-                : <T style={{ fontSize: 16 }}>📍</T>
-              }
-              <T style={{ color: C.white, fontWeight: '700', fontSize: 14 }}>
-                {detectingLoc ? 'מאתר...' : 'איתור כתובת אוטומטי'}
-              </T>
-            </TouchableOpacity>
 
             {/* שדות כתובת מובנים */}
             <View style={{ gap: 8 }}>
@@ -4757,29 +4740,6 @@ export default function HomeScreen() {
           </View>
           <ScrollView contentContainerStyle={{ padding: 16, gap: 20, paddingBottom: insets.bottom + 16 }} keyboardShouldPersistTaps="handled">
 
-            {/* ── סינון לפי אזור ──────────────────────────────────────────── */}
-            <View>
-              <T style={[s.fieldLabel, { textAlign: 'right' }]}>{t.filterByRegion}</T>
-              <View style={{ flexDirection: 'row', gap: 8, marginTop: 8, flexWrap: 'wrap' }}>
-                {[
-                  { key: 'all',    label: t.regionAll    },
-                  { key: 'north',  label: t.regionNorth  },
-                  { key: 'center', label: t.regionCenter },
-                  { key: 'south',  label: t.regionSouth  },
-                ].map(r => (
-                  <TouchableOpacity
-                    key={r.key}
-                    style={[s.hourBtn, region === r.key && s.hourBtnActive, { width: 'auto', paddingHorizontal: 14 }]}
-                    onPress={() => setRegion(r.key)}
-                  >
-                    <T style={[{ fontSize: 13, fontWeight: '700', color: C.textDark }, region === r.key && { color: C.white }]}>
-                      {r.label}
-                    </T>
-                  </TouchableOpacity>
-                ))}
-              </View>
-            </View>
-
             {/* ── חיפוש לפי עיר ───────────────────────────────────────────── */}
             <View style={{ zIndex: 50 }}>
               <T style={[s.fieldLabel, { textAlign: 'right' }]}>{t.searchByCity}</T>
@@ -4811,7 +4771,7 @@ export default function HomeScreen() {
             {/* Min rating */}
             <View>
               <T style={[s.fieldLabel, { textAlign: 'right' }]}>{t.filterRatingLabel}</T>
-              <View style={{ flexDirection: 'row', gap: 8, marginTop: 8 }}>
+              <View style={{ flexDirection: 'row', gap: 8, marginTop: 8, flexWrap: 'wrap', justifyContent: 'center' }}>
                 {[0,3,4,4.5,4.8].map(r => (
                   <TouchableOpacity
                     key={r}

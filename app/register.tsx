@@ -62,7 +62,7 @@ function createS(c: AppColors) {
     sectionTitle:    { fontSize: 13, fontWeight: '800', color: c.textDark, marginBottom: 10, marginTop: 4, textAlign: 'right' },
     pillRow:         { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 14 },
     availRow:        { flexDirection: 'row-reverse', alignItems: 'center', paddingVertical: 10, paddingHorizontal: 10, borderBottomWidth: 1, borderBottomColor: c.blueBorder },
-    availDayBtn:     { width: 38, height: 38, borderRadius: 10, backgroundColor: c.white, borderWidth: 1.5, borderColor: c.blueBorder, alignItems: 'center', justifyContent: 'center' },
+    availDayBtn:     { minWidth: 56, height: 38, borderRadius: 10, paddingHorizontal: 8, backgroundColor: c.white, borderWidth: 1.5, borderColor: c.blueBorder, alignItems: 'center', justifyContent: 'center' },
     availDayBtnActive: { backgroundColor: c.blue, borderColor: c.blue },
     availDayText:    { fontSize: 12, fontWeight: '800', color: c.textDark },
     availDayTextActive: { color: c.white },
