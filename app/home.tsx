@@ -856,13 +856,24 @@ function ReviewsModal({ cleaner, visible, onClose }: any) {
 }
 
 // ─── Cleaner profile modal ───────────────────────────────────────────────────
-function CleanerProfile({ cleaner, visible, onClose, onBook, onChat }: any) {
+function CleanerProfile({ cleaner, visible, onClose, onBook, onChat, initialShowReviews }: any) {
   const { t } = useLanguage();
   const C = useAppColors();
   const s = createS(C);
   const insets = useSafeAreaInsets();
   const [showReviews, setShowReviews] = useState(false);
   const [loadedReviews, setLoadedReviews] = React.useState<any[]>([]);
+  const scrollRef = React.useRef<ScrollView>(null);
+  const reviewsY = React.useRef(0);
+  // כשנפתח מלחיצה על ביקורת בכרטיס — לגלול אל חלק הביקורות
+  React.useEffect(() => {
+    if (visible && initialShowReviews) {
+      const id = setTimeout(() => {
+        scrollRef.current?.scrollTo({ y: Math.max(0, reviewsY.current - 12), animated: true });
+      }, 450);
+      return () => clearTimeout(id);
+    }
+  }, [visible, initialShowReviews, cleaner?.id]);
   React.useEffect(() => {
     if (!visible || !cleaner?.id) { setLoadedReviews([]); return; }
     let alive = true;
@@ -886,7 +897,7 @@ function CleanerProfile({ cleaner, visible, onClose, onBook, onChat }: any) {
           <T style={s.profileHeaderTitle}>{t.cleanerProfileTitle}</T>
           <View style={{ width: 36 }} />
         </View>
-        <ScrollView contentContainerStyle={{ paddingBottom: insets.bottom + 100 }}>
+        <ScrollView ref={scrollRef} contentContainerStyle={{ paddingBottom: insets.bottom + 100 }}>
           <View style={s.profileHero}>
             <View style={s.profileAvatar}>
               {(() => {
@@ -1000,7 +1011,7 @@ function CleanerProfile({ cleaner, visible, onClose, onBook, onChat }: any) {
               {cleaner.payment.map((p: string) => <View key={p} style={[s.payPill, p === 'paybox' && { flexDirection: 'row', alignItems: 'center', gap: 3 }]}>{p === 'paybox' && <PayboxIcon size={13} />}<T style={s.payPillText}>{p === 'paybox' ? t.payPaybox : `${PAY_ICONS[p] || '💳'} ${p === 'bit' ? t.payBit : p === 'cash' ? t.payCash : p === 'bank' ? t.payBank : p === 'card' ? t.payCard : p === 'kochavit' ? ((t as any).payKochavit ?? 'כוכבית') : p}`}</T></View>)}
             </View>
           </View>
-          <View style={s.profileSection}>
+          <View style={s.profileSection} onLayout={e => { reviewsY.current = e.nativeEvent.layout.y; }}>
             <View style={{ flexDirection: 'row', justifyContent: 'center', alignItems: 'center', marginBottom: 12, gap: 10 }}>
               <T style={s.profileSectionTitle}>{t.reviewsSuffix} ({loadedReviews.length > 0 ? loadedReviews.length : cleaner.reviews})</T>
               <TouchableOpacity onPress={() => setShowReviews(true)}><T style={s.seeAllBtn}>{t.seeAllBtn}</T></TouchableOpacity>
@@ -3394,7 +3405,8 @@ export default function HomeScreen() {
   const [showSearchSugg, setShowSearchSugg] = useState(false);
   const [selected,   setSelected]   = useState<string | null>(null);
   const [profile,    setProfile]    = useState<any>(null);
-  const [reviewsFor, setReviewsFor] = useState<any>(null);   // ביקורות בלבד מכרטיס
+  const [profileReviews, setProfileReviews] = useState(false); // נפתח ישר על חלק הביקורות
+  const openProfileReviews = (c: any) => { setProfileReviews(true); setProfile(c); };
   const [booking,    setBooking]    = useState<any>(null);
   const [prebookData, setPrebookData] = useState<any>(null); // הזמנה קודמת לחזרה
   const [chatWith,   setChatWith]   = useState<any>(null);
@@ -4663,7 +4675,7 @@ export default function HomeScreen() {
           renderItem={({ item: c }) => (
             <CleanerCard
               cleaner={c} isSel={selected === c.id} onSelect={handleSelectCleaner}
-              onProfile={setProfile} onReviews={setReviewsFor} onBook={setBooking} onChat={setChatWith}
+              onProfile={(c: any) => { setProfileReviews(false); setProfile(c); }} onReviews={openProfileReviews} onBook={setBooking} onChat={setChatWith}
               isPending={pendingCleanerIds.has(c.id)}
               onShowOnMap={handleShowOnMap} onEnlarge={setEnlargedPhoto}
             />
@@ -4671,7 +4683,7 @@ export default function HomeScreen() {
         />
       </View>
 
-      <CleanerProfile cleaner={profile}  visible={!!profile}  onClose={() => setProfile(null)}  onBook={setBooking} onChat={setChatWith} />
+      <CleanerProfile cleaner={profile}  visible={!!profile}  onClose={() => setProfile(null)}  onBook={setBooking} onChat={setChatWith} initialShowReviews={profileReviews} />
       <BookingModal
         cleaner={booking}
         visible={!!booking}
@@ -4683,7 +4695,6 @@ export default function HomeScreen() {
         }}
       />
       <ChatModal      cleaner={chatWith} visible={!!chatWith} onClose={() => setChatWith(null)} />
-      <ReviewsModal   cleaner={reviewsFor} visible={!!reviewsFor} onClose={() => setReviewsFor(null)} />
       <AccessibilityModal visible={a11yOpen} onClose={() => setA11yOpen(false)} />
 
       {/* מציג תמונת מנקה במסך מלא */}
