@@ -4927,7 +4927,7 @@ export default function HomeScreen() {
                 style={{ flex: 1, backgroundColor: '#10B981', borderRadius: 12, paddingVertical: 13, alignItems: 'center' }}
                 onPress={() => { const id = urgentPopupReq?.id; setUrgentPopupReq(null); if (id) router.push({ pathname: '/profile', params: { tab: 'urgent', acceptReqId: id } }); }}
               >
-                <T style={{ color: '#fff', fontWeight: '900', fontSize: 14 }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8}>כניסה לצ'אט ואישור</T>
+                <T style={{ color: '#fff', fontWeight: '900', fontSize: 14 }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8}>{"כניסה לצ'אט ואישור"}</T>
               </TouchableOpacity>
               <TouchableOpacity
                 style={{ flex: 1, backgroundColor: '#FEE2E2', borderRadius: 12, paddingVertical: 13, alignItems: 'center', borderWidth: 1.5, borderColor: '#FCA5A5' }}
