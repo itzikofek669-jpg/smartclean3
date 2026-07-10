@@ -3465,6 +3465,7 @@ export default function HomeScreen() {
   const [myRole,         setMyRole]         = useState<'client' | 'cleaner' | null>(null);
   const [cleanerPendingCount, setCleanerPendingCount] = useState(0);
   const [newBookingFlash, setNewBookingFlash] = useState(false);
+  const [newBookingId, setNewBookingId] = useState('');   // מזהה ההזמנה הממתינה — לניווט ישיר לאישור
   const prevCleanerPendingRef = useRef(-1);
   const cleanerPendingUnsubRef = useRef<(() => void) | null>(null);
 
@@ -4025,11 +4026,17 @@ export default function HomeScreen() {
               setNewBookingFlash(true);
               setTimeout(() => setNewBookingFlash(false), 6000);
               // פופ-אפ באפליקציה: הזמנה חדשה (ללא תלות בהתראות פוש)
-              const newest = snap.docs.map(d => d.data() as any)
+              const newest = snap.docs.map(d => ({ id: d.id, ...(d.data() as any) }))
                 .sort((a, b) => String(b.createdAt || '').localeCompare(String(a.createdAt || '')))[0];
               if (newest) {
+                setNewBookingId(newest.id);
+                const openApproval = () => router.push({ pathname: '/profile', params: { tab: 'bookings', confirmBookingId: newest.id } });
                 Alert.alert('🔔 ' + (t.newBookingTitle || 'הזמנה חדשה ממתינה לאישור'),
-                  `${newest.clientName || ''}${newest.bookingDate ? ' · ' + newest.bookingDate : ''}${newest.startTime ? ' ' + newest.startTime : ''}${newest.address ? '\n📍 ' + newest.address : ''}`);
+                  `${newest.clientName || ''}${newest.bookingDate ? ' · ' + newest.bookingDate : ''}${newest.startTime ? ' ' + newest.startTime : ''}${newest.address ? '\n📍 ' + newest.address : ''}`,
+                  [
+                    { text: t.closeBtn || 'סגור', style: 'cancel' },
+                    { text: '✅ ' + (t.confirmBtnText || 'אישור הזמנה'), onPress: openApproval },
+                  ]);
               }
             }
             prevCleanerPendingRef.current = count;
@@ -4484,7 +4491,7 @@ export default function HomeScreen() {
           {myRole === 'cleaner' && newBookingFlash && (
             <TouchableOpacity
               style={{ backgroundColor: '#059669', borderRadius: 14, padding: 14, marginBottom: 8, flexDirection: 'row', alignItems: 'center', gap: 10, elevation: 6, shadowColor: '#000', shadowOpacity: 0.2, shadowRadius: 10, shadowOffset: { width: 0, height: 4 } }}
-              onPress={() => { setNewBookingFlash(false); router.push('/profile'); }}
+              onPress={() => { setNewBookingFlash(false); router.push({ pathname: '/profile', params: { tab: 'bookings', confirmBookingId: newBookingId } }); }}
               activeOpacity={0.88}
             >
               <T style={{ fontSize: 28 }}>🔔</T>
