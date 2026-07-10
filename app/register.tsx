@@ -426,10 +426,7 @@ export default function RegisterScreen() {
   const [isMobile,       setIsMobile]       = useState(true);
   const [cleanerAge,     setCleanerAge]     = useState('');
   const [cleanerAddress, setCleanerAddress] = useState('');
-  // כתובת מנקה — בית פרטי או בניין דירות
-  const [cleanerIsPrivate, setCleanerIsPrivate] = useState(true);
-  const [cleanerFloor, setCleanerFloor] = useState('');
-  const [cleanerApt,   setCleanerApt]   = useState('');
+  // מנקה: כתובת = עיר + רחוב בלבד (ללא קומה/מספר דירה)
   const [maxDistance,    setMaxDistance]    = useState<number>(10);
   const [bringSupplies,  setBringSupplies]  = useState(true);
 
@@ -589,8 +586,6 @@ export default function RegisterScreen() {
         data.bringSupplies  = bringSupplies;
         if (cleanerAge)     data.age          = Number(cleanerAge) || 0;
         if (cleanerAddress) data.cleanerAddress = cleanerAddress.trim();
-        data.cleanerIsPrivateHouse = cleanerIsPrivate;
-        if (!cleanerIsPrivate) { data.cleanerFloor = cleanerFloor.trim(); data.cleanerApt = cleanerApt.trim(); }
         data.maxDistance = maxDistance;
         // Convert servicePricing string values to numbers
         const spNum: Record<string, number> = {};
@@ -885,21 +880,8 @@ await setDoc(doc(db, 'users', cred.user.uid), data);
 
                 <View style={s.field}>
                   <T style={s.label}>{t.cleanerAddressLabel}</T>
+                  {/* מנקה — רק עיר ורחוב, ללא קומה/מספר דירה */}
                   <TextInput style={s.input} placeholder={t.cleanerAddressPlaceholder} value={cleanerAddress} onChangeText={setCleanerAddress} placeholderTextColor={C.sub} textAlign="center" />
-
-                  {/* סוג מגורים — בית פרטי או בניין דירות */}
-                  <View style={[s.pillRow, { justifyContent: 'center', marginTop: 8, marginBottom: 4 }]}>
-                    <TogglePill label={`🏠 ${t.privateHouseLabel ?? 'בית פרטי'}`}   active={cleanerIsPrivate}  onPress={() => setCleanerIsPrivate(true)}  devanagari={false} />
-                    <TogglePill label={`🏢 ${t.aptBuildingLabel ?? 'בניין דירות'}`} active={!cleanerIsPrivate} onPress={() => setCleanerIsPrivate(false)} devanagari={false} />
-                  </View>
-
-                  {/* בבניין — קומה ומספר דירה */}
-                  {!cleanerIsPrivate && (
-                    <View style={{ flexDirection: 'row-reverse', gap: 10 }}>
-                      <TextInput style={[s.input, { flex: 1 }]} placeholder={t.floorLabel ?? 'קומה'} value={cleanerFloor} onChangeText={setCleanerFloor} placeholderTextColor={C.sub} textAlign="center" keyboardType="number-pad" />
-                      <TextInput style={[s.input, { flex: 1 }]} placeholder={t.aptLabel ?? 'מספר דירה'} value={cleanerApt} onChangeText={setCleanerApt} placeholderTextColor={C.sub} textAlign="center" keyboardType="number-pad" />
-                    </View>
-                  )}
                 </View>
 
                 {/* מרחק הגעה מקסימלי */}
