@@ -5430,8 +5430,6 @@ function createS(c: AppColors) {
   actionBtnText:     { fontSize: 14, fontWeight: '700', color: c.blue, textAlign: 'center' },
   actionBtnPrimary:  { flex: 1, backgroundColor: c.blue, borderRadius: 10, paddingVertical: 10, paddingHorizontal: 4, alignItems: 'center', justifyContent: 'center', minHeight: 40 },
   actionBtnPrimaryText: { fontSize: 14, fontWeight: '800', color: c.white, textAlign: 'center' },
-  insuranceBtn:     { marginTop: 8, backgroundColor: '#EFF6FF', borderRadius: 10, paddingVertical: 8, paddingHorizontal: 14, alignItems: 'center', borderWidth: 1, borderColor: '#BFDBFE' },
-  insuranceBtnText: { fontSize: 12, fontWeight: '700', color: '#1D4ED8' },
   urgentHeaderBtn:  { backgroundColor: '#7C3AED', borderRadius: 10, paddingHorizontal: 10, paddingVertical: 6, alignItems: 'center', justifyContent: 'center' },
   darkModeToggle:   { backgroundColor: 'rgba(255,255,255,0.15)', borderRadius: 10, paddingHorizontal: 9, paddingVertical: 6, alignItems: 'center', justifyContent: 'center' },
   a11yBtn:          { backgroundColor: '#EEF4FB', borderRadius: 10, width: 36, height: 32, alignItems: 'center', justifyContent: 'center' },
