@@ -1,16 +1,12 @@
-﻿import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity, StyleSheet,
   StatusBar, KeyboardAvoidingView, Platform, Dimensions,
   Alert, ScrollView, Modal, ActivityIndicator, Animated,
-} from 'react-native';
+ Image as RNImage } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-
-const NAV_BAR_HEIGHT = Platform.OS === 'android'
-  ? Math.max(0, Dimensions.get('screen').height - Dimensions.get('window').height - (StatusBar.currentHeight || 0))
-  : 0;
 import { Image } from 'expo-image';
-import { Image as RNImage } from 'react-native';
+
 import * as ImagePicker from 'expo-image-picker';
 import { useRouter } from 'expo-router';
 import { createUserWithEmailAndPassword } from 'firebase/auth';
@@ -21,6 +17,10 @@ import { Lang } from '../lib/translations';
 import { TERMS_BY_LANG } from '../lib/terms';
 import ServiceInfoBtn from '../lib/ServiceInfoBtn';
 import { MaterialIcons } from '@expo/vector-icons';
+
+const NAV_BAR_HEIGHT = Platform.OS === 'android'
+  ? Math.max(0, Dimensions.get('screen').height - Dimensions.get('window').height - (StatusBar.currentHeight || 0))
+  : 0;
 
 function createTM(c: AppColors) {
   return StyleSheet.create({
@@ -121,12 +121,6 @@ const PAYMENT_OPTS = [
   { key: 'bit',    label: 'Bit',              icon: '📱' },
   { key: 'paybox', label: 'PayBox',            icon: '🅿️' },
   { key: 'bank',   label: 'העברה בנקאית',   icon: '🏦' },
-];
-
-const AREA_OPTS = [
-  { key: 'north',  label: '🌿 צפון'  },
-  { key: 'center', label: '🏙️ מרכז' },
-  { key: 'south',  label: '☀️ דרום'  },
 ];
 
 const LANG_OPTS = [
@@ -375,7 +369,6 @@ export default function RegisterScreen() {
   const [email,        setEmail]        = useState('');
   const [password,     setPassword]     = useState('');
   const [showPassword, setShowPassword] = useState(false);
-  const [showPass, setShowPass] = useState(false);
   const [role,     setRole]     = useState<'client' | 'cleaner'>('client');
   const [loading,  setLoading]  = useState(false);
 
@@ -426,14 +419,11 @@ export default function RegisterScreen() {
   const [bio,            setBio]            = useState('');
   const [types,          setTypes]          = useState<string[]>([]);
   const [payment,        setPayment]        = useState<string[]>([]);
-  const [workAreas,      setWorkAreas]      = useState<string[]>([]);
   const [servicePricing, setServicePricing] = useState<Record<string, string>>({});
   const [photoB64,       setPhotoB64]       = useState<string | null>(null);
-  const [photoLoading,   setPhotoLoading]   = useState(false);
   const [submitAttempted, setSubmitAttempted] = useState(false);
   const [citizenship,    setCitizenship]    = useState('');
   const [isMobile,       setIsMobile]       = useState(true);
-  const [experience,     setExperience]     = useState('');
   const [cleanerAge,     setCleanerAge]     = useState('');
   const [cleanerAddress, setCleanerAddress] = useState('');
   // כתובת מנקה — בית פרטי או בניין דירות
@@ -452,7 +442,6 @@ export default function RegisterScreen() {
     setAvailability(prev => ({ ...prev, [day]: { ...prev[day], active: !prev[day].active } }));
   const setDayTime = (day: DayKey, field: 'start'|'end', val: number) =>
     setAvailability(prev => ({ ...prev, [day]: { ...prev[day], [field]: val } }));
-  const TIME_OPTS = Array.from({ length: 17 }, (_, i) => i + 6); // 6..22
 
   const pickCleanerPhoto = () => {
     Alert.alert(t.photoPickerTitle, t.photoPickerTitle, [
@@ -590,7 +579,6 @@ export default function RegisterScreen() {
         data.bio           = bio.trim();
         data.types         = types;
         data.payment       = payment;
-        data.workAreas     = workAreas;
         data.available     = true;
         data.rating        = 0;
         data.reviews       = 0;
@@ -599,7 +587,6 @@ export default function RegisterScreen() {
         if (citizenship)    data.citizenship  = citizenship.trim();
         data.isMobile       = isMobile;
         data.bringSupplies  = bringSupplies;
-        if (experience)     data.experience   = Number(experience) || 0;
         if (cleanerAge)     data.age          = Number(cleanerAge) || 0;
         if (cleanerAddress) data.cleanerAddress = cleanerAddress.trim();
         data.cleanerIsPrivateHouse = cleanerIsPrivate;

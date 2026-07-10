@@ -14,8 +14,7 @@ import {
   doc, getDoc, setDoc, updateDoc, addDoc, deleteDoc,
   collection, query, where, orderBy, arrayRemove, arrayUnion, onSnapshot, runTransaction,
 } from 'firebase/firestore';
-import { auth, db } from '../lib/firebase';
-import { storage } from '../lib/firebase';
+import { auth, db , storage } from '../lib/firebase';
 import { setActiveChat } from '../lib/chatPresence';
 import { ref as storageRef, uploadBytes, getDownloadURL } from 'firebase/storage';
 // expo-audio — הקלטה והשמעה של הודעות קוליות (SDK 54, מחליף את expo-av)

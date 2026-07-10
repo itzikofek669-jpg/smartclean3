@@ -1,13 +1,13 @@
-﻿import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import * as NavigationBar from 'expo-navigation-bar';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useSafeAreaInsets , SafeAreaView as SafeAreaViewCtx } from 'react-native-safe-area-context';
 import {
   View, Text, StyleSheet, FlatList, TouchableOpacity,
   TextInput, ScrollView, Modal, SafeAreaView, StatusBar,
   Alert, Dimensions, Animated, Platform, Linking, Switch,
   KeyboardAvoidingView, ActivityIndicator, BackHandler, Keyboard,
 } from 'react-native';
-import { SafeAreaView as SafeAreaViewCtx } from 'react-native-safe-area-context';
+
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 
@@ -2146,7 +2146,7 @@ function BookingModal({ cleaner, visible, onClose, onBookingCreated, prebookData
       }
       // ── Schedule day-before local reminder ──────────────────────────────
       try {
-        // eslint-disable-next-line @typescript-eslint/no-var-requires
+         
         const Notifs = require('expo-notifications');
         Notifs.setNotificationHandler({
           handleNotification: async () => ({ shouldShowAlert: true, shouldPlaySound: true, shouldSetBadge: false }),
