@@ -1779,6 +1779,7 @@ function BookingModal({ cleaner, visible, onClose, onBookingCreated, prebookData
   const [hours,          setHours]          = useState(2);
   const [payment,        setPayment]        = useState('cash');
   const [saving,         setSaving]         = useState(false);
+  const bookingLock = useRef(false);   // מנעול סינכרוני נגד לחיצה כפולה מהירה (הזמנה כפולה)
   const [savedAddresses, setSavedAddresses] = useState<SavedAddress[]>([]);
   // ── שדות כתובת מובנים ───────────────────────────────────────────────────
   const [addrCity,       setAddrCity]       = useState('');
@@ -1935,6 +1936,7 @@ function BookingModal({ cleaner, visible, onClose, onBookingCreated, prebookData
   const fmtDate = (d: Date) => d.toLocaleDateString(LOCALE_MAP[lang] || 'he-IL', { day: '2-digit', month: '2-digit', year: 'numeric' });
 
   const handleBook = async () => {
+    if (bookingLock.current || saving) return;   // כבר בתהליך — מנע הזמנה כפולה
     if (addrEditMode) {
       // עריכה ידנית — דרוש שדות מבניים מלאים
       if (!addrStreet.trim()) return Alert.alert(t.error, t.fillStreetRequired ?? 'יש למלא רחוב ומספר בית');
@@ -1962,6 +1964,10 @@ function BookingModal({ cleaner, visible, onClose, onBookingCreated, prebookData
     // תאריך מקומי (לא UTC) — חייב להיות זהה לפורמט שבו ההזמנה נשמרת, אחרת הבדיקה רצה על היום הלא נכון
     const localDateStr = `${bookingDate.getFullYear()}-${String(bookingDate.getMonth()+1).padStart(2,'0')}-${String(bookingDate.getDate()).padStart(2,'0')}`;
 
+    // כל הוולידציות הסינכרוניות עברו — נעל מיד (לפני הבדיקות האסינכרוניות)
+    // כדי שלחיצה כפולה מהירה לא תיצור שתי הזמנות
+    bookingLock.current = true;
+
     // ── ולידציה: אין חפיפת הזמנות ────────────────────────────────────────
     {
       const clientUid = auth.currentUser?.uid || '';
@@ -1984,6 +1990,7 @@ function BookingModal({ cleaner, visible, onClose, onBookingCreated, prebookData
           return newStart < exEnd && newEnd > exStart;
         });
         if (hasOverlap) {
+          bookingLock.current = false;
           return Alert.alert('❌ ' + t.overlapTitle, t.overlapMsg);
         }
       } catch (_) {}
@@ -2011,6 +2018,7 @@ function BookingModal({ cleaner, visible, onClose, onBookingCreated, prebookData
           return newStart < exEnd && newEnd > exStart;
         });
         if (cleanerOverlap) {
+          bookingLock.current = false;
           return Alert.alert('❌ ' + t.overlapTitle, t.cleanerBusyMsg ?? 'המנקה תפוס/ה בשעות אלה — נסה שעה אחרת');
         }
       } catch (_) {}
@@ -2071,6 +2079,7 @@ function BookingModal({ cleaner, visible, onClose, onBookingCreated, prebookData
       // ── שמור bookingId והאזן לשינוי סטטוס ───────────────────────────────
       setPendingBookingId(bookingRef.id);
       setSaving(false);
+      bookingLock.current = false;
       // עדכן existingBookings כדי שבדיקת חפיפה תעבוד מיידית
       onBookingCreated?.(cleaner.id, {
         id: bookingRef.id, status: 'pending', cleanerName: cleaner.name,
@@ -2162,6 +2171,7 @@ function BookingModal({ cleaner, visible, onClose, onBookingCreated, prebookData
       onBookingCreated?.(cleaner.id);
     } catch (err: any) {
       setSaving(false);
+      bookingLock.current = false;
       setShowWaiting(false);
       setBookedDetails(null);
       Alert.alert(t.error, t.bookingCreateError ?? 'שגיאה ביצירת ההזמנה — נסה שוב');
