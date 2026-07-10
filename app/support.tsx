@@ -351,7 +351,7 @@ function getClientResponse(msg: string, userName: string, activeBooking: any, al
   // ── ביטוח ─────────────────────────────────────────────────────────────────
   if (matchAny(msg, ['ביטוח', 'נזק', 'אחריות', 'שבר', 'פגע', 'תביעה', 'הגנה'])) {
     return {
-      text: '🛡️ ביטוח A&M Clean:\n\nכל הזמנה מבוטחת דרך השותף שלנו.\nלכפתור הביטוח — פתח כרטיס מנקה ולחץ "🛡️ ביטוח".\n\nלתביעה ישירה:\n📧 support@A&M Clean.co.il',
+      text: '🛡️ ביטוח A&M Clean:\n\nכל הזמנה מבוטחת דרך השותף שלנו.\nלתביעה או בירור ביטוחי פנה אלינו ישירות:\n📧 support@A&M Clean.co.il',
       quickReplies: ['צור קשר', 'חזור לתפריט'],
     };
   }
