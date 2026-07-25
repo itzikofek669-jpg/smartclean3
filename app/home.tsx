@@ -4731,7 +4731,7 @@ export default function HomeScreen() {
               )}
               {myRole === 'client' && (
                 <TouchableOpacity onPress={() => setPostJobOpen(true)} activeOpacity={0.85} style={[s.urgentHeaderBtn, { backgroundColor: C.blue }]}>
-                  <T style={s.urgentHeaderBtnText}>📢 {(t as any).postJobBtn ?? 'פרסם עבודה'}</T>
+                  <T style={s.urgentHeaderBtnText}>🧹 {(t as any).postJobHomeBtn ?? 'ניקיון בזמן שלך'}</T>
                 </TouchableOpacity>
               )}
             </View>
