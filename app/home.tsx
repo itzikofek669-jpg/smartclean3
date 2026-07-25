@@ -3466,6 +3466,11 @@ export default function HomeScreen() {
   const [cleanerPendingCount, setCleanerPendingCount] = useState(0);
   const [newBookingFlash, setNewBookingFlash] = useState(false);
   const [newBookingId, setNewBookingId] = useState('');   // מזהה ההזמנה הממתינה — לניווט ישיר לאישור
+  // ── לוח עבודות פתוחות למנקה (הזמנות ללא מנקה + שידורים דחופים) ──────────────
+  const [openBookings, setOpenBookings] = useState<any[]>([]);   // bookings: open==true, pending
+  const [openUrgent,   setOpenUrgent]   = useState<any[]>([]);   // urgentRequests: status==open
+  const [hiddenJobIds, setHiddenJobIds] = useState<Set<string>>(new Set()); // "דחה" מקומי
+  const [jobChatClient, setJobChatClient] = useState<any>(null); // צ'אט עם לקוח מלוח העבודות
   const prevCleanerPendingRef = useRef(-1);
   const cleanerPendingUnsubRef = useRef<(() => void) | null>(null);
 
@@ -4159,6 +4164,80 @@ export default function HomeScreen() {
     return () => unsub();
   }, [myRole]);
 
+  // ── לוח עבודות פתוחות למנקה: הזמנות ללא מנקה + שידורים דחופים פתוחים ────────
+  useEffect(() => {
+    if (myRole !== 'cleaner') { setOpenBookings([]); setOpenUrgent([]); return; }
+    const uid = auth.currentUser?.uid;
+    const unsubB = onSnapshot(
+      query(collection(db, 'bookings'), where('open', '==', true), where('status', '==', 'pending')),
+      snap => setOpenBookings(
+        snap.docs.map(d => ({ id: d.id, ...(d.data() as any) }))
+          .filter(b => !b.cleanerId && b.clientUid !== uid)   // לא לתפוס אם אני בעצמי הזמנתי
+          .sort((a, b) => String(b.createdAt || '').localeCompare(String(a.createdAt || '')))
+      ),
+      () => {},
+    );
+    const unsubU = onSnapshot(
+      query(collection(db, 'urgentRequests'), where('status', '==', 'open')),
+      snap => {
+        const now = new Date();
+        setOpenUrgent(
+          snap.docs.map(d => ({ id: d.id, ...(d.data() as any) }))
+            .filter(r => (!r.expiresAt || new Date(r.expiresAt) > now) && r.clientUid !== uid)
+            .sort((a, b) => String(b.createdAt || '').localeCompare(String(a.createdAt || '')))
+        );
+      },
+      () => {},
+    );
+    return () => { unsubB(); unsubU(); };
+  }, [myRole]);
+
+  // עבודות מאוחדות ללוח (מסתירים "נדחו" מקומית)
+  const jobBoard = React.useMemo(() => {
+    const jobs = [
+      ...openUrgent.map(r => ({ ...r, _kind: 'urgent' as const, _id: `u_${r.id}` })),
+      ...openBookings.map(b => ({ ...b, _kind: 'booking' as const, _id: `b_${b.id}` })),
+    ].filter(j => !hiddenJobIds.has(j._id));
+    return jobs.sort((a, b) => String(b.createdAt || '').localeCompare(String(a.createdAt || '')));
+  }, [openUrgent, openBookings, hiddenJobIds]);
+
+  // ── תפיסת עבודה מהלוח ──────────────────────────────────────────────────────
+  const claimingRef = useRef(false);
+  const claimJob = async (job: any) => {
+    if (claimingRef.current) return;
+    if (job._kind === 'urgent') {
+      // בקשה דחופה — עוברים לזרימת הקבלה הקיימת בפרופיל
+      router.push({ pathname: '/profile', params: { tab: 'urgent', acceptReqId: job.id } });
+      return;
+    }
+    claimingRef.current = true;
+    try {
+      const uid = auth.currentUser?.uid || '';
+      let myName = auth.currentUser?.displayName || 'מנקה';
+      try { const d = await getDoc(doc(db, 'users', uid)); if (d.exists() && d.data()?.name) myName = d.data()!.name; } catch (_) {}
+      // ודא שהעבודה עדיין פתוחה (מישהו אחר עלול לתפוס לפני)
+      const ref = doc(db, 'bookings', job.id);
+      const cur = await getDoc(ref);
+      if (!cur.exists() || cur.data()?.cleanerId || cur.data()?.status !== 'pending') {
+        Alert.alert('', (t as any).jobTakenMsg ?? 'העבודה כבר נתפסה על ידי מנקה אחר');
+        return;
+      }
+      await updateDoc(ref, { cleanerId: uid, cleanerName: myName, open: false, status: 'confirmed' });
+      // התראה ללקוח
+      try {
+        const clientDoc = await getDoc(doc(db, 'users', job.clientUid));
+        const tok = clientDoc.data()?.pushToken;
+        if (tok) sendPushNotification(tok, '✅ ' + ((t as any).jobClaimedTitle ?? 'מנקה אישר את ההזמנה'), `${myName} ${(t as any).jobClaimedBody ?? 'ייקח את הניקיון שלך'}`, { type: 'booking_confirmed' });
+      } catch (_) {}
+      Alert.alert('✅', (t as any).jobClaimedOk ?? 'תפסת את העבודה! נפתח צ\'אט עם הלקוח');
+      setJobChatClient({ id: job.clientUid, uid: job.clientUid, name: job.clientName || (t as any).clientWord || 'לקוח' });
+    } catch (e) {
+      Alert.alert(t.error, (t as any).jobClaimError ?? 'שגיאה בתפיסת העבודה — נסה שוב');
+    } finally {
+      claimingRef.current = false;
+    }
+  };
+
   // ── פופאפ ניקוי דחוף למנקה — גם במסך הראשי ────────────────────────────────
   const [urgentPopupReq, setUrgentPopupReq] = useState<any>(null);
   const shownUrgentRef = useRef<Set<string>>(new Set()); // בקשות שכבר הוצגו — לא להקפיץ שוב
@@ -4624,7 +4703,7 @@ export default function HomeScreen() {
         </View>
         <FlatList
           ref={flatListRef}
-          style={s.list} data={filtered} keyExtractor={i => i.id}
+          style={s.list} data={myRole === 'cleaner' ? jobBoard : filtered} keyExtractor={i => i._id || i.id}
           contentContainerStyle={{ padding: 10, gap: 10, paddingBottom: insets.bottom + TAB_BAR_CONTENT_HEIGHT + 16 }}
           showsVerticalScrollIndicator={false}
           initialNumToRender={6}
@@ -4637,7 +4716,12 @@ export default function HomeScreen() {
             flatListRef.current?.scrollToOffset({ offset: info.averageItemLength * info.index, animated: true });
             setTimeout(() => { try { flatListRef.current?.scrollToIndex({ index: info.index, animated: true, viewPosition: 0.15 }); } catch (_) {} }, 200);
           }}
-          ListHeaderComponent={myRole === 'client' ? (
+          ListHeaderComponent={myRole === 'cleaner' ? (
+            <View style={{ marginBottom: 6 }}>
+              <T style={{ fontSize: 18, fontWeight: '900', color: C.textDark, textAlign: 'right' }}>🧹 {(t as any).jobBoardTitle ?? 'עבודות זמינות'}</T>
+              <T style={{ fontSize: 12, color: C.textSub, textAlign: 'right', marginTop: 2 }}>{(t as any).jobBoardSub ?? 'ניקיונות שממתינים למנקה — קח את מה שמתאים לך'}</T>
+            </View>
+          ) : myRole === 'client' ? (
             myBookings.length > 0 ? (
               <TouchableOpacity
                 onPress={() => setQuickRebookOpen(true)}
@@ -4667,7 +4751,13 @@ export default function HomeScreen() {
               </View>
             )
           ) : null}
-          ListEmptyComponent={
+          ListEmptyComponent={myRole === 'cleaner' ? (
+            <View style={{ alignItems: 'center', marginTop: 50, paddingHorizontal: 24 }}>
+              <T style={{ fontSize: 44, marginBottom: 12 }}>🧹</T>
+              <T style={[s.empty, { marginBottom: 6 }]}>{(t as any).noJobsTitle ?? 'אין עבודות זמינות כרגע'}</T>
+              <T style={{ fontSize: 13, color: C.textSub, textAlign: 'center' }}>{(t as any).noJobsSub ?? 'ברגע שלקוח יפרסם ניקיון — הוא יופיע כאן'}</T>
+            </View>
+          ) : (
             <View style={{ alignItems: 'center', marginTop: 40, paddingHorizontal: 16 }}>
               <T style={{ fontSize: 40, marginBottom: 10 }}>🔍</T>
               <T style={[s.empty, { marginBottom: 12 }]}>{t.noCleaners}</T>
@@ -4688,8 +4778,46 @@ export default function HomeScreen() {
                 );
               })()}
             </View>
-          }
-          renderItem={({ item: c }) => (
+          )}
+          renderItem={myRole === 'cleaner'
+            ? ({ item: j }: any) => {
+                const svcKeys: string[] = j.serviceTypes || (j.serviceType ? [j.serviceType] : []);
+                const svc = svcKeys.map(k => String(t.types[k] || k).replace(/[\u{1F000}-\u{1FFFF}\u{2600}-\u{27BF}\u{2B00}-\u{2BFF}\u{FE0F}\u{200D}]/gu, '').trim()).filter(Boolean).join(', ');
+                const dateStr = j.bookingDate || j.dateStr || '';
+                const timeStr = j.startTime || '';
+                const propType = j.isPrivateHouse ? ((t as any).privateHouseLabel ?? 'בית פרטי') : ((t as any).aptBuildingLabel ?? 'דירה');
+                const area = j.addrCity || j.city || j.address || '';
+                const price = j.total ?? j.maxPrice ?? j.pricePerHour ?? null;
+                const isUrgent = j._kind === 'urgent';
+                return (
+                  <View style={[s.jobCard, isUrgent && { borderColor: '#DC2626', borderWidth: 1.5 }]}>
+                    <View style={{ flexDirection: 'row-reverse', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+                      <T style={s.jobTitle}>{isUrgent ? '🚨 ' : '🧹 '}{svc || ((t as any).defaultServiceName ?? 'ניקיון')}</T>
+                      {price != null && <T style={s.jobPrice}>₪{price}</T>}
+                    </View>
+                    <View style={{ gap: 4, marginBottom: 10 }}>
+                      {!!dateStr && <T style={s.jobRow}>📅 {dateStr}{timeStr ? ` · ${timeStr}` : ''}</T>}
+                      {!!j.hours && <T style={s.jobRow}>⏱️ {j.hours} {(t as any).hoursUnit ?? 'שעות'}</T>}
+                      <T style={s.jobRow}>🏠 {propType}</T>
+                      {!!area && <T style={s.jobRow}>📍 {area}</T>}
+                      {!!j.clientName && <T style={s.jobRow}>👤 {j.clientName}</T>}
+                      {!!j.notes && <T style={[s.jobRow, { color: C.textSub }]}>📝 {j.notes}</T>}
+                    </View>
+                    <View style={{ flexDirection: 'row-reverse', gap: 8 }}>
+                      <TouchableOpacity style={[s.jobBtn, s.jobBtnPrimary]} onPress={() => claimJob(j)}>
+                        <T style={s.jobBtnPrimaryText}>✅ {(t as any).claimJobBtn ?? 'קח את העבודה'}</T>
+                      </TouchableOpacity>
+                      <TouchableOpacity style={[s.jobBtn, s.jobBtnGhost]} onPress={() => j.clientUid && setJobChatClient({ id: j.clientUid, uid: j.clientUid, name: j.clientName || ((t as any).clientWord ?? 'לקוח') })}>
+                        <T style={s.jobBtnGhostText}>💬 {(t as any).chatBeforeBtn ?? 'צ\'אט עם הלקוח'}</T>
+                      </TouchableOpacity>
+                      <TouchableOpacity style={[s.jobBtn, s.jobBtnGhost, { flex: 0, paddingHorizontal: 12 }]} onPress={() => setHiddenJobIds(prev => new Set(prev).add(j._id))}>
+                        <T style={s.jobBtnGhostText}>✕</T>
+                      </TouchableOpacity>
+                    </View>
+                  </View>
+                );
+              }
+            : ({ item: c }) => (
             <CleanerCard
               cleaner={c} isSel={selected === c.id} onSelect={handleSelectCleaner}
               onProfile={(c: any) => { setProfileReviews(false); setProfile(c); }} onReviews={openProfileReviews} onBook={setBooking} onChat={setChatWith}
@@ -4699,6 +4827,9 @@ export default function HomeScreen() {
           )}
         />
       </View>
+
+      {/* צ'אט עם לקוח מלוח העבודות (מנקה) */}
+      <ChatModal cleaner={jobChatClient} visible={!!jobChatClient} onClose={() => setJobChatClient(null)} />
 
       <CleanerProfile cleaner={profile}  visible={!!profile}  onClose={() => setProfile(null)}  onBook={setBooking} onChat={setChatWith} initialShowReviews={profileReviews} />
       <BookingModal
@@ -5399,6 +5530,16 @@ function createS(c: AppColors) {
   mapWrap:      { width: '100%', height: H * 0.205, borderBottomWidth: 1, borderColor: c.blueBorder },
   map:          { flex: 1 },
   list:         { flex: 1 },
+  // ── לוח עבודות (מנקה) ──
+  jobCard:          { backgroundColor: c.white, borderRadius: 16, padding: 14, borderWidth: 1, borderColor: c.blueBorder, elevation: 2, shadowColor: '#000', shadowOpacity: 0.06, shadowRadius: 6, shadowOffset: { width: 0, height: 2 } },
+  jobTitle:         { fontSize: 15, fontWeight: '900', color: c.textDark, flex: 1, textAlign: 'right' },
+  jobPrice:         { fontSize: 16, fontWeight: '900', color: c.blue },
+  jobRow:           { fontSize: 13, color: c.textDark, textAlign: 'right' },
+  jobBtn:           { flex: 1, borderRadius: 12, paddingVertical: 11, alignItems: 'center', justifyContent: 'center' },
+  jobBtnPrimary:    { backgroundColor: c.green },
+  jobBtnPrimaryText:{ color: '#fff', fontWeight: '800', fontSize: 13 },
+  jobBtnGhost:      { backgroundColor: c.blueLight, borderWidth: 1, borderColor: c.blueBorder },
+  jobBtnGhostText:  { color: c.blue, fontWeight: '800', fontSize: 13 },
   pinHead:      { alignItems: 'center', justifyContent: 'center', borderWidth: 2.5, borderColor: c.white, elevation: 6, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.3, shadowRadius: 3 },
   pinTail:      { width: 0, height: 0, borderLeftWidth: 7, borderRightWidth: 7, borderTopWidth: 10, borderLeftColor: 'transparent', borderRightColor: 'transparent', marginTop: -1 },
   pinText:      { color: c.white, fontWeight: '900', fontSize: 10 },
