@@ -1492,10 +1492,31 @@ function PostJobModal({ visible, onClose, onPosted }: { visible: boolean; onClos
   const [city, setCity]         = useState('');
   const [budget, setBudget]     = useState('');
   const [notes, setNotes]       = useState('');
+  const [photos, setPhotos]     = useState<string[]>([]);   // base64 (data URIs) — עד 3
   const [busy, setBusy]         = useState(false);
   const svcKeys = Object.keys(SERVICE_DESCRIPTIONS);
   const toggle = (k: string) => setTypes(p => p.includes(k) ? p.filter(x => x !== k) : [...p, k]);
   const valid = types.length > 0 && city.trim().length >= 2;
+
+  // צירוף תמונה — דחיסה חזקה כדי להישאר מתחת למגבלת מסמך של Firestore (1MB)
+  const addPhoto = async () => {
+    if (photos.length >= 3) return Alert.alert('', (t as any).jobPhotosMax ?? 'אפשר לצרף עד 3 תמונות');
+    const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (!perm.granted) return Alert.alert(t.error, t.galleryPermDenied);
+    const res = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ImagePicker.MediaTypeOptions.Images, allowsEditing: false, quality: 1, base64: false, exif: false });
+    if (res.canceled || !res.assets[0]) return;
+    let b64: string | null | undefined;
+    try {
+      for (const st of [{ width: 900, compress: 0.4 }, { width: 720, compress: 0.35 }, { width: 600, compress: 0.3 }]) {
+        const out = await ImageManipulator.manipulateAsync(res.assets[0].uri, [{ resize: { width: st.width } }], { compress: st.compress, format: ImageManipulator.SaveFormat.JPEG, base64: true });
+        b64 = out.base64;
+        if (b64 && b64.length <= 260_000) break;
+      }
+    } catch (_) { return Alert.alert(t.error, t.imageReadError); }
+    if (!b64) return Alert.alert(t.error, t.imageReadError);
+    if (b64.length > 320_000) return Alert.alert(t.imageTooLargeTitle ?? '', t.imageTooLargeMsg ?? 'התמונה גדולה מדי');
+    setPhotos(p => [...p, `data:image/jpeg;base64,${b64}`]);
+  };
   const dateStr = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
 
   const submit = async () => {
@@ -1513,6 +1534,7 @@ function PostJobModal({ visible, onClose, onPosted }: { visible: boolean; onClos
         pricePerHour: budget ? Number(budget) : null,
         total: budget ? Number(budget) * hours : null,
         notes: notes.trim(),
+        photos,
         payment: 'cash', paymentStatus: 'awaiting_cash', status: 'pending',
         bookingDate: dateStr, startTime: `${String(hour).padStart(2, '0')}:00`,
         recurring: 'once', recurringDates: [], createdAt: new Date().toISOString(),
@@ -1520,7 +1542,7 @@ function PostJobModal({ visible, onClose, onPosted }: { visible: boolean; onClos
       onPosted?.();
       onClose();
       Alert.alert('📢', (t as any).jobPostedOk ?? 'העבודה פורסמה! מנקים מתאימים יראו אותה ויוכלו לקחת אותה');
-      setTypes([]); setCity(''); setBudget(''); setNotes('');
+      setTypes([]); setCity(''); setBudget(''); setNotes(''); setPhotos([]);
     } catch (_) {
       Alert.alert(t.error, (t as any).jobPostError ?? 'שגיאה בפרסום העבודה — נסה שוב');
     } finally { setBusy(false); }
@@ -1592,6 +1614,25 @@ function PostJobModal({ visible, onClose, onPosted }: { visible: boolean; onClos
 
           <T style={{ fontSize: 14, fontWeight: '800', color: C.textDark, textAlign: 'right' }}>{(t as any).notesLabel ?? 'הערות (לא חובה)'}</T>
           <TextInput style={{ backgroundColor: C.white, borderRadius: 12, borderWidth: 1.5, borderColor: C.blueBorder, padding: 12, textAlign: 'right', color: C.textDark, height: 70, textAlignVertical: 'top' }} value={notes} onChangeText={setNotes} multiline placeholder={(t as any).notesPh ?? 'פרטים נוספים למנקה…'} placeholderTextColor={C.textSub} />
+
+          {/* צירוף תמונות (לא חובה) */}
+          <T style={{ fontSize: 14, fontWeight: '800', color: C.textDark, textAlign: 'right' }}>{(t as any).jobPhotosLabel ?? 'תמונות (לא חובה)'}</T>
+          <View style={{ flexDirection: 'row-reverse', flexWrap: 'wrap', gap: 8, alignItems: 'center' }}>
+            {photos.map((uri, i) => (
+              <View key={i} style={{ position: 'relative' }}>
+                <Image source={{ uri }} style={{ width: 72, height: 72, borderRadius: 10 }} contentFit="cover" />
+                <TouchableOpacity onPress={() => setPhotos(p => p.filter((_, idx) => idx !== i))} style={{ position: 'absolute', top: -6, left: -6, width: 22, height: 22, borderRadius: 11, backgroundColor: '#EF4444', alignItems: 'center', justifyContent: 'center' }}>
+                  <T style={{ color: '#fff', fontSize: 13, fontWeight: '900' }}>✕</T>
+                </TouchableOpacity>
+              </View>
+            ))}
+            {photos.length < 3 && (
+              <TouchableOpacity onPress={addPhoto} style={{ width: 72, height: 72, borderRadius: 10, borderWidth: 1.5, borderColor: C.blueBorder, borderStyle: 'dashed', backgroundColor: C.white, alignItems: 'center', justifyContent: 'center' }}>
+                <T style={{ fontSize: 26, color: C.blue }}>＋</T>
+                <T style={{ fontSize: 20 }}>📷</T>
+              </TouchableOpacity>
+            )}
+          </View>
 
           <TouchableOpacity disabled={!valid || busy} onPress={submit} style={{ backgroundColor: valid && !busy ? C.green : C.grayBorder, borderRadius: 14, paddingVertical: 15, alignItems: 'center', marginTop: 4 }}>
             <T style={{ color: '#fff', fontWeight: '900', fontSize: 15 }}>{busy ? '…' : `📢 ${(t as any).postJobBtn ?? 'פרסם עבודה'}`}</T>
@@ -4943,6 +4984,15 @@ export default function HomeScreen() {
                       {!!area && <T style={s.jobRow}>📍 {area}</T>}
                       {!!j.clientName && <T style={s.jobRow}>👤 {j.clientName}</T>}
                       {!!j.notes && <T style={[s.jobRow, { color: C.textSub }]}>📝 {j.notes}</T>}
+                      {Array.isArray(j.photos) && j.photos.length > 0 && (
+                        <View style={{ flexDirection: 'row-reverse', flexWrap: 'wrap', gap: 6, marginTop: 6 }}>
+                          {j.photos.map((uri: string, pi: number) => (
+                            <TouchableOpacity key={pi} onPress={() => setEnlargedPhoto(uri)}>
+                              <Image source={{ uri }} style={{ width: 64, height: 64, borderRadius: 8 }} contentFit="cover" />
+                            </TouchableOpacity>
+                          ))}
+                        </View>
+                      )}
                     </View>
                     <View style={{ flexDirection: 'row-reverse', gap: 8 }}>
                       <TouchableOpacity style={[s.jobBtn, s.jobBtnPrimary]} onPress={() => claimJob(j)}>
