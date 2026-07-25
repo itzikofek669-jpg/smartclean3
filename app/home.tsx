@@ -3596,7 +3596,6 @@ export default function HomeScreen() {
   const [openBookings, setOpenBookings] = useState<any[]>([]);   // bookings: open==true, pending
   const [openUrgent,   setOpenUrgent]   = useState<any[]>([]);   // urgentRequests: status==open
   const [hiddenJobIds, setHiddenJobIds] = useState<Set<string>>(new Set()); // "דחה" מקומי
-  const [jobChatClient, setJobChatClient] = useState<any>(null); // צ'אט עם לקוח מלוח העבודות
   const prevCleanerPendingRef = useRef(-1);
   const cleanerPendingUnsubRef = useRef<(() => void) | null>(null);
 
@@ -4329,6 +4328,16 @@ export default function HomeScreen() {
   }, [openUrgent, openBookings, hiddenJobIds]);
 
   // ── תפיסת עבודה מהלוח ──────────────────────────────────────────────────────
+  // צ'אט מנקה↔לקוח דרך מסך ההודעות הכללי (ניטרלי לתפקיד, ללא בוט תגובה אוטומטית)
+  const openClientChat = (clientUid: string, clientName?: string) => {
+    if (!clientUid) return;
+    const me = auth.currentUser?.uid || '';
+    router.push({ pathname: '/messages', params: {
+      openChatId: [me, clientUid].sort().join('_'),
+      openOtherUid: clientUid,
+      openOtherName: clientName || ((t as any).clientWord ?? 'לקוח'),
+    } });
+  };
   const claimingRef = useRef(false);
   const claimJob = async (job: any) => {
     if (claimingRef.current) return;
@@ -4357,7 +4366,7 @@ export default function HomeScreen() {
         if (tok) sendPushNotification(tok, '✅ ' + ((t as any).jobClaimedTitle ?? 'מנקה אישר את ההזמנה'), `${myName} ${(t as any).jobClaimedBody ?? 'ייקח את הניקיון שלך'}`, { type: 'booking_confirmed' });
       } catch (_) {}
       Alert.alert('✅', (t as any).jobClaimedOk ?? 'תפסת את העבודה! נפתח צ\'אט עם הלקוח');
-      setJobChatClient({ id: job.clientUid, uid: job.clientUid, name: job.clientName || (t as any).clientWord || 'לקוח' });
+      openClientChat(job.clientUid, job.clientName);
     } catch (e) {
       Alert.alert(t.error, (t as any).jobClaimError ?? 'שגיאה בתפיסת העבודה — נסה שוב');
     } finally {
@@ -4939,7 +4948,7 @@ export default function HomeScreen() {
                       <TouchableOpacity style={[s.jobBtn, s.jobBtnPrimary]} onPress={() => claimJob(j)}>
                         <T style={s.jobBtnPrimaryText}>✅ {(t as any).claimJobBtn ?? 'קח את העבודה'}</T>
                       </TouchableOpacity>
-                      <TouchableOpacity style={[s.jobBtn, s.jobBtnGhost]} onPress={() => j.clientUid && setJobChatClient({ id: j.clientUid, uid: j.clientUid, name: j.clientName || ((t as any).clientWord ?? 'לקוח') })}>
+                      <TouchableOpacity style={[s.jobBtn, s.jobBtnGhost]} onPress={() => openClientChat(j.clientUid, j.clientName)}>
                         <T style={s.jobBtnGhostText}>💬 {(t as any).chatBeforeBtn ?? 'צ\'אט עם הלקוח'}</T>
                       </TouchableOpacity>
                       <TouchableOpacity style={[s.jobBtn, s.jobBtnGhost, { flex: 0, paddingHorizontal: 12 }]} onPress={() => setHiddenJobIds(prev => new Set(prev).add(j._id))}>
@@ -4959,9 +4968,6 @@ export default function HomeScreen() {
           )}
         />
       </View>
-
-      {/* צ'אט עם לקוח מלוח העבודות (מנקה) */}
-      <ChatModal cleaner={jobChatClient} visible={!!jobChatClient} onClose={() => setJobChatClient(null)} />
 
       {/* פרסום עבודה פתוחה (לקוח) */}
       <PostJobModal visible={postJobOpen} onClose={() => setPostJobOpen(false)} />
