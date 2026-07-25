@@ -1478,6 +1478,132 @@ function MultiCalendarPicker({ selected, onChange, label }: {
   );
 }
 
+// ─── Post Open Job (client) ───────────────────────────────────────────────────
+function PostJobModal({ visible, onClose, onPosted }: { visible: boolean; onClose: () => void; onPosted?: () => void }) {
+  const { t } = useLanguage();
+  const C = useAppColors();
+  const insets = useSafeAreaInsets();
+  const [types, setTypes]       = useState<string[]>([]);
+  const [date, setDate]         = useState<Date>(() => { const d = new Date(); d.setHours(10, 0, 0, 0); return d; });
+  const [calOpen, setCalOpen]   = useState(false);
+  const [hour, setHour]         = useState(10);
+  const [hours, setHours]       = useState(2);
+  const [isPrivate, setIsPrivate] = useState(true);
+  const [city, setCity]         = useState('');
+  const [budget, setBudget]     = useState('');
+  const [notes, setNotes]       = useState('');
+  const [busy, setBusy]         = useState(false);
+  const svcKeys = Object.keys(SERVICE_DESCRIPTIONS);
+  const toggle = (k: string) => setTypes(p => p.includes(k) ? p.filter(x => x !== k) : [...p, k]);
+  const valid = types.length > 0 && city.trim().length >= 2;
+  const dateStr = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+
+  const submit = async () => {
+    if (!valid || busy) return;
+    setBusy(true);
+    try {
+      const uid = auth.currentUser?.uid || '';
+      let clientName = auth.currentUser?.displayName || '';
+      try { const d = await getDoc(doc(db, 'users', uid)); if (d.exists() && d.data()?.name) clientName = d.data()!.name; } catch (_) {}
+      await addDoc(collection(db, 'bookings'), {
+        open: true, cleanerId: '', clientUid: uid, clientName,
+        serviceTypes: types, serviceType: types.join(' + '),
+        hours, isPrivateHouse: isPrivate,
+        addrCity: city.trim(), address: city.trim(),
+        pricePerHour: budget ? Number(budget) : null,
+        total: budget ? Number(budget) * hours : null,
+        notes: notes.trim(),
+        payment: 'cash', paymentStatus: 'awaiting_cash', status: 'pending',
+        bookingDate: dateStr, startTime: `${String(hour).padStart(2, '0')}:00`,
+        recurring: 'once', recurringDates: [], createdAt: new Date().toISOString(),
+      });
+      onPosted?.();
+      onClose();
+      Alert.alert('📢', (t as any).jobPostedOk ?? 'העבודה פורסמה! מנקים מתאימים יראו אותה ויוכלו לקחת אותה');
+      setTypes([]); setCity(''); setBudget(''); setNotes('');
+    } catch (_) {
+      Alert.alert(t.error, (t as any).jobPostError ?? 'שגיאה בפרסום העבודה — נסה שוב');
+    } finally { setBusy(false); }
+  };
+
+  return (
+    <Modal visible={visible} animationType="slide" presentationStyle="pageSheet" onRequestClose={onClose}>
+      <SafeAreaView style={{ flex: 1, backgroundColor: C.bluePale }}>
+        <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: C.blueDark, padding: 16 }}>
+          <TouchableOpacity onPress={onClose} style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: 'rgba(255,255,255,0.2)', alignItems: 'center', justifyContent: 'center' }}>
+            <T style={{ color: '#fff', fontSize: 18 }}>✕</T>
+          </TouchableOpacity>
+          <T style={{ fontSize: 17, fontWeight: '900', color: '#fff' }}>📢 {(t as any).postJobTitle ?? 'פרסם עבודה פתוחה'}</T>
+          <View style={{ width: 36 }} />
+        </View>
+        <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'} keyboardVerticalOffset={Platform.OS === 'ios' ? insets.top + 60 : 0}>
+        <ScrollView contentContainerStyle={{ padding: 16, gap: 14, paddingBottom: insets.bottom + 24 }} keyboardShouldPersistTaps="handled">
+          <T style={{ fontSize: 13, color: C.textSub, textAlign: 'center' }}>{(t as any).postJobSub ?? 'כל מנקה מתאים יראה את העבודה ויוכל לקחת אותה'}</T>
+
+          <T style={{ fontSize: 14, fontWeight: '800', color: C.textDark, textAlign: 'right' }}>{(t as any).serviceTypeLabel ?? 'סוג ניקיון'}</T>
+          <View style={{ flexDirection: 'row-reverse', flexWrap: 'wrap', gap: 8 }}>
+            {svcKeys.map(k => (
+              <TouchableOpacity key={k} onPress={() => toggle(k)} style={{ paddingHorizontal: 12, paddingVertical: 8, borderRadius: 20, borderWidth: 1.5, borderColor: types.includes(k) ? C.blue : C.blueBorder, backgroundColor: types.includes(k) ? C.blue : C.white }}>
+                <T style={{ fontSize: 12, fontWeight: '700', color: types.includes(k) ? '#fff' : C.textDark }}>{String(t.types[k] || k)}</T>
+              </TouchableOpacity>
+            ))}
+          </View>
+
+          <View style={{ flexDirection: 'row-reverse', gap: 10 }}>
+            <View style={{ flex: 1 }}>
+              <T style={{ fontSize: 14, fontWeight: '800', color: C.textDark, textAlign: 'right', marginBottom: 6 }}>{(t as any).dateLabel ?? 'תאריך'}</T>
+              <TouchableOpacity onPress={() => setCalOpen(true)} style={{ backgroundColor: C.white, borderRadius: 12, borderWidth: 1.5, borderColor: C.blueBorder, padding: 12 }}>
+                <T style={{ fontSize: 14, color: C.textDark, textAlign: 'center' }}>📅 {dateStr}</T>
+              </TouchableOpacity>
+            </View>
+            <View style={{ flex: 1 }}>
+              <T style={{ fontSize: 14, fontWeight: '800', color: C.textDark, textAlign: 'right', marginBottom: 6 }}>{(t as any).timeLabel ?? 'שעה'}</T>
+              <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: C.white, borderRadius: 12, borderWidth: 1.5, borderColor: C.blueBorder, paddingHorizontal: 8 }}>
+                <TouchableOpacity onPress={() => setHour(h => Math.max(6, h - 1))} style={{ padding: 8 }}><T style={{ fontSize: 20, color: C.blue }}>−</T></TouchableOpacity>
+                <T style={{ fontSize: 15, fontWeight: '800', color: C.textDark }}>{String(hour).padStart(2, '0')}:00</T>
+                <TouchableOpacity onPress={() => setHour(h => Math.min(22, h + 1))} style={{ padding: 8 }}><T style={{ fontSize: 20, color: C.blue }}>+</T></TouchableOpacity>
+              </View>
+            </View>
+          </View>
+
+          <View style={{ flexDirection: 'row-reverse', gap: 10 }}>
+            <View style={{ flex: 1 }}>
+              <T style={{ fontSize: 14, fontWeight: '800', color: C.textDark, textAlign: 'right', marginBottom: 6 }}>{(t as any).hoursLabel ?? 'שעות'}</T>
+              <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: C.white, borderRadius: 12, borderWidth: 1.5, borderColor: C.blueBorder, paddingHorizontal: 8 }}>
+                <TouchableOpacity onPress={() => setHours(h => Math.max(1, h - 1))} style={{ padding: 8 }}><T style={{ fontSize: 20, color: C.blue }}>−</T></TouchableOpacity>
+                <T style={{ fontSize: 15, fontWeight: '800', color: C.textDark }}>{hours}</T>
+                <TouchableOpacity onPress={() => setHours(h => Math.min(12, h + 1))} style={{ padding: 8 }}><T style={{ fontSize: 20, color: C.blue }}>+</T></TouchableOpacity>
+              </View>
+            </View>
+            <View style={{ flex: 1 }}>
+              <T style={{ fontSize: 14, fontWeight: '800', color: C.textDark, textAlign: 'right', marginBottom: 6 }}>{(t as any).budgetPerHourLabel ?? 'תקציב/שעה (₪)'}</T>
+              <TextInput style={{ backgroundColor: C.white, borderRadius: 12, borderWidth: 1.5, borderColor: C.blueBorder, padding: 12, textAlign: 'center', color: C.textDark }} keyboardType="number-pad" value={budget} onChangeText={setBudget} placeholder="—" placeholderTextColor={C.textSub} />
+            </View>
+          </View>
+
+          <T style={{ fontSize: 14, fontWeight: '800', color: C.textDark, textAlign: 'right' }}>{(t as any).propertyTypeLabel ?? 'סוג נכס'}</T>
+          <View style={{ flexDirection: 'row-reverse', gap: 8 }}>
+            <TouchableOpacity onPress={() => setIsPrivate(true)} style={{ flex: 1, paddingVertical: 12, borderRadius: 12, borderWidth: 1.5, borderColor: isPrivate ? C.blue : C.blueBorder, backgroundColor: isPrivate ? C.blue : C.white, alignItems: 'center' }}><T style={{ fontWeight: '700', color: isPrivate ? '#fff' : C.textDark }}>🏠 {(t as any).privateHouseLabel ?? 'בית פרטי'}</T></TouchableOpacity>
+            <TouchableOpacity onPress={() => setIsPrivate(false)} style={{ flex: 1, paddingVertical: 12, borderRadius: 12, borderWidth: 1.5, borderColor: !isPrivate ? C.blue : C.blueBorder, backgroundColor: !isPrivate ? C.blue : C.white, alignItems: 'center' }}><T style={{ fontWeight: '700', color: !isPrivate ? '#fff' : C.textDark }}>🏢 {(t as any).aptBuildingLabel ?? 'דירה'}</T></TouchableOpacity>
+          </View>
+
+          <T style={{ fontSize: 14, fontWeight: '800', color: C.textDark, textAlign: 'right' }}>{(t as any).cityLabel ?? 'עיר'}</T>
+          <TextInput style={{ backgroundColor: C.white, borderRadius: 12, borderWidth: 1.5, borderColor: C.blueBorder, padding: 12, textAlign: 'right', color: C.textDark }} value={city} onChangeText={setCity} placeholder={(t as any).citySearchPh ?? 'עיר…'} placeholderTextColor={C.textSub} />
+
+          <T style={{ fontSize: 14, fontWeight: '800', color: C.textDark, textAlign: 'right' }}>{(t as any).notesLabel ?? 'הערות (לא חובה)'}</T>
+          <TextInput style={{ backgroundColor: C.white, borderRadius: 12, borderWidth: 1.5, borderColor: C.blueBorder, padding: 12, textAlign: 'right', color: C.textDark, height: 70, textAlignVertical: 'top' }} value={notes} onChangeText={setNotes} multiline placeholder={(t as any).notesPh ?? 'פרטים נוספים למנקה…'} placeholderTextColor={C.textSub} />
+
+          <TouchableOpacity disabled={!valid || busy} onPress={submit} style={{ backgroundColor: valid && !busy ? C.green : C.grayBorder, borderRadius: 14, paddingVertical: 15, alignItems: 'center', marginTop: 4 }}>
+            <T style={{ color: '#fff', fontWeight: '900', fontSize: 15 }}>{busy ? '…' : `📢 ${(t as any).postJobBtn ?? 'פרסם עבודה'}`}</T>
+          </TouchableOpacity>
+        </ScrollView>
+        </KeyboardAvoidingView>
+        <CalendarPicker visible={calOpen} value={date} onChange={d => { const nd = new Date(d); nd.setHours(hour, 0, 0, 0); setDate(nd); }} onClose={() => setCalOpen(false)} />
+      </SafeAreaView>
+    </Modal>
+  );
+}
+
 // ─── Spinner Picker (+/−) ─────────────────────────────────────────────────────
 function SpinnerPicker({ value, onChange, values, display }: {
   value: number; onChange: (v: number) => void; values: number[]; display?: (v: number) => string;
@@ -3497,6 +3623,7 @@ export default function HomeScreen() {
   // Urgent cleaning
   const urgentScrollRef = useRef<ScrollView>(null);
   const [urgentOpen,      setUrgentOpen]      = useState(false);
+  const [postJobOpen,     setPostJobOpen]     = useState(false);   // פרסום עבודה פתוחה (לקוח)
   const [urgentDate,      setUrgentDate]      = useState<'today'|'tomorrow'>('today');
   const [urgentHour,      setUrgentHour]      = useState(10);
   const [urgentHours,     setUrgentHours]     = useState(2);
@@ -4552,6 +4679,11 @@ export default function HomeScreen() {
                   </LinearGradient>
                 </TouchableOpacity>
               )}
+              {myRole === 'client' && (
+                <TouchableOpacity onPress={() => setPostJobOpen(true)} activeOpacity={0.85} style={[s.urgentHeaderBtn, { backgroundColor: C.blue }]}>
+                  <T style={s.urgentHeaderBtnText}>📢 {(t as any).postJobBtn ?? 'פרסם עבודה'}</T>
+                </TouchableOpacity>
+              )}
             </View>
 
             {/* כפתור תפריט — צד ימין */}
@@ -4830,6 +4962,9 @@ export default function HomeScreen() {
 
       {/* צ'אט עם לקוח מלוח העבודות (מנקה) */}
       <ChatModal cleaner={jobChatClient} visible={!!jobChatClient} onClose={() => setJobChatClient(null)} />
+
+      {/* פרסום עבודה פתוחה (לקוח) */}
+      <PostJobModal visible={postJobOpen} onClose={() => setPostJobOpen(false)} />
 
       <CleanerProfile cleaner={profile}  visible={!!profile}  onClose={() => setProfile(null)}  onBook={setBooking} onChat={setChatWith} initialShowReviews={profileReviews} />
       <BookingModal
