@@ -602,7 +602,7 @@ function ModalBackHandler({ onBack }: { onBack: () => void }) {
 // ─── Drawer ──────────────────────────────────────────────────────────────────
 const PANEL_W = 270;
 
-function DrawerMenu({ visible, onClose, onProfile, onLogout, onMessages, onReport, onSupport, onActiveBookings, onHistory, showHistory = true }: any) {
+function DrawerMenu({ visible, onClose, onProfile, onLogout, onMessages, onReport, onSupport, onActiveBookings, onHistory, onAccessibility, showHistory = true }: any) {
   const { t, lang, setLang, flipSide, setFlipSide } = useLanguage();
   const C = useAppColors();
   const s = createS(C);
@@ -685,6 +685,19 @@ function DrawerMenu({ visible, onClose, onProfile, onLogout, onMessages, onRepor
             <T style={ds.itemText}>{t.drawerProfile}</T>
             <T style={ds.itemArrow}>‹</T>
           </TouchableOpacity>
+
+          {onAccessibility && (
+            <TouchableOpacity
+              style={ds.item}
+              onPress={() => { onClose(); onAccessibility(); }}
+              accessibilityRole="button"
+              accessibilityLabel={t.accessibilityTitle || 'נגישות'}
+            >
+              <T style={ds.itemIcon}>♿</T>
+              <T style={[ds.itemText, { flex: 1 }]}>{t.accessibilityTitle || 'נגישות'}</T>
+              <T style={ds.itemArrow}>‹</T>
+            </TouchableOpacity>
+          )}
 
           <TouchableOpacity
             style={ds.item}
@@ -1586,7 +1599,7 @@ function PostJobModal({ visible, onClose, onPosted }: { visible: boolean; onClos
           <T style={{ fontSize: 17, fontWeight: '900', color: '#fff' }}>📢 {(t as any).postJobTitle ?? 'פרסם עבודה פתוחה'}</T>
           <View style={{ width: 36 }} />
         </View>
-        <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'} keyboardVerticalOffset={Platform.OS === 'ios' ? insets.top + 60 : 0}>
+        <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'} keyboardVerticalOffset={0}>
         <ScrollView contentContainerStyle={{ padding: 16, gap: 14, paddingBottom: insets.bottom + 24 }} keyboardShouldPersistTaps="handled">
           <T style={{ fontSize: 13, color: C.textSub, textAlign: 'center' }}>{(t as any).postJobSub ?? 'כל מנקה מתאים יראה את העבודה ויוכל לקחת אותה'}</T>
 
@@ -3209,7 +3222,7 @@ function ChatModal({ cleaner, visible, onClose }: any) {
             <View style={{ width: 36 }} />
           </View>
         </View>
-        <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'} keyboardVerticalOffset={Platform.OS === 'ios' ? insets.top + 60 : 0}>
+        <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'} keyboardVerticalOffset={0}>
           <ScrollView ref={scrollRef} style={{ flex: 1 }} contentContainerStyle={{ padding: 16, gap: 8 }} keyboardDismissMode="on-drag" keyboardShouldPersistTaps="handled" onContentSizeChange={() => scrollRef.current?.scrollToEnd({ animated: true })}>
             {messages.length === 0 && (
               <View style={{ alignItems: 'flex-start' }}>
@@ -3679,8 +3692,12 @@ export default function HomeScreen() {
   // תפקיד המשתמש
   const [myRole,         setMyRole]         = useState<'client' | 'cleaner' | null>(null);
   const [cleanerPendingCount, setCleanerPendingCount] = useState(0);
+  const [pendingBannerHidden, setPendingBannerHidden] = useState(false);   // הסתרה ידנית של הבאנר הכתום
+  const [myMaxKm, setMyMaxKm] = useState(30);                              // מרחק מקסימלי שהמנקה בחר
+  const [myCleanerCoords, setMyCleanerCoords] = useState<{ lat: number; lng: number } | null>(null);
   const [newBookingFlash, setNewBookingFlash] = useState(false);
   const [newBookingId, setNewBookingId] = useState('');   // מזהה ההזמנה הממתינה — לניווט ישיר לאישור
+  const [newBookingModal, setNewBookingModal] = useState<any>(null);   // פופ הזמנה חדשה מפורט (סוג/תשלום/סכום/צ'אט)
   // ── לוח עבודות פתוחות למנקה (הזמנות ללא מנקה + שידורים דחופים) ──────────────
   const [openBookings, setOpenBookings] = useState<any[]>([]);   // bookings: open==true, pending
   const [openUrgent,   setOpenUrgent]   = useState<any[]>([]);   // urgentRequests: status==open
@@ -4237,6 +4254,9 @@ export default function HomeScreen() {
         if (data?.blockedUntilReview) setIsBlocked(true);
         if (data?.role === 'cleaner') {
           setMyRole('cleaner');
+          // מרחק מקסימלי + מיקום המנקה — לסינון ומיון לוח העבודות
+          setMyMaxKm(Number(data.maxDistance) > 0 ? Number(data.maxDistance) : 30);
+          try { setMyCleanerCoords(getCoordsForCleaner(data)); } catch (_) {}
           // האזן בזמן אמת להזמנות ממתינות עבור מנקה
           if (cleanerPendingUnsubRef.current) cleanerPendingUnsubRef.current();
           const pendingQ = query(collection(db, 'bookings'), where('cleanerId', '==', uid), where('status', '==', 'pending'));
@@ -4250,13 +4270,8 @@ export default function HomeScreen() {
                 .sort((a, b) => String(b.createdAt || '').localeCompare(String(a.createdAt || '')))[0];
               if (newest) {
                 setNewBookingId(newest.id);
-                const openApproval = () => router.push({ pathname: '/profile', params: { tab: 'bookings', confirmBookingId: newest.id } });
-                Alert.alert('🔔 ' + (t.newBookingTitle || 'הזמנה חדשה ממתינה לאישור'),
-                  `${newest.clientName || ''}${newest.bookingDate ? ' · ' + newest.bookingDate : ''}${newest.startTime ? ' ' + newest.startTime : ''}${newest.address ? '\n📍 ' + newest.address : ''}`,
-                  [
-                    { text: t.closeBtn || 'סגור', style: 'cancel' },
-                    { text: '✅ ' + (t.confirmBtnText || 'אישור הזמנה'), onPress: openApproval },
-                  ]);
+                setNewBookingModal(newest);   // פופ מפורט (במקום Alert בסיסי)
+                setPendingBannerHidden(false); // הזמנה חדשה — הצג שוב את הבאנר הכתום
               }
             }
             prevCleanerPendingRef.current = count;
@@ -4408,18 +4423,69 @@ export default function HomeScreen() {
   }, [myRole]);
 
   // עבודות מאוחדות ללוח (מסתירים "נדחו" מקומית)
+  // עבודות דמה (בוטים) — כדי שהלוח לא יהיה ריק. נוצרות בערים אמיתיות בטווח שבחר המנקה.
+  const botJobs = React.useMemo(() => {
+    if (!myCleanerCoords) return [] as any[];
+    const near = Object.entries(CITY_COORDS)
+      .map(([city, c]) => ({ city, c, d: getDistanceKm(myCleanerCoords.lat, myCleanerCoords.lng, c.lat, c.lng) }))
+      .filter(x => x.d > 0.5 && x.d <= myMaxKm)
+      .sort((a, b) => a.d - b.d)
+      .slice(0, 6);
+    const svcOptions = Object.keys(SERVICE_DESCRIPTIONS);
+    const names = ['דנה', 'יוסי', 'מרים', 'אבי', 'נועה', 'רון'];
+    return near.map((x, i) => {
+      const svc = svcOptions[i % svcOptions.length];
+      const hours = 2 + (i % 3);
+      const price = 150 + (i % 3) * 50;
+      const day = new Date(); day.setDate(day.getDate() + 1 + (i % 5)); day.setHours(9 + (i % 6), 0, 0, 0);
+      const dateStr = `${day.getFullYear()}-${String(day.getMonth() + 1).padStart(2, '0')}-${String(day.getDate()).padStart(2, '0')}`;
+      return {
+        _bot: true, _kind: 'booking' as const, _id: `bot_${i}`,
+        serviceTypes: [svc], serviceType: svc,
+        bookingDate: dateStr, startTime: `${9 + (i % 6)}:00`, hours,
+        isPrivateHouse: i % 2 === 0, addrCity: x.city, address: x.city,
+        pricePerHour: price, total: price * hours,
+        clientName: names[i % names.length], clientUid: `bot_${i}`,
+        lat: x.c.lat, lng: x.c.lng, _distKm: x.d,
+        createdAt: new Date(Date.now() - i * 60000).toISOString(),
+      };
+    });
+  }, [myCleanerCoords, myMaxKm]);
+
   const jobBoard = React.useMemo(() => {
-    const jobs = [
+    const withDist = (j: any) => {
+      if (typeof j._distKm === 'number') return j;
+      if (!myCleanerCoords) return { ...j, _distKm: null };
+      try {
+        const c = getCoordsForCleaner({ city: j.addrCity, address: j.address, lat: j.lat, lng: j.lng });
+        return { ...j, _distKm: getDistanceKm(myCleanerCoords.lat, myCleanerCoords.lng, c.lat, c.lng) };
+      } catch { return { ...j, _distKm: null }; }
+    };
+    const real = [
       ...openUrgent.map(r => ({ ...r, _kind: 'urgent' as const, _id: `u_${r.id}` })),
       ...openBookings.map(b => ({ ...b, _kind: 'booking' as const, _id: `b_${b.id}` })),
-    ].filter(j => !hiddenJobIds.has(j._id));
-    return jobs.sort((a, b) => String(b.createdAt || '').localeCompare(String(a.createdAt || '')));
-  }, [openUrgent, openBookings, hiddenJobIds]);
+    ].map(withDist)
+      // הגבלת מרחק — רק עבודות בטווח שהמנקה בחר (אם ידוע מרחק)
+      .filter(j => j._distKm == null || j._distKm <= myMaxKm);
+
+    const jobs = [...real, ...botJobs].filter(j => !hiddenJobIds.has(j._id));
+    // מיון: הכי קרוב ראשון (עבודות ללא מרחק — בסוף, לפי זמן)
+    return jobs.sort((a, b) => {
+      if (a._distKm != null && b._distKm != null) return a._distKm - b._distKm;
+      if (a._distKm != null) return -1;
+      if (b._distKm != null) return 1;
+      return String(b.createdAt || '').localeCompare(String(a.createdAt || ''));
+    });
+  }, [openUrgent, openBookings, botJobs, hiddenJobIds, myCleanerCoords, myMaxKm]);
 
   // ── תפיסת עבודה מהלוח ──────────────────────────────────────────────────────
   // צ'אט מנקה↔לקוח דרך מסך ההודעות הכללי (ניטרלי לתפקיד, ללא בוט תגובה אוטומטית)
   const openClientChat = (clientUid: string, clientName?: string) => {
     if (!clientUid) return;
+    if (String(clientUid).startsWith('bot_')) {
+      Alert.alert('🤖', (t as any).botJobMsg ?? 'זו עבודת דמה להדגמה — עבודות אמיתיות יופיעו כאן מלקוחות באזור שלך.');
+      return;
+    }
     const me = auth.currentUser?.uid || '';
     router.push({ pathname: '/messages', params: {
       openChatId: [me, clientUid].sort().join('_'),
@@ -4430,6 +4496,10 @@ export default function HomeScreen() {
   const claimingRef = useRef(false);
   const claimJob = async (job: any) => {
     if (claimingRef.current) return;
+    if (job._bot) {
+      Alert.alert('🤖', (t as any).botJobMsg ?? 'זו עבודת דמה להדגמה — עבודות אמיתיות יופיעו כאן מלקוחות באזור שלך.');
+      return;
+    }
     if (job._kind === 'urgent') {
       // בקשה דחופה — עוברים לזרימת הקבלה הקיימת בפרופיל
       router.push({ pathname: '/profile', params: { tab: 'urgent', acceptReqId: job.id } });
@@ -4740,17 +4810,7 @@ export default function HomeScreen() {
       <View style={{ backgroundColor: '#FFFFFF', flexShrink: 0, paddingTop: Platform.OS === 'ios' ? insets.top : (StatusBar.currentHeight || 0) }}>
         <View style={s.header}>
           <View style={[s.headerLogoRow, flipSide && { flexDirection: 'row-reverse' }]}>
-            {/* כפתור נגישות — צד שמאל (מוחלף לימין במצב שמאלי) */}
-            <TouchableOpacity
-              onPress={() => setA11yOpen(true)}
-              style={s.a11yBtn}
-              accessibilityRole="button"
-              accessibilityLabel={t.accessibilityTitle || 'נגישות'}
-            >
-              <MaterialIcons name="accessibility" size={22} color={C.blueDark} />
-            </TouchableOpacity>
-
-            {/* כפתורי אמצע */}
+            {/* כפתורי אמצע (הנגישות עברה לתפריט הצד) */}
             <View style={{ flexDirection: 'row', gap: 8, alignItems: 'center' }}>
               {/* הודעות */}
               <TouchableOpacity
@@ -4822,22 +4882,23 @@ export default function HomeScreen() {
           )}
 
           {/* באנר הזמנות ממתינות למנקה */}
-          {myRole === 'cleaner' && cleanerPendingCount > 0 && (
-            <TouchableOpacity
-              style={{ backgroundColor: '#F59E0B', borderRadius: 12, padding: 12, marginBottom: 8, flexDirection: 'row', alignItems: 'center', gap: 10 }}
-              onPress={() => router.push('/profile')}
-            >
-              <T style={{ fontSize: 20 }}>📋</T>
-              <View style={{ flex: 1 }}>
-                <T style={{ color: '#fff', fontSize: 14, fontWeight: '900' }}>
-                  {cleanerPendingCount} {t.pendingBookingsMsg}
+          {myRole === 'cleaner' && cleanerPendingCount > 0 && !pendingBannerHidden && (
+            <View style={{ backgroundColor: '#F59E0B', borderRadius: 12, padding: 12, marginBottom: 8, flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+              <TouchableOpacity onPress={() => setPendingBannerHidden(true)} style={{ padding: 2 }} accessibilityLabel="סגור">
+                <T style={{ fontSize: 18, color: '#fff', fontWeight: '900' }}>✕</T>
+              </TouchableOpacity>
+              <TouchableOpacity style={{ flex: 1, flexDirection: 'row', alignItems: 'center', gap: 10 }} onPress={() => router.push('/profile')}>
+                <View style={{ flex: 1 }}>
+                  <T style={{ color: '#fff', fontSize: 14, fontWeight: '900' }}>
+                    {cleanerPendingCount} {t.pendingBookingsMsg}
+                  </T>
+                  <T style={{ color: 'rgba(255,255,255,0.85)', fontSize: 12 }}>{t.tapToApprove}</T>
+                </View>
+                <T style={{ fontSize: 22, backgroundColor: '#DC2626', borderRadius: 12, paddingHorizontal: 8, paddingVertical: 2, color: '#fff', fontWeight: '900' }}>
+                  {cleanerPendingCount}
                 </T>
-                <T style={{ color: 'rgba(255,255,255,0.85)', fontSize: 12 }}>{t.tapToApprove}</T>
-              </View>
-              <T style={{ fontSize: 22, backgroundColor: '#DC2626', borderRadius: 12, paddingHorizontal: 8, paddingVertical: 2, color: '#fff', fontWeight: '900' }}>
-                {cleanerPendingCount}
-              </T>
-            </TouchableOpacity>
+              </TouchableOpacity>
+            </View>
           )}
 
           <View style={{ zIndex: 999, elevation: 999 }}>
@@ -5025,7 +5086,8 @@ export default function HomeScreen() {
                 const dateStr = j.bookingDate || j.dateStr || '';
                 const timeStr = j.startTime || '';
                 const propType = j.isPrivateHouse ? ((t as any).privateHouseLabel ?? 'בית פרטי') : ((t as any).aptBuildingLabel ?? 'דירה');
-                const area = j.addrCity || j.city || j.address || '';
+                const rawArea = j.addrCity || j.city || j.address || '';
+                const area = CITY_KEYS_BY_LEN.find(k => rawArea.includes(k)) || rawArea;   // עיר מזוהה בלבד
                 const price = j.total ?? j.maxPrice ?? j.pricePerHour ?? null;
                 const isUrgent = j._kind === 'urgent';
                 return (
@@ -5038,7 +5100,7 @@ export default function HomeScreen() {
                       {!!dateStr && <T style={s.jobRow}>📅 {dateStr}{timeStr ? ` · ${timeStr}` : ''}</T>}
                       {!!j.hours && <T style={s.jobRow}>⏱️ {j.hours} {(t as any).hoursUnit ?? 'שעות'}</T>}
                       <T style={s.jobRow}>🏠 {propType}</T>
-                      {!!area && <T style={s.jobRow}>📍 {area}</T>}
+                      {!!area && <T style={s.jobRow}>📍 {area}{typeof j._distKm === 'number' ? `  ·  📏 ${j._distKm < 1 ? '<1' : Math.round(j._distKm)} ק"מ` : ''}</T>}
                       {!!j.clientName && <T style={s.jobRow}>👤 {j.clientName}</T>}
                       {!!j.notes && <T style={[s.jobRow, { color: C.textSub }]}>📝 {j.notes}</T>}
                       {Array.isArray(j.photos) && j.photos.length > 0 && (
@@ -5126,6 +5188,7 @@ export default function HomeScreen() {
         onMessages={() => router.push('/messages')}
         onReport={() => { setDrawer(false); setReportOpen(true); }}
         onSupport={() => router.push('/support')}
+        onAccessibility={() => { setDrawer(false); setA11yOpen(true); }}
       />
 
       {/* Advanced Filter Modal */}
@@ -5320,6 +5383,51 @@ export default function HomeScreen() {
                 onPress={() => setUrgentPopupReq(null)}
               >
                 <T style={{ color: '#DC2626', fontWeight: '900', fontSize: 15 }}>דחה</T>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* ── פופ הזמנה חדשה (מפורט — סוג/תשלום/סכום + צ'אט) ── */}
+      <Modal visible={!!newBookingModal} transparent animationType="fade" onRequestClose={() => setNewBookingModal(null)}>
+        <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center', padding: 28 }}>
+          <View style={{ backgroundColor: C.white, borderRadius: 20, padding: 20, width: '100%', maxWidth: 360 }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, marginBottom: 12 }}>
+              <T style={{ fontSize: 22 }}>🔔</T>
+              <T style={{ fontSize: 18, fontWeight: '900', color: C.blueDark }}>{t.newBookingTitle || 'הזמנה חדשה'}</T>
+            </View>
+            {newBookingModal && (() => {
+              const b = newBookingModal;
+              const svcKeys2: string[] = b.serviceTypes || (b.serviceType ? String(b.serviceType).split(' + ') : []);
+              const svc = svcKeys2.map((st: string) => t.types[st] || st).filter(Boolean).join(', ');
+              const payMap: Record<string, string> = { cash: t.payCash || 'מזומן', bit: t.payBit || 'Bit', paybox: (t as any).payPaybox || 'Paybox', bank: t.payBank || 'העברה בנקאית', card: t.payCard || 'כרטיס', kochavit: (t as any).payKochavit || 'כוכבית' };
+              const pay = payMap[b.payment] || b.payment || '';
+              const amount = b.total ?? (b.pricePerHour && b.hours ? b.pricePerHour * b.hours : null);
+              return (
+                <View style={{ marginBottom: 18, gap: 5 }}>
+                  {!!b.clientName && <T style={{ fontSize: 15, fontWeight: '800', color: C.textDark, textAlign: 'right' }}>👤 {b.clientName}</T>}
+                  {!!svc && <T style={{ fontSize: 14, color: C.textDark, textAlign: 'right' }}>🧹 {svc}</T>}
+                  {(!!b.bookingDate || !!b.startTime) && <T style={{ fontSize: 14, color: C.textDark, textAlign: 'right' }}>📅 {b.bookingDate || ''}{b.startTime ? ` · ${b.startTime}` : ''}</T>}
+                  {!!b.hours && <T style={{ fontSize: 14, color: C.textDark, textAlign: 'right' }}>⏱️ {b.hours} {t.hoursUnit || 'שעות'}</T>}
+                  {!!(b.address || b.addrCity) && <T style={{ fontSize: 14, color: C.textDark, textAlign: 'right' }}>📍 {b.address || b.addrCity}</T>}
+                  {!!pay && <T style={{ fontSize: 14, color: C.textDark, textAlign: 'right' }}>💳 {pay}</T>}
+                  {amount != null && <T style={{ fontSize: 15, fontWeight: '900', color: C.blue, textAlign: 'right' }}>💰 ₪{amount}</T>}
+                </View>
+              );
+            })()}
+            <View style={{ flexDirection: 'row', gap: 10 }}>
+              <TouchableOpacity
+                style={{ flex: 1, backgroundColor: '#10B981', borderRadius: 12, paddingVertical: 13, alignItems: 'center' }}
+                onPress={() => { const id = newBookingModal?.id; setNewBookingModal(null); if (id) router.push({ pathname: '/profile', params: { tab: 'bookings', confirmBookingId: id } }); }}
+              >
+                <T style={{ color: '#fff', fontWeight: '900', fontSize: 14 }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8}>{"💬 כניסה לצ'אט ואישור"}</T>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={{ flex: 0.6, backgroundColor: '#EEF4FB', borderRadius: 12, paddingVertical: 13, alignItems: 'center', borderWidth: 1.5, borderColor: C.blueBorder }}
+                onPress={() => setNewBookingModal(null)}
+              >
+                <T style={{ color: C.blueDark, fontWeight: '900', fontSize: 15 }}>{t.closeBtn || 'סגור'}</T>
               </TouchableOpacity>
             </View>
           </View>
@@ -5749,8 +5857,8 @@ function createDS(c: AppColors) {
 function createS(c: AppColors) {
   return StyleSheet.create({
   wrap:         { flex: 1, backgroundColor: c.bluePale },
-  header:       { backgroundColor: '#FFFFFF', paddingHorizontal: 14, paddingTop: 8, paddingBottom: 8, borderBottomWidth: 1, borderBottomColor: '#E6EEF7' },
-  headerLogoRow:{ marginBottom: 6, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  header:       { backgroundColor: '#FFFFFF', paddingHorizontal: 14, paddingTop: 4, paddingBottom: 4, borderBottomWidth: 1, borderBottomColor: '#E6EEF7' },
+  headerLogoRow:{ marginBottom: 0, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   headerTitle:  { fontSize: 24, fontWeight: '900', color: c.white, letterSpacing: -0.5, flex: 1, textAlign: 'center' },
   headerSub:    { fontSize: 11, color: c.blueBorder, width: 48, textAlign: 'left' },
   hamburgerBtn: { backgroundColor: '#EEF4FB', borderRadius: 10, paddingHorizontal: 12, paddingVertical: 6, alignItems: 'center', justifyContent: 'center' },
