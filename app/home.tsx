@@ -4392,14 +4392,23 @@ export default function HomeScreen() {
       const uid = auth.currentUser?.uid || '';
       let myName = auth.currentUser?.displayName || 'מנקה';
       try { const d = await getDoc(doc(db, 'users', uid)); if (d.exists() && d.data()?.name) myName = d.data()!.name; } catch (_) {}
-      // ודא שהעבודה עדיין פתוחה (מישהו אחר עלול לתפוס לפני)
+      // תפיסה אטומית — טרנזקציה מבטיחה שרק מנקה אחד יזכה גם אם שניים לוחצים
+      // בו-זמנית (getDoc ואז updateDoc זה racy; טרנזקציה לא)
       const ref = doc(db, 'bookings', job.id);
-      const cur = await getDoc(ref);
-      if (!cur.exists() || cur.data()?.cleanerId || cur.data()?.status !== 'pending') {
+      let won = false;
+      try {
+        won = await runTransaction(db, async (tx) => {
+          const cur = await tx.get(ref);
+          const d: any = cur.data();
+          if (!cur.exists() || d?.cleanerId || d?.status !== 'pending') return false;
+          tx.update(ref, { cleanerId: uid, cleanerName: myName, open: false, status: 'confirmed' });
+          return true;
+        });
+      } catch (_) { won = false; }
+      if (!won) {
         Alert.alert('', (t as any).jobTakenMsg ?? 'העבודה כבר נתפסה על ידי מנקה אחר');
         return;
       }
-      await updateDoc(ref, { cleanerId: uid, cleanerName: myName, open: false, status: 'confirmed' });
       // התראה ללקוח
       try {
         const clientDoc = await getDoc(doc(db, 'users', job.clientUid));
