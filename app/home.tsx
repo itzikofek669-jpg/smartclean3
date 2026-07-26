@@ -1496,7 +1496,16 @@ function PostJobModal({ visible, onClose, onPosted }: { visible: boolean; onClos
   const [busy, setBusy]         = useState(false);
   const svcKeys = Object.keys(SERVICE_DESCRIPTIONS);
   const toggle = (k: string) => setTypes(p => p.includes(k) ? p.filter(x => x !== k) : [...p, k]);
-  const valid = types.length > 0 && city.trim().length >= 2;
+  // אי אפשר לפרסם לתאריך/שעה שכבר עברו (היום ושעה שחלפה)
+  const isPastJob = (() => {
+    const n = new Date();
+    const dOnly = new Date(date); dOnly.setHours(0, 0, 0, 0);
+    const tOnly = new Date(n);    tOnly.setHours(0, 0, 0, 0);
+    if (dOnly.getTime() < tOnly.getTime()) return true;
+    if (dOnly.getTime() !== tOnly.getTime()) return false;
+    return hour <= n.getHours();
+  })();
+  const valid = types.length > 0 && city.trim().length >= 2 && !isPastJob;
 
   // צירוף תמונה — דחיסה חזקה כדי להישאר מתחת למגבלת מסמך של Firestore (1MB)
   const addPhoto = async () => {
@@ -1633,6 +1642,12 @@ function PostJobModal({ visible, onClose, onPosted }: { visible: boolean; onClos
               </TouchableOpacity>
             )}
           </View>
+
+          {isPastJob && (
+            <T style={{ color: '#EF4444', fontSize: 13, fontWeight: '700', textAlign: 'center' }}>
+              {(t as any).pastTimeError ?? 'לא ניתן לפרסם לתאריך/שעה שכבר עברו ⏰'}
+            </T>
+          )}
 
           <TouchableOpacity disabled={!valid || busy} onPress={submit} style={{ backgroundColor: valid && !busy ? C.green : C.grayBorder, borderRadius: 14, paddingVertical: 15, alignItems: 'center', marginTop: 4 }}>
             <T style={{ color: '#fff', fontWeight: '900', fontSize: 15 }}>{busy ? '…' : `📢 ${(t as any).postJobBtn ?? 'פרסם עבודה'}`}</T>
