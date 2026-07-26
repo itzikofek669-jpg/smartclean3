@@ -1490,11 +1490,29 @@ function PostJobModal({ visible, onClose, onPosted }: { visible: boolean; onClos
   const [hours, setHours]       = useState(2);
   const [isPrivate, setIsPrivate] = useState(true);
   const [city, setCity]         = useState('');
+  const [citySugg, setCitySugg] = useState<string[]>([]);
   const [budget, setBudget]     = useState('');
   const [notes, setNotes]       = useState('');
   const [photos, setPhotos]     = useState<string[]>([]);   // base64 (data URIs) — עד 3
   const [busy, setBusy]         = useState(false);
   const svcKeys = Object.keys(SERVICE_DESCRIPTIONS);
+
+  // מילוי אוטומטי של הכתובת האחרונה שנשמרה
+  useEffect(() => {
+    if (!visible) return;
+    getSavedAddresses().then(a => {
+      const primary = a.find(x => x.isPrimary) || a[0];
+      if (primary?.address) setCity(prev => prev || primary.address);
+    }).catch(() => {});
+  }, [visible]);
+
+  // השלמת ערים — מתוך רשימת הערים המובנית
+  const computeCitySugg = (txt: string) => {
+    setCity(txt);
+    const q = txt.trim();
+    if (q.length < 1) { setCitySugg([]); return; }
+    setCitySugg(CITY_KEYS_BY_LEN.filter(c => c.includes(q)).slice(0, 6));
+  };
   const toggle = (k: string) => setTypes(p => p.includes(k) ? p.filter(x => x !== k) : [...p, k]);
   // אי אפשר לפרסם לתאריך/שעה שכבר עברו (היום ושעה שחלפה)
   const isPastJob = (() => {
@@ -1548,10 +1566,11 @@ function PostJobModal({ visible, onClose, onPosted }: { visible: boolean; onClos
         bookingDate: dateStr, startTime: `${String(hour).padStart(2, '0')}:00`,
         recurring: 'once', recurringDates: [], createdAt: new Date().toISOString(),
       });
+      upsertAddress(city.trim()).catch(() => {});   // שמור את הכתובת למילוי אוטומטי בפעם הבאה
       onPosted?.();
       onClose();
       Alert.alert('📢', (t as any).jobPostedOk ?? 'העבודה פורסמה! מנקים מתאימים יראו אותה ויוכלו לקחת אותה');
-      setTypes([]); setCity(''); setBudget(''); setNotes(''); setPhotos([]);
+      setTypes([]); setCity(''); setCitySugg([]); setBudget(''); setNotes(''); setPhotos([]);
     } catch (_) {
       Alert.alert(t.error, (t as any).jobPostError ?? 'שגיאה בפרסום העבודה — נסה שוב');
     } finally { setBusy(false); }
@@ -1579,19 +1598,22 @@ function PostJobModal({ visible, onClose, onPosted }: { visible: boolean; onClos
               </TouchableOpacity>
             ))}
           </View>
+          {types.length === 0 && (
+            <T style={{ fontSize: 12.5, fontWeight: '700', color: '#B45309', textAlign: 'right' }}>⚠️ {(t as any).pickServiceHint ?? 'יש לבחור לפחות סוג ניקיון אחד'}</T>
+          )}
 
           <View style={{ flexDirection: 'row-reverse', gap: 10 }}>
             <View style={{ flex: 1 }}>
               <T style={{ fontSize: 14, fontWeight: '800', color: C.textDark, textAlign: 'right', marginBottom: 6 }}>{(t as any).dateLabel ?? 'תאריך'}</T>
-              <TouchableOpacity onPress={() => setCalOpen(true)} style={{ backgroundColor: C.white, borderRadius: 12, borderWidth: 1.5, borderColor: C.blueBorder, padding: 12 }}>
-                <T style={{ fontSize: 14, color: C.textDark, textAlign: 'center' }}>📅 {dateStr}</T>
+              <TouchableOpacity onPress={() => setCalOpen(true)} style={{ backgroundColor: isPastJob ? '#FEF2F2' : C.white, borderRadius: 12, borderWidth: 1.5, borderColor: isPastJob ? '#DC2626' : C.blueBorder, padding: 12 }}>
+                <T style={{ fontSize: 14, color: isPastJob ? '#DC2626' : C.textDark, textAlign: 'center' }}>📅 {dateStr}</T>
               </TouchableOpacity>
             </View>
             <View style={{ flex: 1 }}>
               <T style={{ fontSize: 14, fontWeight: '800', color: C.textDark, textAlign: 'right', marginBottom: 6 }}>{(t as any).timeLabel ?? 'שעה'}</T>
-              <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: C.white, borderRadius: 12, borderWidth: 1.5, borderColor: C.blueBorder, paddingHorizontal: 8 }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: isPastJob ? '#FEF2F2' : C.white, borderRadius: 12, borderWidth: 1.5, borderColor: isPastJob ? '#DC2626' : C.blueBorder, paddingHorizontal: 8 }}>
                 <TouchableOpacity onPress={() => setHour(h => Math.max(6, h - 1))} style={{ padding: 8 }}><T style={{ fontSize: 20, color: C.blue }}>−</T></TouchableOpacity>
-                <T style={{ fontSize: 15, fontWeight: '800', color: C.textDark }}>{String(hour).padStart(2, '0')}:00</T>
+                <T style={{ fontSize: 15, fontWeight: '800', color: isPastJob ? '#DC2626' : C.textDark }}>{String(hour).padStart(2, '0')}:00</T>
                 <TouchableOpacity onPress={() => setHour(h => Math.min(22, h + 1))} style={{ padding: 8 }}><T style={{ fontSize: 20, color: C.blue }}>+</T></TouchableOpacity>
               </View>
             </View>
@@ -1619,7 +1641,16 @@ function PostJobModal({ visible, onClose, onPosted }: { visible: boolean; onClos
           </View>
 
           <T style={{ fontSize: 14, fontWeight: '800', color: C.textDark, textAlign: 'right' }}>{(t as any).cityLabel ?? 'עיר'}</T>
-          <TextInput style={{ backgroundColor: C.white, borderRadius: 12, borderWidth: 1.5, borderColor: C.blueBorder, padding: 12, textAlign: 'right', color: C.textDark }} value={city} onChangeText={setCity} placeholder={(t as any).citySearchPh ?? 'עיר…'} placeholderTextColor={C.textSub} />
+          <TextInput style={{ backgroundColor: C.white, borderRadius: 12, borderWidth: 1.5, borderColor: C.blueBorder, padding: 12, textAlign: 'right', color: C.textDark }} value={city} onChangeText={computeCitySugg} onBlur={() => setTimeout(() => setCitySugg([]), 180)} placeholder={(t as any).citySearchPh ?? 'הקלד עיר…'} placeholderTextColor={C.textSub} />
+          {citySugg.length > 0 && (
+            <View style={{ backgroundColor: C.white, borderRadius: 12, borderWidth: 1, borderColor: C.blueBorder, overflow: 'hidden', marginTop: -6 }}>
+              {citySugg.map((c, i) => (
+                <TouchableOpacity key={c} onPress={() => { setCity(c); setCitySugg([]); }} style={{ paddingVertical: 11, paddingHorizontal: 14, borderBottomWidth: i < citySugg.length - 1 ? 1 : 0, borderBottomColor: C.blueBorder }}>
+                  <T style={{ fontSize: 14, color: C.textDark, textAlign: 'right' }}>📍 {c}</T>
+                </TouchableOpacity>
+              ))}
+            </View>
+          )}
 
           <T style={{ fontSize: 14, fontWeight: '800', color: C.textDark, textAlign: 'right' }}>{(t as any).notesLabel ?? 'הערות (לא חובה)'}</T>
           <TextInput style={{ backgroundColor: C.white, borderRadius: 12, borderWidth: 1.5, borderColor: C.blueBorder, padding: 12, textAlign: 'right', color: C.textDark, height: 70, textAlignVertical: 'top' }} value={notes} onChangeText={setNotes} multiline placeholder={(t as any).notesPh ?? 'פרטים נוספים למנקה…'} placeholderTextColor={C.textSub} />
@@ -1644,9 +1675,11 @@ function PostJobModal({ visible, onClose, onPosted }: { visible: boolean; onClos
           </View>
 
           {isPastJob && (
-            <T style={{ color: '#EF4444', fontSize: 13, fontWeight: '700', textAlign: 'center' }}>
-              {(t as any).pastTimeError ?? 'לא ניתן לפרסם לתאריך/שעה שכבר עברו ⏰'}
-            </T>
+            <View style={{ backgroundColor: '#FEF2F2', borderWidth: 1.5, borderColor: '#DC2626', borderRadius: 12, padding: 12 }}>
+              <T style={{ color: '#991B1B', fontSize: 14, fontWeight: '900', textAlign: 'center' }}>
+                ⏰ {(t as any).pastTimeError ?? 'לא ניתן לפרסם לתאריך/שעה שכבר עברו'}
+              </T>
+            </View>
           )}
 
           <TouchableOpacity disabled={!valid || busy} onPress={submit} style={{ backgroundColor: valid && !busy ? C.green : C.grayBorder, borderRadius: 14, paddingVertical: 15, alignItems: 'center', marginTop: 4 }}>
