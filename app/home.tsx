@@ -1519,13 +1519,23 @@ function PostJobModal({ visible, onClose, onPosted }: { visible: boolean; onClos
   const [busy, setBusy]         = useState(false);
   const svcKeys = Object.keys(SERVICE_DESCRIPTIONS);
 
-  // מילוי אוטומטי של הכתובת האחרונה שנשמרה
+  // מילוי אוטומטי של הכתובת — מהכתובות השמורות, ואם אין, מהכתובת/עיר שמההרשמה
   useEffect(() => {
     if (!visible) return;
-    getSavedAddresses().then(a => {
-      const primary = a.find(x => x.isPrimary) || a[0];
-      if (primary?.address) setCity(prev => prev || primary.address);
-    }).catch(() => {});
+    (async () => {
+      try {
+        const a = await getSavedAddresses();
+        const primary = a.find(x => x.isPrimary) || a[0];
+        if (primary?.address) { setCity(prev => prev || primary.address); return; }
+      } catch (_) {}
+      // גיבוי: כתובת/עיר מהפרופיל (הרשמה)
+      try {
+        const uid = auth.currentUser?.uid || '';
+        const d = await getDoc(doc(db, 'users', uid));
+        const fallback = d.data()?.address || d.data()?.cleanerAddress || d.data()?.city;
+        if (fallback) setCity(prev => prev || String(fallback));
+      } catch (_) {}
+    })();
   }, [visible]);
 
   // השלמת ערים — מתוך רשימת הערים המובנית
@@ -1573,6 +1583,17 @@ function PostJobModal({ visible, onClose, onPosted }: { visible: boolean; onClos
     setBusy(true);
     try {
       const uid = auth.currentUser?.uid || '';
+      const startStr = `${String(hour).padStart(2, '0')}:00`;
+      // מניעת פרסום כפול — אותה עבודה פתוחה לאותו תאריך+שעה
+      try {
+        const dup = await getDocs(query(collection(db, 'bookings'),
+          where('clientUid', '==', uid), where('bookingDate', '==', dateStr), where('status', '==', 'pending')));
+        if (dup.docs.some(d => (d.data() as any).startTime === startStr)) {
+          setBusy(false);
+          Alert.alert('', (t as any).jobDupMsg ?? 'כבר פרסמת/הזמנת ניקיון לתאריך ולשעה האלה — בחר/י שעה אחרת.');
+          return;
+        }
+      } catch (_) {}
       let clientName = auth.currentUser?.displayName || '';
       try { const d = await getDoc(doc(db, 'users', uid)); if (d.exists() && d.data()?.name) clientName = d.data()!.name; } catch (_) {}
       await addDoc(collection(db, 'bookings'), {
@@ -1672,6 +1693,9 @@ function PostJobModal({ visible, onClose, onPosted }: { visible: boolean; onClos
                 </TouchableOpacity>
               ))}
             </View>
+          )}
+          {city.trim().length < 2 && (
+            <T style={{ fontSize: 12.5, fontWeight: '700', color: '#B45309', textAlign: 'right' }}>⚠️ {(t as any).pickCityHint ?? 'יש להזין עיר'}</T>
           )}
 
           <T style={{ fontSize: 14, fontWeight: '800', color: C.textDark, textAlign: 'right' }}>{(t as any).notesLabel ?? 'הערות (לא חובה)'}</T>
