@@ -3643,6 +3643,15 @@ export default function HomeScreen() {
       mapRef.current.animateToRegion({ latitude: c.lat, longitude: c.lng, latitudeDelta: 0.04, longitudeDelta: 0.04 }, 500);
     }
   }, []);
+  // מרכוז המפה על כתובת עבודה מהלוח (לחיצה על כרטיס)
+  const showJobOnMap = React.useCallback((job: any) => {
+    try {
+      const c = (typeof job.lat === 'number' && typeof job.lng === 'number')
+        ? { lat: job.lat, lng: job.lng }
+        : getCoordsForCleaner({ city: job.addrCity, address: job.address });
+      if (c) mapRef.current?.animateToRegion({ latitude: c.lat, longitude: c.lng, latitudeDelta: 0.05, longitudeDelta: 0.05 }, 600);
+    } catch (_) {}
+  }, []);
   // התמקדות במפה לפי שם עיר (חיפוש/סינון) — מחפש קואורדינטות ב-CITY_COORDS, בתרגום, או אצל מנקה
   const focusCityRef = useRef<(name: string) => void>(() => {});
   focusCityRef.current = (cityName: string) => {
@@ -5129,7 +5138,7 @@ export default function HomeScreen() {
                       <T style={s.jobTitle}>{isUrgent ? '🚨 ' : '🧹 '}{svc || ((t as any).defaultServiceName ?? 'ניקיון')}</T>
                       {price != null && <T style={s.jobPrice}>₪{price}</T>}
                     </View>
-                    <View style={{ gap: 4, marginBottom: 10 }}>
+                    <TouchableOpacity activeOpacity={0.7} style={{ gap: 4, marginBottom: 10 }} onPress={() => showJobOnMap(j)}>
                       {!!dateStr && <T style={s.jobRow}>📅 {dateStr}{timeStr ? ` · ${timeStr}` : ''}</T>}
                       {!!j.hours && <T style={s.jobRow}>⏱️ {j.hours} {(t as any).hoursUnit ?? 'שעות'}</T>}
                       <T style={s.jobRow}>🏠 {propType}</T>
@@ -5145,7 +5154,7 @@ export default function HomeScreen() {
                           ))}
                         </View>
                       )}
-                    </View>
+                    </TouchableOpacity>
                     <View style={{ flexDirection: 'row-reverse', gap: 8 }}>
                       <TouchableOpacity style={[s.jobBtn, s.jobBtnPrimary]} onPress={() => claimJob(j)}>
                         <T style={s.jobBtnPrimaryText}>✅ {(t as any).claimJobBtn ?? 'קח את העבודה'}</T>
