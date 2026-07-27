@@ -1497,9 +1497,18 @@ function PostJobModal({ visible, onClose, onPosted }: { visible: boolean; onClos
   const C = useAppColors();
   const insets = useSafeAreaInsets();
   const [types, setTypes]       = useState<string[]>([]);
-  const [date, setDate]         = useState<Date>(() => { const d = new Date(); d.setHours(10, 0, 0, 0); return d; });
+  // ברירת מחדל: מסונכרן עם השעה הנוכחית (השעה הבאה), כדי שלא ייפול בעבר
+  const defaultSlot = (() => {
+    const n = new Date(); const d = new Date(n);
+    let h = n.getHours() + 1;
+    if (h > 22) { d.setDate(d.getDate() + 1); h = 8; }   // אחרי 22:00 → מחר 08:00
+    if (h < 6) h = 8;
+    d.setHours(h, 0, 0, 0);
+    return { d, h };
+  })();
+  const [date, setDate]         = useState<Date>(defaultSlot.d);
   const [calOpen, setCalOpen]   = useState(false);
-  const [hour, setHour]         = useState(10);
+  const [hour, setHour]         = useState(defaultSlot.h);
   const [hours, setHours]       = useState(2);
   const [isPrivate, setIsPrivate] = useState(true);
   const [city, setCity]         = useState('');
@@ -1582,7 +1591,7 @@ function PostJobModal({ visible, onClose, onPosted }: { visible: boolean; onClos
       upsertAddress(city.trim()).catch(() => {});   // שמור את הכתובת למילוי אוטומטי בפעם הבאה
       onPosted?.();
       onClose();
-      Alert.alert('📢', (t as any).jobPostedOk ?? 'העבודה פורסמה! מנקים מתאימים יראו אותה ויוכלו לקחת אותה');
+      Alert.alert('📢', (t as any).jobPostedOk ?? 'המודעה פורסמה, מנקים יוכלו לראות ולאשר הזמנה.\nאתה תקבל הודעה כשמנקה יאשר את ההזמנה.');
       setTypes([]); setCity(''); setCitySugg([]); setBudget(''); setNotes(''); setPhotos([]);
     } catch (_) {
       Alert.alert(t.error, (t as any).jobPostError ?? 'שגיאה בפרסום העבודה — נסה שוב');
@@ -1604,7 +1613,7 @@ function PostJobModal({ visible, onClose, onPosted }: { visible: boolean; onClos
           <T style={{ fontSize: 13, color: C.textSub, textAlign: 'center' }}>{(t as any).postJobSub ?? 'כל מנקה מתאים יראה את העבודה ויוכל לקחת אותה'}</T>
 
           <T style={{ fontSize: 14, fontWeight: '800', color: C.textDark, textAlign: 'right' }}>{(t as any).serviceTypeLabel ?? 'סוג ניקיון'}</T>
-          <View style={{ flexDirection: 'row-reverse', flexWrap: 'wrap', gap: 8 }}>
+          <View style={{ flexDirection: 'row-reverse', flexWrap: 'wrap', gap: 8, justifyContent: 'center' }}>
             {svcKeys.map(k => (
               <TouchableOpacity key={k} onPress={() => toggle(k)} style={{ paddingHorizontal: 12, paddingVertical: 8, borderRadius: 20, borderWidth: 1.5, borderColor: types.includes(k) ? C.blue : C.blueBorder, backgroundColor: types.includes(k) ? C.blue : C.white }}>
                 <T style={{ fontSize: 12, fontWeight: '700', color: types.includes(k) ? '#fff' : C.textDark }}>{String(t.types[k] || k)}</T>
@@ -4887,7 +4896,7 @@ export default function HomeScreen() {
               <TouchableOpacity onPress={() => setPendingBannerHidden(true)} style={{ padding: 2 }} accessibilityLabel="סגור">
                 <T style={{ fontSize: 18, color: '#fff', fontWeight: '900' }}>✕</T>
               </TouchableOpacity>
-              <TouchableOpacity style={{ flex: 1, flexDirection: 'row', alignItems: 'center', gap: 10 }} onPress={() => router.push('/profile')}>
+              <TouchableOpacity style={{ flex: 1, flexDirection: 'row', alignItems: 'center', gap: 10 }} onPress={() => { setPendingBannerHidden(true); router.push('/profile'); }}>
                 <View style={{ flex: 1 }}>
                   <T style={{ color: '#fff', fontSize: 14, fontWeight: '900' }}>
                     {cleanerPendingCount} {t.pendingBookingsMsg}
@@ -5419,7 +5428,7 @@ export default function HomeScreen() {
             <View style={{ flexDirection: 'row', gap: 10 }}>
               <TouchableOpacity
                 style={{ flex: 1, backgroundColor: '#10B981', borderRadius: 12, paddingVertical: 13, alignItems: 'center' }}
-                onPress={() => { const id = newBookingModal?.id; setNewBookingModal(null); if (id) router.push({ pathname: '/profile', params: { tab: 'bookings', confirmBookingId: id } }); }}
+                onPress={() => { const id = newBookingModal?.id; setNewBookingModal(null); setPendingBannerHidden(true); if (id) router.push({ pathname: '/profile', params: { tab: 'bookings', confirmBookingId: id } }); }}
               >
                 <T style={{ color: '#fff', fontWeight: '900', fontSize: 14 }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8}>{"💬 כניסה לצ'אט ואישור"}</T>
               </TouchableOpacity>
