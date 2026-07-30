@@ -432,6 +432,25 @@ const CITY_KEYS_BY_LEN = Object.keys(CITY_COORDS).sort((a, b) => b.length - a.le
 // cleaners whose address we've already geocoded this session (avoid re-hitting the geocoder)
 const _geocodedCleaners = new Set<string>();
 
+// ── Word-limited free text (job notes) ───────────────────────────────────────
+export const JOB_NOTES_MAX_WORDS = 15;
+
+export function countWords(text: string): number {
+  return String(text || '').trim().split(/\s+/).filter(Boolean).length;
+}
+
+/**
+ * Clamp free text to `max` words as the user types. Below the cap the raw input
+ * is kept so a trailing space (mid-typing) survives; exactly at the cap the text
+ * is collapsed so no further word can be started; above it (a paste) it's cut.
+ */
+export function limitWords(text: string, max: number): string {
+  const words = String(text || '').trim().split(/\s+/).filter(Boolean);
+  if (words.length < max) return text;
+  if (words.length === max) return words.join(' ');
+  return words.slice(0, max).join(' ');
+}
+
 // Turn a booking/urgent job into a busy time window { date, s, e } in minutes-from-
 // midnight, or null if it has no usable date/time. Used to hide overlapping jobs.
 function bookingBusyWindow(j: any): { date: string; s: number; e: number } | null {
@@ -1715,8 +1734,13 @@ function PostJobModal({ visible, onClose, onPosted }: { visible: boolean; onClos
             <T style={{ fontSize: 12.5, fontWeight: '700', color: '#B45309', textAlign: 'right' }}>⚠️ {(t as any).pickCityHint ?? 'יש להזין עיר'}</T>
           )}
 
-          <T style={{ fontSize: 14, fontWeight: '800', color: C.textDark, textAlign: 'right' }}>{(t as any).notesLabel ?? 'הערות (לא חובה)'}</T>
-          <TextInput style={{ backgroundColor: C.white, borderRadius: 12, borderWidth: 1.5, borderColor: C.blueBorder, padding: 12, textAlign: 'right', color: C.textDark, height: 70, textAlignVertical: 'top' }} value={notes} onChangeText={setNotes} multiline placeholder={(t as any).notesPh ?? 'פרטים נוספים למנקה…'} placeholderTextColor={C.textSub} />
+          <View style={{ flexDirection: 'row-reverse', alignItems: 'center', justifyContent: 'space-between' }}>
+            <T style={{ fontSize: 14, fontWeight: '800', color: C.textDark, textAlign: 'right' }}>{(t as any).notesLabel ?? 'הערות (לא חובה)'}</T>
+            <T style={{ fontSize: 12, fontWeight: '700', color: countWords(notes) >= JOB_NOTES_MAX_WORDS ? '#B45309' : C.textSub }}>
+              {countWords(notes)}/{JOB_NOTES_MAX_WORDS} {(t as any).bioWordCount ?? 'מילים'}
+            </T>
+          </View>
+          <TextInput style={{ backgroundColor: C.white, borderRadius: 12, borderWidth: 1.5, borderColor: C.blueBorder, padding: 12, textAlign: 'right', color: C.textDark, height: 70, textAlignVertical: 'top' }} value={notes} onChangeText={v => setNotes(limitWords(v, JOB_NOTES_MAX_WORDS))} multiline placeholder={(t as any).notesPh ?? 'פרטים נוספים למנקה…'} placeholderTextColor={C.textSub} />
 
           {/* צירוף תמונות (לא חובה) */}
           <T style={{ fontSize: 14, fontWeight: '800', color: C.textDark, textAlign: 'right' }}>{(t as any).jobPhotosLabel ?? 'תמונות (לא חובה)'}</T>
