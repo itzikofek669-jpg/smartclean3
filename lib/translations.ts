@@ -3484,6 +3484,20 @@ for (const L of Object.keys(URGENT_LEGEND)) {
   (translations as any)[L].urgentBadge = URGENT_BADGE[L];
 }
 
+// Board legend line: bookings also arrive directly from clients, not just here.
+const DIRECT_BOOKING_NOTE: Record<string, string> = {
+  he: 'לקוחות יכולים להזמין אותך גם ישירות — תקבל התראה, צ\'אט וחלון אישור',
+  en: 'Clients can also book you directly — you\'ll get a push, a chat and a confirm popup',
+  ru: 'Клиенты могут заказать вас напрямую — придёт пуш, чат и окно подтверждения',
+  ar: 'يمكن للعملاء حجزك مباشرة أيضًا — ستصلك إشعار ومحادثة ونافذة تأكيد',
+  fr: 'Les clients peuvent aussi vous réserver directement — notification, chat et fenêtre de confirmation',
+  hi: 'ग्राहक आपको सीधे भी बुक कर सकते हैं — पुश, चैट और पुष्टि विंडो मिलेगी',
+  uk: 'Клієнти можуть замовити вас напряму — надійде сповіщення, чат і вікно підтвердження',
+};
+for (const L of Object.keys(DIRECT_BOOKING_NOTE)) {
+  (translations as any)[L].directBookingNote = DIRECT_BOOKING_NOTE[L];
+}
+
 // Short "total" label for price chips on cards (`totalLabel` is a full sentence).
 const TOTAL_SHORT: Record<string, string> = {
   he: 'סה"כ', en: 'Total', ru: 'Итого', ar: 'المجموع',

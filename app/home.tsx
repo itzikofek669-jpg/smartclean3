@@ -5193,11 +5193,21 @@ export default function HomeScreen() {
           ListHeaderComponent={myRole === 'cleaner' ? (
             <View style={{ marginBottom: 6 }}>
               <T style={{ fontSize: 18, fontWeight: '900', color: C.textDark, textAlign: 'right' }}>🧹 {(t as any).jobBoardTitle ?? 'ניקיונות שמחכות לך'}</T>
-              {/* מקרא: מה המסגרת הסגולה אומרת */}
-              <View style={{ flexDirection: 'row-reverse', alignItems: 'center', gap: 6, marginTop: 6, backgroundColor: '#EDE9FE', borderRightWidth: 4, borderRightColor: '#7C3AED', borderRadius: 8, paddingVertical: 7, paddingHorizontal: 9 }}>
-                <T style={{ fontSize: 12.5, fontWeight: '800', color: '#5B21B6', textAlign: 'right', flex: 1 }}>
-                  ⚡ {(t as any).urgentLegend ?? 'הזמנות במסגרת סגולה הן הזמנות דחופות מהיום למחר באזור שלך'}
-                </T>
+              {/* מקרא הלוח — שתי שורות קצרות ומקבילות בבלוק אחד: מה הסגול אומר,
+                  ושהמנקה מקבל גם הזמנות ישירות מלקוחות (לא רק מהלוח). */}
+              <View style={{ marginTop: 6, backgroundColor: C.bluePale, borderRadius: 10, paddingVertical: 8, paddingHorizontal: 10, gap: 6, borderWidth: 1, borderColor: C.blueBorder }}>
+                <View style={{ flexDirection: 'row-reverse', alignItems: 'flex-start', gap: 6 }}>
+                  <T style={{ fontSize: 13 }}>⚡</T>
+                  <T style={{ fontSize: 12.5, fontWeight: '800', color: '#5B21B6', textAlign: 'right', flex: 1 }}>
+                    {(t as any).urgentLegend ?? 'הזמנות במסגרת סגולה הן הזמנות דחופות מהיום למחר באזור שלך'}
+                  </T>
+                </View>
+                <View style={{ flexDirection: 'row-reverse', alignItems: 'flex-start', gap: 6 }}>
+                  <T style={{ fontSize: 13 }}>📩</T>
+                  <T style={{ fontSize: 12.5, fontWeight: '800', color: '#047857', textAlign: 'right', flex: 1 }}>
+                    {(t as any).directBookingNote ?? 'לקוחות יכולים להזמין אותך גם ישירות — תקבל התראה, צ\'אט וחלון אישור'}
+                  </T>
+                </View>
               </View>
             </View>
           ) : myRole === 'client' ? (
