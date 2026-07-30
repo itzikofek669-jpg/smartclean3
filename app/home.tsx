@@ -451,6 +451,15 @@ export function limitWords(text: string, max: number): string {
   return words.slice(0, max).join(' ');
 }
 
+/**
+ * Format a stored ISO date (`YYYY-MM-DD`) as day-first `DD/MM/YYYY`, the order
+ * Hebrew readers expect. Anything not matching that shape is returned unchanged.
+ */
+export function formatJobDate(iso: string): string {
+  const m = String(iso || '').trim().match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  return m ? `${m[3]}/${m[2]}/${m[1]}` : String(iso || '');
+}
+
 // Turn a booking/urgent job into a busy time window { date, s, e } in minutes-from-
 // midnight, or null if it has no usable date/time. Used to hide overlapping jobs.
 function bookingBusyWindow(j: any): { date: string; s: number; e: number } | null {
@@ -1685,7 +1694,7 @@ function PostJobModal({ visible, onClose, onPosted }: { visible: boolean; onClos
             <View style={{ flex: 1 }}>
               <T style={{ fontSize: 14, fontWeight: '800', color: C.textDark, textAlign: 'right', marginBottom: 6 }}>{(t as any).dateLabel ?? 'תאריך'}</T>
               <TouchableOpacity onPress={() => setCalOpen(true)} style={{ backgroundColor: isPastJob ? '#FEF2F2' : C.white, borderRadius: 12, borderWidth: 1.5, borderColor: isPastJob ? '#DC2626' : C.blueBorder, padding: 12 }}>
-                <T style={{ fontSize: 14, color: isPastJob ? '#DC2626' : C.textDark, textAlign: 'center' }}>📅 {dateStr}</T>
+                <T style={{ fontSize: 14, color: isPastJob ? '#DC2626' : C.textDark, textAlign: 'center' }}>📅 {formatJobDate(dateStr)}</T>
               </TouchableOpacity>
             </View>
             <View style={{ flex: 1 }}>
@@ -4546,12 +4555,35 @@ export default function HomeScreen() {
       .slice(0, 6);
     const svcOptions = Object.keys(SERVICE_DESCRIPTIONS);
     const names = ['דנה', 'יוסי', 'מרים', 'אבי', 'נועה', 'רון'];
+    const ymd = (d: Date) =>
+      `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
     return near.map((x, i) => {
       const svc = svcOptions[i % svcOptions.length];
       const hours = 2 + (i % 3);
       const price = 150 + (i % 3) * 50;
+      // כל שלישית היא "דחופה" — כדי שהמנקה יראה גם שידורים דחופים (מסגרת סגולה) בלוח
+      const isUrgent = i % 3 === 0;
+      if (isUrgent) {
+        // דחוף = בשעות הקרובות. אם השעה מתגלגלת מעבר לערב — מקדימים למחר בבוקר.
+        const slot = new Date(Date.now() + (2 + (i % 3)) * 3600000);
+        if (slot.getHours() >= 22 || slot.getHours() < 7) { slot.setDate(slot.getDate() + 1); slot.setHours(8 + (i % 3), 0, 0, 0); }
+        const dateStr = ymd(slot);
+        const startTime = `${String(slot.getHours()).padStart(2, '0')}:00`;
+        return {
+          _bot: true, _kind: 'urgent' as const, _id: `bot_u_${i}`,
+          serviceTypes: [svc], serviceType: svc,
+          // שדות דחוף (dateStr) + שדות הזמנה (bookingDate) — הכרטיס קורא את שניהם
+          dateStr, bookingDate: dateStr, startTime, hours,
+          isPrivateHouse: i % 2 === 0, addrCity: x.city, address: x.city,
+          pricePerHour: price, maxPrice: price, total: price * hours,
+          clientName: names[i % names.length], clientUid: `bot_${i}`,
+          lat: x.c.lat, lng: x.c.lng, _distKm: x.d,
+          status: 'open', expiresAt: new Date(Date.now() + 3600000).toISOString(),
+          createdAt: new Date(Date.now() - i * 60000).toISOString(),
+        };
+      }
       const day = new Date(); day.setDate(day.getDate() + 1 + (i % 5)); day.setHours(9 + (i % 6), 0, 0, 0);
-      const dateStr = `${day.getFullYear()}-${String(day.getMonth() + 1).padStart(2, '0')}-${String(day.getDate()).padStart(2, '0')}`;
+      const dateStr = ymd(day);
       return {
         _bot: true, _kind: 'booking' as const, _id: `bot_${i}`,
         serviceTypes: [svc], serviceType: svc,
@@ -5219,7 +5251,7 @@ export default function HomeScreen() {
                       {price != null && <T style={s.jobPrice}>₪{price}</T>}
                     </View>
                     <TouchableOpacity activeOpacity={0.7} style={{ gap: 4, marginBottom: 10 }} onPress={() => showJobOnMap(j)}>
-                      {!!dateStr && <T style={s.jobRow}>📅 {dateStr}{timeStr ? ` · ${timeStr}` : ''}</T>}
+                      {!!dateStr && <T style={s.jobRow}>📅 {formatJobDate(dateStr)}{timeStr ? ` ${(t as any).atHour ?? 'בשעה'} ${timeStr}` : ''}</T>}
                       {!!j.hours && <T style={s.jobRow}>⏱️ {j.hours} {(t as any).hoursUnit ?? 'שעות'}</T>}
                       <T style={s.jobRow}>🏠 {propType}</T>
                       {!!area && <T style={s.jobRow}>📍 {area}{typeof j._distKm === 'number' ? `  ·  📏 ${j._distKm < 1 ? '<1' : Math.round(j._distKm)} ק"מ` : ''}</T>}

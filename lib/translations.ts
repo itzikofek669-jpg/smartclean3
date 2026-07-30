@@ -3456,5 +3456,14 @@ for (const L of Object.keys(JOB_BOARD_TITLE)) {
   (translations as any)[L].jobBoardTitle = JOB_BOARD_TITLE[L];
 }
 
+// "at <hour>" connector between a job's date and its start time.
+const AT_HOUR: Record<string, string> = {
+  he: 'בשעה', en: 'at', ru: 'в', ar: 'في الساعة',
+  fr: 'à', hi: 'बजे', uk: 'о',
+};
+for (const L of Object.keys(AT_HOUR)) {
+  (translations as any)[L].atHour = AT_HOUR[L];
+}
+
 export type Translations = typeof he;
 export default translations;
