@@ -452,6 +452,17 @@ export function limitWords(text: string, max: number): string {
 }
 
 /**
+ * Drop emoji/pictographs from a label. The header pills are tight on a phone —
+ * decorative icons cost real characters and were truncating "ניקיון בזמן שלך".
+ * The dictionary strings keep their emoji for use elsewhere (modals, menus).
+ */
+export function stripEmoji(s: string): string {
+  return String(s || '')
+    .replace(/[\u{1F000}-\u{1FFFF}\u{2600}-\u{27BF}\u{2B00}-\u{2BFF}\u{FE0F}\u{200D}]/gu, '')
+    .trim();
+}
+
+/**
  * Resolve a JOB's coordinates, or null when they genuinely can't be determined.
  *
  * Unlike `getCoordsForCleaner` — which always falls back to a region centre so a
@@ -4984,8 +4995,16 @@ export default function HomeScreen() {
       <View style={{ backgroundColor: '#FFFFFF', flexShrink: 0, paddingTop: Platform.OS === 'ios' ? insets.top : (StatusBar.currentHeight || 0) }}>
         <View style={s.header}>
           <View style={[s.headerLogoRow, flipSide && { flexDirection: 'row-reverse' }]}>
-            {/* כפתורי אמצע (הנגישות עברה לתפריט הצד) */}
-            <View style={{ flexDirection: 'row', gap: 8, alignItems: 'center' }}>
+            {/* כפתורי אמצע (הנגישות עברה לתפריט הצד).
+                גלילה אופקית: הכפתורים גדלו לפי התוכן ודחפו את כפתור התפריט אל
+                מחוץ למסך. עכשיו הם נגללים בתוך רוחב פנוי בלבד, וההמבורגר קבוע. */}
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              keyboardShouldPersistTaps="handled"
+              style={{ flex: 1 }}   // flexBasis:0 — נמדד לפי המקום הפנוי, לא לפי התוכן
+              contentContainerStyle={{ flexDirection: 'row', gap: 8, alignItems: 'center', paddingVertical: 2 }}
+            >
               {/* הודעות */}
               <TouchableOpacity
                 onPress={() => router.push('/messages')}
@@ -5008,29 +5027,31 @@ export default function HomeScreen() {
                   accessibilityRole="button"
                   accessibilityLabel={activeFilterCount > 0 ? `${t.filterBtn} — ${activeFilterCount} פילטרים פעילים` : t.filterBtn}
                 >
-                  <T style={[s.urgentHeaderBtnText, { color: activeFilterCount > 0 ? '#fff' : C.blueDark }]}>
-                    {t.filterBtn}{activeFilterCount > 0 ? ` (${activeFilterCount})` : ''}
+                  <T style={[s.urgentHeaderBtnText, { color: activeFilterCount > 0 ? '#fff' : C.blueDark }]} numberOfLines={1}>
+                    {stripEmoji(t.filterBtn)}{activeFilterCount > 0 ? ` (${activeFilterCount})` : ''}
                   </T>
                 </TouchableOpacity>
               )}
+              {/* סגול זהה לאתר ולמסך המנקה — "דחוף" צריך להיות אותו צבע בכל
+                  האפליקציה, לא אדום בצד הלקוח וסגול בצד המנקה. */}
               {myRole === 'client' && (
-                <TouchableOpacity onPress={() => setUrgentOpen(true)} activeOpacity={0.85} style={{ borderRadius: 12, overflow: 'hidden', shadowColor: '#F43F5E', shadowOpacity: 0.4, shadowRadius: 8, shadowOffset: { width: 0, height: 3 }, elevation: 4 }}>
-                  <LinearGradient colors={['#FF7A59', '#F43F5E']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={s.urgentHeaderBtn}>
-                    <T style={s.urgentHeaderBtnText}>{t.urgentBtn}</T>
+                <TouchableOpacity onPress={() => setUrgentOpen(true)} activeOpacity={0.85} style={{ borderRadius: 12, overflow: 'hidden', shadowColor: '#7C3AED', shadowOpacity: 0.4, shadowRadius: 8, shadowOffset: { width: 0, height: 3 }, elevation: 4 }}>
+                  <LinearGradient colors={['#8B5CF6', '#7C3AED']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={s.urgentHeaderBtn}>
+                    <T style={s.urgentHeaderBtnText} numberOfLines={1}>{stripEmoji(t.urgentBtn)}</T>
                   </LinearGradient>
                 </TouchableOpacity>
               )}
               {myRole === 'client' && (
                 <TouchableOpacity onPress={() => setPostJobOpen(true)} activeOpacity={0.85} style={[s.urgentHeaderBtn, { backgroundColor: C.blue }]}>
-                  <T style={s.urgentHeaderBtnText}>🧹 {(t as any).postJobHomeBtn ?? 'ניקיון בזמן שלך'}</T>
+                  <T style={s.urgentHeaderBtnText} numberOfLines={1}>{stripEmoji((t as any).postJobHomeBtn ?? 'ניקיון בזמן שלך')}</T>
                 </TouchableOpacity>
               )}
-            </View>
+            </ScrollView>
 
-            {/* כפתור תפריט — צד ימין */}
+            {/* כפתור תפריט — צד ימין. flexShrink:0 כדי שלעולם לא ייחתך/ייעלם. */}
             <TouchableOpacity
               onPress={() => setDrawer(true)}
-              style={s.hamburgerBtn}
+              style={[s.hamburgerBtn, { flexShrink: 0, marginHorizontal: 6 }]}
               accessibilityRole="button"
               accessibilityLabel="פתח תפריט"
               accessibilityHint="פותח תפריט ניווט"
@@ -5553,7 +5574,7 @@ export default function HomeScreen() {
             {/* כותרת — ברק אחד בצד שמאל */}
             <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, marginBottom: 12 }}>
               <T style={{ fontSize: 22 }}>⚡</T>
-              <T style={{ fontSize: 18, fontWeight: '900', color: '#DC2626' }}>{String(t.urgentTabLabel || 'דחופות').replace(/⚡/g, '').trim()}</T>
+              <T style={{ fontSize: 18, fontWeight: '900', color: '#7C3AED' }}>{String(t.urgentTabLabel || 'דחופות').replace(/⚡/g, '').trim()}</T>
             </View>
             {urgentPopupReq && (() => {
               const svc = urgentPopupReq.serviceType
@@ -5757,7 +5778,7 @@ export default function HomeScreen() {
       <Modal visible={urgentOpen} animationType="slide" presentationStyle="pageSheet" onRequestClose={() => setUrgentOpen(false)}>
         <SafeAreaView style={{ flex: 1, backgroundColor: C.bluePale }}>
           {/* Header */}
-          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: '#DC2626', padding: 16 }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: '#7C3AED', padding: 16 }}>
             {!urgentWaiting && !urgentFoundName ? (
               <TouchableOpacity onPress={() => setUrgentOpen(false)} style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: 'rgba(255,255,255,0.25)', alignItems: 'center', justifyContent: 'center' }}>
                 <T style={{ color: C.white, fontSize: 18, fontWeight: '700' }}>✕</T>
@@ -5802,8 +5823,8 @@ export default function HomeScreen() {
             {/* ── טופס ניקוי דחוף — היום בלבד ── */}
             {!urgentWaiting && urgentFoundName === '' && (
               <>
-                <View style={{ backgroundColor: '#FEE2E2', borderRadius: 14, padding: 14, borderWidth: 1, borderColor: '#FECACA' }}>
-                  <T style={{ fontSize: 13, color: '#991B1B', textAlign: 'center', lineHeight: 20 }}>
+                <View style={{ backgroundColor: '#EDE9FE', borderRadius: 14, padding: 14, borderWidth: 1, borderColor: '#DDD6FE' }}>
+                  <T style={{ fontSize: 13, color: '#5B21B6', textAlign: 'center', lineHeight: 20 }}>
                     🚨 {t.urgentSubtitle}
                   </T>
                 </View>
@@ -5818,7 +5839,7 @@ export default function HomeScreen() {
                     ]).map(opt => (
                       <TouchableOpacity
                         key={opt.key}
-                        style={{ flex: 1, borderRadius: 14, paddingVertical: 14, alignItems: 'center', gap: 4, backgroundColor: urgentDate === opt.key ? '#DC2626' : C.white, borderWidth: 1.5, borderColor: urgentDate === opt.key ? '#DC2626' : C.blueBorder }}
+                        style={{ flex: 1, borderRadius: 14, paddingVertical: 14, alignItems: 'center', gap: 4, backgroundColor: urgentDate === opt.key ? '#7C3AED' : C.white, borderWidth: 1.5, borderColor: urgentDate === opt.key ? '#7C3AED' : C.blueBorder }}
                         onPress={() => setUrgentDate(opt.key)}
                       >
                         <T style={{ fontSize: 22 }}>{opt.icon}</T>
@@ -5834,14 +5855,14 @@ export default function HomeScreen() {
                   <TouchableOpacity
                     onPress={() => setUrgentServiceDropOpen(v => !v)}
                     activeOpacity={0.8}
-                    style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: C.white, borderRadius: 12, borderWidth: urgentServiceTypes.length === 0 ? 2 : 1.5, borderColor: (urgentServiceDropOpen || urgentServiceTypes.length === 0) ? '#DC2626' : C.blueBorder, paddingHorizontal: 14, paddingVertical: 13 }}
+                    style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: C.white, borderRadius: 12, borderWidth: urgentServiceTypes.length === 0 ? 2 : 1.5, borderColor: urgentServiceTypes.length === 0 ? '#DC2626' : (urgentServiceDropOpen ? '#7C3AED' : C.blueBorder), paddingHorizontal: 14, paddingVertical: 13 }}
                   >
                     <T style={{ fontSize: 14, fontWeight: '700', color: urgentServiceTypes.length ? C.textDark : '#DC2626' }} numberOfLines={2}>
                       {urgentServiceTypes.length
                         ? urgentServiceTypes.map(st => `${TYPE_ICONS[st] || ''} ${t.types[st] || st}`).join(' · ')
                         : ((t as any).selectServiceTypeMulti ?? 'בחר סוג שירות (אפשר כמה)')}
                     </T>
-                    <T style={{ fontSize: 14, color: '#DC2626' }}>{urgentServiceDropOpen ? '▲' : '▼'}</T>
+                    <T style={{ fontSize: 14, color: '#7C3AED' }}>{urgentServiceDropOpen ? '▲' : '▼'}</T>
                   </TouchableOpacity>
                   {urgentServiceTypes.length === 0 && (
                     <T style={{ fontSize: 11, color: '#DC2626', fontWeight: '700', textAlign: 'right' }}>⚠️ יש לבחור סוג שירות</T>
@@ -5856,8 +5877,8 @@ export default function HomeScreen() {
                           onPress={() => toggleUrgentServiceType(tp)}
                           style={{ flexDirection: 'row-reverse', alignItems: 'center', gap: 8, paddingHorizontal: 14, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: C.bluePale, backgroundColor: sel ? C.bluePale : C.white }}
                         >
-                          <T style={{ fontSize: 16, color: sel ? '#DC2626' : C.blueBorder }}>{sel ? '☑' : '☐'}</T>
-                          <T style={{ flex: 1, fontSize: 14, fontWeight: sel ? '800' : '400', color: sel ? '#DC2626' : C.textDark, textAlign: 'right' }}>
+                          <T style={{ fontSize: 16, color: sel ? '#7C3AED' : C.blueBorder }}>{sel ? '☑' : '☐'}</T>
+                          <T style={{ flex: 1, fontSize: 14, fontWeight: sel ? '800' : '400', color: sel ? '#7C3AED' : C.textDark, textAlign: 'right' }}>
                             {TYPE_ICONS[tp] || ''} {t.types[tp] || tp}
                           </T>
                         </TouchableOpacity>
@@ -5888,7 +5909,7 @@ export default function HomeScreen() {
                         key={p}
                         onPress={() => setUrgentMaxPrice(p)}
                         activeOpacity={0.8}
-                        style={{ paddingHorizontal: 14, paddingVertical: 9, borderRadius: 12, borderWidth: 1.5, backgroundColor: urgentMaxPrice === p ? '#DC2626' : C.white, borderColor: urgentMaxPrice === p ? '#DC2626' : C.blueBorder }}
+                        style={{ paddingHorizontal: 14, paddingVertical: 9, borderRadius: 12, borderWidth: 1.5, backgroundColor: urgentMaxPrice === p ? '#7C3AED' : C.white, borderColor: urgentMaxPrice === p ? '#7C3AED' : C.blueBorder }}
                       >
                         <T style={{ fontSize: 13, fontWeight: '800', color: urgentMaxPrice === p ? '#fff' : C.textDark }}>₪{p}</T>
                       </TouchableOpacity>
@@ -5928,13 +5949,13 @@ export default function HomeScreen() {
                       </TouchableOpacity>
                     ))}
                   </View>
-                  <T style={{ fontSize: 12, color: '#DC2626', fontWeight: '700', textAlign: 'center', marginTop: 2 }}>{t.paymentDirectNote}</T>
+                  <T style={{ fontSize: 12, color: '#5B21B6', fontWeight: '700', textAlign: 'center', marginTop: 2 }}>{t.paymentDirectNote}</T>
                 </View>
 
                 {/* סה"כ */}
-                <View style={{ backgroundColor: '#FEE2E2', borderRadius: 12, padding: 12, flexDirection: 'row-reverse', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <T style={{ fontSize: 14, color: '#991B1B' }}>{t.estimatedTotal}</T>
-                  <T style={{ fontSize: 20, fontWeight: '900', color: '#DC2626' }}>₪{urgentHours * 80}</T>
+                <View style={{ backgroundColor: '#EDE9FE', borderRadius: 12, padding: 12, flexDirection: 'row-reverse', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <T style={{ fontSize: 14, color: '#5B21B6' }}>{t.estimatedTotal}</T>
+                  <T style={{ fontSize: 20, fontWeight: '900', color: '#7C3AED' }}>₪{urgentHours * 80}</T>
                 </View>
 
                 {/* כפתור שליחה — חסום עד שכל השדות מלאים */}
@@ -5942,7 +5963,7 @@ export default function HomeScreen() {
                   const urgentReady = urgentServiceTypes.length > 0 && urgentAddress.trim().length >= 5 && /\d/.test(urgentAddress) && !!urgentPayment;
                   return (
                     <TouchableOpacity
-                      style={{ backgroundColor: (urgentSending || !urgentReady) ? '#94A3B8' : '#DC2626', borderRadius: 14, padding: 16, alignItems: 'center', elevation: 4, shadowColor: '#DC2626', shadowOpacity: 0.4, shadowRadius: 8, shadowOffset: { width: 0, height: 4 } }}
+                      style={{ backgroundColor: (urgentSending || !urgentReady) ? '#94A3B8' : '#7C3AED', borderRadius: 14, padding: 16, alignItems: 'center', elevation: 4, shadowColor: '#7C3AED', shadowOpacity: 0.4, shadowRadius: 8, shadowOffset: { width: 0, height: 4 } }}
                       onPress={handleSendUrgent}
                       disabled={urgentSending || !urgentReady}
                     >
