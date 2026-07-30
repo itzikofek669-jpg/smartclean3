@@ -3484,5 +3484,14 @@ for (const L of Object.keys(URGENT_LEGEND)) {
   (translations as any)[L].urgentBadge = URGENT_BADGE[L];
 }
 
+// Short "total" label for price chips on cards (`totalLabel` is a full sentence).
+const TOTAL_SHORT: Record<string, string> = {
+  he: 'סה"כ', en: 'Total', ru: 'Итого', ar: 'المجموع',
+  fr: 'Total', hi: 'कुल', uk: 'Разом',
+};
+for (const L of Object.keys(TOTAL_SHORT)) {
+  (translations as any)[L].totalShort = TOTAL_SHORT[L];
+}
+
 export type Translations = typeof he;
 export default translations;

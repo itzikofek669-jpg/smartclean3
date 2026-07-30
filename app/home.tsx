@@ -452,6 +452,27 @@ export function limitWords(text: string, max: number): string {
 }
 
 /**
+ * Resolve a JOB's coordinates, or null when they genuinely can't be determined.
+ *
+ * Unlike `getCoordsForCleaner` — which always falls back to a region centre so a
+ * cleaner still lands somewhere on the map — a job with an unrecognised city must
+ * yield null. Otherwise it inherits a fabricated centre-of-country distance and
+ * can sort ahead of jobs that are actually nearby (and slip past the max-distance
+ * filter). Callers treat null as "unknown distance" and sort those last.
+ */
+export function getJobCoords(j: any): { lat: number; lng: number } | null {
+  if (typeof j?.lat === 'number' && typeof j?.lng === 'number' && !isNaN(j.lat) && !isNaN(j.lng)) {
+    return { lat: j.lat, lng: j.lng };
+  }
+  const hay = `${j?.addrCity || ''} ${j?.city || ''} ${j?.address || ''}`.trim();
+  if (!hay) return null;
+  for (const key of CITY_KEYS_BY_LEN) {
+    if (hay.includes(key)) return CITY_COORDS[key];
+  }
+  return null;
+}
+
+/**
  * Format a stored ISO date (`YYYY-MM-DD`) as day-first `DD/MM/YYYY`, the order
  * Hebrew readers expect. Anything not matching that shape is returned unchanged.
  */
@@ -4601,10 +4622,9 @@ export default function HomeScreen() {
     const withDist = (j: any) => {
       if (typeof j._distKm === 'number') return j;
       if (!myCleanerCoords) return { ...j, _distKm: null };
-      try {
-        const c = getCoordsForCleaner({ city: j.addrCity, address: j.address, lat: j.lat, lng: j.lng });
-        return { ...j, _distKm: getDistanceKm(myCleanerCoords.lat, myCleanerCoords.lng, c.lat, c.lng) };
-      } catch { return { ...j, _distKm: null }; }
+      const c = getJobCoords(j);   // null when the location can't be resolved
+      if (!c) return { ...j, _distKm: null };
+      return { ...j, _distKm: getDistanceKm(myCleanerCoords.lat, myCleanerCoords.lng, c.lat, c.lng) };
     };
     const real = [
       ...openUrgent.map(r => ({ ...r, _kind: 'urgent' as const, _id: `u_${r.id}` })),
@@ -5258,7 +5278,7 @@ export default function HomeScreen() {
                     )}
                     <View style={{ flexDirection: 'row-reverse', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
                       <T style={[s.jobTitle, isUrgent && { color: '#5B21B6' }]}>{isUrgent ? '🚨 ' : '🧹 '}{svc || ((t as any).defaultServiceName ?? 'ניקיון')}</T>
-                      {price != null && <T style={[s.jobPrice, isUrgent && { color: '#6D28D9' }]}>₪{price}</T>}
+                      {price != null && <T style={[s.jobPrice, isUrgent && { color: '#6D28D9' }]}>{(t as any).totalShort ?? 'סה"כ'} ₪{price}</T>}
                     </View>
                     <TouchableOpacity activeOpacity={0.7} style={{ gap: 4, marginBottom: 10 }} onPress={() => showJobOnMap(j)}>
                       {!!dateStr && <T style={s.jobRow}>📅 {formatJobDate(dateStr)}{timeStr ? ` ${(t as any).atHour ?? 'בשעה'} ${timeStr}` : ''}</T>}
