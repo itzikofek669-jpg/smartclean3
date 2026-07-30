@@ -3440,5 +3440,21 @@ const uk = {
 } as typeof he;
 
 const translations = { he, en, ru, ar, fr, hi, uk };
+
+// Cleaner job-board heading — added post-construction so it's localized in every
+// language without tripping the `typeof he` constraint on the typed dictionaries.
+const JOB_BOARD_TITLE: Record<string, string> = {
+  he: 'ניקיונות שמחכות לך',
+  en: 'Cleanings waiting for you',
+  ru: 'Уборки, ожидающие вас',
+  ar: 'تنظيفات في انتظارك',
+  fr: 'Ménages qui vous attendent',
+  hi: 'आपका इंतज़ार कर रहे काम',
+  uk: 'Прибирання, що чекають на вас',
+};
+for (const L of Object.keys(JOB_BOARD_TITLE)) {
+  (translations as any)[L].jobBoardTitle = JOB_BOARD_TITLE[L];
+}
+
 export type Translations = typeof he;
 export default translations;

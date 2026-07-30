@@ -432,6 +432,23 @@ const CITY_KEYS_BY_LEN = Object.keys(CITY_COORDS).sort((a, b) => b.length - a.le
 // cleaners whose address we've already geocoded this session (avoid re-hitting the geocoder)
 const _geocodedCleaners = new Set<string>();
 
+// Turn a booking/urgent job into a busy time window { date, s, e } in minutes-from-
+// midnight, or null if it has no usable date/time. Used to hide overlapping jobs.
+function bookingBusyWindow(j: any): { date: string; s: number; e: number } | null {
+  const date = String(j?.bookingDate || j?.dateStr || '').trim();
+  const time = String(j?.startTime || '').trim();
+  if (!date || !/^\d{1,2}:\d{2}$/.test(time)) return null;
+  const [h, m] = time.split(':').map(Number);
+  const s = h * 60 + m;
+  const hours = Number(j?.hours) > 0 ? Number(j.hours) : 1;
+  return { date, s, e: s + hours * 60 };
+}
+
+// Do two busy windows overlap (same day + intersecting minute ranges)?
+function windowsOverlap(a: { date: string; s: number; e: number }, b: { date: string; s: number; e: number }): boolean {
+  return a.date === b.date && a.s < b.e && a.e > b.s;
+}
+
 // Extract just the city name from a cleaner's city/address (e.g. "רקפת 50 חריש" → "חריש")
 function cityNameOf(cleaner: any): string {
   const raw = String(cleaner?.city || cleaner?.cleanerAddress || cleaner?.address || '').trim();
@@ -3734,7 +3751,11 @@ export default function HomeScreen() {
   // תפקיד המשתמש
   const [myRole,         setMyRole]         = useState<'client' | 'cleaner' | null>(null);
   const [cleanerPendingCount, setCleanerPendingCount] = useState(0);
-  const [pendingBannerHidden, setPendingBannerHidden] = useState(false);   // הסתרה ידנית של הבאנר הכתום
+  const [cleanerPendingIds, setCleanerPendingIds] = useState<string[]>([]); // מזהי ההזמנות הממתינות לאישור
+  const [cleanerBusy, setCleanerBusy] = useState<{ date: string; s: number; e: number }[]>([]); // חלונות תפוסים (הזמנות מאושרות)
+  // מזהי הזמנות שהמנקה כבר ראה/סגר — נשמר במכשיר כדי שהבאנר לא יחזור אחרי צפייה/ניווט,
+  // ויופיע שוב רק כשמגיעה הזמנה חדשה שטרם נראתה.
+  const [seenPendingIds, setSeenPendingIds] = useState<string[]>([]);
   const [myMaxKm, setMyMaxKm] = useState(30);                              // מרחק מקסימלי שהמנקה בחר
   const [myCleanerCoords, setMyCleanerCoords] = useState<{ lat: number; lng: number } | null>(null);
   const [newBookingFlash, setNewBookingFlash] = useState(false);
@@ -3746,6 +3767,18 @@ export default function HomeScreen() {
   const [hiddenJobIds, setHiddenJobIds] = useState<Set<string>>(new Set()); // "דחה" מקומי
   const prevCleanerPendingRef = useRef(-1);
   const cleanerPendingUnsubRef = useRef<(() => void) | null>(null);
+
+  // האם יש הזמנה ממתינה שהמנקה עוד לא ראה — רק אז מציגים את הבאנר הכתום
+  const hasUnseenPending = cleanerPendingIds.some(id => !seenPendingIds.includes(id));
+  // סמן את כל ההזמנות הממתינות הנוכחיות כ"נראו" ושמור במכשיר (הבאנר ייעלם עד הזמנה חדשה)
+  const markPendingSeen = React.useCallback(() => {
+    const uid = auth.currentUser?.uid;
+    setSeenPendingIds(prev => {
+      const merged = Array.from(new Set([...prev, ...cleanerPendingIds]));
+      if (uid) SecureStore.setItemAsync(`seen_pending_${uid}`, JSON.stringify(merged)).catch(() => {});
+      return merged;
+    });
+  }, [cleanerPendingIds]);
 
   // Unread messages
   const [unreadCount,    setUnreadCount]    = useState(0);
@@ -4301,19 +4334,33 @@ export default function HomeScreen() {
           try { setMyCleanerCoords(getCoordsForCleaner(data)); } catch (_) {}
           // האזן בזמן אמת להזמנות ממתינות עבור מנקה
           if (cleanerPendingUnsubRef.current) cleanerPendingUnsubRef.current();
-          const pendingQ = query(collection(db, 'bookings'), where('cleanerId', '==', uid), where('status', '==', 'pending'));
+          // טען את מזהי ההזמנות שכבר נראו/נסגרו (נשמרו במכשיר) כדי שהבאנר לא יחזור אחרי צפייה
+          SecureStore.getItemAsync(`seen_pending_${uid}`)
+            .then(raw => { try { setSeenPendingIds(raw ? JSON.parse(raw) : []); } catch (_) {} })
+            .catch(() => {});
+          // כל ההזמנות של המנקה — מהן גוזרים גם ממתינות לאישור (לבאנר) וגם חלונות
+          // תפוסים (הזמנות מאושרות) כדי להסתיר מהלוח עבודות שחופפות לשעות שכבר נתפסו.
+          const pendingQ = query(collection(db, 'bookings'), where('cleanerId', '==', uid));
           cleanerPendingUnsubRef.current = onSnapshot(pendingQ, snap => {
-            const count = snap.size;
+            const all = snap.docs.map(d => ({ id: d.id, ...(d.data() as any) }));
+            const pendingDocs = all.filter(b => b.status === 'pending');
+            const count = pendingDocs.length;
+            setCleanerPendingIds(pendingDocs.map(b => b.id));
+            // חלונות תפוסים: הזמנות שאושרו (לא ממתינות/מבוטלות/הושלמו)
+            const busy = all
+              .filter(b => !['pending', 'cancelled', 'done'].includes(b.status))
+              .map(b => bookingBusyWindow(b))
+              .filter((w): w is { date: string; s: number; e: number } => !!w);
+            setCleanerBusy(busy);
             if (prevCleanerPendingRef.current >= 0 && count > prevCleanerPendingRef.current) {
               setNewBookingFlash(true);
               setTimeout(() => setNewBookingFlash(false), 6000);
               // פופ-אפ באפליקציה: הזמנה חדשה (ללא תלות בהתראות פוש)
-              const newest = snap.docs.map(d => ({ id: d.id, ...(d.data() as any) }))
+              const newest = [...pendingDocs]
                 .sort((a, b) => String(b.createdAt || '').localeCompare(String(a.createdAt || '')))[0];
               if (newest) {
                 setNewBookingId(newest.id);
                 setNewBookingModal(newest);   // פופ מפורט (במקום Alert בסיסי)
-                setPendingBannerHidden(false); // הזמנה חדשה — הצג שוב את הבאנר הכתום
               }
             }
             prevCleanerPendingRef.current = count;
@@ -4510,7 +4557,16 @@ export default function HomeScreen() {
       // הגבלת מרחק — רק עבודות בטווח שהמנקה בחר (אם ידוע מרחק)
       .filter(j => j._distKm == null || j._distKm <= myMaxKm);
 
-    const jobs = [...real, ...botJobs].filter(j => !hiddenJobIds.has(j._id));
+    const jobs = [...real, ...botJobs]
+      .filter(j => !hiddenJobIds.has(j._id))
+      // הסתר עבודות שחופפות לשעות שהמנקה כבר תפס (הזמנות מאושרות) — להראות רק פנויות.
+      // עבודות דמה (בוט) תמיד מוצגות; עבודות ללא תאריך/שעה ברורים לא מסוננות.
+      .filter(j => {
+        if (j._bot) return true;
+        const w = bookingBusyWindow(j);
+        if (!w) return true;
+        return !cleanerBusy.some(b => windowsOverlap(b, w));
+      });
     // מיון: הכי קרוב ראשון (עבודות ללא מרחק — בסוף, לפי זמן)
     return jobs.sort((a, b) => {
       if (a._distKm != null && b._distKm != null) return a._distKm - b._distKm;
@@ -4518,7 +4574,7 @@ export default function HomeScreen() {
       if (b._distKm != null) return 1;
       return String(b.createdAt || '').localeCompare(String(a.createdAt || ''));
     });
-  }, [openUrgent, openBookings, botJobs, hiddenJobIds, myCleanerCoords, myMaxKm]);
+  }, [openUrgent, openBookings, botJobs, hiddenJobIds, myCleanerCoords, myMaxKm, cleanerBusy]);
 
   // ── תפיסת עבודה מהלוח ──────────────────────────────────────────────────────
   // צ'אט מנקה↔לקוח דרך מסך ההודעות הכללי (ניטרלי לתפקיד, ללא בוט תגובה אוטומטית)
@@ -4924,12 +4980,12 @@ export default function HomeScreen() {
           )}
 
           {/* באנר הזמנות ממתינות למנקה */}
-          {myRole === 'cleaner' && cleanerPendingCount > 0 && !pendingBannerHidden && (
+          {myRole === 'cleaner' && cleanerPendingCount > 0 && hasUnseenPending && (
             <View style={{ backgroundColor: '#F59E0B', borderRadius: 12, padding: 12, marginBottom: 8, flexDirection: 'row', alignItems: 'center', gap: 10 }}>
-              <TouchableOpacity onPress={() => setPendingBannerHidden(true)} style={{ padding: 2 }} accessibilityLabel="סגור">
+              <TouchableOpacity onPress={markPendingSeen} style={{ padding: 2 }} accessibilityLabel="סגור">
                 <T style={{ fontSize: 18, color: '#fff', fontWeight: '900' }}>✕</T>
               </TouchableOpacity>
-              <TouchableOpacity style={{ flex: 1, flexDirection: 'row', alignItems: 'center', gap: 10 }} onPress={() => { setPendingBannerHidden(true); router.push('/profile'); }}>
+              <TouchableOpacity style={{ flex: 1, flexDirection: 'row', alignItems: 'center', gap: 10 }} onPress={() => { markPendingSeen(); router.push('/profile'); }}>
                 <View style={{ flex: 1 }}>
                   <T style={{ color: '#fff', fontSize: 14, fontWeight: '900' }}>
                     {cleanerPendingCount} {t.pendingBookingsMsg}
@@ -5060,7 +5116,7 @@ export default function HomeScreen() {
           }}
           ListHeaderComponent={myRole === 'cleaner' ? (
             <View style={{ marginBottom: 6 }}>
-              <T style={{ fontSize: 18, fontWeight: '900', color: C.textDark, textAlign: 'right' }}>🧹 {(t as any).jobBoardTitle ?? 'עבודות זמינות'}</T>
+              <T style={{ fontSize: 18, fontWeight: '900', color: C.textDark, textAlign: 'right' }}>🧹 {(t as any).jobBoardTitle ?? 'ניקיונות שמחכות לך'}</T>
               <T style={{ fontSize: 12, color: C.textSub, textAlign: 'right', marginTop: 2 }}>{(t as any).jobBoardSub ?? 'ניקיונות שממתינים למנקה — קח את מה שמתאים לך'}</T>
             </View>
           ) : myRole === 'client' ? (
@@ -5133,7 +5189,7 @@ export default function HomeScreen() {
                 const price = j.total ?? j.maxPrice ?? j.pricePerHour ?? null;
                 const isUrgent = j._kind === 'urgent';
                 return (
-                  <View style={[s.jobCard, isUrgent && { borderColor: '#DC2626', borderWidth: 1.5 }]}>
+                  <View style={[s.jobCard, isUrgent && { borderColor: '#7C3AED', borderWidth: 2, backgroundColor: '#F5F3FF' }]}>
                     <View style={{ flexDirection: 'row-reverse', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
                       <T style={s.jobTitle}>{isUrgent ? '🚨 ' : '🧹 '}{svc || ((t as any).defaultServiceName ?? 'ניקיון')}</T>
                       {price != null && <T style={s.jobPrice}>₪{price}</T>}
@@ -5461,7 +5517,7 @@ export default function HomeScreen() {
             <View style={{ flexDirection: 'row', gap: 10 }}>
               <TouchableOpacity
                 style={{ flex: 1, backgroundColor: '#10B981', borderRadius: 12, paddingVertical: 13, alignItems: 'center' }}
-                onPress={() => { const id = newBookingModal?.id; setNewBookingModal(null); setPendingBannerHidden(true); if (id) router.push({ pathname: '/profile', params: { tab: 'bookings', confirmBookingId: id } }); }}
+                onPress={() => { const id = newBookingModal?.id; setNewBookingModal(null); markPendingSeen(); if (id) router.push({ pathname: '/profile', params: { tab: 'bookings', confirmBookingId: id } }); }}
               >
                 <T style={{ color: '#fff', fontWeight: '900', fontSize: 14 }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8}>{"💬 כניסה לצ'אט ואישור"}</T>
               </TouchableOpacity>
