@@ -3484,6 +3484,23 @@ for (const L of Object.keys(URGENT_LEGEND)) {
   (translations as any)[L].urgentBadge = URGENT_BADGE[L];
 }
 
+// Shown when the chosen cleaner is already taken for the requested slot. This
+// supersedes the per-language `cleanerBusyMsg` in the dictionaries above so both
+// codebases word it identically, and so it names the DATE as well as the hour —
+// the client needs to know which of the two to change.
+const CLEANER_BUSY_MSG: Record<string, string> = {
+  he: 'המנקה תפוס/ה בתאריך ובשעה שבחרת — בחר/י מועד אחר',
+  en: 'This cleaner is already booked for the date and time you picked — choose another slot',
+  ru: 'Уборщик уже занят в выбранную дату и время — выберите другое',
+  ar: 'عامل النظافة محجوز في التاريخ والوقت اللذين اخترتهما — اختر موعدًا آخر',
+  fr: 'Ce nettoyeur est déjà pris à la date et l’heure choisies — choisissez un autre créneau',
+  hi: 'चुनी गई तारीख और समय पर यह क्लीनर पहले से बुक है — दूसरा समय चुनें',
+  uk: 'Прибиральник уже зайнятий у вибрані дату та час — оберіть інший час',
+};
+for (const L of Object.keys(CLEANER_BUSY_MSG)) {
+  (translations as any)[L].cleanerBusyMsg = CLEANER_BUSY_MSG[L];
+}
+
 // Shown when a client already has a job or an urgent request at that date+hour.
 const JOB_DUP_MSG: Record<string, string> = {
   he: 'כבר פרסמת/הזמנת ניקיון לתאריך ולשעה האלה — בחר/י שעה אחרת.',
