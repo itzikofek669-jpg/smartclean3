@@ -1151,7 +1151,9 @@ function CleanerProfile({ cleaner, visible, onClose, onBook, onChat, initialShow
             </View>
           )}
         </ScrollView>
-        <View style={[s.profileFooter, { paddingBottom: insets.bottom + 6 }]}>
+        {/* על אנדרואיד עם ניווט 3 כפתורים insets.bottom הוא 0, אז +6 בלבד הצמיד
+            את הכפתורים לסרגל המערכת. Math.max מבטיח מרווח נשימה בכל מכשיר. */}
+        <View style={[s.profileFooter, { paddingBottom: Math.max(insets.bottom, 12) + 10 }]}>
           <TouchableOpacity style={s.footerChat} onPress={() => { onClose(); onChat(cleaner); }}>
             <T style={s.footerChatText}>{t.chatBtn}</T>
           </TouchableOpacity>
