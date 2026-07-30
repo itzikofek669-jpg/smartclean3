@@ -5173,7 +5173,12 @@ export default function HomeScreen() {
           ListHeaderComponent={myRole === 'cleaner' ? (
             <View style={{ marginBottom: 6 }}>
               <T style={{ fontSize: 18, fontWeight: '900', color: C.textDark, textAlign: 'right' }}>🧹 {(t as any).jobBoardTitle ?? 'ניקיונות שמחכות לך'}</T>
-              <T style={{ fontSize: 12, color: C.textSub, textAlign: 'right', marginTop: 2 }}>{(t as any).jobBoardSub ?? 'ניקיונות שממתינים למנקה — קח את מה שמתאים לך'}</T>
+              {/* מקרא: מה המסגרת הסגולה אומרת */}
+              <View style={{ flexDirection: 'row-reverse', alignItems: 'center', gap: 6, marginTop: 6, backgroundColor: '#EDE9FE', borderRightWidth: 4, borderRightColor: '#7C3AED', borderRadius: 8, paddingVertical: 7, paddingHorizontal: 9 }}>
+                <T style={{ fontSize: 12.5, fontWeight: '800', color: '#5B21B6', textAlign: 'right', flex: 1 }}>
+                  ⚡ {(t as any).urgentLegend ?? 'הזמנות במסגרת סגולה הן הזמנות דחופות מהיום למחר באזור שלך'}
+                </T>
+              </View>
             </View>
           ) : myRole === 'client' ? (
             myBookings.length > 0 ? (
@@ -5245,10 +5250,15 @@ export default function HomeScreen() {
                 const price = j.total ?? j.maxPrice ?? j.pricePerHour ?? null;
                 const isUrgent = j._kind === 'urgent';
                 return (
-                  <View style={[s.jobCard, isUrgent && { borderColor: '#7C3AED', borderWidth: 2, backgroundColor: '#F5F3FF' }]}>
+                  <View style={[s.jobCard, isUrgent && { borderColor: '#7C3AED', borderWidth: 3, backgroundColor: '#EDE9FE', shadowColor: '#7C3AED', shadowOpacity: 0.3, shadowRadius: 8, elevation: 5 }]}>
+                    {isUrgent && (
+                      <View style={{ alignSelf: 'flex-end', backgroundColor: '#7C3AED', borderRadius: 8, paddingHorizontal: 9, paddingVertical: 3, marginBottom: 8 }}>
+                        <T style={{ color: '#fff', fontSize: 11.5, fontWeight: '900' }}>⚡ {(t as any).urgentBadge ?? 'דחוף'}</T>
+                      </View>
+                    )}
                     <View style={{ flexDirection: 'row-reverse', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
-                      <T style={s.jobTitle}>{isUrgent ? '🚨 ' : '🧹 '}{svc || ((t as any).defaultServiceName ?? 'ניקיון')}</T>
-                      {price != null && <T style={s.jobPrice}>₪{price}</T>}
+                      <T style={[s.jobTitle, isUrgent && { color: '#5B21B6' }]}>{isUrgent ? '🚨 ' : '🧹 '}{svc || ((t as any).defaultServiceName ?? 'ניקיון')}</T>
+                      {price != null && <T style={[s.jobPrice, isUrgent && { color: '#6D28D9' }]}>₪{price}</T>}
                     </View>
                     <TouchableOpacity activeOpacity={0.7} style={{ gap: 4, marginBottom: 10 }} onPress={() => showJobOnMap(j)}>
                       {!!dateStr && <T style={s.jobRow}>📅 {formatJobDate(dateStr)}{timeStr ? ` ${(t as any).atHour ?? 'בשעה'} ${timeStr}` : ''}</T>}

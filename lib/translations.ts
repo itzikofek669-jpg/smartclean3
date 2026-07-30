@@ -3465,5 +3465,24 @@ for (const L of Object.keys(AT_HOUR)) {
   (translations as any)[L].atHour = AT_HOUR[L];
 }
 
+// Job-board legend + badge explaining the purple urgent cards.
+const URGENT_LEGEND: Record<string, string> = {
+  he: 'הזמנות במסגרת סגולה הן הזמנות דחופות מהיום למחר באזור שלך',
+  en: 'Purple-framed jobs are urgent — today or tomorrow, in your area',
+  ru: 'Заказы в фиолетовой рамке — срочные, на сегодня или завтра, в вашем районе',
+  ar: 'الطلبات ذات الإطار البنفسجي عاجلة — اليوم أو غدًا، في منطقتك',
+  fr: 'Les annonces encadrées en violet sont urgentes — aujourd’hui ou demain, près de vous',
+  hi: 'बैंगनी बॉर्डर वाले काम अर्जेंट हैं — आज या कल, आपके क्षेत्र में',
+  uk: 'Замовлення у фіолетовій рамці — термінові, на сьогодні або завтра, у вашому районі',
+};
+const URGENT_BADGE: Record<string, string> = {
+  he: 'דחוף', en: 'Urgent', ru: 'Срочно', ar: 'عاجل',
+  fr: 'Urgent', hi: 'अर्जेंट', uk: 'Терміново',
+};
+for (const L of Object.keys(URGENT_LEGEND)) {
+  (translations as any)[L].urgentLegend = URGENT_LEGEND[L];
+  (translations as any)[L].urgentBadge = URGENT_BADGE[L];
+}
+
 export type Translations = typeof he;
 export default translations;
