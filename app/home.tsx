@@ -27,6 +27,7 @@ import { Lang } from '../lib/translations';
 import AccessibilityModal from '../lib/AccessibilityModal';
 import { MaterialIcons } from '@expo/vector-icons';
 import { TAB_BAR_CONTENT_HEIGHT } from '../lib/BottomTabBar';
+import { addBookingToCalendar, removeBookingFromCalendar } from '../lib/calendarSync';
 // expo-audio — הקלטה והשמעה של הודעות קוליות (SDK 54, מחליף את expo-av)
 import { useAudioRecorder, createAudioPlayer, RecordingPresets, setAudioModeAsync, AudioModule } from 'expo-audio';
 import * as ImagePicker from 'expo-image-picker';
@@ -4811,6 +4812,11 @@ export default function HomeScreen() {
     const unsub = onSnapshot(q, snap => {
       snap.docs.forEach(d => {
         const data = d.data();
+        // כל הזמנה מאושרת מסונכרנת ליומן — גם כזו שאושרה בזמן שהאפליקציה הייתה
+        // סגורה (הפונקציה אידמפוטנטית, אז אין כפילויות).
+        if (data.status === 'confirmed') {
+          addBookingToCalendar({ id: d.id, ...(data as any) }, { role: 'client' }).catch(() => {});
+        }
         // סימון ראשוני — לא מציגים פופאפ על הזמנות שכבר היו confirmed
         if (initialLoad) {
           if (data.status === 'confirmed') seenConfirmedRef.current.add(d.id);
@@ -4820,6 +4826,10 @@ export default function HomeScreen() {
         if (data.status === 'confirmed' && !seenConfirmedRef.current.has(d.id)) {
           seenConfirmedRef.current.add(d.id);
           setConfirmedPopup({ id: d.id, ...data });
+        }
+        // בוטלה — להסיר מהיומן כדי שלא יישאר אירוע רפאים
+        if (data.status === 'cancelled') {
+          removeBookingFromCalendar(d.id).catch(() => {});
         }
       });
       initialLoad = false;

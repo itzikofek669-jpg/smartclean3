@@ -27,6 +27,7 @@ import { MaterialIcons } from '@expo/vector-icons';
 import { TAB_BAR_CONTENT_HEIGHT } from '../lib/BottomTabBar';
 import * as Notifications from 'expo-notifications';
 import Constants from 'expo-constants';
+import { addBookingToCalendar, removeBookingFromCalendar } from '../lib/calendarSync';
 
 
 function createRM(c: AppColors) {
@@ -1815,6 +1816,8 @@ export default function ProfileScreen() {
       await updateDoc(doc(db, 'bookings', b.id), updates);
       const confirmed = { ...b, ...updates };
       setIncomingBks(prev => prev.map(x => x.id === b.id ? confirmed : x));
+      // שני הצדדים סגורים (הלקוח הזמין, המנקה אישר) — ליומן המכשיר של המנקה
+      addBookingToCalendar(confirmed, { role: 'cleaner' }).catch(() => {});
       setPendingConfirmBooking(null);
       setShowPendingTimeChange(false);
       // אחרי אישור — חזרה לפרופיל (רשימת ההזמנות), בלי שיקפוץ מסך אישור נוסף.

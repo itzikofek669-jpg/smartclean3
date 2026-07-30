@@ -56,6 +56,12 @@
         }
       ],
       "expo-secure-store",
+      [
+        "expo-calendar",
+        {
+          "calendarPermission": "מאפשר להוסיף את מועד הניקיון המאושר ליומן שלך"
+        }
+      ],
       "@react-native-community/datetimepicker",
       "expo-font",
       "expo-audio"
