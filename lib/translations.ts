@@ -3484,6 +3484,20 @@ for (const L of Object.keys(URGENT_LEGEND)) {
   (translations as any)[L].urgentBadge = URGENT_BADGE[L];
 }
 
+// Shown when a client already has a job or an urgent request at that date+hour.
+const JOB_DUP_MSG: Record<string, string> = {
+  he: 'כבר פרסמת/הזמנת ניקיון לתאריך ולשעה האלה — בחר/י שעה אחרת.',
+  en: 'You already have a cleaning booked for that date and time — pick another hour.',
+  ru: 'На эту дату и время у вас уже есть заказ — выберите другой час.',
+  ar: 'لديك بالفعل طلب تنظيف في هذا التاريخ والوقت — اختر ساعة أخرى.',
+  fr: 'Vous avez déjà un ménage réservé à cette date et heure — choisissez une autre heure.',
+  hi: 'उस तारीख और समय के लिए आपकी बुकिंग पहले से है — दूसरा समय चुनें।',
+  uk: 'На цю дату й час у вас уже є замовлення — оберіть іншу годину.',
+};
+for (const L of Object.keys(JOB_DUP_MSG)) {
+  (translations as any)[L].jobDupMsg = JOB_DUP_MSG[L];
+}
+
 // Board legend line: bookings also arrive directly from clients, not just here.
 const DIRECT_BOOKING_NOTE: Record<string, string> = {
   he: 'לקוחות יכולים להזמין אותך גם ישירות — תקבל התראה, צ\'אט וחלון אישור',

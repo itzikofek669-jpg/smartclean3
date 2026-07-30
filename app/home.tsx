@@ -452,6 +452,32 @@ export function limitWords(text: string, max: number): string {
 }
 
 /**
+ * Does this client already have a live request at the same date + start time?
+ *
+ * Checks BOTH collections on purpose: a slot can be taken by a posted job
+ * (`bookings`) or by an urgent broadcast (`urgentRequests`). Checking only one
+ * let a client post a job AND fire an urgent request for the very same hour,
+ * so two cleaners could show up. Cancelled/expired/finished entries don't count.
+ *
+ * Returns false if the lookup itself fails — a flaky read must never block a
+ * legitimate booking.
+ */
+async function hasClashingRequest(uid: string, dateStr: string, startTime: string): Promise<boolean> {
+  if (!uid || !dateStr || !startTime) return false;
+  const DEAD = ['cancelled', 'expired', 'done'];
+  try {
+    const [bk, ur] = await Promise.all([
+      getDocs(query(collection(db, 'bookings'), where('clientUid', '==', uid), where('bookingDate', '==', dateStr))),
+      getDocs(query(collection(db, 'urgentRequests'), where('clientUid', '==', uid), where('dateStr', '==', dateStr))),
+    ]);
+    const clashes = (d: any) => !DEAD.includes(String(d?.status)) && String(d?.startTime) === startTime;
+    return bk.docs.some(d => clashes(d.data())) || ur.docs.some(d => clashes(d.data()));
+  } catch (_) {
+    return false;
+  }
+}
+
+/**
  * Drop emoji/pictographs from a label. The header pills are tight on a phone —
  * decorative icons cost real characters and were truncating "ניקיון בזמן שלך".
  * The dictionary strings keep their emoji for use elsewhere (modals, menus).
@@ -1663,16 +1689,12 @@ function PostJobModal({ visible, onClose, onPosted }: { visible: boolean; onClos
     try {
       const uid = auth.currentUser?.uid || '';
       const startStr = `${String(hour).padStart(2, '0')}:00`;
-      // מניעת פרסום כפול — אותה עבודה פתוחה לאותו תאריך+שעה
-      try {
-        const dup = await getDocs(query(collection(db, 'bookings'),
-          where('clientUid', '==', uid), where('bookingDate', '==', dateStr), where('status', '==', 'pending')));
-        if (dup.docs.some(d => (d.data() as any).startTime === startStr)) {
-          setBusy(false);
-          Alert.alert('', (t as any).jobDupMsg ?? 'כבר פרסמת/הזמנת ניקיון לתאריך ולשעה האלה — בחר/י שעה אחרת.');
-          return;
-        }
-      } catch (_) {}
+      // מניעת פרסום כפול — כולל בקשה דחופה קיימת לאותו תאריך+שעה
+      if (await hasClashingRequest(uid, dateStr, startStr)) {
+        setBusy(false);
+        Alert.alert('', (t as any).jobDupMsg ?? 'כבר פרסמת/הזמנת ניקיון לתאריך ולשעה האלה — בחר/י שעה אחרת.');
+        return;
+      }
       let clientName = auth.currentUser?.displayName || '';
       try { const d = await getDoc(doc(db, 'users', uid)); if (d.exists() && d.data()?.name) clientName = d.data()!.name; } catch (_) {}
       await addDoc(collection(db, 'bookings'), {
@@ -3997,6 +4019,13 @@ export default function HomeScreen() {
 
       const hh = String(Math.floor(urgentHour)).padStart(2,'0');
       const mm = urgentHour % 1 === 0.5 ? '30' : '00';
+
+      // מניעת בקשה דחופה כפולה — כולל עבודה שכבר פורסמה לאותו תאריך+שעה
+      if (await hasClashingRequest(uid, dateStr, `${hh}:${mm}`)) {
+        setUrgentSending(false);
+        Alert.alert('', (t as any).jobDupMsg ?? 'כבר פרסמת/הזמנת ניקיון לתאריך ולשעה האלה — בחר/י שעה אחרת.');
+        return;
+      }
 
       const expiresAt = new Date(Date.now() + 2 * 60 * 60 * 1000).toISOString();
 
