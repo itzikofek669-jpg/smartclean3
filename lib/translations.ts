@@ -3484,6 +3484,68 @@ for (const L of Object.keys(URGENT_LEGEND)) {
   (translations as any)[L].urgentBadge = URGENT_BADGE[L];
 }
 
+// Client-facing popup when the CLEANER cancels a booking they'd already
+// confirmed, plus the offer to re-post the same job to other cleaners.
+const CANCELLED_POPUP: Record<string, { title: string; sub: string; repost: string; ok: string; err: string }> = {
+  he: {
+    title: 'ההזמנה בוטלה',
+    sub: 'המנקה ביטל את ההזמנה. אפשר לפרסם אותה מחדש ומנקים אחרים באזור יוכלו לקחת אותה.',
+    repost: 'פרסם מחדש וחפש מנקה אחר',
+    ok: 'ההזמנה פורסמה מחדש — מנקים באזור שלך יראו אותה',
+    err: 'הפרסום מחדש נכשל — נסה/י שוב',
+  },
+  en: {
+    title: 'Booking cancelled',
+    sub: 'The cleaner cancelled this booking. You can re-post it so other cleaners nearby can take it.',
+    repost: 'Re-post and find another cleaner',
+    ok: 'Re-posted — cleaners in your area will see it',
+    err: 'Re-posting failed — please try again',
+  },
+  ru: {
+    title: 'Заказ отменён',
+    sub: 'Уборщик отменил заказ. Можно опубликовать его снова, и другие уборщики поблизости смогут его взять.',
+    repost: 'Опубликовать снова и найти другого',
+    ok: 'Опубликовано снова — уборщики поблизости это увидят',
+    err: 'Не удалось опубликовать — попробуйте ещё раз',
+  },
+  ar: {
+    title: 'تم إلغاء الحجز',
+    sub: 'ألغى عامل النظافة الحجز. يمكنك نشره من جديد ليأخذه عامل آخر في منطقتك.',
+    repost: 'انشر من جديد وابحث عن عامل آخر',
+    ok: 'تم النشر من جديد — سيراه عمال النظافة في منطقتك',
+    err: 'فشل النشر من جديد — حاول مرة أخرى',
+  },
+  fr: {
+    title: 'Réservation annulée',
+    sub: 'Le nettoyeur a annulé. Vous pouvez la republier pour qu’un autre nettoyeur près de chez vous la prenne.',
+    repost: 'Republier et trouver un autre nettoyeur',
+    ok: 'Republiée — les nettoyeurs de votre secteur la verront',
+    err: 'Échec de la republication — réessayez',
+  },
+  hi: {
+    title: 'बुकिंग रद्द हो गई',
+    sub: 'क्लीनर ने बुकिंग रद्द कर दी। आप इसे दोबारा पोस्ट कर सकते हैं ताकि आस-पास के अन्य क्लीनर इसे ले सकें।',
+    repost: 'दोबारा पोस्ट करें और दूसरा क्लीनर खोजें',
+    ok: 'दोबारा पोस्ट हो गया — आपके क्षेत्र के क्लीनर इसे देखेंगे',
+    err: 'दोबारा पोस्ट करना विफल — फिर से कोशिश करें',
+  },
+  uk: {
+    title: 'Замовлення скасовано',
+    sub: 'Прибиральник скасував замовлення. Можна опублікувати його знову, і інші прибиральники поруч зможуть його взяти.',
+    repost: 'Опублікувати знову та знайти іншого',
+    ok: 'Опубліковано знову — прибиральники поруч це побачать',
+    err: 'Не вдалося опублікувати — спробуйте ще раз',
+  },
+};
+for (const L of Object.keys(CANCELLED_POPUP)) {
+  const c = CANCELLED_POPUP[L];
+  (translations as any)[L].bookingCancelledPopupTitle = c.title;
+  (translations as any)[L].bookingCancelledPopupSub = c.sub;
+  (translations as any)[L].repostBtn = c.repost;
+  (translations as any)[L].repostOkMsg = c.ok;
+  (translations as any)[L].repostErrMsg = c.err;
+}
+
 // Shown when the chosen cleaner is already taken for the requested slot. This
 // supersedes the per-language `cleanerBusyMsg` in the dictionaries above so both
 // codebases word it identically, and so it names the DATE as well as the hour —

@@ -2065,6 +2065,8 @@ export default function ProfileScreen() {
             await updateDoc(doc(db, 'bookings', b.id), { status: 'cancelled', cancelledBy: userRole || 'client', cancelledAt: new Date().toISOString() });
             setBookings(prev => prev.filter(x => x.id !== b.id));
             setIncomingBks(prev => prev.filter(x => x.id !== b.id));
+            // הסר מהיומן של מי שביטל — הצד השני מסיר אצלו דרך המאזין שלו
+            removeBookingFromCalendar(b.id).catch(() => {});
             // הסר את חלון הזמן מ-busySlots של המנקה
             if (b.busyFrom && b.busyUntil) {
               await updateDoc(doc(db, 'users', b.cleanerId), {
@@ -2713,6 +2715,7 @@ export default function ProfileScreen() {
                             SHOWN_PENDING.add(pcb.id); // לא להקפיץ שוב את אותה הזמנה
                             await updateDoc(doc(db, 'bookings', pcb.id), { status: 'cancelled', cancelledBy: 'cleaner', cancelledAt: new Date().toISOString() });
                             setIncomingBks(prev => prev.filter(x => x.id !== pcb.id));
+                            removeBookingFromCalendar(pcb.id).catch(() => {});
                             // פוש ללקוח על הדחייה
                             try {
                               if (pcb.clientUid) {

@@ -2469,10 +2469,10 @@ function BookingModal({ cleaner, visible, onClose, onBookingCreated, prebookData
           setShowWaiting(false);
         }
       });
-      // הוסף ל-busySlots של המנקה
-      await setDoc(doc(db, 'users', cleaner.id), {
-        busySlots: arrayUnion({ from: busyFromISO, until: busyUntilISO }),
-      }, { merge: true }).catch(() => {});
+      // busySlots לא נכתב מכאן: חוקי Firestore מתירים למשתמש לכתוב רק למסמך
+      // שלו, אז ניסיון של הלקוח לעדכן את מסמך המנקה נדחה תמיד (וה-catch בלע
+      // את זה בשקט). המנקה גוזר את busySlots אצלו מההזמנות שלו — ראה
+      // lastBusySlotsRef במאזין ההזמנות של המנקה.
       try {
         const cleanerUid = cleaner.uid || cleaner.id;
         const cleanerDoc = await getDoc(doc(db, 'users', cleanerUid));
@@ -2679,16 +2679,9 @@ function BookingModal({ cleaner, visible, onClose, onBookingCreated, prebookData
     setCancellingBooking(true);
     try {
       await updateDoc(doc(db, 'bookings', pendingBookingId), { status: 'cancelled' });
-      // הסר busySlot שנוסף בעת יצירת ההזמנה
-      if (bookedDetails?.cleanerUid) {
-        const bSnap = await getDoc(doc(db, 'bookings', pendingBookingId)).catch(() => null);
-        const bData = bSnap?.data?.();
-        if (bData?.busyFrom && bData?.busyUntil) {
-          await updateDoc(doc(db, 'users', bookedDetails.cleanerUid), {
-            busySlots: arrayRemove({ from: bData.busyFrom, until: bData.busyUntil }),
-          }).catch(() => {});
-        }
-      }
+      // busySlots לא מנוקה מכאן: הלקוח אינו מורשה לכתוב למסמך המנקה (חוקי
+      // Firestore), והניסיון נדחה בשקט. ברגע שההזמנה מסומנת cancelled היא
+      // יוצאת מרשימת ההזמנות החיות של המנקה, והנגזרת אצלו משחררת את השעה.
     } catch (_) {}
     setCancellingBooking(false);
     setShowWaiting(false);
@@ -3857,6 +3850,8 @@ export default function HomeScreen() {
   const [hiddenJobIds, setHiddenJobIds] = useState<Set<string>>(new Set()); // "דחה" מקומי
   const prevCleanerPendingRef = useRef(-1);
   const cleanerPendingUnsubRef = useRef<(() => void) | null>(null);
+  // busySlots האחרון שנכתב — כדי לא לכתוב לפיירסטור בכל snapshot ללא שינוי
+  const lastBusySlotsRef = useRef<{ from: string; until: string }[] | null>(null);
 
   // האם יש הזמנה ממתינה שהמנקה עוד לא ראה — רק אז מציגים את הבאנר הכתום
   const hasUnseenPending = cleanerPendingIds.some(id => !seenPendingIds.includes(id));
@@ -4182,6 +4177,61 @@ export default function HomeScreen() {
   const [confirmedPopup,       setConfirmedPopup]       = useState<any>(null);
   const seenConfirmedRef = useRef<Set<string>>(new Set());
 
+  // ── פופאפ ביטול ע"י המנקה (ללקוח) + פרסום מחדש ────────────────────────────
+  const [cancelledPopup, setCancelledPopup] = useState<any>(null);
+  const [reposting, setReposting] = useState(false);
+  const seenCancelledRef = useRef<Set<string>>(new Set());
+
+  /**
+   * פרסום מחדש של הזמנה שבוטלה — נפתחת כעבודה פתוחה שכל מנקה מתאים יכול לקחת,
+   * עם אותם פרטים בדיוק. עדיף על "בחר מנקה אחר" כי הלקוח כבר נשאר בלי מנקה
+   * ורוצה שמישהו ייקח את זה, לא לחפש מחדש.
+   */
+  const repostCancelledBooking = async (b: any) => {
+    if (reposting) return;
+    setReposting(true);
+    try {
+      const uid = auth.currentUser?.uid || '';
+      const dateStr = String(b?.bookingDate || '');
+      const startTime = String(b?.startTime || '');
+      // אם השעה כבר עברה אין טעם לפרסם — הלקוח יבחר מועד חדש בעצמו
+      const when = dateStr && startTime ? new Date(`${dateStr}T${startTime}`) : null;
+      if (!when || isNaN(when.getTime()) || when.getTime() <= Date.now()) {
+        setCancelledPopup(null);
+        setPostJobOpen(true);   // פותח את "ניקיון בזמן שלך" לבחירת מועד חדש
+        return;
+      }
+      if (await hasClashingRequest(uid, dateStr, startTime)) {
+        Alert.alert('', (t as any).jobDupMsg ?? 'כבר פרסמת/הזמנת ניקיון לתאריך ולשעה האלה — בחר/י שעה אחרת.');
+        return;
+      }
+      const types: string[] = Array.isArray(b?.serviceTypes) && b.serviceTypes.length
+        ? b.serviceTypes
+        : (b?.serviceType ? String(b.serviceType).split(' + ') : []);
+      await addDoc(collection(db, 'bookings'), {
+        open: true, cleanerId: '', cleanerName: '',
+        clientUid: uid, clientName: b?.clientName || '',
+        serviceTypes: types, serviceType: types.join(' + '),
+        bookingDate: dateStr, startTime, hours: b?.hours || 2,
+        isPrivateHouse: !!b?.addrPrivate,
+        addrCity: b?.addrCity || '', address: b?.address || '',
+        addrStreet: b?.addrStreet || '', addrFloor: b?.addrFloor || '', addrApt: b?.addrApt || '',
+        payment: b?.payment || 'cash', paymentStatus: `awaiting_${b?.payment || 'cash'}`,
+        total: b?.total || 0, pricePerHour: b?.pricePerHour || 0,
+        notes: b?.notes || '',
+        status: 'pending', createdAt: new Date().toISOString(),
+        recurring: 'once', recurringDates: [],
+        repostedFrom: b?.id || '',
+      });
+      setCancelledPopup(null);
+      Alert.alert('✅', (t as any).repostOkMsg ?? 'ההזמנה פורסמה מחדש — מנקים באזור שלך יראו אותה');
+    } catch (_) {
+      Alert.alert(t.error, (t as any).repostErrMsg ?? 'הפרסום מחדש נכשל — נסה/י שוב');
+    } finally {
+      setReposting(false);
+    }
+  };
+
   // Mandatory review
   const [isBlocked,            setIsBlocked]            = useState(false);
   const [pendingReviewBooking, setPendingReviewBooking] = useState<any>(null);
@@ -4444,11 +4494,30 @@ export default function HomeScreen() {
             const count = pendingDocs.length;
             setCleanerPendingIds(pendingDocs.map(b => b.id));
             // חלונות תפוסים: הזמנות שאושרו (לא ממתינות/מבוטלות/הושלמו)
-            const busy = all
-              .filter(b => !['pending', 'cancelled', 'done'].includes(b.status))
+            const live = all.filter(b => !['pending', 'cancelled', 'done'].includes(b.status));
+            const busy = live
               .map(b => bookingBusyWindow(b))
               .filter((w): w is { date: string; s: number; e: number } => !!w);
             setCleanerBusy(busy);
+
+            // ── שחרור/תפיסה של זמינות המנקה ────────────────────────────────
+            // busySlots נגזר כאן מחדש מההזמנות החיות של המנקה, ונכתב על המסמך
+            // שלו עצמו — הדרך היחידה שחוקי Firestore מתירים (משתמש יכול לכתוב
+            // רק לעצמו). כך ביטול מכל צד משחרר את השעה אוטומטית: ההזמנה יוצאת
+            // מהרשימה החיה והחלון פשוט נעלם מהנגזרת.
+            const slots = live
+              .filter(b => b.busyFrom && b.busyUntil)
+              .map(b => ({ from: String(b.busyFrom), until: String(b.busyUntil) }))
+              .sort((a, b) => a.from.localeCompare(b.from));
+            const prev = (lastBusySlotsRef.current ?? []) as { from: string; until: string }[];
+            const same = prev.length === slots.length
+              && prev.every((p, i) => p.from === slots[i].from && p.until === slots[i].until);
+            if (!same) {
+              lastBusySlotsRef.current = slots;
+              // setDoc/merge ולא arrayRemove: התאמת-אובייקט מדויקת של arrayRemove
+              // נכשלת בשקט אם משהו בשדות שונה, ואז השעה נשארת תפוסה לנצח.
+              setDoc(doc(db, 'users', uid), { busySlots: slots }, { merge: true }).catch(() => {});
+            }
             if (prevCleanerPendingRef.current >= 0 && count > prevCleanerPendingRef.current) {
               setNewBookingFlash(true);
               setTimeout(() => setNewBookingFlash(false), 6000);
@@ -4812,14 +4881,20 @@ export default function HomeScreen() {
     const unsub = onSnapshot(q, snap => {
       snap.docs.forEach(d => {
         const data = d.data();
-        // כל הזמנה מאושרת מסונכרנת ליומן — גם כזו שאושרה בזמן שהאפליקציה הייתה
-        // סגורה (הפונקציה אידמפוטנטית, אז אין כפילויות).
+        // סנכרון יומן רץ תמיד — גם בטעינה הראשונה, כך שהזמנה שאושרה או בוטלה
+        // בזמן שהאפליקציה הייתה סגורה עדיין מגיעה ליומן / יורדת ממנו.
+        // (addBookingToCalendar אידמפוטנטית, אז אין כפילויות.)
         if (data.status === 'confirmed') {
           addBookingToCalendar({ id: d.id, ...(data as any) }, { role: 'client' }).catch(() => {});
         }
-        // סימון ראשוני — לא מציגים פופאפ על הזמנות שכבר היו confirmed
+        if (data.status === 'cancelled') {
+          removeBookingFromCalendar(d.id).catch(() => {});
+        }
+        // טעינה ראשונה — מסמנים את המצב הקיים כ"נראה" בלי להקפיץ פופאפים,
+        // אחרת כל אישור/ביטול ישן היה קופץ מחדש בכל פתיחת מסך.
         if (initialLoad) {
           if (data.status === 'confirmed') seenConfirmedRef.current.add(d.id);
+          if (data.status === 'cancelled') seenCancelledRef.current.add(d.id);
           return;
         }
         // זיהוי מעבר חדש ל-confirmed
@@ -4827,9 +4902,12 @@ export default function HomeScreen() {
           seenConfirmedRef.current.add(d.id);
           setConfirmedPopup({ id: d.id, ...data });
         }
-        // בוטלה — להסיר מהיומן כדי שלא יישאר אירוע רפאים
-        if (data.status === 'cancelled') {
-          removeBookingFromCalendar(d.id).catch(() => {});
+        // ביטול ביוזמת המנקה — הלקוח נשאר בלי מנקה, אז מציגים לו את מלוא פרטי
+        // ההזמנה שבוטלה ומציעים לפרסם אותה מחדש.
+        if (data.status === 'cancelled' && data.cancelledBy === 'cleaner'
+            && !seenCancelledRef.current.has(d.id)) {
+          seenCancelledRef.current.add(d.id);
+          setCancelledPopup({ id: d.id, ...data });
         }
       });
       initialLoad = false;
@@ -5789,6 +5867,85 @@ export default function HomeScreen() {
             <TouchableOpacity
               style={{ paddingVertical: 10, width: '100%', alignItems: 'center' }}
               onPress={() => setConfirmedPopup(null)}
+            >
+              <Text style={{ fontSize: 14, color: '#9CA3AF', fontWeight: '600' }}>{t.closeBtn || 'סגור'}</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
+      {/* ── פופאפ: המנקה ביטל הזמנה מאושרת ─────────────────────────────────── */}
+      <Modal visible={!!cancelledPopup} transparent animationType="slide" onRequestClose={() => setCancelledPopup(null)}>
+        <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.55)', justifyContent: 'flex-end' }}>
+          <View style={{ backgroundColor: C.white, borderTopLeftRadius: 28, borderTopRightRadius: 28, padding: 28, paddingBottom: 40, alignItems: 'center', gap: 14 }}>
+            <View style={{ width: 80, height: 80, borderRadius: 40, backgroundColor: '#FEE2E2', alignItems: 'center', justifyContent: 'center', borderWidth: 3, borderColor: '#DC2626' }}>
+              <Text style={{ fontSize: 40 }}>❌</Text>
+            </View>
+            <Text style={{ fontSize: 22, fontWeight: '900', color: '#991B1B', textAlign: 'center' }}>
+              {(t as any).bookingCancelledPopupTitle ?? 'ההזמנה בוטלה'}
+            </Text>
+            <Text style={{ fontSize: 14, color: '#6B7280', textAlign: 'center', lineHeight: 22 }}>
+              {(t as any).bookingCancelledPopupSub ?? 'המנקה ביטל את ההזמנה. אפשר לפרסם אותה מחדש ומנקים אחרים באזור יוכלו לקחת אותה.'}
+            </Text>
+
+            {/* כל פרטי ההזמנה שבוטלה */}
+            {cancelledPopup && (
+              <View style={{ backgroundColor: '#FEF2F2', borderRadius: 16, padding: 16, width: '100%', gap: 10, borderWidth: 1, borderColor: '#FECACA' }}>
+                {!!cancelledPopup.cleanerName && (
+                  <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+                    <Text style={{ fontSize: 13, color: '#6B7280' }}>🧹 {t.cleanerLabel || 'מנקה'}</Text>
+                    <Text style={{ fontSize: 13, fontWeight: '800', color: '#991B1B' }}>{cancelledPopup.cleanerName}</Text>
+                  </View>
+                )}
+                {!!cancelledPopup.serviceType && (
+                  <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+                    <Text style={{ fontSize: 13, color: '#6B7280' }}>🧴 {(t as any).serviceTypeLabel ?? t.servicesLabel ?? 'סוג שירות'}</Text>
+                    <Text style={{ fontSize: 13, fontWeight: '700', color: '#991B1B', flexShrink: 1, textAlign: 'left' }} numberOfLines={2}>
+                      {String(cancelledPopup.serviceType).split(' + ').map((k: string) => t.types?.[k] || k).join(', ')}
+                    </Text>
+                  </View>
+                )}
+                {!!cancelledPopup.bookingDate && (
+                  <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+                    <Text style={{ fontSize: 13, color: '#6B7280' }}>📅 {t.dateLabel || 'תאריך'}</Text>
+                    <Text style={{ fontSize: 13, fontWeight: '700', color: '#991B1B' }}>
+                      {formatJobDate(cancelledPopup.bookingDate)} {(t as any).atHour ?? 'בשעה'} {cancelledPopup.startTime || ''}
+                    </Text>
+                  </View>
+                )}
+                {!!cancelledPopup.hours && (
+                  <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+                    <Text style={{ fontSize: 13, color: '#6B7280' }}>⏱️ {t.hoursLabel || 'שעות'}</Text>
+                    <Text style={{ fontSize: 13, fontWeight: '700', color: '#991B1B' }}>{cancelledPopup.hours} {t.hoursUnit}</Text>
+                  </View>
+                )}
+                {!!cancelledPopup.address && (
+                  <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+                    <Text style={{ fontSize: 13, color: '#6B7280' }}>📍 {t.addressLabel || 'כתובת'}</Text>
+                    <Text style={{ fontSize: 13, fontWeight: '700', color: '#991B1B', flexShrink: 1, textAlign: 'left' }} numberOfLines={2}>{cancelledPopup.address}</Text>
+                  </View>
+                )}
+                {cancelledPopup.total != null && (
+                  <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+                    <Text style={{ fontSize: 13, color: '#6B7280' }}>💰 {(t as any).totalShort ?? 'סה"כ'}</Text>
+                    <Text style={{ fontSize: 13, fontWeight: '800', color: '#991B1B' }}>₪{cancelledPopup.total}</Text>
+                  </View>
+                )}
+              </View>
+            )}
+
+            <TouchableOpacity
+              style={{ backgroundColor: reposting ? '#94A3B8' : '#2563EB', borderRadius: 14, paddingVertical: 15, width: '100%', alignItems: 'center' }}
+              disabled={reposting}
+              onPress={() => cancelledPopup && repostCancelledBooking(cancelledPopup)}
+            >
+              <Text style={{ fontSize: 15, fontWeight: '900', color: '#fff' }}>
+                {reposting ? '…' : `📢 ${(t as any).repostBtn ?? 'פרסם מחדש וחפש מנקה אחר'}`}
+              </Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={{ paddingVertical: 10, width: '100%', alignItems: 'center' }}
+              onPress={() => setCancelledPopup(null)}
             >
               <Text style={{ fontSize: 14, color: '#9CA3AF', fontWeight: '600' }}>{t.closeBtn || 'סגור'}</Text>
             </TouchableOpacity>
