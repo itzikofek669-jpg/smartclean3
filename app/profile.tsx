@@ -2974,6 +2974,21 @@ export default function ProfileScreen() {
             );
           })()}
 
+          {/* ── פרסום עבודה פתוחה (לקוח) — קיצור דרך מהפרופיל ─────────────
+              הכפתור קיים במסך הבית, אבל אחרי הזמנה הלקוח נוחת בפרופיל, ולכן
+              הוא זמין גם כאן. פותח את אותו מסך "ניקיון בזמן שלך". */}
+          {!isCleaner && (
+            <TouchableOpacity
+              onPress={() => router.push({ pathname: '/home', params: { openPostJob: '1' } })}
+              activeOpacity={0.85}
+              style={{ backgroundColor: C.blue, borderRadius: 14, paddingVertical: 14, alignItems: 'center', marginBottom: 14, elevation: 3, shadowColor: '#000', shadowOpacity: 0.15, shadowRadius: 6, shadowOffset: { width: 0, height: 3 } }}
+            >
+              <T style={{ color: '#fff', fontSize: 15, fontWeight: '900' }}>
+                🧹 {(t as any).postJobHomeBtn ?? 'ניקיון בזמן שלך'}
+              </T>
+            </TouchableOpacity>
+          )}
+
           {/* ── הזמנות פעילות (לקוח) — ראשון בדף ───────────────────────── */}
           {!isCleaner && (() => {
             // כל הזמנה שתאריכה עבר — גם אם התשלום לא אושר — עוברת להיסטוריה

@@ -14,7 +14,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import MapView, { Marker, Callout, Circle, PROVIDER_GOOGLE } from 'react-native-maps';
 import Constants from 'expo-constants';
 import * as Location from 'expo-location';
-import { useRouter } from 'expo-router';
+import { useRouter, useLocalSearchParams } from 'expo-router';
 import { signOut } from 'firebase/auth';
 import * as SecureStore from 'expo-secure-store';
 import { collection, addDoc, getDocs, query, where, doc, getDoc, setDoc, onSnapshot, orderBy, updateDoc, arrayUnion, arrayRemove, runTransaction } from 'firebase/firestore';
@@ -3728,6 +3728,7 @@ function QuickRebookModal({ visible, onClose, myBookings, allCleaners, onBook }:
 // ─── Main screen ──────────────────────────────────────────────────────────────
 export default function HomeScreen() {
   const router   = useRouter();
+  const navParams = useLocalSearchParams<{ openPostJob?: string }>();
   const { t, setLang, flipSide } = useLanguage();
   const C = useAppColors();
   const s = createS(C);
@@ -3889,6 +3890,16 @@ export default function HomeScreen() {
   const urgentScrollRef = useRef<ScrollView>(null);
   const [urgentOpen,      setUrgentOpen]      = useState(false);
   const [postJobOpen,     setPostJobOpen]     = useState(false);   // פרסום עבודה פתוחה (לקוח)
+  // הגעה מהפרופיל עם openPostJob=1 — פותח מיד את "ניקיון בזמן שלך".
+  // הדגל נצרך פעם אחת כדי שחזרה למסך לא תפתח את הטופס שוב.
+  const postJobParamUsedRef = useRef(false);
+  useEffect(() => {
+    if (navParams?.openPostJob === '1' && !postJobParamUsedRef.current) {
+      postJobParamUsedRef.current = true;
+      setPostJobOpen(true);
+      router.setParams({ openPostJob: undefined });
+    }
+  }, [navParams?.openPostJob]);
   const [urgentDate,      setUrgentDate]      = useState<'today'|'tomorrow'>('today');
   const [urgentHour,      setUrgentHour]      = useState(10);
   const [urgentHours,     setUrgentHours]     = useState(2);
