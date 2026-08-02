@@ -3563,6 +3563,20 @@ for (const L of Object.keys(CLEANER_BUSY_MSG)) {
   (translations as any)[L].cleanerBusyMsg = CLEANER_BUSY_MSG[L];
 }
 
+// Shown to a CLEANER who tries to take a job clashing with one they already have.
+const ALREADY_BOOKED_THEN: Record<string, string> = {
+  he: 'כבר יש לך עבודה בשעה הזו — לא ניתן לקחת שתיים חופפות',
+  en: 'You already have a job at that time — you can\'t take two overlapping ones',
+  ru: 'У вас уже есть работа в это время — нельзя взять две пересекающиеся',
+  ar: 'لديك عمل بالفعل في هذا الوقت — لا يمكن أخذ عملين متداخلين',
+  fr: 'Vous avez déjà une mission à cette heure — impossible d’en prendre deux qui se chevauchent',
+  hi: 'उस समय आपका पहले से काम है — दो ओवरलैपिंग काम नहीं ले सकते',
+  uk: 'У вас уже є робота в цей час — не можна взяти дві, що перетинаються',
+};
+for (const L of Object.keys(ALREADY_BOOKED_THEN)) {
+  (translations as any)[L].alreadyBookedThenMsg = ALREADY_BOOKED_THEN[L];
+}
+
 // Shown when a client already has a job or an urgent request at that date+hour.
 const JOB_DUP_MSG: Record<string, string> = {
   he: 'כבר פרסמת/הזמנת ניקיון לתאריך ולשעה האלה — בחר/י שעה אחרת.',

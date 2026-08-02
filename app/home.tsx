@@ -479,6 +479,39 @@ async function hasClashingRequest(uid: string, dateStr: string, startTime: strin
 }
 
 /**
+ * Is this cleaner already committed to any part of the requested window?
+ *
+ * `bookings` is the single source of truth for a cleaner's time — accepting an
+ * urgent request also writes a booking — so one collection covers every route a
+ * job can arrive by. Pending counts as busy; cancelled and finished don't, or a
+ * cancellation would block the slot forever. A failed read returns false so a
+ * flaky network can't stop a legitimate claim.
+ */
+async function isCleanerBusy(
+  cleanerId: string, bookingDate: string, startTime: string, hours: number,
+): Promise<boolean> {
+  if (!cleanerId || !bookingDate || !startTime) return false;
+  const want = bookingBusyWindow({ bookingDate, startTime, hours });
+  if (!want) return false;
+  const DEAD = ['cancelled', 'done'];
+  try {
+    const snap = await getDocs(query(
+      collection(db, 'bookings'),
+      where('cleanerId', '==', cleanerId),
+      where('bookingDate', '==', bookingDate),
+    ));
+    return snap.docs.some(d => {
+      const data: any = d.data();
+      if (DEAD.includes(String(data?.status))) return false;
+      const have = bookingBusyWindow(data);
+      return !!have && windowsOverlap(have, want);
+    });
+  } catch (_) {
+    return false;
+  }
+}
+
+/**
  * Drop emoji/pictographs from a label. The header pills are tight on a phone —
  * decorative icons cost real characters and were truncating "ניקיון בזמן שלך".
  * The dictionary strings keep their emoji for use elsewhere (modals, menus).
@@ -4805,6 +4838,12 @@ export default function HomeScreen() {
     claimingRef.current = true;
     try {
       const uid = auth.currentUser?.uid || '';
+      // הלוח כבר מסתיר עבודות חופפות, אבל זה תצלום רגעי — כרטיס ישן עדיין ניתן
+      // ללחיצה, ולכן הפעולה עצמה חייבת לבדוק שהמנקה באמת פנוי.
+      if (await isCleanerBusy(uid, String(job.bookingDate || ''), String(job.startTime || ''), Number(job.hours) || 2)) {
+        Alert.alert('', (t as any).alreadyBookedThenMsg ?? 'כבר יש לך עבודה בשעה הזו — לא ניתן לקחת שתיים חופפות');
+        return;
+      }
       let myName = auth.currentUser?.displayName || 'מנקה';
       try { const d = await getDoc(doc(db, 'users', uid)); if (d.exists() && d.data()?.name) myName = d.data()!.name; } catch (_) {}
       // תפיסה אטומית — טרנזקציה מבטיחה שרק מנקה אחד יזכה גם אם שניים לוחצים
