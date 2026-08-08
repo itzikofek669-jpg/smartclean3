@@ -8,7 +8,9 @@
     "android": "expo run:android",
     "ios": "expo run:ios",
     "web": "expo start --web",
-    "lint": "expo lint"
+    "lint": "expo lint",
+    "version:bump": "node scripts/bump-version.js",
+    "version:show": "node -e \"const a=require('./app.json').expo;console.log(a.version+' (versionCode '+a.android.versionCode+')')\""
   },
   "dependencies": {
     "@expo-google-fonts/noto-sans-devanagari": "^0.4.1",
