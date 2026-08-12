@@ -4867,7 +4867,16 @@ export default function HomeScreen() {
   useEffect(() => {
     const uid = auth.currentUser?.uid;
     if (!uid) return;
-    const q = query(collection(db, 'bookings'), where('clientUid', '==', uid), orderBy('createdAt', 'desc'));
+    // No orderBy here on purpose. Pairing where('clientUid') with
+    // orderBy('createdAt') needs a composite index, the project has none, and
+    // Firestore answers such a query with FAILED_PRECONDITION rather than data.
+    // The error callback below swallowed it, so this listener silently never
+    // fired: no calendar entry for the client, no permission prompt, no removal
+    // on cancellation, and no confirmed/cancelled popup either.
+    //
+    // The order never mattered — every document is handled independently — so
+    // dropping it is the fix, not adding an index to maintain.
+    const q = query(collection(db, 'bookings'), where('clientUid', '==', uid));
     let initialLoad = true;
     const unsub = onSnapshot(q, snap => {
       snap.docs.forEach(d => {
@@ -4902,7 +4911,12 @@ export default function HomeScreen() {
         }
       });
       initialLoad = false;
-    }, () => {});
+    }, err => {
+      // Was `() => {}`. That empty handler is what let a missing index hide:
+      // the listener failed on every snapshot and looked exactly like a client
+      // who simply had no bookings.
+      logError('home:clientBookings', err);
+    });
     return () => unsub();
   }, []);
 
