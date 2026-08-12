@@ -16,6 +16,10 @@ import {
 } from 'firebase/firestore';
 import { auth, db } from '../lib/firebase';
 import { saveAvatar as savePhotoDoc, fetchAvatar, resolvePhoto } from '../lib/photos';
+import {
+  LANGUAGE_CODES, LANGUAGE_FLAGS, WORK_DAY_CODES,
+  normalizeLanguages, normalizeWorkDays,
+} from '../lib/cleanerTraits';
 import { setActiveChat } from '../lib/chatPresence';
 import { readVoiceNote, voiceNoteSource } from '../lib/voiceNotes';
 import * as FileSystem from 'expo-file-system/legacy';
@@ -55,6 +59,13 @@ function createEP(c: AppColors) {
     pillActive:   { backgroundColor: c.blue, borderColor: c.blue },
     pillText:     { fontSize: 13, fontWeight: '600', color: c.textDark },
     pillTextActive:{ color: c.white, fontWeight: '700' },
+    // Language / work-day toggles. Same look as `pill`, but day chips get a
+    // minimum width so the seven of them line up as an even row.
+    traitChip:    { backgroundColor: c.white, borderRadius: 20, paddingHorizontal: 12, paddingVertical: 7, borderWidth: 1.5, borderColor: c.blueBorder },
+    traitDayChip: { minWidth: 46, alignItems: 'center' },
+    traitChipOn:  { backgroundColor: c.blue, borderColor: c.blue },
+    traitChipTxt: { fontSize: 13, fontWeight: '600', color: c.textDark },
+    traitChipTxtOn:{ color: c.white, fontWeight: '700' },
     saveBtn:      { backgroundColor: c.blue, borderRadius: 14, padding: 16, alignItems: 'center', marginTop: 8, marginBottom: 20 },
     saveBtnText:  { fontSize: 16, fontWeight: '800', color: c.white },
   });
@@ -742,6 +753,8 @@ export default function ProfileScreen() {
   const [editCitizenship,  setEditCitizenship]  = useState('');
   const [editExperience,   setEditExperience]   = useState('');
   const [editMaxDistance,  setEditMaxDistance]  = useState('');
+  const [editLanguages,    setEditLanguages]    = useState<string[]>([]);
+  const [editWorkDays,     setEditWorkDays]     = useState<number[]>([]);
   const [editCleanerAddress, setEditCleanerAddress] = useState('');
   const [editServicePricing,setEditServicePricing]= useState<Record<string,string>>({});
   const [editSaving,       setEditSaving]       = useState(false);
@@ -897,6 +910,8 @@ export default function ProfileScreen() {
         setEditCitizenship(d.citizenship || '');
         setEditExperience(d.experience != null ? String(d.experience) : '');
         setEditMaxDistance(d.maxDistance != null ? String(d.maxDistance) : '');
+        setEditLanguages(normalizeLanguages(d.languages));
+        setEditWorkDays(normalizeWorkDays(d.workDays));
         const sp = d.servicePricing || {};
         const spStr: Record<string,string> = {};
         Object.entries(sp).forEach(([k,v]) => { spStr[k] = String(v); });
@@ -962,6 +977,10 @@ export default function ProfileScreen() {
         citizenship:   editCitizenship.trim(),
         experience:    Number(editExperience) || 0,
         maxDistance:   Number(editMaxDistance) || 10,
+        // Canonical order on the way out, so two cleaners who ticked the same
+        // boxes in a different sequence store the identical array.
+        languages:     normalizeLanguages(editLanguages),
+        workDays:      normalizeWorkDays(editWorkDays),
         cleanerAddress:   editCleanerAddress.trim(),
         servicePricing:   spNum,
         availability,
@@ -4038,6 +4057,55 @@ export default function ProfileScreen() {
                 <View style={{ flex: 1 }}>
                   <T style={ep.label}>{t.maxDistanceLabel}</T>
                   <TextInput style={ep.input} value={editMaxDistance} onChangeText={setEditMaxDistance} placeholder="10" keyboardType="number-pad" placeholderTextColor={C.textSub} textAlign="center" />
+                </View>
+              </View>
+
+              {/* שפות — נשמרות כקודים, כך שלקוח רואה אותן בשפה שלו */}
+              <View>
+                <T style={ep.label}>{(t as any).traitLanguages ?? 'שפות'}</T>
+                <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+                  {LANGUAGE_CODES.map(code => {
+                    const on = editLanguages.includes(code);
+                    return (
+                      <TouchableOpacity
+                        key={code}
+                        onPress={() => setEditLanguages(cur =>
+                          cur.includes(code) ? cur.filter(c => c !== code) : [...cur, code])}
+                        style={[ep.traitChip, on && ep.traitChipOn]}
+                        accessibilityRole="button"
+                        accessibilityState={{ selected: on }}
+                      >
+                        <T style={[ep.traitChipTxt, on && ep.traitChipTxtOn]}>
+                          {LANGUAGE_FLAGS[code]} {(t as any).langNames?.[code] ?? code}
+                        </T>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+              </View>
+
+              {/* ימי עבודה — מספרי Date.getDay(), 0 = ראשון */}
+              <View>
+                <T style={ep.label}>{(t as any).traitWorkDays ?? 'ימי עבודה'}</T>
+                <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+                  {WORK_DAY_CODES.map(d => {
+                    const on = editWorkDays.includes(d);
+                    return (
+                      <TouchableOpacity
+                        key={d}
+                        onPress={() => setEditWorkDays(cur =>
+                          cur.includes(d) ? cur.filter(x => x !== d) : [...cur, d])}
+                        style={[ep.traitChip, ep.traitDayChip, on && ep.traitChipOn]}
+                        accessibilityRole="button"
+                        accessibilityLabel={(t as any).dayNames?.[d]}
+                        accessibilityState={{ selected: on }}
+                      >
+                        <T style={[ep.traitChipTxt, on && ep.traitChipTxtOn]}>
+                          {(t as any).dayNamesShort?.[d] ?? d}
+                        </T>
+                      </TouchableOpacity>
+                    );
+                  })}
                 </View>
               </View>
 

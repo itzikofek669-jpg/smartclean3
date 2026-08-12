@@ -3438,6 +3438,67 @@ for (const L of Object.keys(JOB_BOARD_TITLE)) {
   (translations as any)[L].jobBoardTitle = JOB_BOARD_TITLE[L];
 }
 
+// Cleaner profile details: where they are, whether they travel, how far, which
+// languages they speak and which days they work. Section headings and labels.
+const TRAITS_EXTRA: Record<string, Record<string, string>> = {
+  he: { traitsSection: 'פרטי שירות', traitLocation: 'מיקום', traitMobile: 'ניידות', traitMobileYes: '🚗 מגיע/ה אליך', traitMobileNo: '🏠 עבודה במקום קבוע', traitDistance: 'טווח הגעה', traitDistanceVal: 'עד {km} ק״מ', traitLanguages: 'שפות', traitWorkDays: 'ימי עבודה', traitNone: 'לא צוין', daysEveryDay: 'כל השבוע' },
+  en: { traitsSection: 'Service details', traitLocation: 'Location', traitMobile: 'Mobility', traitMobileYes: '🚗 Travels to you', traitMobileNo: '🏠 Works at one fixed place', traitDistance: 'Travel range', traitDistanceVal: 'Up to {km} km', traitLanguages: 'Languages', traitWorkDays: 'Working days', traitNone: 'Not specified', daysEveryDay: 'Every day' },
+  ru: { traitsSection: 'Детали услуги', traitLocation: 'Местоположение', traitMobile: 'Выезд', traitMobileYes: '🚗 Приезжает к вам', traitMobileNo: '🏠 Работает на одном месте', traitDistance: 'Радиус выезда', traitDistanceVal: 'До {km} км', traitLanguages: 'Языки', traitWorkDays: 'Рабочие дни', traitNone: 'Не указано', daysEveryDay: 'Каждый день' },
+  ar: { traitsSection: 'تفاصيل الخدمة', traitLocation: 'الموقع', traitMobile: 'التنقل', traitMobileYes: '🚗 يأتي إليك', traitMobileNo: '🏠 يعمل في مكان ثابت', traitDistance: 'نطاق التنقل', traitDistanceVal: 'حتى {km} كم', traitLanguages: 'اللغات', traitWorkDays: 'أيام العمل', traitNone: 'غير محدد', daysEveryDay: 'كل الأيام' },
+  fr: { traitsSection: 'Détails du service', traitLocation: 'Localisation', traitMobile: 'Déplacement', traitMobileYes: '🚗 Se déplace chez vous', traitMobileNo: '🏠 Travaille sur un site fixe', traitDistance: 'Rayon de déplacement', traitDistanceVal: "Jusqu'à {km} km", traitLanguages: 'Langues', traitWorkDays: 'Jours de travail', traitNone: 'Non précisé', daysEveryDay: 'Tous les jours' },
+  hi: { traitsSection: 'सेवा विवरण', traitLocation: 'स्थान', traitMobile: 'आवागमन', traitMobileYes: '🚗 आपके पास आते हैं', traitMobileNo: '🏠 एक निश्चित जगह पर काम', traitDistance: 'यात्रा सीमा', traitDistanceVal: '{km} किमी तक', traitLanguages: 'भाषाएँ', traitWorkDays: 'कार्य दिवस', traitNone: 'निर्दिष्ट नहीं', daysEveryDay: 'हर दिन' },
+  uk: { traitsSection: 'Деталі послуги', traitLocation: 'Місцезнаходження', traitMobile: 'Виїзд', traitMobileYes: '🚗 Приїжджає до вас', traitMobileNo: '🏠 Працює на одному місці', traitDistance: 'Радіус виїзду', traitDistanceVal: 'До {km} км', traitLanguages: 'Мови', traitWorkDays: 'Робочі дні', traitNone: 'Не вказано', daysEveryDay: 'Щодня' },
+};
+for (const L of Object.keys(TRAITS_EXTRA)) {
+  Object.assign((translations as any)[L], TRAITS_EXTRA[L]);
+}
+
+/**
+ * Language names, each rendered in the VIEWER's language — a Hebrew client sees
+ * "רוסית", an English one "Russian". That is the whole point of storing codes.
+ */
+const LANG_NAMES: Record<string, Record<string, string>> = {
+  he: { he: 'עברית', en: 'אנגלית', ru: 'רוסית', ar: 'ערבית', fr: 'צרפתית', hi: 'הינדי', uk: 'אוקראינית' },
+  en: { he: 'Hebrew', en: 'English', ru: 'Russian', ar: 'Arabic', fr: 'French', hi: 'Hindi', uk: 'Ukrainian' },
+  ru: { he: 'Иврит', en: 'Английский', ru: 'Русский', ar: 'Арабский', fr: 'Французский', hi: 'Хинди', uk: 'Украинский' },
+  ar: { he: 'العبرية', en: 'الإنجليزية', ru: 'الروسية', ar: 'العربية', fr: 'الفرنسية', hi: 'الهندية', uk: 'الأوكرانية' },
+  fr: { he: 'Hébreu', en: 'Anglais', ru: 'Russe', ar: 'Arabe', fr: 'Français', hi: 'Hindi', uk: 'Ukrainien' },
+  hi: { he: 'हिब्रू', en: 'अंग्रेज़ी', ru: 'रूसी', ar: 'अरबी', fr: 'फ़्रेंच', hi: 'हिन्दी', uk: 'यूक्रेनी' },
+  uk: { he: 'Іврит', en: 'Англійська', ru: 'Російська', ar: 'Арабська', fr: 'Французька', hi: 'Гінді', uk: 'Українська' },
+};
+
+/**
+ * Weekday names indexed by `Date.getDay()` — 0 is Sunday. `dayNamesShort` is
+ * for the chips in the picker, where seven full names would not fit.
+ */
+const DAY_NAMES: Record<string, string[]> = {
+  he: ['ראשון', 'שני', 'שלישי', 'רביעי', 'חמישי', 'שישי', 'שבת'],
+  en: ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'],
+  ru: ['Воскресенье', 'Понедельник', 'Вторник', 'Среда', 'Четверг', 'Пятница', 'Суббота'],
+  ar: ['الأحد', 'الإثنين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'الجمعة', 'السبت'],
+  fr: ['Dimanche', 'Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi', 'Samedi'],
+  hi: ['रविवार', 'सोमवार', 'मंगलवार', 'बुधवार', 'गुरुवार', 'शुक्रवार', 'शनिवार'],
+  uk: ['Неділя', 'Понеділок', 'Вівторок', 'Середа', 'Четвер', "П'ятниця", 'Субота'],
+};
+
+const DAY_NAMES_SHORT: Record<string, string[]> = {
+  he: ['א', 'ב', 'ג', 'ד', 'ה', 'ו', 'ש'],
+  en: ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'],
+  ru: ['Вс', 'Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб'],
+  ar: ['أحد', 'إثن', 'ثلا', 'أرب', 'خمي', 'جمع', 'سبت'],
+  fr: ['Dim', 'Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam'],
+  hi: ['रवि', 'सोम', 'मंगल', 'बुध', 'गुरु', 'शुक्र', 'शनि'],
+  uk: ['Нд', 'Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб'],
+};
+
+for (const L of Object.keys(LANG_NAMES)) {
+  Object.assign((translations as any)[L], {
+    langNames: LANG_NAMES[L],
+    dayNames: DAY_NAMES[L],
+    dayNamesShort: DAY_NAMES_SHORT[L],
+  });
+}
+
 // "at <hour>" connector between a job's date and its start time.
 const AT_HOUR: Record<string, string> = {
   he: 'בשעה', en: 'at', ru: 'в', ar: 'في الساعة',

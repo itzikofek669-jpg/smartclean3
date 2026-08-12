@@ -22,6 +22,9 @@ import { auth, db } from '../lib/firebase';
 import { resolvePhoto } from '../lib/photos';
 import { useAvatar } from '../lib/useAvatar';
 import {
+  LANGUAGE_FLAGS, groupConsecutiveDays, normalizeLanguages, normalizeWorkDays,
+} from '../lib/cleanerTraits';
+import {
   CITY_COORDS, CITY_KEYS_BY_LEN, REGION_CENTER, regionFromLat,
   cityNameOf, getCoordsForCleaner, getJobCoords,
   getDistanceKm, getDistanceMeters,
@@ -856,6 +859,73 @@ function ReviewsModal({ cleaner, visible, onClose }: any) {
 }
 
 // ─── Cleaner profile modal ───────────────────────────────────────────────────
+/**
+ * "Service details" rows on a cleaner's profile. Kept as its own component so
+ * the empty-field logic lives in one place rather than five inline guards.
+ *
+ * Languages and days are stored as codes and labelled from the VIEWER's
+ * dictionary — a cleaner who ticked "עברית" reads as "Hebrew" to an English
+ * client. See lib/cleanerTraits.ts.
+ */
+function CleanerTraitsSection({ cleaner, s, t }: any) {
+  const languages = normalizeLanguages(cleaner?.languages);
+  const workDays  = normalizeWorkDays(cleaner?.workDays);
+  const place     = cleaner?.cleanerAddress || cleaner?.city;
+  const cityLabel = place ? (t.cities?.[place] || place) : '';
+  const distance  = Number(cleaner?.maxDistance) || 0;
+  // Absent means mobile: cleaners predating the flag all travelled to clients.
+  const isMobile  = cleaner?.isMobile;
+  const showDistance = isMobile !== false && distance > 0;
+
+  if (!cityLabel && !languages.length && !workDays.length
+      && isMobile === undefined && !showDistance) return null;
+
+  const dayName = (d: number) => (t.dayNames?.[d] ?? String(d));
+  const daysLabel = () => {
+    if (workDays.length === 7) return t.daysEveryDay ?? 'כל השבוע';
+    return groupConsecutiveDays(workDays)
+      .map((g: number[]) => (g.length >= 3
+        ? `${dayName(g[0])}–${dayName(g[g.length - 1])}`
+        : g.map(dayName).join(', ')))
+      .join(', ');
+  };
+
+  const Row = ({ label, value }: { label: string; value: string }) => (
+    <View style={s.traitRow}>
+      <T style={s.traitLabel}>{label}</T>
+      <T style={s.traitValue} numberOfLines={2}>{value}</T>
+    </View>
+  );
+
+  return (
+    <View style={s.profileSection}>
+      <T style={s.profileSectionTitle}>{t.traitsSection ?? 'פרטי שירות'}</T>
+      <View style={s.traitList}>
+        {!!cityLabel && <Row label={t.traitLocation ?? 'מיקום'} value={`📍 ${cityLabel}`} />}
+        {isMobile !== undefined && (
+          <Row
+            label={t.traitMobile ?? 'ניידות'}
+            value={isMobile ? (t.traitMobileYes ?? '🚗 מגיע/ה אליך') : (t.traitMobileNo ?? '🏠 עבודה במקום קבוע')}
+          />
+        )}
+        {showDistance && (
+          <Row
+            label={t.traitDistance ?? 'טווח הגעה'}
+            value={String(t.traitDistanceVal ?? 'עד {km} ק״מ').replace('{km}', String(distance))}
+          />
+        )}
+        {languages.length > 0 && (
+          <Row
+            label={t.traitLanguages ?? 'שפות'}
+            value={languages.map((c: string) => `${LANGUAGE_FLAGS[c as never] ?? ''} ${t.langNames?.[c] ?? c}`.trim()).join(', ')}
+          />
+        )}
+        {workDays.length > 0 && <Row label={t.traitWorkDays ?? 'ימי עבודה'} value={daysLabel()} />}
+      </View>
+    </View>
+  );
+}
+
 function CleanerProfile({ cleaner, visible, onClose, onBook, onChat, initialShowReviews }: any) {
   const { t } = useLanguage();
   const C = useAppColors();
@@ -948,6 +1018,12 @@ function CleanerProfile({ cleaner, visible, onClose, onBook, onChat, initialShow
                 : ''}
             </T>
           </View>
+
+          {/* Service details: where they are, whether they travel, how far,
+              which languages they speak and which days they work. Each row is
+              skipped when unset, so a sparse profile shows a short card rather
+              than a column of "not specified". Mirrors the web's CleanerTraits. */}
+          <CleanerTraitsSection cleaner={cleaner} s={s} t={t} />
 
           {/* Supplies badge */}
           {cleaner.bringSupplies !== null && cleaner.bringSupplies !== undefined && (
@@ -6302,6 +6378,11 @@ function createS(c: AppColors) {
   statLabel:    { fontSize: 11, color: 'rgba(255,255,255,0.7)', marginTop: 2 },
   profileSection:     { backgroundColor: c.white, margin: 12, marginBottom: 0, borderRadius: 16, padding: 16, borderWidth: 1, borderColor: c.blueBorder, alignItems: 'center' },
   profileSectionTitle:{ fontSize: 15, fontWeight: '800', color: c.textDark, marginBottom: 10, textAlign: 'center' },
+  // Service-details rows (location / mobility / range / languages / days).
+  traitList:  { gap: 0 },
+  traitRow:   { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12, paddingVertical: 8, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: c.blueBorder },
+  traitLabel: { fontSize: 13, fontWeight: '700', color: c.textSub, flexShrink: 0 },
+  traitValue: { fontSize: 13.5, fontWeight: '800', color: c.textDark, flex: 1, textAlign: 'left' },
   profileBio:         { fontSize: 14, color: c.textMid, lineHeight: 22, textAlign: 'center' },
   phonePill:          { backgroundColor: c.blueLight, borderRadius: 10, paddingHorizontal: 14, paddingVertical: 10, borderWidth: 1, borderColor: c.blueBorder },
   phonePillText:      { fontSize: 14, fontWeight: '700', color: c.blue },
