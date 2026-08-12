@@ -11,12 +11,14 @@ import * as ImageManipulator from 'expo-image-manipulator';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
-  doc, getDoc, setDoc, updateDoc, addDoc, deleteDoc,
+  doc, getDoc, setDoc, updateDoc, addDoc, deleteDoc, deleteField,
   collection, query, where, orderBy, arrayRemove, arrayUnion, onSnapshot, runTransaction,
 } from 'firebase/firestore';
-import { auth, db , storage } from '../lib/firebase';
+import { auth, db } from '../lib/firebase';
+import { saveAvatar as savePhotoDoc, fetchAvatar, resolvePhoto } from '../lib/photos';
 import { setActiveChat } from '../lib/chatPresence';
-import { ref as storageRef, uploadBytes, getDownloadURL } from 'firebase/storage';
+import { readVoiceNote, voiceNoteSource } from '../lib/voiceNotes';
+import * as FileSystem from 'expo-file-system/legacy';
 // expo-audio — הקלטה והשמעה של הודעות קוליות (SDK 54, מחליף את expo-av)
 import { useAudioRecorder, createAudioPlayer, RecordingPresets, setAudioModeAsync, AudioModule } from 'expo-audio';
 import { useLanguage, T, useAppColors, AppColors } from '../lib/LanguageContext';
@@ -28,6 +30,7 @@ import { TAB_BAR_CONTENT_HEIGHT } from '../lib/BottomTabBar';
 import * as Notifications from 'expo-notifications';
 import Constants from 'expo-constants';
 import { addBookingToCalendar, removeBookingFromCalendar } from '../lib/calendarSync';
+import { logError } from '../lib/logError';
 
 
 function createRM(c: AppColors) {
@@ -641,7 +644,7 @@ export default function ProfileScreen() {
         lastSenderUid: myUid,
         unreadBy: [clientUid],
       }, { merge: true });
-    } catch (_) {}
+    } catch (err) { logError('profile:write', err); }
   };
 
   // ── תפריט נפתח: הזמנות שקיבלתי (מנקה) ──
@@ -704,7 +707,7 @@ export default function ProfileScreen() {
         lastSenderUid: uid,
         unreadBy: [clientUid],
       }, { merge: true });
-    } catch (_) {}
+    } catch (err) { logError('profile:write', err); }
   };
 
   const suggestTimeChange = async () => {
@@ -745,7 +748,6 @@ export default function ProfileScreen() {
   // Payment details (cleaner)
   const [editBitPhone,        setEditBitPhone]        = useState('');
   const [editPayboxLink,      setEditPayboxLink]      = useState('');
-  const [editWhatsappGroupId, setEditWhatsappGroupId] = useState('');
   const [editBankName,        setEditBankName]        = useState('');
   const [editBankNum,      setEditBankNum]      = useState('');
   const [editBankBranch,   setEditBankBranch]   = useState('');
@@ -901,7 +903,6 @@ export default function ProfileScreen() {
         // אם אין מחיר לניקיון רגיל — מלא מהמחיר הישן
         if (!spStr['ניקיון רגיל'] && d.price) spStr['ניקיון רגיל'] = String(d.price);
         setEditServicePricing(spStr);
-        setEditWhatsappGroupId(d.whatsappGroupId || '');
         setEditBitPhone(d.bitPhone || '');
         setEditPayboxLink(d.payboxLink || '');
         setEditBankName(d.bankName || '');
@@ -963,7 +964,6 @@ export default function ProfileScreen() {
         maxDistance:   Number(editMaxDistance) || 10,
         cleanerAddress:   editCleanerAddress.trim(),
         servicePricing:   spNum,
-        whatsappGroupId:  editWhatsappGroupId.trim(),
         availability,
         bitPhone:         editBitPhone.trim(),
         payboxLink:       editPayboxLink.trim(),
@@ -1018,7 +1018,13 @@ export default function ProfileScreen() {
           setUserEmail(d.email      || '');
           setUserRole(d.role        || '');
           setHasPushToken(!!d.pushToken);
-          setPhotoB64(d.photoB64    || null);
+          // Legacy documents still carry the photo inline; current ones keep it
+          // in `userPhotos/{uid}`, so fall through to a fetch when there's
+          // nothing inline. Without the fallback the profile screen shows an
+          // empty avatar to everyone who already has one.
+          const inline = resolvePhoto(d);
+          if (inline) setPhotoB64(inline);
+          else if (d.hasPhoto !== false) fetchAvatar(uid).then((url) => { if (url) setPhotoB64(url); });
           setWorkAreas(d.workAreas  || []);
           const rawAvail = d.availability || {};
           const parsedAvail: Record<string, { active: boolean; start: number; end: number }> = {};
@@ -1047,7 +1053,7 @@ export default function ProfileScreen() {
           setCleanerBankBranch(d.bankBranch || '');
           setCleanerBankAccount(d.bankAccount || '');
         }
-      } catch (_) {}
+      } catch (err) { logError('profile:write', err); }
       finally { setLoading(false); }
       // טען כתובות שמורות (לקוח)
       loadAddrs();
@@ -1121,9 +1127,9 @@ export default function ProfileScreen() {
           if (!perm.granted) return Alert.alert(t.error, t.galleryPermDenied);
           const res = await ImagePicker.launchImageLibraryAsync({
             mediaTypes: ImagePicker.MediaTypeOptions.Images,
-            allowsEditing: true, aspect: [1,1], quality: 0.15, base64: true,
+            allowsEditing: true, aspect: [1,1], quality: 1, base64: false, exif: false,
           });
-          if (!res.canceled && res.assets[0].base64) saveBase64(res.assets[0].base64);
+          if (!res.canceled) saveAvatar(res.assets[0]?.uri);
         },
       },
       {
@@ -1132,21 +1138,47 @@ export default function ProfileScreen() {
           const perm = await ImagePicker.requestCameraPermissionsAsync();
           if (!perm.granted) return Alert.alert(t.error, t.cameraPermDenied);
           const res = await ImagePicker.launchCameraAsync({
-            allowsEditing: true, aspect: [1,1], quality: 0.15, base64: true,
+            allowsEditing: true, aspect: [1,1], quality: 1, base64: false, exif: false,
           });
-          if (!res.canceled && res.assets[0].base64) saveBase64(res.assets[0].base64);
+          if (!res.canceled) saveAvatar(res.assets[0]?.uri);
         },
       },
       { text: t.cancel, style: 'cancel' },
     ]);
   };
 
-  const saveBase64 = async (b64: string) => {
+  /**
+   * Resize the picked image and store it in its own document.
+   *
+   * This used to write the raw base64 straight into the user document as
+   * `photoB64`, which meant the cleaner list downloaded every cleaner's photo
+   * just to render a row of names, all sharing one 1 MiB budget. A detour
+   * through Cloud Storage followed and had to be undone — Storage was never
+   * enabled on this project (see lib/photos.ts). The photo now lives in
+   * `userPhotos/{uid}`, which solves both without needing a bucket.
+   *
+   * The legacy inline fields are cleared so the old blob stops riding along in
+   * every read of this document.
+   */
+  const saveAvatar = async (localUri?: string) => {
+    if (!localUri) return;
     setUploading(true);
     try {
-      const dataUri = `data:image/jpeg;base64,${b64}`;
-      await setDoc(doc(db, 'users', uid), { photoB64: dataUri }, { merge: true });
-      setPhotoB64(dataUri);
+      const out = await ImageManipulator.manipulateAsync(
+        localUri,
+        [{ resize: { width: 512 } }],
+        { compress: 0.6, format: ImageManipulator.SaveFormat.JPEG, base64: true },
+      );
+      const dataUrl = out.base64
+        ? `data:image/jpeg;base64,${out.base64}`
+        : out.uri;
+      await savePhotoDoc(uid, dataUrl);
+      await setDoc(
+        doc(db, 'users', uid),
+        { hasPhoto: true, photoB64: deleteField(), photo: deleteField(), photoUrl: deleteField() },
+        { merge: true },
+      );
+      setPhotoB64(dataUrl);
     } catch (e: any) {
       Alert.alert(t.error, e?.message || t.saveImageError);
     } finally {
@@ -1482,13 +1514,21 @@ export default function ProfileScreen() {
       await cleanerRecorder.stop();
       const uri = cleanerRecorder.uri;
       if (!uri || !chatId) return;
-      const resp = await fetch(uri);
-      const blob = await resp.blob();
-      const audioRef = storageRef(storage, `chats/${chatId}/audio_${Date.now()}.m4a`);
-      await uploadBytes(audioRef, blob);
-      const audioUrl = await getDownloadURL(audioRef);
+      // Inline in the message document, like the client side has always done.
+      // This used to upload to Cloud Storage, on a project where Storage was
+      // never enabled — so no cleaner voice note has ever actually sent.
+      // See lib/voiceNotes.ts.
+      let audioBase64: string;
+      try {
+        audioBase64 = await readVoiceNote(uri);
+      } catch (err: any) {
+        if (err?.name === 'VoiceNoteTooLongError') {
+          return Alert.alert(t.audioTooLongTitle, t.audioTooLongMsg);
+        }
+        throw err;
+      }
       await addDoc(collection(db, 'chats', chatId, 'messages'), {
-        type: 'audio', audioUrl,
+        type: 'audio', audioBase64,
         from: 'cleaner', fromUid: uid,
         createdAt: new Date().toISOString(),
       });
@@ -1502,7 +1542,11 @@ export default function ProfileScreen() {
     } catch (_) { Alert.alert(t.error, t.audioSendError); }
   };
 
-  const playCleanerAudio = async (audioUrl: string, msgId: string) => {
+  // Takes the whole message: notes are inline now, but a few old ones may still
+  // carry a Storage URL. voiceNoteSource picks whichever is there.
+  const playCleanerAudio = async (m: { audioBase64?: string; audioUrl?: string }, msgId: string) => {
+    const src = voiceNoteSource(m);
+    if (!src) return;
     if (chatSoundRef.current) {
       try { chatSoundRef.current.remove(); } catch (_) {}
       chatSoundRef.current = null;
@@ -1510,7 +1554,16 @@ export default function ProfileScreen() {
     if (chatPlayingId === msgId) { setChatPlayingId(null); return; }
     try {
       await setAudioModeAsync({ allowsRecording: false, playsInSilentMode: true });
-      const player = createAudioPlayer({ uri: audioUrl });
+      let playSrc = src;
+      // data URI → write to a temp file; Android's player is unreliable with
+      // inline data URIs. Same approach as app/messages.tsx.
+      if (src.startsWith('data:')) {
+        const base64 = src.substring(src.indexOf(',') + 1);
+        const path = (FileSystem.cacheDirectory || '') + `voice_${msgId}.m4a`;
+        await FileSystem.writeAsStringAsync(path, base64, { encoding: 'base64' as any });
+        playSrc = path;
+      }
+      const player = createAudioPlayer({ uri: playSrc });
       chatSoundRef.current = player;
       setChatPlayingId(msgId);
       let started = false;
@@ -1542,7 +1595,7 @@ export default function ProfileScreen() {
         const clientSnap = await getDoc(doc(db, 'users', b.clientUid));
         const token = clientSnap.data()?.pushToken;
         if (token) await sendPushNotification(token, t.pushCleaningStarted, t.pushCleaningStartedBody);
-      } catch (_) {}
+      } catch (err) { logError('profile:write', err); }
     } catch (_) {
       Alert.alert(t.error, t.updateStatusError);
     }
@@ -1698,7 +1751,14 @@ export default function ProfileScreen() {
           const oldRating = d.rating || 0;
           const newCount = oldCount + 1;
           const newRating = Math.round(((oldRating * oldCount) + stars) / newCount * 10) / 10;
-          tx.update(cleanerRef, { rating: newRating, reviewCount: newCount, reviews: newCount });
+          // כל האיותים: המובייל קורא reviewCount, הווב קורא reviewsCount.
+          // הרשימה חייבת להתאים ל-isValidRatingUpdate ב-firestore.rules.
+          tx.update(cleanerRef, {
+            rating: newRating,
+            reviewCount: newCount,
+            reviews: newCount,
+            reviewsCount: newCount,
+          });
         });
       } catch (_) {}
       setBookings(prev => prev.map(b =>
@@ -1716,7 +1776,7 @@ export default function ProfileScreen() {
       setIncomingBks(prev => prev.map(b =>
         b.id === rateTarget.id ? { ...b, clientRating: stars } : b
       ));
-    } catch (_) {}
+    } catch (err) { logError('profile:write', err); }
     setRateTarget(null);
   };
 
@@ -1857,7 +1917,7 @@ export default function ProfileScreen() {
           lastSenderUid: uid,
           unreadBy: [b.clientUid],
         }, { merge: true });
-      } catch (_) {}
+      } catch (err) { logError('profile:write', err); }
     } catch (e: any) {
       Alert.alert(t.error, e?.message || 'שגיאה');
     }
@@ -2596,7 +2656,7 @@ export default function ProfileScreen() {
                       return (
                         <View style={{ alignItems: isMe ? 'flex-end' : 'flex-start' }}>
                           <TouchableOpacity
-                            onPress={() => playCleanerAudio(item.audioUrl, item.id)}
+                            onPress={() => playCleanerAudio(item, item.id)}
                             style={{ flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: isMe ? C.blue : C.white, borderRadius: 16, paddingHorizontal: 14, paddingVertical: 10, maxWidth: '80%', borderWidth: isMe ? 0 : 1, borderColor: C.blueBorder, elevation: 1 }}
                           >
                             <T style={{ fontSize: 22 }}>{isPlaying ? '⏸' : '▶️'}</T>
@@ -2656,13 +2716,13 @@ export default function ProfileScreen() {
                     </TouchableOpacity>
                   ) : (
                     <>
-                      <TouchableOpacity
+                      <TouchableOpacity accessibilityRole="button" accessibilityLabel="צרף תמונה"
                         style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: C.blueLight, alignItems: 'center', justifyContent: 'center' }}
                         onPress={sendCleanerImage}
                       >
                         <T style={{ fontSize: 20 }}>📷</T>
                       </TouchableOpacity>
-                      <TouchableOpacity
+                      <TouchableOpacity accessibilityRole="button" accessibilityLabel="הקלט הודעה קולית"
                         style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: chatIsRecording ? '#EF4444' : '#25D366', alignItems: 'center', justifyContent: 'center' }}
                         onPressIn={startCleanerRecording}
                         onPressOut={stopAndSendCleanerRecording}
@@ -2726,8 +2786,8 @@ export default function ProfileScreen() {
                                   await sendPushNotification(tok, (t as any).pushBookingCancelledTitle ?? '❌ הזמנה בוטלה', ((t as any).pushBookingCancelledBody ?? 'ההזמנה בוטלה על ידי {who}').replace('{who}', pcb.cleanerName || 'המנקה') + (dl ? ` · ${dl}` : ''), { type: 'booking_cancelled', bookingId: pcb.id });
                                 }
                               }
-                            } catch (_) {}
-                          } catch (_) {}
+                            } catch (err) { logError('profile:write', err); }
+                          } catch (err) { logError('profile:write', err); }
                           incomingBks.forEach((x: any) => { if (x.status === 'pending') SHOWN_PENDING.add(x.id); });
                           setPendingConfirmBooking(null);
                         }},
@@ -3659,7 +3719,7 @@ export default function ProfileScreen() {
                   <View key={m.id} style={{ alignItems: isMe ? 'flex-end' : 'flex-start' }}>
                     <TouchableOpacity
                       style={[s.chatAudioBubble, isMe ? s.chatAudioBubbleMe : s.chatAudioBubbleOther]}
-                      onPress={() => playCleanerAudio(m.audioUrl, m.id)}
+                      onPress={() => playCleanerAudio(m, m.id)}
                     >
                       <T style={{ fontSize: 22 }}>{isPlaying ? '⏸' : '▶️'}</T>
                       <T style={{ color: isMe ? C.textDark : C.white, fontSize: 13, marginLeft: 6 }}>
@@ -3699,7 +3759,7 @@ export default function ProfileScreen() {
                     <T style={{ color: '#fff', fontWeight: '800', fontSize: 13, backgroundColor: '#EF4444', paddingHorizontal: 14, paddingVertical: 5, borderRadius: 14, overflow: 'hidden' }}>{t.recordingAudio}</T>
                   </View>
                 )}
-                <TouchableOpacity style={s.chatSendBtn} onPress={sendCleanerMessage}>
+                <TouchableOpacity accessibilityRole="button" accessibilityLabel="נגן" style={s.chatSendBtn} onPress={sendCleanerMessage}>
                   <T style={{ color: C.white, fontSize: 18 }}>▶</T>
                 </TouchableOpacity>
                 <TextInput
@@ -3711,13 +3771,13 @@ export default function ProfileScreen() {
                   textAlign="right"
                   onSubmitEditing={sendCleanerMessage}
                 />
-                <TouchableOpacity
+                <TouchableOpacity accessibilityRole="button" accessibilityLabel="צרף תמונה"
                   style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: C.blueLight, alignItems: 'center', justifyContent: 'center', marginHorizontal: 4 }}
                   onPress={sendCleanerImage}
                 >
                   <T style={{ fontSize: 20 }}>📷</T>
                 </TouchableOpacity>
-                <TouchableOpacity
+                <TouchableOpacity accessibilityRole="button" accessibilityLabel="הקלט הודעה קולית"
                   style={[s.chatMicBtn, chatIsRecording && s.chatMicBtnRecording, { backgroundColor: chatIsRecording ? '#EF4444' : '#25D366', borderWidth: 0 }]}
                   onPressIn={startCleanerRecording}
                   onPressOut={stopAndSendCleanerRecording}

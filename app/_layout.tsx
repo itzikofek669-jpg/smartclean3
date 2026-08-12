@@ -12,6 +12,7 @@ import { LanguageProvider } from '../lib/LanguageContext';
 import { ThemeProvider } from '../lib/ThemeContext';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { useFonts, NotoSansDevanagari_400Regular } from '@expo-google-fonts/noto-sans-devanagari';
+import ErrorBoundary from '../lib/ErrorBoundary';
 
 // Hide the Expo Go push-notification warnings (remote push isn't supported in
 // Expo Go since SDK 53; works in a real build). Avoids the red error overlay.
@@ -137,7 +138,8 @@ export default function RootLayout() {
         setReady(true);
         const seg0 = segments[0] as string | undefined;
         const inAuth = seg0 === undefined || seg0 === 'index' || seg0 === 'register';
-        const ADMIN_EMAILS = ['cleantouchapp@gmail.com'];
+        // חייב להיות זהה ל-isAdmin() ב-firestore.rules ולרשימות בווב ובפונקציות.
+        const ADMIN_EMAILS = ['cleantouchapp@gmail.com', 'itzikofek669@gmail.com'];
         if (!user && !inAuth) router.replace('/');
         else if (user && inAuth) {
           if (user.email && ADMIN_EMAILS.includes(user.email.toLowerCase())) {
@@ -249,12 +251,17 @@ export default function RootLayout() {
 
   if (!ready || (!fontsLoaded && !fontError)) return null;
 
+  // הגבול יושב בתוך הספקים ולא מחוץ להם: מסך הקריסה צריך להיות מסוגל להציג
+  // עברית בערכת הנושא של המשתמש. בלעדיו, שגיאת רינדור אחת מפרקת את כל העץ
+  // ומשאירה מסך לבן שאפשר לצאת ממנו רק בסגירה כפויה של האפליקציה.
   return (
     <SafeAreaProvider>
       <View style={ls.root}>
         <ThemeProvider>
           <LanguageProvider>
-            <Stack screenOptions={{ headerShown: false }} />
+            <ErrorBoundary context="root">
+              <Stack screenOptions={{ headerShown: false }} />
+            </ErrorBoundary>
           </LanguageProvider>
         </ThemeProvider>
       </View>

@@ -19,6 +19,22 @@ import { signOut } from 'firebase/auth';
 import * as SecureStore from 'expo-secure-store';
 import { collection, addDoc, getDocs, query, where, doc, getDoc, setDoc, onSnapshot, orderBy, updateDoc, arrayUnion, arrayRemove, runTransaction } from 'firebase/firestore';
 import { auth, db } from '../lib/firebase';
+import { resolvePhoto } from '../lib/photos';
+import { useAvatar } from '../lib/useAvatar';
+import {
+  CITY_COORDS, CITY_KEYS_BY_LEN, REGION_CENTER, regionFromLat,
+  cityNameOf, getCoordsForCleaner, getJobCoords,
+  getDistanceKm, getDistanceMeters,
+  formatJobDate, bookingBusyWindow, windowsOverlap,
+  stripEmoji, countWords, limitWords, buildFullAddress,
+} from '../lib/jobUtils';
+
+// Re-exported so the screens that already import these from `home` keep working
+// while the helpers themselves live in lib/jobUtils.
+export {
+  getJobCoords, formatJobDate, stripEmoji,
+  countWords, limitWords, buildFullAddress,
+};
 import { setActiveChat } from '../lib/chatPresence';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { useLanguage, HC, T, useAppColors, AppColors } from '../lib/LanguageContext';
@@ -33,6 +49,8 @@ import { useAudioRecorder, createAudioPlayer, RecordingPresets, setAudioModeAsyn
 import * as ImagePicker from 'expo-image-picker';
 import * as ImageManipulator from 'expo-image-manipulator';
 import * as FileSystem from 'expo-file-system/legacy';
+import { readVoiceNote } from '../lib/voiceNotes';
+import { logError } from '../lib/logError';
 
 
 const W = Dimensions.get('window').width;
@@ -72,7 +90,17 @@ const RL = [
   { name: 'רחל כ.',  stars: 4, text: 'ממליצה, עבודה יסודית.' },
 ];
 
-const CLEANERS = [
+// ── מנקי דמו קשיחים — לפיתוח בלבד ────────────────────────────────────────────
+//
+// ⚠️ DEVELOPMENT ONLY, בדיוק כמו BOTS למטה: דירוגים מומצאים (4.9), מאות
+// "ביקורות" בדויות וביקורות טקסט כתובות מראש (RL). הצגת נותני שירות ודירוגים
+// בדויים לצרכן היא הטעיה לפי חוק הגנת הצרכן.
+//
+// המערך הזה כבר לא נכנס ל-ALL_CLEANERS, כלומר הוא אינו מוצג כרשימת מנקים —
+// הוא נשאר כאן רק בשביל חיפוש/השלמה בפיתוח. בבילד פרודקשן הוא ריק, ולכן גם
+// אין לו יותר השפעה על שום חישוב אמיתי (ראה getCoordsForCleaner במקום החיפוש
+// הישן שהסתמך עליו).
+const CLEANERS = !__DEV__ ? [] : [
   { id:'1',  name:'מירה כהן',    initials:'מכ', city:'חיפה',         region:'north',  workAreas:['north'],  types:['ניקוי לפסח','חלונות'],      price:80,  rating:4.9, reviews:142, available:true,  payment:['cash','bit','paybox'], lat:32.794, lng:34.989, bio:'מנקה מקצועית.', reviewsList:RL },
   { id:'2',  name:'כרמל אבו',    initials:'כא', city:'חיפה',         region:'north',  workAreas:['north'],  types:['שטיפת רכב','חלונות'],       price:65,  rating:4.6, reviews:87,  available:false, payment:['cash','bit'],        lat:32.800, lng:34.995, bio:'מומחה לשטיפת רכב.', reviewsList:RL },
   { id:'3',  name:'נועה לוי',    initials:'נל', city:'חיפה',         region:'north',  workAreas:['north'],  types:['חלונות','לאחר שיפוץ'],      price:70,  rating:4.7, reviews:63,  available:true,  payment:['cash'],               lat:32.788, lng:34.980, bio:'מנקה אמינה ויסודית.', reviewsList:RL },
@@ -324,71 +352,29 @@ const LANGS: { code: Lang; label: string; flag: string; nativeName: string }[] =
 
 const NEARBY_KM = 30;
 
-const CITY_COORDS: Record<string, { lat: number; lng: number }> = {
-  'תל אביב':        { lat: 32.087, lng: 34.789 }, 'חיפה':           { lat: 32.794, lng: 34.989 },
-  'ירושלים':        { lat: 31.782, lng: 35.218 }, 'באר שבע':        { lat: 31.252, lng: 34.791 },
-  'נתניה':          { lat: 32.329, lng: 34.857 }, 'ראשון לציון':    { lat: 31.971, lng: 34.789 },
-  'אשדוד':          { lat: 31.804, lng: 34.655 }, 'אשקלון':         { lat: 31.668, lng: 34.571 },
-  'פתח תקוה':       { lat: 32.089, lng: 34.888 }, 'כפר סבא':        { lat: 32.175, lng: 34.907 },
-  'הרצליה':         { lat: 32.165, lng: 34.843 }, 'נצרת':           { lat: 32.699, lng: 35.303 },
-  'טבריה':          { lat: 32.795, lng: 35.531 }, 'אילת':           { lat: 29.558, lng: 34.952 },
-  'עכו':            { lat: 32.928, lng: 35.082 }, 'חריש':           { lat: 32.458, lng: 35.041 },
-  'רחובות':         { lat: 31.894, lng: 34.811 }, 'בת ים':          { lat: 32.022, lng: 34.750 },
-  'רמת גן':         { lat: 32.082, lng: 34.813 }, 'הוד השרון':      { lat: 32.150, lng: 34.887 },
-  'עפולה':          { lat: 32.607, lng: 35.290 }, 'קריית שמונה':    { lat: 33.207, lng: 35.570 },
-  'מודיעין':        { lat: 31.898, lng: 35.010 }, 'מודיעין עילית':  { lat: 31.930, lng: 35.043 },
-  'לוד':            { lat: 31.952, lng: 34.895 }, 'רמלה':           { lat: 31.929, lng: 34.874 },
-  'גבעת שמואל':     { lat: 32.078, lng: 34.848 }, 'בני ברק':        { lat: 32.084, lng: 34.833 },
-  'גבעתיים':        { lat: 32.073, lng: 34.813 }, 'חולון':          { lat: 32.010, lng: 34.779 },
-  'אור יהודה':      { lat: 32.029, lng: 34.856 }, 'יבנה':           { lat: 31.877, lng: 34.741 },
-  'קריית אתא':      { lat: 32.808, lng: 35.107 }, 'קריית גת':       { lat: 31.607, lng: 34.771 },
-  'קריית מלאכי':   { lat: 31.730, lng: 34.737 }, 'קריית ביאליק':   { lat: 32.834, lng: 35.087 },
-  'קריית מוצקין':  { lat: 32.835, lng: 35.074 }, 'קריית ים':       { lat: 32.854, lng: 35.066 },
-  'נהריה':          { lat: 33.002, lng: 35.098 }, 'נצרת עילית':     { lat: 32.706, lng: 35.318 },
-  'ראש העין':       { lat: 32.095, lng: 34.957 }, 'אלעד':           { lat: 32.053, lng: 34.952 },
-  'יהוד':           { lat: 32.030, lng: 34.888 }, 'מזכרת בתיה':     { lat: 31.858, lng: 34.843 },
-  'גדרה':           { lat: 31.812, lng: 34.779 }, 'נס ציונה':       { lat: 31.930, lng: 34.797 },
-  'ראשל"צ':         { lat: 31.971, lng: 34.789 }, 'ת"א':            { lat: 32.087, lng: 34.789 },
-  'פ"ת':            { lat: 32.089, lng: 34.888 }, 'ר"ג':            { lat: 32.082, lng: 34.813 },
-  'ב"ב':            { lat: 32.084, lng: 34.833 }, 'כ"ס':            { lat: 32.175, lng: 34.907 },
-  'טירת כרמל':      { lat: 32.759, lng: 34.970 }, 'דלית אל כרמל':  { lat: 32.703, lng: 35.034 },
-  'עמק יזרעאל':    { lat: 32.600, lng: 35.200 }, 'בית שמש':        { lat: 31.743, lng: 34.988 },
-  'מעלה אדומים':   { lat: 31.773, lng: 35.296 }, 'אריאל':          { lat: 32.106, lng: 35.167 },
-  'זכרון יעקב':    { lat: 32.568, lng: 34.953 }, 'פרדס חנה':       { lat: 32.471, lng: 34.964 },
-  'מגדל העמק':      { lat: 32.677, lng: 35.238 },
-  'שדרות':          { lat: 31.524, lng: 34.596 }, 'נתיבות':         { lat: 31.421, lng: 34.594 },
-  'דימונה':         { lat: 31.069, lng: 35.033 }, 'ערד':            { lat: 31.258, lng: 35.214 },
-  'מצפה רמון':     { lat: 30.612, lng: 34.803 }, 'אופקים':         { lat: 31.312, lng: 34.620 },
-  // ערים נוספות
-  'נשר':            { lat: 32.772, lng: 35.031 }, 'נוף הגליל':      { lat: 32.706, lng: 35.318 },
-  'שפרעם':          { lat: 32.804, lng: 35.169 }, 'צפת':            { lat: 32.965, lng: 35.497 },
-  'בית שאן':        { lat: 32.498, lng: 35.499 }, 'יוקנעם':         { lat: 32.658, lng: 35.106 },
-  'סח\'נין':        { lat: 32.856, lng: 35.302 }, 'טמרה':           { lat: 32.862, lng: 35.197 },
-  'אום אל-פחם':     { lat: 32.526, lng: 35.152 }, 'מג\'ד אל-כרום': { lat: 32.908, lng: 35.255 },
-  'באקה אל-גרביה':  { lat: 32.418, lng: 35.042 }, 'כפר קאסם':      { lat: 32.116, lng: 34.977 },
-  'קלנסווה':        { lat: 32.284, lng: 34.978 }, 'טייבה':          { lat: 32.241, lng: 34.997 },
-  'אור עקיבא':      { lat: 32.508, lng: 34.921 }, 'פרדס חנה-כרכור': { lat: 32.471, lng: 34.968 },
-  'חדרה':           { lat: 32.435, lng: 34.919 }, 'כפר יונה':       { lat: 32.322, lng: 34.939 },
-  'קדימה-צורן':     { lat: 32.274, lng: 34.923 }, 'רמת השרון':      { lat: 32.146, lng: 34.840 },
-  'יהוד-מונוסון':   { lat: 32.030, lng: 34.888 }, 'גני תקווה':      { lat: 32.062, lng: 34.875 },
-  'שוהם':           { lat: 31.998, lng: 34.942 }, 'אזור':           { lat: 32.020, lng: 34.818 },
-  'מבשרת ציון':     { lat: 31.808, lng: 35.156 }, 'גבעת זאב':       { lat: 31.869, lng: 35.168 },
-  'ביתר עלית':      { lat: 31.697, lng: 35.120 }, 'מודיעין עלית':   { lat: 31.930, lng: 35.043 },
-  'רהט':            { lat: 31.393, lng: 34.754 }, 'ירוחם':          { lat: 30.987, lng: 34.930 },
-};
-const REGION_CENTER: Record<string, { lat: number; lng: number }> = {
-  north:  { lat: 32.8,  lng: 35.2  },
-  center: { lat: 32.0,  lng: 34.85 },
-  south:  { lat: 31.0,  lng: 34.8  },
-};
 
-// ── 200 בוטים מפוזרים בכל הערים בארץ (לתצוגה/דמו) ──────────────────────────────
+// ── 200 בוטים מפוזרים בכל הערים בארץ — לפיתוח בלבד ───────────────────────────
+//
+// ⚠️ DEVELOPMENT ONLY. מגודר מאחורי `__DEV__` ולא קיים בבילד פרודקשן.
+// הגידור אינו קוסמטי:
+//   • לבוטים דירוגים מומצאים (4.3–5.0) ועד 200 "ביקורות", מעורבבים ברשימה
+//     ובמפה בלי שום סימון. הצגת נותני שירות ודירוגים בדויים לצרכן היא הטעיה
+//     לפי חוק הגנת הצרכן — חשיפה משפטית, לא פגם ויזואלי.
+//   • התמונות נמשכות מ-randomuser.me: שירות של מישהו אחר, דמות של מישהו אחר,
+//     בתוך מוצר מסחרי.
+//   • שום דבר לא מנע הזמנה של בוט — ההזמנה נכתבה ל-Firestore וחיכתה לנצח
+//     למנקה שלא קיים.
+// ──────────────────────────────────────────────────────────────────────────────
 const BOT_FEMALE_NAMES = ['יעל כהן','דנה לוי','מירי אבני','רונית שגב','שירה דהן','נועה ברק','תמר גל','מיכל אזולאי','אורית פרץ','גלית מזרחי','ליאת שמש','רחל גולן','שרה כץ','לאה אדרי','חנה ביטון','אסתר נחום','רותי אשר','סיגל רון','ענת בר','מאיה לב','קרן שגיא','הילה נווה','אורלי מימון','שני דרור'];
 const BOT_MALE_NAMES = ['אבי דוד','יוסי חזן','משה עמר','דוד שלום','עמית רז','איל נוי','רן הראל','גיא ספיר','ניר אלון','עומר טל','דור שביט','אלון מור','יובל סער','ליאור דגן','אסף יונה','עידן כרמי','נדב גבע','ארז שדה','חיים פרי','יעקב נסים','אהרון רחמים','מאיר אביב','שלמה בן דוד','אורי הדר','בני זיו','גד אוחיון','זיו שני','איתי כספי'];
 const BOT_BIOS = ['מנקה מקצועית ואמינה.','שירות יסודי ומהיר.','ניקיון מושלם בכל פעם.','מנקה ותיקה ומנוסה.','דייקנית ואחראית.','שירות אדיב ומקצועי.','מומחית לניקיון בתים ומשרדים.','עבודה נקייה ומדויקת.'];
 const BOT_PAYMENTS: string[][] = [['cash'],['cash','bit'],['cash','bit','paybox'],['paybox','cash'],['bit','cash'],['cash','bit','paybox','bank']];
-function regionFromLat(lat: number): string { if (lat >= 32.4) return 'north'; if (lat <= 31.6) return 'south'; return 'center'; }
-const BOTS: any[] = (() => {
+/** מזהה מנקה דמו (`bot_0`, `bot_1`, …) — הזמנה וצ'אט מסרבים עליו בכל בילד. */
+export function isDemoCleanerId(id: any): boolean {
+  return typeof id === 'string' && id.startsWith('bot_');
+}
+
+const BOTS: any[] = !__DEV__ ? [] : (() => {
   const cities = Object.entries(CITY_COORDS);
   const typeKeys = Object.keys(TYPE_ICONS);
   const out: any[] = [];
@@ -428,7 +414,6 @@ const BOTS: any[] = (() => {
 })();
 
 // city names sorted longest-first so e.g. "קריית אתא" matches before "אתא"
-const CITY_KEYS_BY_LEN = Object.keys(CITY_COORDS).sort((a, b) => b.length - a.length);
 
 // cleaners whose address we've already geocoded this session (avoid re-hitting the geocoder)
 const _geocodedCleaners = new Set<string>();
@@ -436,21 +421,7 @@ const _geocodedCleaners = new Set<string>();
 // ── Word-limited free text (job notes) ───────────────────────────────────────
 export const JOB_NOTES_MAX_WORDS = 15;
 
-export function countWords(text: string): number {
-  return String(text || '').trim().split(/\s+/).filter(Boolean).length;
-}
 
-/**
- * Clamp free text to `max` words as the user types. Below the cap the raw input
- * is kept so a trailing space (mid-typing) survives; exactly at the cap the text
- * is collapsed so no further word can be started; above it (a paste) it's cut.
- */
-export function limitWords(text: string, max: number): string {
-  const words = String(text || '').trim().split(/\s+/).filter(Boolean);
-  if (words.length < max) return text;
-  if (words.length === max) return words.join(' ');
-  return words.slice(0, max).join(' ');
-}
 
 /**
  * Does this client already have a live request at the same date + start time?
@@ -479,13 +450,32 @@ async function hasClashingRequest(uid: string, dateStr: string, startTime: strin
 }
 
 /**
+ * Thrown when the availability check couldn't run. Distinct from "busy" so the
+ * caller can say "try again" instead of wrongly claiming the slot is taken.
+ */
+export class AvailabilityUnknownError extends Error {
+  constructor() { super('AVAILABILITY_UNKNOWN'); this.name = 'AvailabilityUnknownError'; }
+}
+
+/**
  * Is this cleaner already committed to any part of the requested window?
  *
- * `bookings` is the single source of truth for a cleaner's time — accepting an
- * urgent request also writes a booking — so one collection covers every route a
- * job can arrive by. Pending counts as busy; cancelled and finished don't, or a
- * cancellation would block the slot forever. A failed read returns false so a
- * flaky network can't stop a legitimate claim.
+ * Reads the cleaner's own `busySlots` (accepted work) and `pendingSlots`
+ * (awaiting their answer) off their user document, rather than querying the
+ * bookings collection.
+ *
+ * Why the change: a booking carries the client's full address and phone.
+ * Querying `where('cleanerId','==', someoneElse)` requires every booking to be
+ * readable by every signed-in account — the exact hole firestore.rules now
+ * closes. The slot arrays carry timestamps and nothing else, and the cleaner's
+ * own client keeps them in step with their live bookings (see the listener
+ * further down this file), so a cancellation from either side frees the hour.
+ *
+ * Pending counts as busy: a slot awaiting an answer isn't free to hand to
+ * somebody else.
+ *
+ * FAILS CLOSED. This used to return false when the read threw, so a flaky
+ * network silently produced the double bookings the check exists to prevent.
  */
 async function isCleanerBusy(
   cleanerId: string, bookingDate: string, startTime: string, hours: number,
@@ -493,170 +483,40 @@ async function isCleanerBusy(
   if (!cleanerId || !bookingDate || !startTime) return false;
   const want = bookingBusyWindow({ bookingDate, startTime, hours });
   if (!want) return false;
-  const DEAD = ['cancelled', 'done'];
+
+  const wantStart = new Date(`${bookingDate}T00:00:00`);
+  wantStart.setHours(Math.floor(want.s / 60), want.s % 60, 0, 0);
+  const wantEnd = new Date(wantStart.getTime() + (want.e - want.s) * 60000);
+
+  let snap;
   try {
-    const snap = await getDocs(query(
-      collection(db, 'bookings'),
-      where('cleanerId', '==', cleanerId),
-      where('bookingDate', '==', bookingDate),
-    ));
-    return snap.docs.some(d => {
-      const data: any = d.data();
-      if (DEAD.includes(String(data?.status))) return false;
-      const have = bookingBusyWindow(data);
-      return !!have && windowsOverlap(have, want);
-    });
+    snap = await getDoc(doc(db, 'users', cleanerId));
   } catch (_) {
-    return false;
+    throw new AvailabilityUnknownError();
   }
+  if (!snap.exists()) return false;
+
+  const data: any = snap.data() || {};
+  const slots: { from?: string; until?: string }[] = [
+    ...(Array.isArray(data.busySlots) ? data.busySlots : []),
+    ...(Array.isArray(data.pendingSlots) ? data.pendingSlots : []),
+  ];
+
+  return slots.some(s => {
+    if (!s?.from || !s?.until) return false;
+    const from = new Date(s.from).getTime();
+    const until = new Date(s.until).getTime();
+    if (isNaN(from) || isNaN(until)) return false;
+    return from < wantEnd.getTime() && until > wantStart.getTime();
+  });
 }
 
-/**
- * Drop emoji/pictographs from a label. The header pills are tight on a phone —
- * decorative icons cost real characters and were truncating "ניקיון בזמן שלך".
- * The dictionary strings keep their emoji for use elsewhere (modals, menus).
- */
-export function stripEmoji(s: string): string {
-  return String(s || '')
-    .replace(/[\u{1F000}-\u{1FFFF}\u{2600}-\u{27BF}\u{2B00}-\u{2BFF}\u{FE0F}\u{200D}]/gu, '')
-    .trim();
-}
 
-/**
- * Resolve a JOB's coordinates, or null when they genuinely can't be determined.
- *
- * Unlike `getCoordsForCleaner` — which always falls back to a region centre so a
- * cleaner still lands somewhere on the map — a job with an unrecognised city must
- * yield null. Otherwise it inherits a fabricated centre-of-country distance and
- * can sort ahead of jobs that are actually nearby (and slip past the max-distance
- * filter). Callers treat null as "unknown distance" and sort those last.
- */
-export function getJobCoords(j: any): { lat: number; lng: number } | null {
-  if (typeof j?.lat === 'number' && typeof j?.lng === 'number' && !isNaN(j.lat) && !isNaN(j.lng)) {
-    return { lat: j.lat, lng: j.lng };
-  }
-  const hay = `${j?.addrCity || ''} ${j?.city || ''} ${j?.address || ''}`.trim();
-  if (!hay) return null;
-  for (const key of CITY_KEYS_BY_LEN) {
-    if (hay.includes(key)) return CITY_COORDS[key];
-  }
-  return null;
-}
 
-/**
- * Format a stored ISO date (`YYYY-MM-DD`) as day-first `DD/MM/YYYY`, the order
- * Hebrew readers expect. Anything not matching that shape is returned unchanged.
- */
-export function formatJobDate(iso: string): string {
-  const m = String(iso || '').trim().match(/^(\d{4})-(\d{2})-(\d{2})$/);
-  return m ? `${m[3]}/${m[2]}/${m[1]}` : String(iso || '');
-}
 
-// Turn a booking/urgent job into a busy time window { date, s, e } in minutes-from-
-// midnight, or null if it has no usable date/time. Used to hide overlapping jobs.
-function bookingBusyWindow(j: any): { date: string; s: number; e: number } | null {
-  const date = String(j?.bookingDate || j?.dateStr || '').trim();
-  const time = String(j?.startTime || '').trim();
-  if (!date || !/^\d{1,2}:\d{2}$/.test(time)) return null;
-  const [h, m] = time.split(':').map(Number);
-  const s = h * 60 + m;
-  const hours = Number(j?.hours) > 0 ? Number(j.hours) : 1;
-  return { date, s, e: s + hours * 60 };
-}
 
-// Do two busy windows overlap (same day + intersecting minute ranges)?
-function windowsOverlap(a: { date: string; s: number; e: number }, b: { date: string; s: number; e: number }): boolean {
-  return a.date === b.date && a.s < b.e && a.e > b.s;
-}
 
-// Extract just the city name from a cleaner's city/address (e.g. "רקפת 50 חריש" → "חריש")
-function cityNameOf(cleaner: any): string {
-  const raw = String(cleaner?.city || cleaner?.cleanerAddress || cleaner?.address || '').trim();
-  if (!raw) return '';
-  if (CITY_COORDS[raw]) return raw;
-  for (const key of CITY_KEYS_BY_LEN) { if (raw.includes(key)) return key; }
-  const parts = raw.split(/[,]+/).map(p => p.trim()).filter(Boolean);
-  return parts.length ? parts[parts.length - 1] : raw;
-}
 
-function getCoordsForCleaner(d: any): { lat: number; lng: number } {
-  // קואורדינטות מדויקות מהכתובת (גיאוקודינג שנשמר) — עדיפות עליונה
-  if (typeof d.lat === 'number' && typeof d.lng === 'number' && !isNaN(d.lat) && !isNaN(d.lng)) return { lat: d.lat, lng: d.lng };
-  const cityRaw = String(d.city || '').trim();
-  if (cityRaw && CITY_COORDS[cityRaw]) return CITY_COORDS[cityRaw];
-  // נסה למצוא שם עיר ידוע בתוך העיר/הכתובת המלאה (מנקה שומר כתובת ב-cleanerAddress)
-  const hay = `${cityRaw} ${d.cleanerAddress || ''} ${d.address || ''}`;
-  for (const key of CITY_KEYS_BY_LEN) {
-    if (hay.includes(key)) return CITY_COORDS[key];
-  }
-  // נסה עיר ראשונה בworkAreas
-  if (d.workAreas) {
-    for (const area of d.workAreas) {
-      if (CITY_COORDS[area]) return CITY_COORDS[area];
-    }
-  }
-  const area = d.workAreas?.[0] || d.region;
-  const base = REGION_CENTER[area] || REGION_CENTER.center;
-  return { lat: base.lat, lng: base.lng };
-}
-
-// ─── WhatsApp via UltraMsg ────────────────────────────────────────────────────
-// ⚠️ TODO: Move UM_INSTANCE / UM_TOKEN to Firebase Remote Config or env vars
-const UM_INSTANCE = 'instance172639';
-const UM_TOKEN    = 'e6v2dd4dayk5rhay';
-
-// נרמל מספר טלפון לפורמט 972
-function normalizePhone(phone: string): string {
-  let p = phone.replace(/[\s+\-().]/g, '');
-  if (p.startsWith('0')) p = '972' + p.slice(1);
-  if (!p.startsWith('972')) p = '972' + p;
-  return p;
-}
-
-// שולח הודעת וואצאפ — תומך גם במספר טלפון וגם ב-Group ID (XXXX@g.us)
-async function sendWhatsAppMessage(to: string, message: string) {
-  if (!UM_TOKEN || !to) return;
-  try {
-    const recipient = to.includes('@') ? to.trim() : normalizePhone(to);
-    const res = await fetch(`https://api.ultramsg.com/${UM_INSTANCE}/messages/chat`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ token: UM_TOKEN, to: recipient, body: message, priority: 1 }),
-    });
-    const json = await res.json().catch(() => ({}));
-    console.log('[WA →', recipient, ']', json);
-  } catch (e) {
-    console.warn('[WA error]', e);
-  }
-}
-
-// יוצר קבוצת וואצאפ חדשה דרך UltraMsg ומחזיר את ה-Group ID
-// נקרא אוטומטית כשמנקה חדש נרשם, או בבקשה דחופה ראשונה
-async function createWhatsAppGroup(cleanerName: string, cleanerPhone: string, cleanerUid: string): Promise<string> {
-  try {
-    const normalized = normalizePhone(cleanerPhone);
-    const res = await fetch(`https://api.ultramsg.com/${UM_INSTANCE}/groups`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        token:        UM_TOKEN,
-        name:         `🧹 A&M Clean — ${cleanerName}`,
-        participants: normalized,
-      }),
-    });
-    const json = await res.json().catch(() => ({}));
-    const groupId: string = json?.id || json?.gid || '';
-    if (groupId) {
-      // שמור ב-Firestore
-      await setDoc(doc(db, 'users', cleanerUid), { whatsappGroupId: groupId }, { merge: true });
-      console.log('[WA GROUP CREATED]', cleanerName, groupId);
-    }
-    return groupId;
-  } catch (e) {
-    console.warn('[WA GROUP CREATE ERROR]', e);
-    return '';
-  }
-}
 
 async function sendPushNotification(token: string, title: string, body: string, data?: Record<string, any>, opts?: { channelId?: string; color?: string }) {
   try {
@@ -680,16 +540,6 @@ async function sendPushNotification(token: string, title: string, body: string, 
   }
 }
 
-function getDistanceKm(lat1: number, lon1: number, lat2: number, lon2: number): number {
-  const R = 6371;
-  const dLat = (lat2 - lat1) * Math.PI / 180;
-  const dLon = (lon2 - lon1) * Math.PI / 180;
-  const a =
-    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-    Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
-    Math.sin(dLon / 2) * Math.sin(dLon / 2);
-  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-}
 
 // סמן מנקה על המפה — עוקב פעם אחת קצרה כדי להצטייר, ואז מפסיק (חוסך זיכרון, מונע קריסה)
 function CleanerMapMarker({ c, isSel, onPress }: { c: any; isSel: boolean; onPress: () => void }) {
@@ -971,7 +821,7 @@ function ReviewsModal({ cleaner, visible, onClose }: any) {
     <Modal visible={visible} animationType="slide" presentationStyle="pageSheet" onRequestClose={onClose}>
       <SafeAreaView style={{ flex: 1, backgroundColor: C.bluePale }}>
         <View style={s.modalHeader}>
-          <TouchableOpacity onPress={onClose} style={s.closeBtn}><T style={{ color: C.white, fontSize: 18 }}>✕</T></TouchableOpacity>
+          <TouchableOpacity accessibilityRole="button" accessibilityLabel="סגור" onPress={onClose} style={s.closeBtn}><T style={{ color: C.white, fontSize: 18 }}>✕</T></TouchableOpacity>
           <T style={s.modalTitle}>{t.reviewsSuffix} — {cleaner.name}</T>
           <View style={{ width: 36 }} />
         </View>
@@ -1015,6 +865,8 @@ function CleanerProfile({ cleaner, visible, onClose, onBook, onChat, initialShow
   const [loadedReviews, setLoadedReviews] = React.useState<any[]>([]);
   const scrollRef = React.useRef<ScrollView>(null);
   const reviewsY = React.useRef(0);
+  // The photo isn't on the cleaner document any more — see lib/useAvatar.
+  const avatarUri = useAvatar(cleaner?.uid || cleaner?.id, cleaner);
   // כשנפתח מלחיצה על ביקורת בכרטיס — לגלול אל חלק הביקורות
   React.useEffect(() => {
     if (visible && initialShowReviews) {
@@ -1043,7 +895,7 @@ function CleanerProfile({ cleaner, visible, onClose, onBook, onChat, initialShow
     <Modal visible={visible} animationType="slide" presentationStyle="pageSheet" onRequestClose={onClose}>
       <SafeAreaView style={{ flex: 1, backgroundColor: C.bluePale }}>
         <View style={s.profileHeader}>
-          <TouchableOpacity onPress={onClose} style={s.closeBtn}><MaterialIcons name="arrow-back" size={24} color={C.white} /></TouchableOpacity>
+          <TouchableOpacity accessibilityRole="button" accessibilityLabel="חזור" onPress={onClose} style={s.closeBtn}><MaterialIcons name="arrow-back" size={24} color={C.white} /></TouchableOpacity>
           <T style={s.profileHeaderTitle}>{t.cleanerProfileTitle}</T>
           <View style={{ width: 36 }} />
         </View>
@@ -1051,7 +903,7 @@ function CleanerProfile({ cleaner, visible, onClose, onBook, onChat, initialShow
           <View style={s.profileHero}>
             <View style={s.profileAvatar}>
               {(() => {
-                const uri = cleaner.photoB64 || cleaner.photo ||
+                const uri = avatarUri ||
                   (!isNaN(parseInt(cleaner.id)) ? `https://i.pravatar.cc/150?img=${((parseInt(cleaner.id) - 1) % 70) + 1}` : null);
                 return uri
                   ? <Image source={{ uri }} style={{ width: 90, height: 90, borderRadius: 45 }} contentFit="cover" />
@@ -1425,13 +1277,13 @@ function CalendarPicker({ visible, value, onChange, onClose }: {
 
             {/* Header */}
             <View style={{ flexDirection:'row', alignItems:'center', justifyContent:'space-between', marginBottom:16 }}>
-              <TouchableOpacity onPress={prevMonth} style={{ padding:8 }}>
+              <TouchableOpacity accessibilityRole="button" accessibilityLabel="הקודם" onPress={prevMonth} style={{ padding:8 }}>
                 <T style={{ fontSize:20, color:'#2563EB', fontWeight:'900' }}>‹</T>
               </TouchableOpacity>
               <T style={{ fontSize:17, fontWeight:'900', color:'#1E3A5F' }}>
                 {MONTHS_HE[viewMonth]} {viewYear}
               </T>
-              <TouchableOpacity onPress={nextMonth} style={{ padding:8 }}>
+              <TouchableOpacity accessibilityRole="button" accessibilityLabel="הבא" onPress={nextMonth} style={{ padding:8 }}>
                 <T style={{ fontSize:20, color:'#2563EB', fontWeight:'900' }}>›</T>
               </TouchableOpacity>
             </View>
@@ -1565,13 +1417,13 @@ function MultiCalendarPicker({ selected, onChange, label }: {
 
           {/* ניווט חודש */}
           <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
-            <TouchableOpacity onPress={prevMonth} style={{ padding: 8 }}>
+            <TouchableOpacity accessibilityRole="button" accessibilityLabel="הקודם" onPress={prevMonth} style={{ padding: 8 }}>
               <Text style={{ fontSize: 22, color: '#2563EB', fontWeight: '900' }}>‹</Text>
             </TouchableOpacity>
             <Text style={{ fontSize: 15, fontWeight: '900', color: '#1E3A5F' }}>
               {MONTHS_HE[viewMonth]} {viewYear}
             </Text>
-            <TouchableOpacity onPress={nextMonth} style={{ padding: 8 }}>
+            <TouchableOpacity accessibilityRole="button" accessibilityLabel="הבא" onPress={nextMonth} style={{ padding: 8 }}>
               <Text style={{ fontSize: 22, color: '#2563EB', fontWeight: '900' }}>›</Text>
             </TouchableOpacity>
           </View>
@@ -1758,7 +1610,7 @@ function PostJobModal({ visible, onClose, onPosted }: { visible: boolean; onClos
     <Modal visible={visible} animationType="slide" presentationStyle="pageSheet" onRequestClose={onClose}>
       <SafeAreaView style={{ flex: 1, backgroundColor: C.bluePale }}>
         <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: C.blueDark, padding: 16 }}>
-          <TouchableOpacity onPress={onClose} style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: 'rgba(255,255,255,0.2)', alignItems: 'center', justifyContent: 'center' }}>
+          <TouchableOpacity accessibilityRole="button" accessibilityLabel="סגור" onPress={onClose} style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: 'rgba(255,255,255,0.2)', alignItems: 'center', justifyContent: 'center' }}>
             <T style={{ color: '#fff', fontSize: 18 }}>✕</T>
           </TouchableOpacity>
           <T style={{ fontSize: 17, fontWeight: '900', color: '#fff' }}>📢 {(t as any).postJobTitle ?? 'פרסם עבודה פתוחה'}</T>
@@ -1890,14 +1742,14 @@ function SpinnerPicker({ value, onChange, values, display }: {
   return (
     <View style={{ flexDirection: 'row', alignItems: 'center', gap: 0, alignSelf: 'center',
       backgroundColor: '#F1F5F9', borderRadius: 16, overflow: 'hidden', borderWidth: 1.5, borderColor: '#2563EB' }}>
-      <TouchableOpacity onPress={dec} disabled={idx === 0}
+      <TouchableOpacity accessibilityRole="button" accessibilityLabel="הפחת" onPress={dec} disabled={idx === 0}
         style={{ paddingHorizontal: 20, paddingVertical: 14, backgroundColor: idx === 0 ? '#E2E8F0' : '#EDE9FE' }}>
         <T style={{ fontSize: 22, fontWeight: '900', color: idx === 0 ? '#CBD5E1' : '#7C3AED' }}>−</T>
       </TouchableOpacity>
       <View style={{ paddingHorizontal: 28, paddingVertical: 14, backgroundColor: '#fff', minWidth: 90, alignItems: 'center' }}>
         <T style={{ fontSize: 26, fontWeight: '900', color: '#2563EB' }}>{label}</T>
       </View>
-      <TouchableOpacity onPress={inc} disabled={idx === values.length - 1}
+      <TouchableOpacity accessibilityRole="button" accessibilityLabel="הוסף" onPress={inc} disabled={idx === values.length - 1}
         style={{ paddingHorizontal: 20, paddingVertical: 14, backgroundColor: idx === values.length - 1 ? '#E2E8F0' : '#EDE9FE' }}>
         <T style={{ fontSize: 22, fontWeight: '900', color: idx === values.length - 1 ? '#CBD5E1' : '#7C3AED' }}>+</T>
       </TouchableOpacity>
@@ -2013,7 +1865,7 @@ function InlineBookingChat({ open, onToggle, messages, text, onChangeText, onSen
           {/* Input row */}
           <KeyboardAvoidingView behavior="padding">
             <View style={{ flexDirection: 'row', gap: 6, padding: 10, borderTopWidth: 1, borderColor: '#F3F4F6', alignItems: 'center' }}>
-              <TouchableOpacity
+              <TouchableOpacity accessibilityRole="button" accessibilityLabel="שלח"
                 style={{ width: 38, height: 38, borderRadius: 19, backgroundColor: accentColor, alignItems: 'center', justifyContent: 'center' }}
                 onPress={onSend}
               >
@@ -2031,7 +1883,7 @@ function InlineBookingChat({ open, onToggle, messages, text, onChangeText, onSen
               />
               {/* תמונה */}
               {onSendImage && (
-                <TouchableOpacity
+                <TouchableOpacity accessibilityRole="button" accessibilityLabel="צרף תמונה"
                   style={{ width: 38, height: 38, borderRadius: 19, backgroundColor: '#EEF2FF', borderWidth: 1, borderColor: '#C7D2FE', alignItems: 'center', justifyContent: 'center' }}
                   onPress={onSendImage}
                 >
@@ -2040,7 +1892,7 @@ function InlineBookingChat({ open, onToggle, messages, text, onChangeText, onSen
               )}
               {/* הקלטה קולית — לחיצה ארוכה */}
               {onStartRecording && onStopRecording && (
-                <TouchableOpacity
+                <TouchableOpacity accessibilityRole="button" accessibilityLabel="הקלט הודעה קולית"
                   style={{ width: 38, height: 38, borderRadius: 19, backgroundColor: isRecording ? '#EF4444' : '#25D366', alignItems: 'center', justifyContent: 'center' }}
                   onPressIn={onStartRecording}
                   onPressOut={onStopRecording}
@@ -2075,22 +1927,7 @@ export type SavedAddress = {
   lng?: number;
 };
 
-export function buildFullAddress(city: string, street: string, floor: string, apt: string, isPrivate: boolean): string {
-  const parts: string[] = [];
-  if (street.trim()) parts.push(street.trim());
-  if (city.trim()) parts.push(city.trim());
-  if (isPrivate) { parts.push('בית פרטי'); }
-  else { if (floor.trim()) parts.push(`קומה ${floor.trim()}`); if (apt.trim()) parts.push(`דירה ${apt.trim()}`); }
-  return parts.join(', ');
-}
 
-function getDistanceMeters(lat1: number, lon1: number, lat2: number, lon2: number): number {
-  const R = 6371000;
-  const dLat = (lat2 - lat1) * Math.PI / 180;
-  const dLon = (lon2 - lon1) * Math.PI / 180;
-  const a = Math.sin(dLat / 2) ** 2 + Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLon / 2) ** 2;
-  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-}
 
 export async function getSavedAddresses(): Promise<SavedAddress[]> {
   try {
@@ -2177,6 +2014,8 @@ function BookingModal({ cleaner, visible, onClose, onBookingCreated, prebookData
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const bookingScrollRef = useRef<ScrollView>(null);
+  // The photo isn't on the cleaner document any more — see lib/useAvatar.
+  const avatarUri = useAvatar(cleaner?.uid || cleaner?.id, cleaner);
   const [hours,          setHours]          = useState(2);
   const [payment,        setPayment]        = useState('cash');
   const [saving,         setSaving]         = useState(false);
@@ -2543,7 +2382,7 @@ function BookingModal({ cleaner, visible, onClose, onBookingCreated, prebookData
             lastMessage: `💙 בקשת תשלום ₪${total} ב-Bit`,
             lastMessageAt: new Date().toISOString(),
           }, { merge: true });
-        } catch (_) {}
+        } catch (err) { logError('home:write', err); }
       }
       // ── Schedule day-before local reminder ──────────────────────────────
       try {
@@ -2629,8 +2468,8 @@ function BookingModal({ cleaner, visible, onClose, onBookingCreated, prebookData
         const clientDoc = await getDoc(doc(db, 'users', clientUid));
         const clientName = clientDoc.data()?.name || 'לקוח';
         if (pushToken) sendPushNotification(pushToken, `💬 הודעה מ-${clientName}`, msg, { type: 'message' });
-      } catch (_) {}
-    } catch (_) {}
+      } catch (err) { logError('home:write', err); }
+    } catch (err) { logError('home:write', err); }
   };
 
   // שליחת תמונה בצ'אט המוטמע
@@ -2670,7 +2509,7 @@ function BookingModal({ cleaner, visible, onClose, onBookingCreated, prebookData
       await inlineRecorder.prepareToRecordAsync();
       inlineRecorder.record();
       setInlineRecording(true);
-    } catch (_) {}
+    } catch (err) { logError('home:write', err); }
   };
   const stopInlineRecording = async () => {
     if (!inlineRecorder.isRecording) { setInlineRecording(false); return; }
@@ -2679,14 +2518,18 @@ function BookingModal({ cleaner, visible, onClose, onBookingCreated, prebookData
       await inlineRecorder.stop();
       const uri = inlineRecorder.uri;
       if (!uri || !bookedDetails?.cleanerUid) return;
-      const base64Data = await FileSystem.readAsStringAsync(uri, { encoding: 'base64' as any });
-      if (!base64Data) return;
-      if (base64Data.length > 700_000) return Alert.alert(t.audioTooLongTitle, t.audioTooLongMsg);
+      let audioBase64: string;
+      try {
+        audioBase64 = await readVoiceNote(uri);
+      } catch (err: any) {
+        if (err?.name === 'VoiceNoteTooLongError') return Alert.alert(t.audioTooLongTitle, t.audioTooLongMsg);
+        return;
+      }
       const clientUid = auth.currentUser?.uid || '';
       const otherUid = bookedDetails.cleanerUid;
       const chatId = [clientUid, otherUid].sort().join('_');
       setInlineChatOpen(true);
-      await addDoc(collection(db, 'chats', chatId, 'messages'), { type: 'audio', audioBase64: `data:audio/m4a;base64,${base64Data}`, from: 'client', fromUid: clientUid, createdAt: new Date().toISOString() });
+      await addDoc(collection(db, 'chats', chatId, 'messages'), { type: 'audio', audioBase64, from: 'client', fromUid: clientUid, createdAt: new Date().toISOString() });
       await setDoc(doc(db, 'chats', chatId), { participants: [clientUid, otherUid].sort(), lastMessage: t.chatVoiceMsg, lastMessageAt: new Date().toISOString(), lastSenderUid: clientUid, unreadBy: arrayUnion(otherUid) }, { merge: true });
       setTimeout(() => inlineChatScroll.current?.scrollToEnd({ animated: true }), 200);
     } catch (_) { Alert.alert(t.error, t.audioSendError); }
@@ -2715,7 +2558,7 @@ function BookingModal({ cleaner, visible, onClose, onBookingCreated, prebookData
       // busySlots לא מנוקה מכאן: הלקוח אינו מורשה לכתוב למסמך המנקה (חוקי
       // Firestore), והניסיון נדחה בשקט. ברגע שההזמנה מסומנת cancelled היא
       // יוצאת מרשימת ההזמנות החיות של המנקה, והנגזרת אצלו משחררת את השעה.
-    } catch (_) {}
+    } catch (err) { logError('home:write', err); }
     setCancellingBooking(false);
     setShowWaiting(false);
     setPendingBookingId(null);
@@ -2914,7 +2757,7 @@ function BookingModal({ cleaner, visible, onClose, onBookingCreated, prebookData
     <Modal visible={visible} animationType="slide" presentationStyle="pageSheet" onRequestClose={handleClose}>
       <SafeAreaView style={{ flex: 1, backgroundColor: C.bluePale }}>
         <View style={s.modalHeader}>
-          <TouchableOpacity onPress={handleClose} style={s.closeBtn}><T style={{ color: C.white, fontSize: 18 }}>✕</T></TouchableOpacity>
+          <TouchableOpacity accessibilityRole="button" accessibilityLabel="סגור" onPress={handleClose} style={s.closeBtn}><T style={{ color: C.white, fontSize: 18 }}>✕</T></TouchableOpacity>
           <T style={s.modalTitle}>{t.newBookingTitle}</T>
           <View style={{ width: 36 }} />
         </View>
@@ -2924,7 +2767,7 @@ function BookingModal({ cleaner, visible, onClose, onBookingCreated, prebookData
             <View style={s.bookingCard}>
               <View style={s.bookingAvatar}>
                 {(() => {
-                  const uri = cleaner.photoB64 || cleaner.photo ||
+                  const uri = avatarUri ||
                     (!isNaN(parseInt(cleaner.id)) ? `https://i.pravatar.cc/150?img=${((parseInt(cleaner.id) - 1) % 70) + 1}` : null);
                   return uri
                     ? <Image source={{ uri }} style={{ width: 48, height: 48, borderRadius: 24 }} contentFit="cover" />
@@ -3231,7 +3074,7 @@ function ChatModal({ cleaner, visible, onClose }: any) {
               text: autoReplyText, from: 'cleaner', fromUid: otherUid,
               createdAt: new Date().toISOString(), isAutoReply: true,
             });
-          } catch (_) {}
+          } catch (err) { logError('home:write', err); }
         }, 1500);
       }
       // כתיבת metadata + unreadBy למנקה
@@ -3244,7 +3087,7 @@ function ChatModal({ cleaner, visible, onClose }: any) {
           participantNames: { [clientUid]: 'לקוח', [otherUid]: cleaner.name },
           unreadBy: arrayUnion(otherUid),
         }, { merge: true });
-      } catch (_) {}
+      } catch (err) { logError('home:write', err); }
       // שם לקוח + פוש למנקה (אופציונלי)
       try {
         const clientDoc = await getDoc(doc(db, 'users', clientUid));
@@ -3255,8 +3098,8 @@ function ChatModal({ cleaner, visible, onClose }: any) {
         const cleanerDoc = await getDoc(doc(db, 'users', otherUid));
         const pushToken = cleanerDoc.data()?.pushToken;
         if (pushToken) sendPushNotification(pushToken, `💬 הודעה מ-${clientName}`, msg, { type: 'message' });
-      } catch (_) {}
-    } catch (_) {}
+      } catch (err) { logError('home:write', err); }
+    } catch (err) { logError('home:write', err); }
   };
 
   const startRecording = async () => {
@@ -3277,13 +3120,17 @@ function ChatModal({ cleaner, visible, onClose }: any) {
       await audioRecorder.stop();
       const uri = audioRecorder.uri;
       if (!uri || !chatId) return;
-      const base64Data = await FileSystem.readAsStringAsync(uri, { encoding: 'base64' as any });
-      if (!base64Data) return;
-      if (base64Data.length > 700_000) return Alert.alert(t.audioTooLongTitle, t.audioTooLongMsg);
+      let audioBase64: string;
+      try {
+        audioBase64 = await readVoiceNote(uri);
+      } catch (err: any) {
+        if (err?.name === 'VoiceNoteTooLongError') return Alert.alert(t.audioTooLongTitle, t.audioTooLongMsg);
+        return;
+      }
       const otherUid = cleaner.uid || cleaner.id;
       await addDoc(collection(db, 'chats', chatId, 'messages'), {
         type: 'audio',
-        audioBase64: `data:audio/m4a;base64,${base64Data}`,
+        audioBase64,
         from: 'client', fromUid: clientUid,
         createdAt: new Date().toISOString(),
       });
@@ -3383,7 +3230,7 @@ function ChatModal({ cleaner, visible, onClose }: any) {
         {/* safe-area-context insets are 0 inside a Modal — use insets.top directly */}
         <View style={{ backgroundColor: C.blueDark, paddingTop: insets.top }}>
           <View style={s.modalHeader}>
-            <TouchableOpacity onPress={onClose} style={s.closeBtn}><T style={{ color: C.white, fontSize: 18 }}>✕</T></TouchableOpacity>
+            <TouchableOpacity accessibilityRole="button" accessibilityLabel="סגור" onPress={onClose} style={s.closeBtn}><T style={{ color: C.white, fontSize: 18 }}>✕</T></TouchableOpacity>
             <T style={s.modalTitle}>{t.chatWithPrefix}{cleaner.name}</T>
             <View style={{ width: 36 }} />
           </View>
@@ -3465,15 +3312,15 @@ function ChatModal({ cleaner, visible, onClose }: any) {
                   <T style={{ color: '#fff', fontWeight: '800', fontSize: 13, backgroundColor: '#EF4444', paddingHorizontal: 14, paddingVertical: 5, borderRadius: 14, overflow: 'hidden' }}>{t.recordingAudio}</T>
                 </View>
               )}
-              <TouchableOpacity style={s.sendBtn} onPress={send}><T style={{ color: C.white, fontSize: 18 }}>◀</T></TouchableOpacity>
+              <TouchableOpacity accessibilityRole="button" accessibilityLabel="שלח" style={s.sendBtn} onPress={send}><T style={{ color: C.white, fontSize: 18 }}>◀</T></TouchableOpacity>
               <TextInput style={s.chatInput} placeholder={t.chatPlaceholder} value={text} onChangeText={setText} placeholderTextColor={C.textSub} textAlign="right" onSubmitEditing={send} />
-              <TouchableOpacity
+              <TouchableOpacity accessibilityRole="button" accessibilityLabel="צרף תמונה"
                 style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: C.blueLight, alignItems: 'center', justifyContent: 'center', borderWidth: 1.5, borderColor: C.blueBorder }}
                 onPress={sendImage}
               >
                 <T style={{ fontSize: 20 }}>📷</T>
               </TouchableOpacity>
-              <TouchableOpacity
+              <TouchableOpacity accessibilityRole="button" accessibilityLabel="הקלט הודעה קולית"
                 style={[s.micBtn, isRecording && s.micBtnRecording, { backgroundColor: isRecording ? '#EF4444' : '#25D366', borderWidth: 0 }]}
                 onPressIn={startRecording}
                 onPressOut={stopAndSendRecording}
@@ -3506,7 +3353,10 @@ function CleanerCardInner({ cleaner, isSel, onSelect, onProfile, onBook, onChat,
   const C = useAppColors();
   const s = createS(C);
   const fs = (base: number) => Math.round(base * textScale);
-  const photoUri = cleaner.photoB64 || cleaner.photo ||
+  // Fetched per card rather than carried on the cleaner document, so the list
+  // query stays light — see lib/useAvatar. FlatList only mounts what's near the
+  // viewport, which is what keeps this from becoming N requests.
+  const photoUri = useAvatar(cleaner.uid || cleaner.id, cleaner) ||
     (!isNaN(parseInt(cleaner.id))
       ? `https://i.pravatar.cc/150?img=${((parseInt(cleaner.id) - 1) % 70) + 1}`
       : null);
@@ -3676,7 +3526,7 @@ function QuickRebookModal({ visible, onClose, myBookings, allCleaners, onBook }:
             // שמור ב-Firestore
             try {
               await updateDoc(doc(db, 'bookings', b.id), { hiddenFromRebook: true });
-            } catch (_) {}
+            } catch (err) { logError('home:write', err); }
           },
         },
       ]
@@ -3688,7 +3538,7 @@ function QuickRebookModal({ visible, onClose, myBookings, allCleaners, onBook }:
       <SafeAreaView style={{ flex: 1, backgroundColor: C.bluePale }}>
         {/* Header */}
         <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: '#1E5FA8', padding: 16 }}>
-          <TouchableOpacity onPress={onClose} style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: 'rgba(255,255,255,0.25)', alignItems: 'center', justifyContent: 'center' }}>
+          <TouchableOpacity accessibilityRole="button" accessibilityLabel="סגור" onPress={onClose} style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: 'rgba(255,255,255,0.25)', alignItems: 'center', justifyContent: 'center' }}>
             <T style={{ color: '#fff', fontSize: 18, fontWeight: '700' }}>✕</T>
           </TouchableOpacity>
           <T style={{ fontSize: 17, fontWeight: '900', color: '#fff' }}>{t.prevBookingsTitle}</T>
@@ -3885,7 +3735,11 @@ export default function HomeScreen() {
   const prevCleanerPendingRef = useRef(-1);
   const cleanerPendingUnsubRef = useRef<(() => void) | null>(null);
   // busySlots האחרון שנכתב — כדי לא לכתוב לפיירסטור בכל snapshot ללא שינוי
-  const lastBusySlotsRef = useRef<{ from: string; until: string }[] | null>(null);
+  // Both derived slot lists, so an unchanged snapshot doesn't re-write Firestore.
+  const lastBusySlotsRef = useRef<{
+    busy: { from: string; until: string }[];
+    pending: { from: string; until: string }[];
+  } | null>(null);
 
   // האם יש הזמנה ממתינה שהמנקה עוד לא ראה — רק אז מציגים את הבאנר הכתום
   const hasUnseenPending = cleanerPendingIds.some(id => !seenPendingIds.includes(id));
@@ -4127,15 +3981,16 @@ export default function HomeScreen() {
           // בדוק מרחק — אם אין מיקום ללקוח או למנקה, שלח בכל מקרה
           let inRange = noLocation;
           if (!noLocation) {
-            // נסה lat/lng מהפרופיל, fallback לפי עיר מהמערך הסטטי
+            // lat/lng מהפרופיל, ואם אין — נגזרים מהעיר/אזורי העבודה.
+            //
+            // קודם זה חיפש התאמה במערך הדמו הקשיח CLEANERS, כלומר מיקומו של
+            // מנקה אמיתי נקבע לפי פרופיל מומצא שבמקרה חלק איתו עיר. getCoordsForCleaner
+            // עושה את אותו הדבר נכון, מול טבלת הערים, ולא תלוי בנתוני דמו.
             let cLat = cData.lat;
             let cLng = cData.lng;
             if (!cLat || !cLng) {
-              const staticCleaner = CLEANERS.find(c =>
-                c.id === cd.id ||
-                (cData.city && c.city === cData.city)
-              );
-              if (staticCleaner) { cLat = staticCleaner.lat; cLng = staticCleaner.lng; }
+              const coords = getCoordsForCleaner(cData);
+              if (coords) { cLat = coords.lat; cLng = coords.lng; }
             }
             if (cLat && cLng) {
               // שולחים רק אם הלקוח בתוך טווח ההגעה שהמנקה בחר/ה
@@ -4183,7 +4038,7 @@ export default function HomeScreen() {
           return;
         }
         } // סוף else (אחרי 20:00 לא שולחים)
-      } catch (_) {}
+      } catch (err) { logError('home:write', err); }
 
       setUrgentWaiting(true);
       setUrgentOpen(false); // סגור מודל מיד — חזור למסך הראשי
@@ -4545,22 +4400,32 @@ export default function HomeScreen() {
             setCleanerBusy(busy);
 
             // ── שחרור/תפיסה של זמינות המנקה ────────────────────────────────
-            // busySlots נגזר כאן מחדש מההזמנות החיות של המנקה, ונכתב על המסמך
-            // שלו עצמו — הדרך היחידה שחוקי Firestore מתירים (משתמש יכול לכתוב
-            // רק לעצמו). כך ביטול מכל צד משחרר את השעה אוטומטית: ההזמנה יוצאת
-            // מהרשימה החיה והחלון פשוט נעלם מהנגזרת.
-            const slots = live
+            // שני מערכים נגזרים כאן מההזמנות החיות ונכתבים על מסמך המנקה עצמו —
+            // הדרך היחידה שחוקי Firestore מתירים (משתמש כותב רק לעצמו). כך ביטול
+            // מכל צד משחרר את השעה אוטומטית: ההזמנה יוצאת מהרשימה החיה והחלון
+            // נעלם מהנגזרת.
+            //
+            //   busySlots    — עבודה מאושרת. מזין את חיווי "פנוי/תפוס" שרואים אחרים.
+            //   pendingSlots — בקשות שממתינות לתשובת המנקה. חייבות לחסום הזמנה
+            //                  כפולה של אותה שעה, אבל אסור שיציגו מנקה כתפוס לנצח
+            //                  רק כי הוא איטי בתגובה.
+            //
+            // אלה גם המקור היחיד לזמינות שלקוח יכול לקרוא, מרגע שההזמנות קריאות
+            // רק לשני הצדדים שלהן — ראה isCleanerBusy בראש הקובץ.
+            const toSlots = (rows: any[]) => rows
               .filter(b => b.busyFrom && b.busyUntil)
               .map(b => ({ from: String(b.busyFrom), until: String(b.busyUntil) }))
               .sort((a, b) => a.from.localeCompare(b.from));
-            const prev = (lastBusySlotsRef.current ?? []) as { from: string; until: string }[];
-            const same = prev.length === slots.length
-              && prev.every((p, i) => p.from === slots[i].from && p.until === slots[i].until);
-            if (!same) {
-              lastBusySlotsRef.current = slots;
+            const slots = toSlots(live);
+            const pendingSlots = toSlots(pendingDocs);
+            const sameList = (a: { from: string; until: string }[], b: { from: string; until: string }[]) =>
+              a.length === b.length && a.every((p, i) => p.from === b[i].from && p.until === b[i].until);
+            const prevRef = lastBusySlotsRef.current ?? { busy: [], pending: [] };
+            if (!sameList(prevRef.busy, slots) || !sameList(prevRef.pending, pendingSlots)) {
+              lastBusySlotsRef.current = { busy: slots, pending: pendingSlots };
               // setDoc/merge ולא arrayRemove: התאמת-אובייקט מדויקת של arrayRemove
               // נכשלת בשקט אם משהו בשדות שונה, ואז השעה נשארת תפוסה לנצח.
-              setDoc(doc(db, 'users', uid), { busySlots: slots }, { merge: true }).catch(() => {});
+              setDoc(doc(db, 'users', uid), { busySlots: slots, pendingSlots }, { merge: true }).catch(() => {});
             }
             if (prevCleanerPendingRef.current >= 0 && count > prevCleanerPendingRef.current) {
               setNewBookingFlash(true);
@@ -4679,7 +4544,7 @@ export default function HomeScreen() {
               autoClosed: true,
             });
             b.status = 'done'; b.reviewRequired = true;
-          } catch (_) {}
+          } catch (err) { logError('home:write', err); }
         }
       }
       // עדכן את ההזמנה ברשימה כדי שתופיע מעודכנת
@@ -4996,7 +4861,10 @@ export default function HomeScreen() {
           showPhone:        data.showPhone        !== false,
           portfolio:        data.portfolio         || [],
           identityVerified: data.identityVerified === true,
-          photoB64:      data.photoB64      || null,
+          // Legacy documents only; current ones keep the photo in `userPhotos`
+          // and are drawn through useAvatar, which `hasPhoto` lets it skip.
+          photoB64:      resolvePhoto(data) || null,
+          hasPhoto:      data.hasPhoto,
           bringSupplies: data.bringSupplies !== undefined ? data.bringSupplies : null,
           reviewsList:   [],
           isReal:        true,
@@ -5027,7 +4895,7 @@ export default function HomeScreen() {
               await updateDoc(doc(db, 'users', d.id), { lat: r.latitude, lng: r.longitude });
             }
           }
-        } catch (_) {}
+        } catch (err) { logError('home:write', err); }
       });
     }, () => {});
     return () => unsub();
@@ -5103,7 +4971,15 @@ export default function HomeScreen() {
           const oldCount  = d.reviewCount || d.reviews || 0;
           const newCount  = oldCount + 1;
           const newRating = Math.round(((oldRating * oldCount) + mandatoryStars) / newCount * 10) / 10;
-          tx.update(cleanerRef, { rating: newRating, reviewCount: newCount, reviews: newCount });
+          // כל ארבע האיותים: המובייל קורא reviewCount, הווב קורא reviewsCount,
+          // ו-reviews הוא השם הישן. כתיבת כולן היא מה שמחזיק את שתי הפלטפורמות
+          // מסונכרנות. הרשימה חייבת להתאים ל-isValidRatingUpdate ב-firestore.rules.
+          tx.update(cleanerRef, {
+            rating: newRating,
+            reviewCount: newCount,
+            reviews: newCount,
+            reviewsCount: newCount,
+          });
         });
       } catch (_) {}
       // הוסף לתת-אוסף הביקורות (תמיד נשמר — גם אם עדכון הציון נכשל)
@@ -5111,12 +4987,19 @@ export default function HomeScreen() {
         let reviewerName = auth.currentUser?.displayName || '';
         if (!reviewerName) { try { const us = await getDoc(doc(db, 'users', auth.currentUser?.uid || '')); reviewerName = us.data()?.name || 'לקוח'; } catch (_) { reviewerName = 'לקוח'; } }
         await addDoc(collection(db, 'users', pendingReviewBooking.cleanerId, 'reviews'), {
+          // authorId is REQUIRED by firestore.rules — a review has to be
+          // attributable to the account that left it. `stars` is the field this
+          // app renders; `rating` is the field the web app renders; writing both
+          // keeps one review legible on either platform. Same for the name.
+          authorId: uid,
           stars: mandatoryStars,
+          rating: mandatoryStars,
           text: mandatoryComment.trim(),
+          authorName: reviewerName,
           clientName: reviewerName,
           createdAt: new Date().toISOString(),
         });
-      } catch (_) {}
+      } catch (err) { logError('home:write', err); }
       // Check if any more pending reviews
       const remaining = myBookings.filter((b: any) =>
         b.id !== pendingReviewBooking.id && b.status === 'done' && b.reviewRequired === true && !b.cleanerRating

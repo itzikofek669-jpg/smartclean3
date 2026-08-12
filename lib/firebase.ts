@@ -2,7 +2,6 @@ import { initializeApp, getApps } from 'firebase/app';
 import { initializeAuth, getAuth } from 'firebase/auth';
 import * as firebaseAuth from 'firebase/auth';
 import { getFirestore } from 'firebase/firestore';
-import { getStorage } from 'firebase/storage';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { FIREBASE_CONFIG } from './firebaseConfig';
 
@@ -22,5 +21,10 @@ export const auth = getApps().length > 1
       persistence: getReactNativePersistence(AsyncStorage),
     });
 
-export const db      = getFirestore(app);
-export const storage = getStorage(app, 'gs://smartclean1-db1fb.firebasestorage.app');
+export const db = getFirestore(app);
+
+// No `storage` export on purpose. Firebase Storage was never enabled on this
+// project — the bucket does not exist, and creating one has required the Blaze
+// plan since October 2024 — so every upload that reached for it failed, quietly,
+// for months. Photos and voice notes now go to Firestore: see lib/photos.ts and
+// lib/voiceNotes.ts.

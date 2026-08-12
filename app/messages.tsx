@@ -17,6 +17,7 @@ import { setActiveChat } from '../lib/chatPresence';
 import * as ImagePicker from 'expo-image-picker';
 import * as ImageManipulator from 'expo-image-manipulator';
 import * as FileSystem from 'expo-file-system/legacy';
+import { readVoiceNote } from '../lib/voiceNotes';
 import { Image } from 'expo-image';
 import { useLanguage, T, useAppColors, AppColors } from '../lib/LanguageContext';
 import { MaterialIcons } from '@expo/vector-icons';
@@ -255,16 +256,20 @@ function InlineChatModal({ chatId, otherUid, otherName, visible, onClose }: any)
       await audioRecorder.stop();
       const uri = audioRecorder.uri;
       if (!uri || !chatId) return;
-      // קרא כ-base64 דרך expo-file-system
-      const base64Data = await FileSystem.readAsStringAsync(uri, { encoding: 'base64' as any });
-      if (!base64Data) return;
-      if (base64Data.length > 700_000) return Alert.alert(t.audioTooLongTitle, t.audioTooLongMsg);
+      // קרא כ-base64 — עם תקרת ~30 שניות, ראה lib/voiceNotes.ts
+      let audioBase64: string;
+      try {
+        audioBase64 = await readVoiceNote(uri);
+      } catch (err: any) {
+        if (err?.name === 'VoiceNoteTooLongError') return Alert.alert(t.audioTooLongTitle, t.audioTooLongMsg);
+        return Alert.alert(t.error, t.audioSendError);
+      }
       try {
         const myDoc = await getDoc(doc(db, 'users', myUid));
         const myName = myDoc.data()?.name || '...';
         await addDoc(collection(db, 'chats', chatId, 'messages'), {
           type: 'audio',
-          audioBase64: `data:audio/m4a;base64,${base64Data}`,
+          audioBase64,
           fromUid: myUid,
           createdAt: new Date().toISOString(),
         });
@@ -393,7 +398,7 @@ function InlineChatModal({ chatId, otherUid, otherName, visible, onClose }: any)
         {/* ── Header ── */}
         {msgSelecting ? (
           <View style={[cs.header, { backgroundColor: '#1E293B' }, flipSide && { flexDirection: 'row-reverse' }]}>
-            <TouchableOpacity onPress={cancelSelection} style={cs.closeBtn}>
+            <TouchableOpacity accessibilityRole="button" accessibilityLabel="סגור" onPress={cancelSelection} style={cs.closeBtn}>
               <T style={{ color: '#fff', fontSize: 18 }}>✕</T>
             </TouchableOpacity>
             <T style={cs.headerTitle}>{selectedMsgs.size} נבחרו</T>
@@ -407,7 +412,7 @@ function InlineChatModal({ chatId, otherUid, otherName, visible, onClose }: any)
           </View>
         ) : (
           <View style={[cs.header, flipSide && { flexDirection: 'row-reverse' }]}>
-            <TouchableOpacity onPress={onClose} style={cs.closeBtn}>
+            <TouchableOpacity accessibilityRole="button" accessibilityLabel="חזור" onPress={onClose} style={cs.closeBtn}>
               <MaterialIcons name="arrow-back" size={24} color={C.white} />
             </TouchableOpacity>
             <T style={cs.headerTitle}>{t.chatWithPrefix}{otherName}</T>
@@ -515,7 +520,7 @@ function InlineChatModal({ chatId, otherUid, otherName, visible, onClose }: any)
                   <T style={{ color: '#fff', fontWeight: '800', fontSize: 13, backgroundColor: '#EF4444', paddingHorizontal: 14, paddingVertical: 5, borderRadius: 14, overflow: 'hidden' }}>{t.recordingAudio}</T>
                 </View>
               )}
-              <TouchableOpacity style={cs.sendBtn} onPress={send}>
+              <TouchableOpacity accessibilityRole="button" accessibilityLabel="שלח" style={cs.sendBtn} onPress={send}>
                 <T style={{ color: C.white, fontSize: 18 }}>◀</T>
               </TouchableOpacity>
               <TextInput
@@ -527,13 +532,13 @@ function InlineChatModal({ chatId, otherUid, otherName, visible, onClose }: any)
                 textAlign="right"
                 onSubmitEditing={send}
               />
-              <TouchableOpacity
+              <TouchableOpacity accessibilityRole="button" accessibilityLabel="צרף תמונה"
                 style={{ width: 42, height: 42, backgroundColor: C.blueLight, borderRadius: 21, alignItems: 'center', justifyContent: 'center', borderWidth: 1.5, borderColor: C.blueBorder }}
                 onPress={sendImage}
               >
                 <T style={{ fontSize: 20 }}>📷</T>
               </TouchableOpacity>
-              <TouchableOpacity
+              <TouchableOpacity accessibilityRole="button" accessibilityLabel="הקלט הודעה קולית"
                 style={{
                   width: 42, height: 42, borderRadius: 21, alignItems: 'center', justifyContent: 'center',
                   backgroundColor: isRecording ? '#EF4444' : '#25D366',
@@ -714,7 +719,7 @@ export default function MessagesScreen() {
       {/* ── Header ── */}
       {convSelecting ? (
         <View style={[s.header, { paddingTop: (Platform.OS === 'ios' ? insets.top : (StatusBar.currentHeight || 0)) + 12, backgroundColor: '#1E293B' }, flipSide && { flexDirection: 'row-reverse' }]}>
-          <TouchableOpacity onPress={cancelConvSelection} style={s.backBtn}>
+          <TouchableOpacity accessibilityRole="button" accessibilityLabel="סגור" onPress={cancelConvSelection} style={s.backBtn}>
             <T style={{ color: C.white, fontSize: 18 }}>✕</T>
           </TouchableOpacity>
           <T style={s.headerTitle}>

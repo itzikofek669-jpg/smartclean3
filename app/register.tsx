@@ -8,15 +8,22 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Image } from 'expo-image';
 
 import * as ImagePicker from 'expo-image-picker';
+import * as ImageManipulator from 'expo-image-manipulator';
 import { useRouter } from 'expo-router';
 import { createUserWithEmailAndPassword } from 'firebase/auth';
 import { doc, setDoc } from 'firebase/firestore';
 import { auth, db } from '../lib/firebase';
+import { saveAvatar } from '../lib/photos';
+import {
+  firstError, validateName, validateEmail, validatePassword,
+  validatePhone, validateAge, validateDistance, validatePrice, normalizePhone,
+} from '../lib/validate';
 import { useLanguage, T, useAppColors, AppColors } from '../lib/LanguageContext';
 import { Lang } from '../lib/translations';
 import { TERMS_BY_LANG } from '../lib/terms';
 import ServiceInfoBtn from '../lib/ServiceInfoBtn';
 import { MaterialIcons } from '@expo/vector-icons';
+import { logError } from '../lib/logError';
 
 const NAV_BAR_HEIGHT = Platform.OS === 'android'
   ? Math.max(0, Dimensions.get('screen').height - Dimensions.get('window').height - (StatusBar.currentHeight || 0))
@@ -267,7 +274,7 @@ function TermsModal({ visible, onClose, closeLabel, title, terms }: { visible: b
       <SafeAreaView style={{ flex: 1, backgroundColor: C.white }}>
         <View style={tm.header}>
           <T style={tm.title}>{title}</T>
-          <TouchableOpacity onPress={onClose} style={tm.closeBtn}>
+          <TouchableOpacity accessibilityRole="button" accessibilityLabel="סגור" onPress={onClose} style={tm.closeBtn}>
             <T style={{ color: C.white, fontSize: 18 }}>✕</T>
           </TouchableOpacity>
         </View>
@@ -440,6 +447,45 @@ export default function RegisterScreen() {
   const setDayTime = (day: DayKey, field: 'start'|'end', val: number) =>
     setAvailability(prev => ({ ...prev, [day]: { ...prev[day], [field]: val } }));
 
+  /**
+   * Downscale + compress a picked photo into a base64 data URI small enough to
+   * live inside the Firestore user document.
+   *
+   * Quality alone (the old `quality: 0.15` with no resize) is not a size
+   * guarantee: a 12 MP photo of a detailed scene still lands in the hundreds of
+   * kilobytes, and base64 adds another third on top. Firestore's document limit
+   * is 1 MiB, and the profile photo shares that budget with every other field —
+   * so on a modern phone camera, registration could fail on its very last write.
+   *
+   * Stepping down through explicit widths is the same approach the job-photo
+   * picker already uses; this brings the two in line.
+   */
+  const compressPhoto = async (uri: string): Promise<string | null> => {
+    try {
+      let b64: string | null | undefined;
+      for (const st of [{ width: 512, compress: 0.6 }, { width: 384, compress: 0.5 }, { width: 256, compress: 0.4 }]) {
+        const out = await ImageManipulator.manipulateAsync(
+          uri,
+          [{ resize: { width: st.width } }],
+          { compress: st.compress, format: ImageManipulator.SaveFormat.JPEG, base64: true },
+        );
+        b64 = out.base64;
+        if (b64 && b64.length <= 120_000) break;
+      }
+      if (!b64 || b64.length > 200_000) return null;
+      return `data:image/jpeg;base64,${b64}`;
+    } catch (_) {
+      return null;
+    }
+  };
+
+  const applyPickedPhoto = async (uri?: string) => {
+    if (!uri) return;
+    const out = await compressPhoto(uri);
+    if (!out) return Alert.alert(t.error, (t as any).imageReadError ?? 'לא הצלחנו לעבד את התמונה. נסה/י תמונה אחרת.');
+    setPhotoB64(out);
+  };
+
   const pickCleanerPhoto = () => {
     Alert.alert(t.photoPickerTitle, t.photoPickerTitle, [
       {
@@ -449,11 +495,9 @@ export default function RegisterScreen() {
           if (!perm.granted) return Alert.alert(t.error, t.photoGallery);
           const res = await ImagePicker.launchImageLibraryAsync({
             mediaTypes: ImagePicker.MediaTypeOptions.Images,
-            allowsEditing: false, quality: 0.15, base64: true,
+            allowsEditing: false, quality: 1, base64: false, exif: false,
           });
-          if (!res.canceled && res.assets[0].base64) {
-            setPhotoB64(`data:image/jpeg;base64,${res.assets[0].base64}`);
-          }
+          if (!res.canceled) await applyPickedPhoto(res.assets[0]?.uri);
         },
       },
       {
@@ -462,11 +506,9 @@ export default function RegisterScreen() {
           const perm = await ImagePicker.requestCameraPermissionsAsync();
           if (!perm.granted) return Alert.alert(t.error, t.photoCamera);
           const res = await ImagePicker.launchCameraAsync({
-            allowsEditing: false, quality: 0.15, base64: true,
+            allowsEditing: false, quality: 1, base64: false, exif: false,
           });
-          if (!res.canceled && res.assets[0].base64) {
-            setPhotoB64(`data:image/jpeg;base64,${res.assets[0].base64}`);
-          }
+          if (!res.canceled) await applyPickedPhoto(res.assets[0]?.uri);
         },
       },
       { text: t.cancel, style: 'cancel' },
@@ -528,6 +570,27 @@ export default function RegisterScreen() {
       if (!types.length)     return Alert.alert(t.error, t.regErrTypes);
       if (!payment.length)   return Alert.alert(t.error, t.regErrPayment);
     }
+
+    // ── ולידציה של הערכים עצמם ────────────────────────────────────────────
+    // עד עכשיו נבדק רק ש"יש משהו בשדה". טלפון ריק, מחיר של 0 או 999999, גיל 3
+    // וטווח הגעה של 10000 ק"מ כולם נכתבו בהצלחה ל-Firestore, והתגלו רק מאוחר
+    // יותר כמנקה שאי אפשר להתקשר אליו או כהזמנה שהסכום בה חסר פשר.
+    {
+      const invalid = firstError(
+        validateName(name),
+        validateEmail(email),
+        validatePassword(password),
+        validatePhone(phone),
+        ...(role === 'cleaner' ? [
+          validateAge(cleanerAge),
+          validateDistance(String(maxDistance)),
+          validatePrice(price),
+          ...Object.values(servicePricing).map(v => validatePrice(String(v ?? ''), false)),
+        ] : []),
+      );
+      if (invalid) return Alert.alert(t.error, invalid);
+    }
+
     setLoading(true);
     // ── שלב 1: יצירת חשבון Auth ──────────────────────────────────────────
     let cred: any;
@@ -567,11 +630,11 @@ export default function RegisterScreen() {
         data.isPrivateHouse = isPrivateHouse;
         if (!isPrivateHouse) { data.floor = clientFloor.trim(); data.apartment = clientApt.trim(); }
         data.preferredLang = prefLang;
-        data.phone         = phone.replace(/[-\s]/g, '');
+        data.phone         = normalizePhone(phone);   // פורמט אחיד לשני התפקידים
       }
       if (role === 'cleaner') {
         data.city          = city.trim();
-        data.phone         = phone.trim();
+        data.phone         = normalizePhone(phone);   // פורמט אחיד לשני התפקידים
         data.price         = Number(servicePricing['ניקיון רגיל']) || Number(price) || 0;
         data.bio           = bio.trim();
         data.types         = types;
@@ -580,7 +643,8 @@ export default function RegisterScreen() {
         data.rating        = 0;
         data.reviews       = 0;
         data.preferredLang = prefLang;
-        if (photoB64)       data.photoB64     = photoB64;
+        // התמונה נשמרת במסמך נפרד אחרי יצירת החשבון (ראה למטה), לא במסמך הזה —
+        // אחרת רשימת המנקים מורידה את התמונות של כולם רק כדי לצייר שמות.
         if (citizenship)    data.citizenship  = citizenship.trim();
         data.isMobile       = isMobile;
         data.bringSupplies  = bringSupplies;
@@ -596,7 +660,37 @@ export default function RegisterScreen() {
         DAY_KEYS.forEach(d => { if (availability[d].active) activeDays[d] = { active: true, start: availability[d].start, end: availability[d].end }; });
         if (Object.keys(activeDays).length > 0) data.availability = activeDays;
       }
-await setDoc(doc(db, 'users', cred.user.uid), data);
+
+      // שמירת התמונה עכשיו, כשיש uid — הכללים מתירים כתיבה רק ל-
+      // `userPhotos/{uid שלי}`. כישלון בשמירה לא מפיל את ההרשמה: החשבון והפרופיל
+      // חשובים יותר מהתמונה, ואפשר להוסיף אותה אחר כך ממסך הפרופיל.
+      // `hasPhoto` הוא הסימון שהרשימה קוראת, כדי לדלג על החיפוש למי שאין לו.
+      if (photoB64) {
+        try {
+          await saveAvatar(cred.user.uid, photoB64);
+          data.hasPhoto = true;
+        } catch (_) {
+          // נמשיך בלי תמונה — המשתמש יוכל להעלות ממסך הפרופיל.
+        }
+      }
+
+      // הרשמה היא שתי כתיבות שחייבות להצליח יחד: חשבון ההזדהות ומסמך הפרופיל.
+      // אם כתיבת הפרופיל נכשלת אנחנו מגלגלים את החשבון לאחור — אחרת המשתמש
+      // נשאר עם זהות בלי פרופיל, מצב שהאפליקציה מתייחסת אליו כשבור, וגם חוסם
+      // ממנו להירשם שוב עם אותה כתובת ("email already in use") בלי שום דרך
+      // להיחלץ מזה בעצמו.
+      try {
+        await setDoc(doc(db, 'users', cred.user.uid), data);
+      } catch (profileErr) {
+        try {
+          const { deleteUser } = await import('firebase/auth');
+          await deleteUser(cred.user);
+        } catch (_) {
+          // הגלגול לאחור נכשל — החשבון שרד. אין מה לעשות מהלקוח; השגיאה
+          // מוצגת למטה כדי שהמשתמש יפנה לתמיכה ולא ינסה שוב לתוך הודעה מבלבלת.
+        }
+        throw profileErr;
+      }
       setLang(prefLang as Lang);
 
       // שמור כתובת לקוח בכתובות שמורות
@@ -620,31 +714,6 @@ await setDoc(doc(db, 'users', cred.user.uid), data);
         } catch (_) {}
       }
 
-      // צור קבוצת וואצאפ אוטומטית למנקה חדש
-      if (role === 'cleaner' && phone.trim()) {
-        try {
-          const cleanerPhone = phone.trim().replace(/[-\s]/g, '');
-          let normalized = cleanerPhone;
-          if (normalized.startsWith('0')) normalized = '972' + normalized.slice(1);
-          if (!normalized.startsWith('972')) normalized = '972' + normalized;
-
-          const res = await fetch('https://api.ultramsg.com/instance172639/groups', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              token:        'e6v2dd4dayk5rhay',
-              name:         `🧹 A&M Clean — ${name.trim()}`,
-              participants: normalized,
-            }),
-          });
-          const json = await res.json().catch(() => ({}));
-          const groupId: string = json?.id || json?.gid || '';
-          if (groupId) {
-            await setDoc(doc(db, 'users', cred.user.uid), { whatsappGroupId: groupId }, { merge: true });
-            console.log('[WA GROUP CREATED]', name.trim(), groupId);
-          }
-        } catch (_) {}
-      }
 
       // ── מנקה: הצג הסבר חשוב ואז בקש הרשאות מיקום + התראות ──
       if (role === 'cleaner') {

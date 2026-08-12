@@ -1023,7 +1023,11 @@ export default function SupportScreen() {
       let allBookings: any[] = [];
       let activeBooking: any = null;
       try {
-        const bookingField = role === 'cleaner' ? 'cleanerUid' : 'clientUid';
+        // `cleanerId`, not `cleanerUid`. Every booking writer in the app stores
+        // the cleaner under `cleanerId` — this queried a field that has never
+        // existed, so the support assistant saw zero bookings for every cleaner
+        // who ever asked it about their jobs, and answered from an empty set.
+        const bookingField = role === 'cleaner' ? 'cleanerId' : 'clientUid';
         const q = query(
           collection(db, 'bookings'),
           where(bookingField, '==', uid),

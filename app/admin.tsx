@@ -58,7 +58,11 @@ const HC_ADMIN = {
 };
 
 const TABS = ['📊 דשבורד', '✨ מנקים', '👤 לקוחות', '📋 הזמנות', '🚨 דיווחים', '🛠️ כלים'];
-const ADMIN_EMAIL = 'cleantouchapp@gmail.com';
+// חייב להיות זהה ל-isAdmin() ב-firestore.rules, ל-ADMIN_EMAILS ב-functions/index.js
+// ול-ADMIN_EMAILS בווב. אימייל שמופיע כאן אבל לא בכללים מקבל מסך ניהול מלא
+// שכל פעולה בו נכשלת בשקט.
+const ADMIN_EMAILS_LIST = ['cleantouchapp@gmail.com', 'itzikofek669@gmail.com'];
+const ADMIN_EMAIL = ADMIN_EMAILS_LIST[0];
 
 const STATUS_COLORS: Record<string, { bg: string; text: string }> = {
   pending:   { bg: '#FEF3C7', text: '#92400E' },
@@ -109,7 +113,7 @@ export default function AdminScreen() {
   useEffect(() => {
     // הגנה — רק אדמין מורשה
     const currentEmail = (auth.currentUser?.email || '').toLowerCase();
-    const ADMIN_EMAILS = ['cleantouchapp@gmail.com'];
+    const ADMIN_EMAILS = ADMIN_EMAILS_LIST;
     if (!ADMIN_EMAILS.includes(currentEmail)) {
       router.replace('/home');
       return;
