@@ -41,3 +41,10 @@ app-example
 # generated native folders
 /ios
 /android
+
+# Shell-accident artefacts. These zero-byte files (and the log/tsc dumps) were
+# created by pasting JSX into a terminal and got committed. Untracked via
+# `git rm --cached`; ignored here so they can't come back.
+metro.log
+tsc_out.txt
+tsc_err.txt
