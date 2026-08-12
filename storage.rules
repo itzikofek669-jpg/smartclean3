@@ -1,0 +1,88 @@
+rules_version = '2';
+
+// ─────────────────────────────────────────────────────────────────────────────
+// A&M Clean — Cloud Storage security rules
+//
+// ⚠️  NOT DEPLOYED, AND CURRENTLY UNDEPLOYABLE. Kept for the day the project
+//     moves to Blaze — deleting it would mean writing it again.
+//
+// Firebase Storage was never enabled on `smartclean1-db1fb`. Not blocked by the
+// plan, not misconfigured: the bucket does not exist. `firebase deploy --only
+// storage` answers "Storage has not been set up on project…", and creating a
+// bucket has required the Blaze plan since October 2024.
+//
+// That explains a bug nobody had noticed: chat voice notes, which the mobile
+// app has been writing to `chats/{chatId}/audio_<ts>.m4a` for months, have
+// never once succeeded. Profile photos briefly moved here too, and moved back —
+// they now live in Firestore under `userPhotos/{uid}` (src/lib/photos.ts).
+//
+// The `storage` entry has been removed from firebase.json so a full deploy
+// doesn't fail on it. To bring this back: upgrade to Blaze, click Get Started
+// in the Storage console, restore the firebase.json entry, then
+// `firebase deploy --only storage`.
+// ─────────────────────────────────────────────────────────────────────────────
+
+service firebase.storage {
+  match /b/{bucket}/o {
+
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    // `.get('email', '')` rather than `.email`: an anonymous or phone-auth token
+    // has no email claim, and reading a missing property raises an evaluation
+    // error. The clause still denies, but it denies noisily — the emulator logs
+    // an exception on every such request, which buries real failures.
+    function isAdmin() {
+      return signedIn() && request.auth.token.get('email', '') in [
+        'cleantouchapp@gmail.com',
+        'itzikofek669@gmail.com'
+      ];
+    }
+
+    // Profile photos. Readable by any signed-in user because cleaner discovery
+    // shows them; writable only by their owner.
+    //
+    // These live here rather than inline in the Firestore user document (the
+    // old `photoB64` field) so that listing 200 cleaners doesn't download 200
+    // photos — see src/lib/photos.ts.
+    match /avatars/{userId}/{fileName} {
+      allow read: if signedIn();
+
+      // 2 MB and images only. The apps compress to ~100 KB before upload, so
+      // this is a generous ceiling that still stops the path being used as
+      // general-purpose file hosting.
+      allow write: if signedIn()
+        && request.auth.uid == userId
+        && request.resource.size < 2 * 1024 * 1024
+        && request.resource.contentType.matches('image/.*');
+
+      allow delete: if (signedIn() && request.auth.uid == userId) || isAdmin();
+    }
+
+    // Chat attachments. The chat id is the two participant uids sorted and
+    // joined with "_", mirroring the Firestore rules, so membership is provable
+    // from the path alone.
+    match /chats/{chatId}/{fileName} {
+      function inChat() {
+        return signedIn() && request.auth.uid in chatId.split('_');
+      }
+
+      allow read: if inChat() || isAdmin();
+
+      // 10 MB ceiling and an audio-only content type: a chat attachment path is
+      // otherwise a free file host for anyone with an account.
+      allow write: if inChat()
+        && request.resource.size < 10 * 1024 * 1024
+        && request.resource.contentType.matches('audio/.*');
+
+      allow delete: if inChat() || isAdmin();
+    }
+
+    // Everything else is closed. Add an explicit match above before shipping a
+    // new upload path — do not relax this default.
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+  }
+}

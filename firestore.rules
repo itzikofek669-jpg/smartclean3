@@ -1,96 +1,245 @@
 rules_version = '2';
+
+// ─────────────────────────────────────────────────────────────────────────────
+// A&M Clean — Firestore security rules
+//
+// Shared by the web app (A-M-Clean-web) and the mobile app (smartclean3).
+// KEEP THE TWO COPIES IDENTICAL — whichever project deploys last wins, so a
+// divergence silently reverts the other side's protections.
+//
+// Design notes:
+//  • "Signed in" is NOT an authorization decision. Every collection below is
+//    scoped to the documents the caller actually participates in.
+//  • Chat access is derived from the doc id (`uidA_uidB`, sorted) rather than a
+//    lookup, so it costs no extra read and works for the messages sub-collection.
+//  • A cleaner's free/busy time lives on their own user doc (`busySlots` /
+//    `pendingSlots`) precisely so nobody needs to read other people's bookings
+//    to check availability.
+// ─────────────────────────────────────────────────────────────────────────────
+
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // ── משתמשים ──────────────────────────────────────────────────────────────
-    match /users/{userId} {
-      // כל משתמש מחובר יכול לקרוא פרופילים (להצגת מנקים)
-      allow read: if request.auth != null;
-      // יצירה: רק המשתמש עצמו (מיד אחרי הרשמה)
-      allow create: if request.auth != null && request.auth.uid == userId;
-      // עדכון: המשתמש עצמו, או כל משתמש מחובר שמעדכן אך ורק שדות דירוג (ביקורת מלקוח)
-      allow update: if request.auth != null && (
-        request.auth.uid == userId ||
-        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['rating', 'reviewCount', 'reviews'])
-      );
-      // מחיקה: רק אדמין (למחיקת מנקים/לקוחות ממסך הניהול)
-      allow delete: if request.auth != null && request.auth.token.email == 'cleantouchapp@gmail.com';
+    // ── Helpers ──────────────────────────────────────────────────────────────
+    function signedIn() {
+      return request.auth != null;
+    }
 
-      // ביקורות תת-אוסף
+    function uid() {
+      return request.auth.uid;
+    }
+
+    // `.get('email', '')` rather than `.email`: an anonymous or phone-auth token
+    // has no email claim, and reading a missing property raises an evaluation
+    // error. The clause still denies, but it denies noisily — the emulator logs
+    // an exception on every such request, which buries real failures.
+    function isAdmin() {
+      return signedIn() && request.auth.token.get('email', '') in [
+        'cleantouchapp@gmail.com',
+        'itzikofek669@gmail.com'
+      ];
+    }
+
+    // Which top-level keys is this write touching?
+    function changed() {
+      return request.resource.data.diff(resource.data).affectedKeys();
+    }
+
+    // A rating write from a reviewer: only the aggregate fields, only plausible
+    // values, and the counter may only move forward. Without the value checks a
+    // signed-in stranger could zero out any cleaner's reputation.
+    function isValidRatingUpdate() {
+      return changed().hasOnly(['rating', 'reviewCount', 'reviews', 'reviewsCount'])
+        && request.resource.data.rating is number
+        && request.resource.data.rating >= 0
+        && request.resource.data.rating <= 5
+        && request.resource.data.reviewCount is int
+        && request.resource.data.reviewCount > 0
+        && request.resource.data.reviewCount <= (resource.data.get('reviewCount', 0) + 1);
+    }
+
+    // ── Users ────────────────────────────────────────────────────────────────
+    // Profiles stay readable to signed-in users: cleaner discovery, chat names
+    // and availability all depend on it. Writes are locked to the owner, with
+    // one narrow exception for the review aggregate.
+    match /users/{userId} {
+      allow read: if signedIn();
+
+      allow create: if signedIn() && uid() == userId;
+
+      allow update: if signedIn() && (
+        uid() == userId
+        || isAdmin()
+        || isValidRatingUpdate()
+      );
+
+      allow delete: if isAdmin();
+
+      // Reviews: anyone signed in may leave one; nobody may edit or delete it
+      // afterwards (admins moderate by deleting the whole user).
       match /reviews/{reviewId} {
-        allow read: if request.auth != null;
-        allow create: if request.auth != null;
-        allow update, delete: if false;
+        allow read: if signedIn();
+        allow create: if signedIn()
+          && request.resource.data.authorId == uid()
+          && request.resource.data.stars is number
+          && request.resource.data.stars >= 1
+          && request.resource.data.stars <= 5;
+        allow update, delete: if isAdmin();
       }
     }
 
-    // ── הזמנות ────────────────────────────────────────────────────────────────
+    // ── Profile photos ───────────────────────────────────────────────────────
+    // One document per user, holding nothing but the avatar.
+    //
+    // It is split out of the user document on purpose: Firestore's client SDKs
+    // cannot fetch a subset of fields, so an inline photo is downloaded by
+    // every query that touches the profile — including the cleaner list, which
+    // reads hundreds of documents to draw names and prices. Kept here, a photo
+    // is only ever fetched for a face actually on screen.
+    //
+    // Readable by any signed-in user: the same audience that can already read
+    // the profile it belongs to. Writable only by its owner, and size-capped —
+    // without the cap this is an open 1 MiB-per-write file host for anyone with
+    // an account.
+    match /userPhotos/{userId} {
+      // 250 K characters. The web compressor targets 120 K (AVATAR_PRESET in
+      // src/lib/imageCompress.ts) and the mobile one accepts up to ~200 K, so
+      // this clears both with room to spare while staying a quarter of a
+      // document. Mirrored as MAX_AVATAR_CHARS in smartclean3/lib/photos.ts —
+      // change the two together, or the app rejects a photo the rules would
+      // have taken, or worse, the reverse.
+      function isPhoto() {
+        return request.resource.data.keys().hasOnly(['dataUrl', 'updatedAt'])
+          && request.resource.data.dataUrl is string
+          && request.resource.data.dataUrl.size() <= 250000
+          && request.resource.data.dataUrl.matches('data:image/.*');
+      }
+
+      allow read: if signedIn();
+      allow create, update: if signedIn() && uid() == userId && isPhoto();
+      allow delete: if signedIn() && (uid() == userId || isAdmin());
+    }
+
+    // ── Bookings ─────────────────────────────────────────────────────────────
+    // A booking carries the client's full address, floor, flat and phone. Only
+    // the two parties (and admin) may read it — plus open, unassigned jobs,
+    // which are the public job board by definition.
     match /bookings/{bookingId} {
-      allow read:   if request.auth != null;
-      allow create: if request.auth != null;
-      allow update: if request.auth != null;
+      function isParty() {
+        return signedIn() && (
+          resource.data.get('clientUid', '') == uid()
+          || resource.data.get('cleanerId', '') == uid()
+        );
+      }
+      function isOpenJob() {
+        return signedIn()
+          && resource.data.get('open', false) == true
+          && resource.data.get('status', '') == 'pending';
+      }
+
+      allow read: if isParty() || isOpenJob() || isAdmin();
+
+      // The creator must own the booking they are creating.
+      allow create: if signedIn()
+        && request.resource.data.get('clientUid', '') == uid();
+
+      // Either party may progress the job (accept / cancel / complete), and an
+      // unassigned open job may be claimed by any cleaner. Nobody else.
+      allow update: if isAdmin()
+        || isParty()
+        || (isOpenJob() && request.resource.data.get('cleanerId', '') == uid());
+
+      // Bookings are financial records — cancel, never delete.
       allow delete: if false;
     }
 
-    // ── צ'אטים ────────────────────────────────────────────────────────────────
+    // ── Chats ────────────────────────────────────────────────────────────────
+    // The doc id is the two participant uids, sorted and joined with "_".
+    // Firebase uids contain no underscores, so splitting is unambiguous.
     match /chats/{chatId} {
-      allow read, write: if request.auth != null;
+      function inChat() {
+        return signedIn() && uid() in chatId.split('_');
+      }
+
+      allow read, write: if inChat() || isAdmin();
 
       match /messages/{messageId} {
-        allow read, write: if request.auth != null;
+        allow read: if inChat() || isAdmin();
+        allow create: if inChat()
+          && request.resource.data.get('fromUid', '') == uid();
+        allow update: if false;                 // messages are immutable
+        allow delete: if inChat() || isAdmin();
       }
     }
 
-    // ── הודעות תמיכה ──────────────────────────────────────────────────────────
+    // ── Support messages ─────────────────────────────────────────────────────
+    // A support thread is between one user and the team; other users have no
+    // business reading it.
     match /supportMessages/{msgId} {
-      allow read, write: if request.auth != null;
+      allow read: if isAdmin()
+        || (signedIn() && resource.data.get('uid', '') == uid());
+      allow create: if signedIn()
+        && request.resource.data.get('uid', '') == uid();
+      allow update, delete: if isAdmin();
     }
 
-    // ── בקשות ניקוי דחוף ──────────────────────────────────────────────────────
-    // לקוח יוצר בקשה, כל המנקים קוראים בקשות פתוחות, מנקה מעדכן/משבץ,
-    // והאפליקציה מוחקת אוטומטית בקשות שפג תוקפן
+    // ── Urgent requests ──────────────────────────────────────────────────────
+    // Broadcast to every cleaner by design, so reads stay open. Only the client
+    // who posted it (or the assigned cleaner / admin) may remove it.
     match /urgentRequests/{reqId} {
-      allow read:   if request.auth != null;
-      allow create: if request.auth != null;
-      allow update: if request.auth != null;
-      allow delete: if request.auth != null;
+      allow read: if signedIn();
+      allow create: if signedIn()
+        && request.resource.data.get('clientUid', '') == uid();
+      allow update: if signedIn();              // cleaners claim / clients edit
+      allow delete: if isAdmin() || (signedIn() && (
+        resource.data.get('clientUid', '') == uid()
+        || resource.data.get('cleanerId', '') == uid()
+      ));
     }
 
-    // ── דיווחים (באגים / דיווח על משתמש) ─────────────────────────────────────
+    // ── Reports (bug reports / reporting a user) ─────────────────────────────
+    // Write-only for users: a reported party must not be able to read, edit or
+    // quietly delete the report filed against them.
     match /reports/{reportId} {
-      allow read:   if request.auth != null;
-      allow create: if request.auth != null;
-      allow update: if request.auth != null;
-      allow delete: if request.auth != null;
+      allow read: if isAdmin();
+      allow create: if signedIn();
+      allow update, delete: if isAdmin();
     }
 
-    // ── בקשות ביטוח ───────────────────────────────────────────────────────────
+    // ── Insurance requests ───────────────────────────────────────────────────
+    // The writer (smartclean3/app/profile.tsx) stores the submitter under
+    // `clientUid`, matching the bookings schema — not `uid`.
+    //
+    // NOTE: nothing in either app currently READS this collection. A client can
+    // file an insurance claim and no screen anywhere displays it. Worth an
+    // admin tab; until then these rules at least keep the claims private.
     match /insuranceRequests/{reqId} {
-      allow read:   if request.auth != null;
-      allow create: if request.auth != null;
-      allow update: if request.auth != null;
-      allow delete: if false;
+      allow read: if isAdmin()
+        || (signedIn() && resource.data.get('clientUid', '') == uid());
+      allow create: if signedIn()
+        && request.resource.data.get('clientUid', '') == uid();
+      allow update, delete: if isAdmin();
     }
 
-    // ── קודי הנחה ─────────────────────────────────────────────────────────────
+    // ── Promo codes ──────────────────────────────────────────────────────────
     match /promoCodes/{promoId} {
-      allow read:  if request.auth != null;
-      allow write: if request.auth != null &&
-                      request.auth.token.email in [
-                        'cleantouchapp@gmail.com'
-                      ];
+      allow read: if signedIn();
+      allow write: if isAdmin();
     }
 
-    // ── הגדרות אדמין ──────────────────────────────────────────────────────────
+    // ── Admin settings ───────────────────────────────────────────────────────
     match /settings/{settingId} {
-      allow read:  if request.auth != null;
-      allow write: if request.auth != null &&
-                      request.auth.token.email in [
-                        'cleantouchapp@gmail.com'
-                      ];
+      allow read: if signedIn();
+      allow write: if isAdmin();
     }
 
-    // ── ברירת מחדל — חסום הכל ───────────────────────────────────────────────
+    // ── Rate limiting (written by Cloud Functions via the Admin SDK) ─────────
+    // The Admin SDK bypasses rules; clients must never touch these counters.
+    match /rateLimits/{docId} {
+      allow read, write: if false;
+    }
+
+    // ── Default deny ─────────────────────────────────────────────────────────
     match /{document=**} {
       allow read, write: if false;
     }
