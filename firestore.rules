@@ -120,6 +120,33 @@ service cloud.firestore {
       allow delete: if signedIn() && (uid() == userId || isAdmin());
     }
 
+    // A cleaner's "my work" gallery. Split out of the user document for the
+    // same reason as userPhotos: the cleaner list reads every cleaner doc, and
+    // an inline array of base64 images meant browsing downloaded all of them.
+    match /userPortfolios/{userId} {
+      // What can be enforced here: the shape, and at most 12 images. Mirrored
+      // as MAX_PORTFOLIO_IMAGES in src/lib/portfolio.ts and the app's copy.
+      //
+      // What CANNOT: per-image content or size. Rules have no way to iterate a
+      // list, so there is no expression that checks every element is a
+      // `data:image/...` string under the cap. Those two checks live in the
+      // clients (`clean()` in portfolio.ts), and Firestore's own 1 MiB document
+      // limit is the real backstop — a caller stuffing 12 huge strings in here
+      // gets rejected by the write itself, not by this rule.
+      //
+      // Stated plainly because a rule that looks like validation and isn't is
+      // worse than none: it invites trusting the data downstream.
+      function isGallery() {
+        return request.resource.data.keys().hasOnly(['images', 'updatedAt'])
+          && request.resource.data.images is list
+          && request.resource.data.images.size() <= 12;
+      }
+
+      allow read: if signedIn();
+      allow create, update: if signedIn() && uid() == userId && isGallery();
+      allow delete: if signedIn() && (uid() == userId || isAdmin());
+    }
+
     // ── Bookings ─────────────────────────────────────────────────────────────
     // A booking carries the client's full address, floor, flat and phone. Only
     // the two parties (and admin) may read it — plus open, unassigned jobs,

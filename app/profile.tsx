@@ -17,6 +17,10 @@ import {
 import { auth, db } from '../lib/firebase';
 import { saveAvatar as savePhotoDoc, fetchAvatar, resolvePhoto } from '../lib/photos';
 import {
+  fetchPortfolio, savePortfolio as savePortfolioDoc,
+  MAX_PORTFOLIO_IMAGES, MAX_PORTFOLIO_IMAGE_CHARS,
+} from '../lib/portfolio';
+import {
   LANGUAGE_CODES, LANGUAGE_FLAGS, WORK_DAY_CODES,
   normalizeLanguages, normalizeWorkDays,
 } from '../lib/cleanerTraits';
@@ -1055,7 +1059,9 @@ export default function ProfileScreen() {
           }
           setAvailability(parsedAvail);
           setShowPhone(d.showPhone !== false);
-          setPortfolio(d.portfolio || []);
+          // Live gallery, falling back to whatever the user document still
+          // carries inline until this cleaner next saves. See lib/portfolio.
+          fetchPortfolio(uid, d.portfolio).then(setPortfolio).catch(() => {});
           setIdVerified(d.identityVerified === true);
           setPrefLang((d.preferredLang || 'he') as Lang);
           setUserPhone(d.phone || '');
@@ -1317,13 +1323,44 @@ export default function ProfileScreen() {
     ]);
   };
 
+  /**
+   * Write the gallery to `userPortfolios/{uid}` and drop the legacy inline copy
+   * from the user document. Both in one step, so a cleaner never ends up with
+   * two diverging galleries.
+   *
+   * The inline array is what made listing cleaners download everybody's photos
+   * — see lib/portfolio.ts — so clearing it is the point, not a tidy-up.
+   */
+  const writePortfolio = async (updated: string[]) => {
+    await savePortfolioDoc(uid, updated);
+    if (portfolio.length > 0) {
+      await setDoc(doc(db, 'users', uid), { portfolio: deleteField() }, { merge: true })
+        .catch(err => logError('profile:portfolioLegacyClear', err));
+    }
+  };
+
   const savePortfolioPhoto = async (b64: string) => {
     const uri = `data:image/jpeg;base64,${b64}`;
+    if (uri.length > MAX_PORTFOLIO_IMAGE_CHARS) {
+      Alert.alert('', (t as any).photoTooLargeMsg ?? 'התמונה גדולה מדי. נסה/י תמונה קטנה יותר.');
+      return;
+    }
+    if (portfolio.length >= MAX_PORTFOLIO_IMAGES) {
+      Alert.alert('', String((t as any).portfolioFullMsg ?? 'ניתן להעלות עד {n} תמונות')
+        .replace('{n}', String(MAX_PORTFOLIO_IMAGES)));
+      return;
+    }
     const updated = [...portfolio, uri];
     setPortfolio(updated);
-    await setDoc(doc(db, 'users', uid), { portfolio: updated }, { merge: true });
-    setPortfolioSaved(true);
-    setTimeout(() => setPortfolioSaved(false), 2500);
+    try {
+      await writePortfolio(updated);
+      setPortfolioSaved(true);
+      setTimeout(() => setPortfolioSaved(false), 2500);
+    } catch (err) {
+      setPortfolio(portfolio);   // put the list back; the write didn't land
+      logError('profile:portfolioSave', err);
+      Alert.alert('', (t as any).saveFailedMsg ?? 'השמירה נכשלה. נסה/י שוב.');
+    }
   };
 
   const removePortfolioPhoto = (index: number) => {
@@ -1333,7 +1370,13 @@ export default function ProfileScreen() {
         onPress: async () => {
           const updated = portfolio.filter((_, i) => i !== index);
           setPortfolio(updated);
-          await setDoc(doc(db, 'users', uid), { portfolio: updated }, { merge: true });
+          try {
+            await writePortfolio(updated);
+          } catch (err) {
+            setPortfolio(portfolio);
+            logError('profile:portfolioDelete', err);
+            Alert.alert('', (t as any).saveFailedMsg ?? 'השמירה נכשלה. נסה/י שוב.');
+          }
         },
       },
       { text: t.cancel, style: 'cancel' },

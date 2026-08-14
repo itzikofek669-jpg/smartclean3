@@ -21,6 +21,7 @@ import { collection, addDoc, getDocs, query, where, doc, getDoc, setDoc, onSnaps
 import { auth, db } from '../lib/firebase';
 import { resolvePhoto } from '../lib/photos';
 import { useAvatar } from '../lib/useAvatar';
+import { fetchPortfolio } from '../lib/portfolio';
 import {
   LANGUAGE_FLAGS, groupConsecutiveDays, normalizeLanguages, normalizeWorkDays,
 } from '../lib/cleanerTraits';
@@ -926,7 +927,7 @@ function CleanerTraitsSection({ cleaner, s, t }: any) {
   );
 }
 
-function CleanerProfile({ cleaner, visible, onClose, onBook, onChat, initialShowReviews }: any) {
+function CleanerProfile({ cleaner, visible, onClose, onBook, onChat, initialShowReviews, onOpenPhotos }: any) {
   const { t } = useLanguage();
   const C = useAppColors();
   const s = createS(C);
@@ -937,6 +938,19 @@ function CleanerProfile({ cleaner, visible, onClose, onBook, onChat, initialShow
   const reviewsY = React.useRef(0);
   // The photo isn't on the cleaner document any more — see lib/useAvatar.
   const avatarUri = useAvatar(cleaner?.uid || cleaner?.id, cleaner);
+  // Nor is the gallery: it lives in userPortfolios/{uid} so the cleaner LIST
+  // doesn't drag everybody's photos down with it. `cleaner.portfolio` is the
+  // legacy inline copy, read until that cleaner next saves. See lib/portfolio.
+  const [gallery, setGallery] = React.useState<string[]>([]);
+  React.useEffect(() => {
+    const uid = cleaner?.uid || cleaner?.id;
+    if (!visible || !uid) { setGallery([]); return; }
+    let alive = true;
+    fetchPortfolio(String(uid), cleaner?.portfolio).then(list => {
+      if (alive) setGallery(list);
+    });
+    return () => { alive = false; };
+  }, [visible, cleaner?.uid, cleaner?.id]);
   // כשנפתח מלחיצה על ביקורת בכרטיס — לגלול אל חלק הביקורות
   React.useEffect(() => {
     if (visible && initialShowReviews) {
@@ -1121,18 +1135,24 @@ function CleanerProfile({ cleaner, visible, onClose, onBook, onChat, initialShow
           </View>
 
           {/* Portfolio gallery */}
-          {cleaner.portfolio?.length > 0 && (
+          {gallery.length > 0 && (
             <View style={s.profileSection}>
               <T style={s.profileSectionTitle}>📸 {t.portfolioTitle}</T>
               <ScrollView horizontal showsHorizontalScrollIndicator={false}>
                 <View style={{ flexDirection: 'row', gap: 10 }}>
-                  {cleaner.portfolio.map((uri: string, i: number) => (
-                    <Image
+                  {gallery.map((uri: string, i: number) => (
+                    <TouchableOpacity
                       key={i}
-                      source={{ uri }}
-                      style={{ width: 100, height: 100, borderRadius: 14 }}
-                      contentFit="cover"
-                    />
+                      onPress={() => onOpenPhotos?.(gallery, i)}
+                      accessibilityRole="imagebutton"
+                      accessibilityLabel={`${t.portfolioTitle} ${i + 1}/${gallery.length}`}
+                    >
+                      <Image
+                        source={{ uri }}
+                        style={{ width: 100, height: 100, borderRadius: 14 }}
+                        contentFit="cover"
+                      />
+                    </TouchableOpacity>
                   ))}
                 </View>
               </ScrollView>
@@ -5498,7 +5518,22 @@ export default function HomeScreen() {
       {/* פרסום עבודה פתוחה (לקוח) */}
       <PostJobModal visible={postJobOpen} onClose={() => setPostJobOpen(false)} />
 
-      <CleanerProfile cleaner={profile}  visible={!!profile}  onClose={() => setProfile(null)}  onBook={setBooking} onChat={setChatWith} initialShowReviews={profileReviews} />
+      <CleanerProfile
+        cleaner={profile}
+        visible={!!profile}
+        onClose={() => setProfile(null)}
+        onBook={setBooking}
+        onChat={setChatWith}
+        initialShowReviews={profileReviews}
+        // The full-size viewer below was built and never wired to anything —
+        // `setPhotoViewerOpen(true)` had no callers at all. Tapping a gallery
+        // photo now opens it, matching the web.
+        onOpenPhotos={(uris: string[], idx: number) => {
+          setPhotoViewerUris(uris);
+          setPhotoViewerIdx(idx);
+          setPhotoViewerOpen(true);
+        }}
+      />
       <BookingModal
         cleaner={booking}
         visible={!!booking}
@@ -5697,11 +5732,23 @@ export default function HomeScreen() {
           )}
           {photoViewerUris.length > 1 && (
             <View style={{ flexDirection: 'row', gap: 12, marginTop: 16 }}>
-              <TouchableOpacity onPress={() => setPhotoViewerIdx(i => Math.max(0, i - 1))} style={{ backgroundColor: 'rgba(255,255,255,0.2)', borderRadius: 20, padding: 10 }}>
+              {/* Wraps around rather than clamping, so the two platforms
+                  behave the same — the web viewer does too. */}
+              <TouchableOpacity
+                onPress={() => setPhotoViewerIdx(i => (i - 1 + photoViewerUris.length) % photoViewerUris.length)}
+                style={{ backgroundColor: 'rgba(255,255,255,0.2)', borderRadius: 20, padding: 10 }}
+                accessibilityRole="button"
+                accessibilityLabel="הקודם"
+              >
                 <T style={{ color: C.white, fontSize: 16 }}>◀</T>
               </TouchableOpacity>
               <T style={{ color: C.white, alignSelf: 'center' }}>{photoViewerIdx + 1} / {photoViewerUris.length}</T>
-              <TouchableOpacity onPress={() => setPhotoViewerIdx(i => Math.min(photoViewerUris.length - 1, i + 1))} style={{ backgroundColor: 'rgba(255,255,255,0.2)', borderRadius: 20, padding: 10 }}>
+              <TouchableOpacity
+                onPress={() => setPhotoViewerIdx(i => (i + 1) % photoViewerUris.length)}
+                style={{ backgroundColor: 'rgba(255,255,255,0.2)', borderRadius: 20, padding: 10 }}
+                accessibilityRole="button"
+                accessibilityLabel="הבא"
+              >
                 <T style={{ color: C.white, fontSize: 16 }}>▶</T>
               </TouchableOpacity>
             </View>
