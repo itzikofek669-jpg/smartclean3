@@ -1331,9 +1331,11 @@ export default function ProfileScreen() {
    * The inline array is what made listing cleaners download everybody's photos
    * — see lib/portfolio.ts — so clearing it is the point, not a tidy-up.
    */
-  const writePortfolio = async (updated: string[]) => {
+  const writePortfolio = async (updated: string[], hadLegacy: boolean) => {
     await savePortfolioDoc(uid, updated);
-    if (portfolio.length > 0) {
+    // Only on the first write for this cleaner: after that the field is gone
+    // and re-deleting it is a billed write that changes nothing.
+    if (hadLegacy) {
       await setDoc(doc(db, 'users', uid), { portfolio: deleteField() }, { merge: true })
         .catch(err => logError('profile:portfolioLegacyClear', err));
     }
@@ -1345,19 +1347,33 @@ export default function ProfileScreen() {
       Alert.alert('', (t as any).photoTooLargeMsg ?? 'התמונה גדולה מדי. נסה/י תמונה קטנה יותר.');
       return;
     }
-    if (portfolio.length >= MAX_PORTFOLIO_IMAGES) {
+    // Build on what the server actually holds, not on `portfolio` state. The
+    // state starts empty and fills asynchronously, so adding a photo during
+    // that window used to persist a one-image gallery over the real one and
+    // then delete the legacy copy — destroying every existing photo.
+    // fetchPortfolio caches its promise, so this is the same in-flight read.
+    let current: string[];
+    try {
+      current = await fetchPortfolio(uid);
+    } catch (err) {
+      logError('profile:portfolioRead', err);
+      Alert.alert('', (t as any).saveFailedMsg ?? 'השמירה נכשלה. נסה/י שוב.');
+      return;
+    }
+    if (current.length >= MAX_PORTFOLIO_IMAGES) {
+      setPortfolio(current);
       Alert.alert('', String((t as any).portfolioFullMsg ?? 'ניתן להעלות עד {n} תמונות')
         .replace('{n}', String(MAX_PORTFOLIO_IMAGES)));
       return;
     }
-    const updated = [...portfolio, uri];
+    const updated = [...current, uri];
     setPortfolio(updated);
     try {
-      await writePortfolio(updated);
+      await writePortfolio(updated, current.length > 0);
       setPortfolioSaved(true);
       setTimeout(() => setPortfolioSaved(false), 2500);
     } catch (err) {
-      setPortfolio(portfolio);   // put the list back; the write didn't land
+      setPortfolio(current);   // put the list back; the write didn't land
       logError('profile:portfolioSave', err);
       Alert.alert('', (t as any).saveFailedMsg ?? 'השמירה נכשלה. נסה/י שוב.');
     }
@@ -1368,12 +1384,18 @@ export default function ProfileScreen() {
       {
         text: t.portfolioDeleteBtn, style: 'destructive',
         onPress: async () => {
-          const updated = portfolio.filter((_, i) => i !== index);
+          // Delete by value, not by index: `portfolio` state and the stored
+          // gallery can differ mid-load, and an index resolved against the
+          // wrong list removes the wrong photo.
+          const target = portfolio[index];
+          if (!target) return;
+          const before = portfolio;
+          const updated = portfolio.filter((uri) => uri !== target);
           setPortfolio(updated);
           try {
-            await writePortfolio(updated);
+            await writePortfolio(updated, true);
           } catch (err) {
-            setPortfolio(portfolio);
+            setPortfolio(before);
             logError('profile:portfolioDelete', err);
             Alert.alert('', (t as any).saveFailedMsg ?? 'השמירה נכשלה. נסה/י שוב.');
           }
