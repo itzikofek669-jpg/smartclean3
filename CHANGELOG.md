@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.2.0 (versionCode 3) — 2026-08-14
+
+- Move the app's work gallery off the user document, and wire up the viewer
+- Fix the client's booking listener, which had never once fired
+- Mirror the cleaner service-details card in the app
+- Mirror the web app's photo, validation and error-handling work
+- Carry the same rules the web repo ships
+- Untrack the files a mispasted terminal command created
+
 ## 1.1.0 (versionCode 2) — 2026-08-08
 
 First release to carry a real version. Everything before this shipped as
