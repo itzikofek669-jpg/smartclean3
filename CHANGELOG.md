@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.2.1 (versionCode 4) — 2026-08-14
+
+- Stop adding a photo destroying the gallery it was added to
+
 ## 1.2.0 (versionCode 3) — 2026-08-14
 
 - Move the app's work gallery off the user document, and wire up the viewer
