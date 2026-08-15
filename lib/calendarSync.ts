@@ -11,6 +11,7 @@
 import * as Calendar from 'expo-calendar';
 import * as SecureStore from 'expo-secure-store';
 import { Platform } from 'react-native';
+import { logError } from './logError';
 
 /** SecureStore key holding the created event id for a booking. */
 const evtKey = (bookingId: string) => `cal_evt_${bookingId}`;
@@ -60,32 +61,70 @@ async function writableCalendarId(): Promise<string | null> {
 }
 
 /**
+ * A message worth showing the user, or '' when the outcome needs no comment.
+ *
+ * Only the two causes a person can actually act on get surfaced. 'already-synced'
+ * is the common case and must stay silent; 'bad-slot' and 'no-id' are our bugs,
+ * not theirs, and go to logError instead.
+ */
+export function calendarSyncMessage(r: CalendarSyncResult): string {
+  if (r === 'denied') {
+    return 'ההזמנה לא נוספה ליומן — לא ניתנה הרשאה. אפשר לאשר בהגדרות המכשיר.';
+  }
+  if (r === 'no-calendar') {
+    return 'ההזמנה לא נוספה ליומן — לא נמצא יומן שניתן לכתוב אליו במכשיר.';
+  }
+  if (r === 'error') {
+    return 'ההזמנה לא נוספה ליומן. אפשר להוסיף אותה ידנית.';
+  }
+  return '';
+}
+
+/**
  * Add a confirmed booking to the device calendar.
  *
  * Idempotent: the created event id is stored per booking, so re-running this
  * (re-render, app relaunch, both parties' listeners firing) won't pile up
- * duplicates. Returns true only when a new event was actually written.
+ * duplicates.
  */
+/**
+ * Why a sync attempt ended. Every one of these used to be an undifferentiated
+ * `false`, which is why a client reporting "nothing happened" could not be
+ * told apart from six different causes — including two the user can fix
+ * themselves (a refused permission, a phone with no writable calendar).
+ */
+export type CalendarSyncResult =
+  | 'added'
+  | 'already-synced'
+  | 'no-id'
+  | 'bad-slot'        // date/time not in the expected format
+  | 'denied'          // user refused, or permission previously denied
+  | 'no-calendar'     // no writable calendar on the device (no account synced)
+  | 'error';
+
 export async function addBookingToCalendar(
   b: CalendarBooking,
   opts: { role: 'client' | 'cleaner'; title?: string; notes?: string } = { role: 'client' },
-): Promise<boolean> {
+): Promise<CalendarSyncResult> {
   try {
-    if (!b?.id) return false;
+    if (!b?.id) return 'no-id';
 
     // Already synced? Bail before prompting for permission.
     const existing = await SecureStore.getItemAsync(evtKey(b.id)).catch(() => null);
-    if (existing) return false;
+    if (existing) return 'already-synced';
 
     const start = startDateOf(b);
-    if (!start) return false;
+    if (!start) return 'bad-slot';
     const end = new Date(start.getTime() + (Number(b.hours) > 0 ? Number(b.hours) : 2) * 3600000);
 
     const { status } = await Calendar.requestCalendarPermissionsAsync();
-    if (status !== 'granted') return false;
+    if (status !== 'granted') return 'denied';
 
+    // A phone with no account synced has no writable calendar at all. Nothing
+    // the app can do about it, but the user can — so say so rather than
+    // vanishing.
     const calendarId = await writableCalendarId();
-    if (!calendarId) return false;
+    if (!calendarId) return 'no-calendar';
 
     const other = opts.role === 'cleaner' ? b.clientName : b.cleanerName;
     const title = opts.title
@@ -103,12 +142,15 @@ export async function addBookingToCalendar(
 
     if (eventId) {
       await SecureStore.setItemAsync(evtKey(b.id), String(eventId)).catch(() => {});
-      return true;
+      return 'added';
     }
-    return false;
-  } catch (_) {
-    // Never let a calendar problem surface as a booking failure.
-    return false;
+    return 'error';
+  } catch (err) {
+    // Never let a calendar problem surface as a booking failure — but do not
+    // lose the evidence either. A silently swallowed throw here is what made
+    // this whole path undiagnosable from a user's "nothing happened".
+    logError('calendarSync:add', err);
+    return 'error';
   }
 }
 

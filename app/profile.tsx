@@ -36,7 +36,7 @@ import { MaterialIcons } from '@expo/vector-icons';
 import { TAB_BAR_CONTENT_HEIGHT } from '../lib/BottomTabBar';
 import * as Notifications from 'expo-notifications';
 import Constants from 'expo-constants';
-import { addBookingToCalendar, removeBookingFromCalendar } from '../lib/calendarSync';
+import { addBookingToCalendar, removeBookingFromCalendar, calendarSyncMessage } from '../lib/calendarSync';
 import { logError } from '../lib/logError';
 
 
@@ -1957,7 +1957,18 @@ export default function ProfileScreen() {
       const confirmed = { ...b, ...updates };
       setIncomingBks(prev => prev.map(x => x.id === b.id ? confirmed : x));
       // שני הצדדים סגורים (הלקוח הזמין, המנקה אישר) — ליומן המכשיר של המנקה
-      addBookingToCalendar(confirmed, { role: 'cleaner' }).catch(() => {});
+      // Same treatment as the client side: say why it didn't work rather than
+      // dropping every failure on the floor.
+      addBookingToCalendar(confirmed, { role: 'cleaner' })
+        .then(res => {
+          if (res === 'bad-slot' || res === 'no-id') {
+            logError('profile:calendarSlot', { id: b.id, bookingDate: confirmed.bookingDate, startTime: confirmed.startTime, res });
+            return;
+          }
+          const msg = calendarSyncMessage(res);
+          if (msg) Alert.alert('', msg);
+        })
+        .catch(err => logError('profile:calendarAdd', err));
       setPendingConfirmBooking(null);
       setShowPendingTimeChange(false);
       // אחרי אישור — חזרה לפרופיל (רשימת ההזמנות), בלי שיקפוץ מסך אישור נוסף.
