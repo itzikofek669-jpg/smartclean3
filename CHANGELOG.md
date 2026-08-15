@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.2.2 (versionCode 5) — 2026-08-15
+
+- Make calendar sync say why it failed instead of vanishing
+- Drop the duplicate work-days picker; derive the days from availability
+
 ## 1.2.1 (versionCode 4) — 2026-08-14
 
 - Stop adding a photo destroying the gallery it was added to
