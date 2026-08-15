@@ -10,7 +10,7 @@
 
 import * as Calendar from 'expo-calendar';
 import * as SecureStore from 'expo-secure-store';
-import { Platform } from 'react-native';
+import { Alert, Platform } from 'react-native';
 import { logError } from './logError';
 
 /** SecureStore key holding the created event id for a booking. */
@@ -60,6 +60,62 @@ async function writableCalendarId(): Promise<string | null> {
   return (primary ?? writable[0]).id;
 }
 
+/** Marks that we've already offered calendar access once on this install. */
+const ASKED_KEY = 'cal_perm_asked';
+
+/**
+ * Ask for calendar access once, shortly after sign-in, instead of ambushing the
+ * user mid-flow.
+ *
+ * The permission used to be requested at the moment a cleaner approved a
+ * booking — which can be hours later, with the phone in a pocket. A system
+ * dialog that appears then is easy to miss or dismiss reflexively, and Android
+ * stops asking after two dismissals, so one badly-timed prompt can disable the
+ * feature permanently and invisibly.
+ *
+ * Asked here, with a sentence of context first, the user knows what they are
+ * agreeing to and finds out immediately whether it worked.
+ *
+ * Deliberately best-effort and non-blocking:
+ *  - only when the status is still `undetermined`, so we never re-prompt
+ *    someone who already decided, in either direction;
+ *  - only once per install, even if they choose "later" — the booking flow
+ *    still asks if it comes to that, so nothing is lost by not nagging;
+ *  - never awaited by the caller, so a slow dialog can't hold up sign-in.
+ */
+export async function primeCalendarPermission(): Promise<void> {
+  try {
+    if (await SecureStore.getItemAsync(ASKED_KEY).catch(() => null)) return;
+
+    const { status } = await Calendar.getCalendarPermissionsAsync();
+    if (status !== 'undetermined') {
+      // Already granted or already refused — record it so we stop checking.
+      await SecureStore.setItemAsync(ASKED_KEY, '1').catch(() => {});
+      return;
+    }
+
+    const proceed = await new Promise<boolean>(resolve => {
+      Alert.alert(
+        '📅 סנכרון עם היומן',
+        'נוסיף את ההזמנות המאושרות שלך ליומן המכשיר, עם תזכורת שעה לפני. '
+        + 'אפשר לאשר עכשיו — או לדלג ולהחליט בהמשך.',
+        [
+          { text: 'לא עכשיו', style: 'cancel', onPress: () => resolve(false) },
+          { text: 'אישור', onPress: () => resolve(true) },
+        ],
+        { cancelable: true, onDismiss: () => resolve(false) },
+      );
+    });
+
+    // Recorded either way: someone who said "not now" should not be asked again
+    // on every launch.
+    await SecureStore.setItemAsync(ASKED_KEY, '1').catch(() => {});
+    if (proceed) await Calendar.requestCalendarPermissionsAsync();
+  } catch (err) {
+    logError('calendarSync:prime', err);
+  }
+}
+
 /**
  * A message worth showing the user, or '' when the outcome needs no comment.
  *
@@ -81,13 +137,6 @@ export function calendarSyncMessage(r: CalendarSyncResult): string {
 }
 
 /**
- * Add a confirmed booking to the device calendar.
- *
- * Idempotent: the created event id is stored per booking, so re-running this
- * (re-render, app relaunch, both parties' listeners firing) won't pile up
- * duplicates.
- */
-/**
  * Why a sync attempt ended. Every one of these used to be an undifferentiated
  * `false`, which is why a client reporting "nothing happened" could not be
  * told apart from six different causes — including two the user can fix
@@ -102,6 +151,13 @@ export type CalendarSyncResult =
   | 'no-calendar'     // no writable calendar on the device (no account synced)
   | 'error';
 
+/**
+ * Add a confirmed booking to the device calendar.
+ *
+ * Idempotent: the created event id is stored per booking, so re-running this
+ * (re-render, app relaunch, both parties' listeners firing) won't pile up
+ * duplicates.
+ */
 export async function addBookingToCalendar(
   b: CalendarBooking,
   opts: { role: 'client' | 'cleaner'; title?: string; notes?: string } = { role: 'client' },

@@ -8,6 +8,7 @@ import Constants from 'expo-constants';
 import { doc, updateDoc, collection, query, where, onSnapshot } from 'firebase/firestore';
 import { auth, db } from '../lib/firebase';
 import { getActiveChat } from '../lib/chatPresence';
+import { primeCalendarPermission } from '../lib/calendarSync';
 import { LanguageProvider } from '../lib/LanguageContext';
 import { ThemeProvider } from '../lib/ThemeContext';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
@@ -148,7 +149,10 @@ export default function RootLayout() {
             router.replace('/home');
           }
         }
-        if (user) registerPushToken(user.uid);
+        if (user) {
+          registerPushToken(user.uid);
+          primeCalendarPermission();
+        }
       });
     })();
 
