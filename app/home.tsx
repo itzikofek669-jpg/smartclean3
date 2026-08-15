@@ -23,7 +23,7 @@ import { resolvePhoto } from '../lib/photos';
 import { useAvatar } from '../lib/useAvatar';
 import { fetchPortfolio } from '../lib/portfolio';
 import {
-  LANGUAGE_FLAGS, groupConsecutiveDays, normalizeLanguages, normalizeWorkDays,
+  LANGUAGE_FLAGS, groupConsecutiveDays, normalizeLanguages, workDaysFromAvailability,
 } from '../lib/cleanerTraits';
 import {
   CITY_COORDS, CITY_KEYS_BY_LEN, REGION_CENTER, regionFromLat,
@@ -870,7 +870,10 @@ function ReviewsModal({ cleaner, visible, onClose }: any) {
  */
 function CleanerTraitsSection({ cleaner, s, t }: any) {
   const languages = normalizeLanguages(cleaner?.languages);
-  const workDays  = normalizeWorkDays(cleaner?.workDays);
+  // From the `availability` map the profile screen writes — the single place a
+  // cleaner sets their days. A parallel `workDays` array briefly existed and was
+  // removed: two editors for one fact means the last screen used silently wins.
+  const workDays  = workDaysFromAvailability(cleaner?.availability);
   const place     = cleaner?.cleanerAddress || cleaner?.city;
   const cityLabel = place ? (t.cities?.[place] || place) : '';
   const distance  = Number(cleaner?.maxDistance) || 0;
@@ -4970,6 +4973,9 @@ export default function HomeScreen() {
           phone:            data.phone             || '',
           showPhone:        data.showPhone        !== false,
           portfolio:        data.portfolio         || [],
+          // Per-day availability the profile screen writes. The service-details
+          // card derives the working days from it — see workDaysFromAvailability.
+          availability:     data.availability      || {},
           identityVerified: data.identityVerified === true,
           // Legacy documents only; current ones keep the photo in `userPhotos`
           // and are drawn through useAvatar, which `hasPhoto` lets it skip.

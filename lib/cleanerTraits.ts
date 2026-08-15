@@ -48,6 +48,30 @@ export function normalizeWorkDays(value: unknown): WorkDayCode[] {
 }
 
 /**
+ * Day keys used by the app's `availability` map, Sunday-first so the index is
+ * already a `Date.getDay()` number.
+ */
+const AVAILABILITY_DAY_KEYS = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'] as const;
+
+/**
+ * Which days a cleaner works, read from the `availability` map the app's
+ * profile screen has always written: `{ sun: { active, start, end }, ... }`.
+ *
+ * This is the single source of truth. A separate `workDays` array was briefly
+ * added alongside it and removed again — two editors writing two fields for the
+ * same fact means whichever screen was used last silently wins, and the profile
+ * shows days the cleaner did not choose on the screen they actually use.
+ *
+ * The hours in each entry are deliberately ignored here; the profile card shows
+ * days only.
+ */
+export function workDaysFromAvailability(availability: unknown): WorkDayCode[] {
+  if (!availability || typeof availability !== 'object') return [];
+  const map = availability as Record<string, { active?: boolean } | undefined>;
+  return WORK_DAY_CODES.filter((d) => map[AVAILABILITY_DAY_KEYS[d]]?.active === true);
+}
+
+/**
  * Collapse consecutive days into ranges: [0,1,2,3,4] reads as "Sun–Thu" rather
  * than five chips. Returns groups of codes; the caller supplies the labels.
  *

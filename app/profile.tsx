@@ -21,8 +21,7 @@ import {
   MAX_PORTFOLIO_IMAGES, MAX_PORTFOLIO_IMAGE_CHARS,
 } from '../lib/portfolio';
 import {
-  LANGUAGE_CODES, LANGUAGE_FLAGS, WORK_DAY_CODES,
-  normalizeLanguages, normalizeWorkDays,
+  LANGUAGE_CODES, LANGUAGE_FLAGS, normalizeLanguages,
 } from '../lib/cleanerTraits';
 import { setActiveChat } from '../lib/chatPresence';
 import { readVoiceNote, voiceNoteSource } from '../lib/voiceNotes';
@@ -758,7 +757,6 @@ export default function ProfileScreen() {
   const [editExperience,   setEditExperience]   = useState('');
   const [editMaxDistance,  setEditMaxDistance]  = useState('');
   const [editLanguages,    setEditLanguages]    = useState<string[]>([]);
-  const [editWorkDays,     setEditWorkDays]     = useState<number[]>([]);
   const [editCleanerAddress, setEditCleanerAddress] = useState('');
   const [editServicePricing,setEditServicePricing]= useState<Record<string,string>>({});
   const [editSaving,       setEditSaving]       = useState(false);
@@ -915,7 +913,6 @@ export default function ProfileScreen() {
         setEditExperience(d.experience != null ? String(d.experience) : '');
         setEditMaxDistance(d.maxDistance != null ? String(d.maxDistance) : '');
         setEditLanguages(normalizeLanguages(d.languages));
-        setEditWorkDays(normalizeWorkDays(d.workDays));
         const sp = d.servicePricing || {};
         const spStr: Record<string,string> = {};
         Object.entries(sp).forEach(([k,v]) => { spStr[k] = String(v); });
@@ -984,7 +981,6 @@ export default function ProfileScreen() {
         // Canonical order on the way out, so two cleaners who ticked the same
         // boxes in a different sequence store the identical array.
         languages:     normalizeLanguages(editLanguages),
-        workDays:      normalizeWorkDays(editWorkDays),
         cleanerAddress:   editCleanerAddress.trim(),
         servicePricing:   spNum,
         availability,
@@ -4149,30 +4145,6 @@ export default function ProfileScreen() {
                 </View>
               </View>
 
-              {/* ימי עבודה — מספרי Date.getDay(), 0 = ראשון */}
-              <View>
-                <T style={ep.label}>{(t as any).traitWorkDays ?? 'ימי עבודה'}</T>
-                <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
-                  {WORK_DAY_CODES.map(d => {
-                    const on = editWorkDays.includes(d);
-                    return (
-                      <TouchableOpacity
-                        key={d}
-                        onPress={() => setEditWorkDays(cur =>
-                          cur.includes(d) ? cur.filter(x => x !== d) : [...cur, d])}
-                        style={[ep.traitChip, ep.traitDayChip, on && ep.traitChipOn]}
-                        accessibilityRole="button"
-                        accessibilityLabel={(t as any).dayNames?.[d]}
-                        accessibilityState={{ selected: on }}
-                      >
-                        <T style={[ep.traitChipTxt, on && ep.traitChipTxtOn]}>
-                          {(t as any).dayNamesShort?.[d] ?? d}
-                        </T>
-                      </TouchableOpacity>
-                    );
-                  })}
-                </View>
-              </View>
 
               {/* תיאור */}
               <View>
