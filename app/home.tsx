@@ -4063,18 +4063,29 @@ export default function HomeScreen() {
         const urgentStart = new Date(`${dateStr}T${hh}:${mm}`);
         const urgentEnd   = new Date(urgentStart.getTime() + urgentHours * 3600000);
         const busyByCleaner: Record<string, boolean> = {};
-        try {
-          const sameDaySnap = await getDocs(query(collection(db,'bookings'), where('bookingDate','==',dateStr)));
-          sameDaySnap.docs.forEach(d => {
-            const b: any = d.data();
-            if (['cancelled','done'].includes(b.status)) return;     // בוטל/הסתיים — לא תופס
-            if (!b.cleanerId || !b.startTime) return;
-            const [bh, bm] = String(b.startTime).split(':').map(Number);
-            const bStart = new Date(urgentStart); bStart.setHours(bh || 0, bm || 0, 0, 0);
-            const bEnd   = new Date(bStart.getTime() + (Number(b.hours) || 1) * 3600000);
-            if (urgentStart < bEnd && urgentEnd > bStart) busyByCleaner[b.cleanerId] = true; // חפיפה
-          });
-        } catch (_) {}
+        // Busy cleaners come from each cleaner's own `busySlots`, which they
+        // derive from their live bookings and publish on their user document.
+        //
+        // This used to query `bookings where bookingDate == today` — every
+        // booking that day, belonging to everyone. The rules deny that, and
+        // correctly so: those documents carry other clients' addresses and
+        // phone numbers. It was wrapped in a bare try/catch, so the denial was
+        // invisible and `busyByCleaner` simply stayed empty — the urgent push
+        // went to every cleaner including the ones already working.
+        //
+        // `busySlots` exists precisely so nobody has to read other people's
+        // bookings to check availability (see the header of firestore.rules).
+        // The cleaner documents are already in hand from the query above, so
+        // this also costs one fewer round trip.
+        for (const cd of cleanersSnap.docs) {
+          const slots: { from?: string; until?: string }[] = (cd.data() as any)?.busySlots || [];
+          for (const s of slots) {
+            const bStart = new Date(String(s?.from ?? ''));
+            const bEnd   = new Date(String(s?.until ?? ''));
+            if (isNaN(bStart.getTime()) || isNaN(bEnd.getTime())) continue;
+            if (urgentStart < bEnd && urgentEnd > bStart) { busyByCleaner[cd.id] = true; break; }
+          }
+        }
 
         for (const cd of cleanersSnap.docs) {
           const cData = cd.data();

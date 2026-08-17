@@ -184,18 +184,45 @@ service cloud.firestore {
     // The doc id is the two participant uids, sorted and joined with "_".
     // Firebase uids contain no underscores, so splitting is unambiguous.
     match /chats/{chatId} {
-      function inChat() {
+      // Membership two ways, and the distinction matters.
+      //
+      // `inChatId` reads the document ID, which is the two uids sorted and
+      // joined with "_". That works for a direct get and for writes, where the
+      // document may not exist yet.
+      //
+      // It does NOT work for a QUERY. The conversations list asks for
+      // `where('participants','array-contains',me)`, and Firestore will only
+      // run a query it can prove returns nothing unreadable — it compares the
+      // query's filters against the rule. A rule phrased in terms of the
+      // document ID has nothing to compare against an array-contains filter on
+      // a field, so the whole listener was rejected with permission-denied.
+      // Every signed-in user hit this on every screen; the conversations list
+      // has never loaded.
+      //
+      // `isParticipant` is written in exactly the bare form the analyser
+      // matches: `uid() in resource.data.participants`. Wrapping it in
+      // `.get(...)` or extra conditions defeats that, so it stays plain, with
+      // the ID check as the fallback for any older document written without a
+      // participants field.
+      function inChatId() {
         return signedIn() && uid() in chatId.split('_');
       }
+      function isParticipant() {
+        return signedIn() && uid() in resource.data.participants;
+      }
 
-      allow read, write: if inChat() || isAdmin();
+      allow read: if isParticipant() || inChatId() || isAdmin();
+      allow write: if inChatId() || isAdmin();
 
       match /messages/{messageId} {
-        allow read: if inChat() || isAdmin();
-        allow create: if inChat()
+        // Messages are queried by orderBy(createdAt) with no field filter, so
+        // membership must come from the chat ID here — there is nothing in the
+        // query for a participants-based rule to match against.
+        allow read: if inChatId() || isAdmin();
+        allow create: if inChatId()
           && request.resource.data.get('fromUid', '') == uid();
         allow update: if false;                 // messages are immutable
-        allow delete: if inChat() || isAdmin();
+        allow delete: if inChatId() || isAdmin();
       }
     }
 
