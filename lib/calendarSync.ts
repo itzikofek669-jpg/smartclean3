@@ -166,21 +166,50 @@ export type CalendarSyncResult =
   | 'error';
 
 /**
+ * Bookings currently mid-sync on this device.
+ *
+ * The stored key alone is not enough. Between reading it and writing it there
+ * are three awaits — a permission prompt among them — and several callers fire
+ * on the same status change at once: the root listener for the client, the root
+ * listener for the cleaner, and the confirm handler acting directly. All three
+ * read "no key", all three create an event, and the booking lands in the
+ * calendar two or three times. Only the last id gets stored, so cancelling then
+ * removes one and leaves the rest behind for good.
+ *
+ * A promise per booking collapses those callers onto one attempt: whoever
+ * arrives second awaits the first instead of racing it.
+ */
+const inFlight = new Map<string, Promise<CalendarSyncResult>>();
+
+/**
  * Add a confirmed booking to the device calendar.
  *
- * Idempotent: the created event id is stored per booking, so re-running this
- * (re-render, app relaunch, both parties' listeners firing) won't pile up
- * duplicates.
+ * Idempotent across both repeats and concurrency: the created event id is
+ * stored per booking and per user, and simultaneous callers share one attempt.
  */
 export async function addBookingToCalendar(
   b: CalendarBooking,
   opts: { role: 'client' | 'cleaner'; title?: string; notes?: string } = { role: 'client' },
 ): Promise<CalendarSyncResult> {
-  try {
-    if (!b?.id) return 'no-id';
+  if (!b?.id) return 'no-id';
+  const key = evtKey(b.id);
+  const running = inFlight.get(key);
+  if (running) return running;
 
+  const attempt = addBookingToCalendarInner(b, opts, key)
+    .finally(() => { inFlight.delete(key); });
+  inFlight.set(key, attempt);
+  return attempt;
+}
+
+async function addBookingToCalendarInner(
+  b: CalendarBooking,
+  opts: { role: 'client' | 'cleaner'; title?: string; notes?: string },
+  key: string,
+): Promise<CalendarSyncResult> {
+  try {
     // Already synced? Bail before prompting for permission.
-    const existing = await SecureStore.getItemAsync(evtKey(b.id)).catch(() => null);
+    const existing = await SecureStore.getItemAsync(key).catch(() => null);
     if (existing) return 'already-synced';
 
     const start = startDateOf(b);
@@ -211,7 +240,7 @@ export async function addBookingToCalendar(
     });
 
     if (eventId) {
-      await SecureStore.setItemAsync(evtKey(b.id), String(eventId)).catch(() => {});
+      await SecureStore.setItemAsync(key, String(eventId)).catch(() => {});
       return 'added';
     }
     return 'error';
@@ -228,11 +257,44 @@ export async function addBookingToCalendar(
  * Remove a previously synced event (booking cancelled). Silently does nothing
  * if we never created one.
  */
-export async function removeBookingFromCalendar(bookingId: string): Promise<void> {
+export async function removeBookingFromCalendar(
+  bookingId: string,
+  b?: CalendarBooking,
+): Promise<void> {
   try {
-    const id = await SecureStore.getItemAsync(evtKey(bookingId)).catch(() => null);
-    if (!id) return;
-    await Calendar.deleteEventAsync(id).catch(() => {});
-    await SecureStore.deleteItemAsync(evtKey(bookingId)).catch(() => {});
-  } catch (_) { /* best-effort */ }
+    const key = evtKey(bookingId);
+    const id = await SecureStore.getItemAsync(key).catch(() => null);
+    if (id) {
+      await Calendar.deleteEventAsync(id).catch(() => {});
+      await SecureStore.deleteItemAsync(key).catch(() => {});
+    }
+
+    // Sweep the slot for strays.
+    //
+    // The stored key holds ONE id. A race that created the event twice
+    // therefore left a copy that nothing could ever remove — visible right now
+    // as the same cleaning listed twice, and still there after a cancellation.
+    // The race is fixed above, but devices already carry the duplicates.
+    //
+    // Scoped tightly so this can only ever touch our own events: the exact
+    // start minute of this booking, and `notes === 'A&M Clean'`, which every
+    // event we create carries and nothing else does.
+    if (!b) return;
+    const start = startDateOf(b);
+    if (!start) return;
+    const end = new Date(start.getTime() + (Number(b.hours) > 0 ? Number(b.hours) : 2) * 3600000);
+
+    const cals = await Calendar.getCalendarsAsync(Calendar.EntityTypes.EVENT);
+    const ids = cals.filter(c => c.allowsModifications).map(c => c.id);
+    if (ids.length === 0) return;
+
+    const events = await Calendar.getEventsAsync(ids, start, end);
+    for (const e of events) {
+      if ((e as any)?.notes !== 'A&M Clean') continue;
+      if (new Date(e.startDate as any).getTime() !== start.getTime()) continue;
+      await Calendar.deleteEventAsync(e.id).catch(() => {});
+    }
+  } catch (err) {
+    logError('calendarSync:remove', err);
+  }
 }

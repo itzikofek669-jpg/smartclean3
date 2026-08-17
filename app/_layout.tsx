@@ -202,7 +202,8 @@ export default function RootLayout() {
           .catch(err => logError('layout:calendarAdd', err));
       }
       if (b?.status === 'cancelled') {
-        removeBookingFromCalendar(b.id).catch(err => logError('layout:calendarRemove', err));
+        // Pass the booking so the sweep can scope itself to its exact slot.
+        removeBookingFromCalendar(b.id, b).catch(err => logError('layout:calendarRemove', err));
       }
     };
 
