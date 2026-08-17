@@ -5162,6 +5162,18 @@ export default function HomeScreen() {
       <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
 
       <View style={{ backgroundColor: '#FFFFFF', flexShrink: 0, paddingTop: Platform.OS === 'ios' ? insets.top : (StatusBar.currentHeight || 0) }}>
+        {/* The logo only ever appeared on the sign-in, register and drawer
+            screens, so the brand vanished from the one screen users actually
+            spend time on. `logo-trimmed` because the header is white — the
+            white variant would be invisible here. Matches the web's header. */}
+        <View style={{ alignItems: 'center', paddingTop: 6 }}>
+          <Image
+            source={require('../assets/images/logo-trimmed.png')}
+            style={{ width: 96, height: 34 }}
+            contentFit="contain"
+            accessibilityLabel="A&M Clean"
+          />
+        </View>
         <View style={s.header}>
           <View style={[s.headerLogoRow, flipSide && { flexDirection: 'row-reverse' }]}>
             {/* כפתורי אמצע (הנגישות עברה לתפריט הצד).

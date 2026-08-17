@@ -15,6 +15,7 @@ import {
   collection, query, where, orderBy, arrayRemove, arrayUnion, onSnapshot, runTransaction,
 } from 'firebase/firestore';
 import { auth, db } from '../lib/firebase';
+import * as Calendar from 'expo-calendar';
 import { saveAvatar as savePhotoDoc, fetchAvatar, resolvePhoto } from '../lib/photos';
 import {
   fetchPortfolio, savePortfolio as savePortfolioDoc,
@@ -464,6 +465,8 @@ export default function ProfileScreen() {
   const [userPhone,    setUserPhone]    = useState('');
   const [hasPushToken,     setHasPushToken]     = useState(true); // האם יש pushToken — לאזהרת ניקוי דחוף
   const [pushToggleLoading, setPushToggleLoading] = useState(false);
+  const [calGranted, setCalGranted] = useState(false);
+  const [calToggleLoading, setCalToggleLoading] = useState(false);
   const [availOpen,        setAvailOpen]        = useState(false); // collapsible זמינות — סגור כברירת מחדל
   const [availableDates,   setAvailableDates]   = useState<string[]>([]); // תאריכים זמינים — YYYY-MM-DD
   const [calMonth,         setCalMonth]         = useState(new Date()); // חודש מוצג בלוח
@@ -2047,6 +2050,48 @@ export default function ProfileScreen() {
   };
 
   // ─── Toggle Push Notifications ───────────────────────────────────────────────
+  // Reflect the OS calendar permission whenever this screen comes into view —
+  // the user may have changed it in system settings since last time.
+  useEffect(() => {
+    let alive = true;
+    Calendar.getCalendarPermissionsAsync()
+      .then(p => { if (alive) setCalGranted(p.status === 'granted'); })
+      .catch(err => logError('profile:calPermRead', err));
+    return () => { alive = false; };
+  }, [activeTab]);
+
+  /**
+   * Ask for calendar access from the profile.
+   *
+   * Android stops showing the system dialog once the user has dismissed it
+   * twice, so `canAskAgain === false` is a dead end no button can escape —
+   * the only route left is the OS settings page, and we send them there rather
+   * than leaving a button that silently does nothing.
+   */
+  const handleEnableCalendar = async () => {
+    setCalToggleLoading(true);
+    try {
+      const { status, canAskAgain } = await Calendar.requestCalendarPermissionsAsync();
+      const granted = status === 'granted';
+      setCalGranted(granted);
+      if (!granted && !canAskAgain) {
+        Alert.alert(
+          (t as any).calSectionTitle ?? 'סנכרון עם היומן',
+          (t as any).calBlockedMsg
+            ?? 'ההרשאה חסומה במכשיר. יש לאפשר אותה בהגדרות המערכת עבור האפליקציה.',
+          [
+            { text: t.cancel, style: 'cancel' },
+            { text: (t as any).openSettingsBtn ?? 'פתח הגדרות', onPress: () => Linking.openSettings().catch(() => {}) },
+          ],
+        );
+      }
+    } catch (err) {
+      logError('profile:calPermRequest', err);
+    } finally {
+      setCalToggleLoading(false);
+    }
+  };
+
   const handleTogglePush = async () => {
     if (!uid) { Alert.alert('שגיאה', 'לא מחובר'); return; }
     setPushToggleLoading(true);
@@ -3199,6 +3244,33 @@ export default function ProfileScreen() {
                     ? <ActivityIndicator size="small" color="#fff" />
                     : <T style={{ fontSize: 14, fontWeight: '900', color: '#fff' }}>{hasPushToken ? t.notifDisableBtn : t.notifEnableBtn}</T>}
                 </TouchableOpacity>
+
+                {/* Calendar access, in the same card as push. Both are OS
+                    permissions the user grants once and then forgets; having no
+                    place to see or change the calendar one meant a refusal made
+                    early — or Android's silent block after two dismissals — was
+                    invisible and unrecoverable from inside the app. */}
+                <View style={{ height: 1, backgroundColor: hasPushToken ? '#A7F3D0' : '#FECACA', marginVertical: 12 }} />
+                <View style={{ flexDirection: 'row-reverse', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+                  <T style={{ fontSize: 15, fontWeight: '800', color: C.textDark }}>📅 {(t as any).calSectionTitle ?? 'סנכרון עם היומן'}</T>
+                  <T style={{ fontSize: 13, fontWeight: '800', color: calGranted ? '#059669' : '#DC2626' }}>
+                    {calGranted ? ((t as any).notifStatusOn ?? '✅ מופעל') : ((t as any).notifStatusOff ?? '❌ כבוי')}
+                  </T>
+                </View>
+                <T style={{ fontSize: 12, color: C.textSub, textAlign: 'right', marginBottom: 12 }}>
+                  {(t as any).calHint ?? 'הזמנות מאושרות נוספות ליומן המכשיר עם תזכורת שעה לפני, ויורדות ממנו בביטול.'}
+                </T>
+                {!calGranted && (
+                  <TouchableOpacity
+                    onPress={handleEnableCalendar}
+                    disabled={calToggleLoading}
+                    style={{ backgroundColor: '#10B981', borderRadius: 12, paddingVertical: 12, alignItems: 'center', opacity: calToggleLoading ? 0.6 : 1 }}
+                  >
+                    {calToggleLoading
+                      ? <ActivityIndicator size="small" color="#fff" />
+                      : <T style={{ fontSize: 14, fontWeight: '900', color: '#fff' }}>{(t as any).calEnableBtn ?? '📅 אפשר סנכרון יומן'}</T>}
+                  </TouchableOpacity>
+                )}
               </View>
 
               {/* 1. בקשות דחופות — רק אם יש */}
