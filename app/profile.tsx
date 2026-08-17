@@ -3224,9 +3224,13 @@ export default function ProfileScreen() {
             );
           })()}
 
-          {/* ── CLEANER: דף אחד ─────────────────────────────────────────────── */}
-          {isCleaner && (
-            <View style={s.section}>
+          {/* ── Push + calendar: BOTH roles ──────────────────────────────────
+              This card used to sit inside the cleaner-only branch below, so a
+              client could not see whether either setting was on, nor switch
+              calendar sync back on after refusing the permission — the two
+              things that decide whether their own bookings reach their own
+              phone. Clients need it at least as much as cleaners do. */}
+          <View style={s.section}>
 
               {/* התראות והודעות פוש */}
               <View style={{ backgroundColor: hasPushToken ? '#ECFDF5' : '#FEF2F2', borderRadius: 16, borderWidth: 1.5, borderColor: hasPushToken ? '#6EE7B7' : '#FCA5A5', padding: 14, marginBottom: 16 }}>
@@ -3272,6 +3276,11 @@ export default function ProfileScreen() {
                   </TouchableOpacity>
                 )}
               </View>
+          </View>
+
+          {/* ── CLEANER: דף אחד ─────────────────────────────────────────────── */}
+          {isCleaner && (
+            <View style={s.section}>
 
               {/* 1. בקשות דחופות — רק אם יש */}
               {urgentRequests.length > 0 && (
