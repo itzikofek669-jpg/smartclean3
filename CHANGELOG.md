@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.2.7 (versionCode 10) — 2026-08-17
+
+- Stop the calendar entry being created twice, and clean up the ones that were
+
 ## 1.2.6 (versionCode 9) — 2026-08-17
 
 - Stop reading everyone's bookings to find busy cleaners
