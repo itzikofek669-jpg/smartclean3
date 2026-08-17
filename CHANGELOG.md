@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.2.3 (versionCode 6) — 2026-08-17
+
+- Scope the calendar event key to the user, not just the booking
+- Ask for calendar access after sign-in, not mid-booking
+
 ## 1.2.2 (versionCode 5) — 2026-08-15
 
 - Make calendar sync say why it failed instead of vanishing
