@@ -1089,8 +1089,28 @@ export default function ProfileScreen() {
         const docs = snap.docs.map(d => ({ id: d.id, ...d.data() }));
         docs.sort((a: any, b: any) => (b.createdAt || '').localeCompare(a.createdAt || ''));
         setBookings(docs);
+
+        // The client's calendar sync also lives in home.tsx, but only runs while
+        // that screen is mounted. Doing it here too means it no longer depends
+        // on which screen the client happens to be looking at when the cleaner
+        // confirms or when either side cancels. Idempotent, so the overlap is
+        // free.
+        docs.forEach((b: any) => {
+          if (b.status === 'confirmed') {
+            addBookingToCalendar(b, { role: 'client' })
+              .then(res => {
+                if (res === 'bad-slot' || res === 'no-id') {
+                  logError('profile:clientCalendarSlot', { id: b.id, bookingDate: b.bookingDate, startTime: b.startTime, res });
+                }
+              })
+              .catch(err => logError('profile:clientCalendarAdd', err));
+          }
+          if (b.status === 'cancelled') {
+            removeBookingFromCalendar(b.id).catch(err => logError('profile:clientCalendarRemove', err));
+          }
+        });
       },
-      (err) => console.warn('bookings client query error:', err),
+      (err) => logError('profile:clientBookings', err),
     );
 
     // ── הזמנות נכנסות למנקה — בזמן אמת ────────────────────────────────────
@@ -1100,8 +1120,33 @@ export default function ProfileScreen() {
         const docs = snap.docs.map(d => ({ id: d.id, ...d.data() }));
         docs.sort((a: any, b: any) => (b.createdAt || '').localeCompare(a.createdAt || ''));
         setIncomingBks(docs);
+
+        // ── Keep the cleaner's device calendar in step ──────────────────────
+        // Removal used to happen only in the cleaner's own cancel handlers, so
+        // a booking the CLIENT called off stayed in the cleaner's calendar
+        // forever — they'd turn up to a job that no longer existed. Driving it
+        // from the listener covers whichever side cancelled, and catches
+        // changes made while the app was closed.
+        //
+        // Adding is here too, not only in the confirm handler, for the same
+        // reason: a booking confirmed elsewhere still reaches this calendar.
+        // addBookingToCalendar is idempotent, so this cannot duplicate.
+        docs.forEach((b: any) => {
+          if (b.status === 'confirmed') {
+            addBookingToCalendar(b, { role: 'cleaner' })
+              .then(res => {
+                if (res === 'bad-slot' || res === 'no-id') {
+                  logError('profile:calendarSlot', { id: b.id, bookingDate: b.bookingDate, startTime: b.startTime, res });
+                }
+              })
+              .catch(err => logError('profile:calendarAdd', err));
+          }
+          if (b.status === 'cancelled') {
+            removeBookingFromCalendar(b.id).catch(err => logError('profile:calendarRemove', err));
+          }
+        });
       },
-      (err) => console.warn('bookings cleaner query error:', err),
+      (err) => logError('profile:cleanerBookings', err),
     );
 
     // ── בקשות דחופות — בזמן אמת ────────────────────────────────────────────
