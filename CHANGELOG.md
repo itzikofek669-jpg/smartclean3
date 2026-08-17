@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.2.8 (versionCode 11) — 2026-08-17
+
+- Tell the cleaner when a client cancels
+
 ## 1.2.7 (versionCode 10) — 2026-08-17
 
 - Stop the calendar entry being created twice, and clean up the ones that were
