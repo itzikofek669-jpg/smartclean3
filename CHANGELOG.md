@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.2.5 (versionCode 8) — 2026-08-17
+
+- Move calendar sync to the root layout, where it can actually run
+
 ## 1.2.4 (versionCode 7) — 2026-08-17
 
 - Sync the calendar from the bookings listeners, not just the cancel buttons
