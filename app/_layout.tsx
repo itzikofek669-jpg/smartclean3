@@ -92,6 +92,12 @@ async function registerPushToken(uid: string) {
   } catch (_) {}
 }
 
+/** `YYYY-MM-DD` as day-first `DD/MM/YYYY`, the order Hebrew readers expect. */
+function formatCancelDate(iso: string): string {
+  const m = String(iso || '').trim().match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  return m ? `${m[3]}/${m[2]}/${m[1]}` : String(iso || '');
+}
+
 export default function RootLayout() {
   const router   = useRouter();
   const segments = useSegments();
@@ -207,19 +213,66 @@ export default function RootLayout() {
       }
     };
 
+    /**
+     * Tell the CLEANER when a client calls a booking off.
+     *
+     * The app had no such notice at all. The client gets a full popup when a
+     * cleaner cancels (home.tsx), but the mirror case — the one that costs a
+     * cleaner their afternoon — was silent: the card simply disappeared from
+     * their list. The web has had this since the cancellation work; the app
+     * never got it.
+     *
+     * Lives here rather than on the profile screen so it reaches them wherever
+     * they are, and skips their own cancellations — they pressed the button.
+     */
+    const seenCancelled = new Set<string>();
+    let firstSnapshot = true;
+
+    const noticeForCleaner = (b: any) => {
+      if (b?.status !== 'cancelled' || b?.cancelledBy === 'cleaner') return;
+      if (seenCancelled.has(b.id)) return;
+      seenCancelled.add(b.id);
+      // The first snapshot is history, not news — announcing it would replay
+      // every past cancellation on every launch.
+      if (firstSnapshot) return;
+      const when = b.bookingDate
+        ? `${formatCancelDate(b.bookingDate)}${b.startTime ? ` ${b.startTime}` : ''}`
+        : '';
+      Alert.alert(
+        '❌ ההזמנה בוטלה',
+        `הלקוח ביטל את ההזמנה${b.clientName ? ` — ${b.clientName}` : ''}.`
+        + (when ? `\n${when}` : '')
+        + '\nהשעה התפנתה ביומן שלך.',
+        [{ text: 'הבנתי' }],
+      );
+    };
+
     const watch = (field: 'clientUid' | 'cleanerId', role: 'client' | 'cleaner', uid: string) =>
       onSnapshot(
         // No orderBy: pairing a where with an orderBy on another field needs a
         // composite index this project does not have, and the query would fail
         // outright. Order is irrelevant here anyway.
         query(collection(db, 'bookings'), where(field, '==', uid)),
-        snap => snap.docs.forEach(d => sync({ id: d.id, ...(d.data() as any) }, role)),
+        snap => {
+          snap.docs.forEach(d => {
+            const b = { id: d.id, ...(d.data() as any) };
+            sync(b, role);
+            // Only on the cleaner's own listener — on the client's, they are
+            // the one who cancelled.
+            if (role === 'cleaner') noticeForCleaner(b);
+          });
+          if (role === 'cleaner') firstSnapshot = false;
+        },
         err => logError(`layout:${role}Bookings`, err),
       );
 
     const unsubAuth = onAuthStateChanged(auth, user => {
       unsubClient?.(); unsubClient = undefined;
       unsubCleaner?.(); unsubCleaner = undefined;
+      // A different account starts with a clean slate, or the previous user's
+      // cancellations would be treated as already announced.
+      seenCancelled.clear();
+      firstSnapshot = true;
       if (!user) return;
       unsubClient = watch('clientUid', 'client', user.uid);
       unsubCleaner = watch('cleanerId', 'cleaner', user.uid);
