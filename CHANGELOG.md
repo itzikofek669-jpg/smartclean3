@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.2.4 (versionCode 7) — 2026-08-17
+
+- Sync the calendar from the bookings listeners, not just the cancel buttons
+- No re-post offer after a direct booking is cancelled
+
 ## 1.2.3 (versionCode 6) — 2026-08-17
 
 - Scope the calendar event key to the user, not just the booking
