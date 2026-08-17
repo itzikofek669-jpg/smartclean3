@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.2.9 (versionCode 12) — 2026-08-17
+
+- Show the push and calendar card to clients too
+
 ## 1.2.8 (versionCode 11) — 2026-08-17
 
 - Tell the cleaner when a client cancels
