@@ -22,6 +22,7 @@ import { auth, db } from '../lib/firebase';
 import { resolvePhoto } from '../lib/photos';
 import { useAvatar } from '../lib/useAvatar';
 import { fetchPortfolio } from '../lib/portfolio';
+import { canRepost } from '../lib/bookingOrigin';
 import {
   LANGUAGE_FLAGS, groupConsecutiveDays, normalizeLanguages, workDaysFromAvailability,
 } from '../lib/cleanerTraits';
@@ -1684,6 +1685,7 @@ function PostJobModal({ visible, onClose, onPosted }: { visible: boolean; onClos
       try { const d = await getDoc(doc(db, 'users', uid)); if (d.exists() && d.data()?.name) clientName = d.data()!.name; } catch (_) {}
       await addDoc(collection(db, 'bookings'), {
         open: true, cleanerId: '', clientUid: uid, clientName,
+        origin: 'open',
         serviceTypes: types, serviceType: types.join(' + '),
         hours, isPrivateHouse: isPrivate,
         addrCity: city.trim(), address: city.trim(),
@@ -2403,6 +2405,9 @@ function BookingModal({ cleaner, visible, onClose, onBookingCreated, prebookData
         cleanerId: cleaner.id, cleanerName: cleaner.name,
         clientUid, clientName, hours, payment, paymentStatus, address, total,
         addrCity, addrStreet, addrFloor, addrApt, addrPrivate,
+        // Client picked this cleaner by name — no advert behind it, so no
+        // re-post offer if they later pull out. See lib/bookingOrigin.
+        origin: 'direct',
         status: 'pending', createdAt: new Date().toISOString(),
         bookingDate: `${bookingDate.getFullYear()}-${String(bookingDate.getMonth()+1).padStart(2,'0')}-${String(bookingDate.getDate()).padStart(2,'0')}`,
         startTime: `${startHH}:${startMM}`,
@@ -4217,6 +4222,7 @@ export default function HomeScreen() {
         payment: b?.payment || 'cash', paymentStatus: `awaiting_${b?.payment || 'cash'}`,
         total: b?.total || 0, pricePerHour: b?.pricePerHour || 0,
         notes: b?.notes || '',
+        origin: 'open',
         status: 'pending', createdAt: new Date().toISOString(),
         recurring: 'once', recurringDates: [],
         repostedFrom: b?.id || '',
@@ -6023,15 +6029,23 @@ export default function HomeScreen() {
               </View>
             )}
 
-            <TouchableOpacity
-              style={{ backgroundColor: reposting ? '#94A3B8' : '#2563EB', borderRadius: 14, paddingVertical: 15, width: '100%', alignItems: 'center' }}
-              disabled={reposting}
-              onPress={() => cancelledPopup && repostCancelledBooking(cancelledPopup)}
-            >
-              <Text style={{ fontSize: 15, fontWeight: '900', color: '#fff' }}>
-                {reposting ? '…' : `📢 ${(t as any).repostBtn ?? 'פרסם מחדש וחפש מנקה אחר'}`}
-              </Text>
-            </TouchableOpacity>
+            {/* Advertised jobs only. A direct booking is between this client
+                and the cleaner they chose by name — there is no advert to put
+                back, and re-posting would turn a private arrangement into a
+                public listing carrying their address. The popup itself still
+                shows either way: they need to know the cleaner pulled out.
+                See lib/bookingOrigin. */}
+            {canRepost(cancelledPopup) && (
+              <TouchableOpacity
+                style={{ backgroundColor: reposting ? '#94A3B8' : '#2563EB', borderRadius: 14, paddingVertical: 15, width: '100%', alignItems: 'center' }}
+                disabled={reposting}
+                onPress={() => cancelledPopup && repostCancelledBooking(cancelledPopup)}
+              >
+                <Text style={{ fontSize: 15, fontWeight: '900', color: '#fff' }}>
+                  {reposting ? '…' : `📢 ${(t as any).repostBtn ?? 'פרסם מחדש וחפש מנקה אחר'}`}
+                </Text>
+              </TouchableOpacity>
+            )}
             <TouchableOpacity
               style={{ paddingVertical: 10, width: '100%', alignItems: 'center' }}
               onPress={() => setCancelledPopup(null)}
