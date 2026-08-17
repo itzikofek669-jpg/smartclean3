@@ -12,9 +12,23 @@ import * as Calendar from 'expo-calendar';
 import * as SecureStore from 'expo-secure-store';
 import { Alert, Platform } from 'react-native';
 import { logError } from './logError';
+import { auth } from './firebase';
 
-/** SecureStore key holding the created event id for a booking. */
-const evtKey = (bookingId: string) => `cal_evt_${bookingId}`;
+/**
+ * SecureStore key holding the created event id for a booking, per signed-in user.
+ *
+ * The uid matters. Both parties sync the SAME booking id, so a key of just
+ * `cal_evt_{bookingId}` is one slot shared by two people. On a device where both
+ * roles are used — a tester, or a cleaner who also books cleanings — whoever
+ * synced first left the key behind and the second was told `already-synced`:
+ * no event, no permission prompt, and nothing on screen, because that result is
+ * deliberately silent. Cancellation had the mirror image, the first remover
+ * clearing the key out from under the second.
+ *
+ * Falls back to `anon` when signed out, which only happens on paths that have
+ * already checked for a user.
+ */
+const evtKey = (bookingId: string) => `cal_evt_${auth.currentUser?.uid ?? 'anon'}_${bookingId}`;
 
 export interface CalendarBooking {
   id: string;
