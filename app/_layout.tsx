@@ -8,7 +8,8 @@ import Constants from 'expo-constants';
 import { doc, updateDoc, collection, query, where, onSnapshot } from 'firebase/firestore';
 import { auth, db } from '../lib/firebase';
 import { getActiveChat } from '../lib/chatPresence';
-import { primeCalendarPermission } from '../lib/calendarSync';
+import { logError } from '../lib/logError';
+import { primeCalendarPermission, addBookingToCalendar, removeBookingFromCalendar, calendarSyncMessage } from '../lib/calendarSync';
 import { LanguageProvider } from '../lib/LanguageContext';
 import { ThemeProvider } from '../lib/ThemeContext';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
@@ -161,6 +162,70 @@ export default function RootLayout() {
       if (unsubAuth) unsubAuth();
     };
   }, [segments]);
+
+  // ── סנכרון יומן — גלובלי, בכל מסך ──────────────────────────────────────────
+  //
+  // This belongs at the root and nowhere else. Every calendar call used to live
+  // in home.tsx or profile.tsx, which unmount the moment you navigate away — so
+  // whether a booking reached the device calendar depended on which screen the
+  // user happened to be looking at.
+  //
+  // That is why the cleaner's side always appeared to work and the client's
+  // never did: a cleaner confirms FROM the profile screen, so its listener was
+  // mounted by definition. The client is somewhere else entirely when their
+  // cleaner approves, and a cleaner is rarely sitting on their profile when a
+  // client cancels — so that removal had no path either.
+  //
+  // Two listeners because a user can be both parties on different bookings, and
+  // Firestore has no OR across fields. Both are idempotent (see calendarSync),
+  // so a booking seen by both costs nothing.
+  useEffect(() => {
+    let unsubClient: (() => void) | undefined;
+    let unsubCleaner: (() => void) | undefined;
+
+    // Actionable failures are worth telling the user about, but once — not once
+    // per booking in the snapshot, which on a busy account would be a wall of
+    // identical alerts.
+    let warned = false;
+
+    const sync = (b: any, role: 'client' | 'cleaner') => {
+      if (b?.status === 'confirmed') {
+        addBookingToCalendar(b, { role })
+          .then(res => {
+            if (res === 'bad-slot' || res === 'no-id') {
+              logError('layout:calendarSlot', { id: b.id, bookingDate: b.bookingDate, startTime: b.startTime, res });
+              return;
+            }
+            const msg = calendarSyncMessage(res);
+            if (msg && !warned) { warned = true; Alert.alert('', msg); }
+          })
+          .catch(err => logError('layout:calendarAdd', err));
+      }
+      if (b?.status === 'cancelled') {
+        removeBookingFromCalendar(b.id).catch(err => logError('layout:calendarRemove', err));
+      }
+    };
+
+    const watch = (field: 'clientUid' | 'cleanerId', role: 'client' | 'cleaner', uid: string) =>
+      onSnapshot(
+        // No orderBy: pairing a where with an orderBy on another field needs a
+        // composite index this project does not have, and the query would fail
+        // outright. Order is irrelevant here anyway.
+        query(collection(db, 'bookings'), where(field, '==', uid)),
+        snap => snap.docs.forEach(d => sync({ id: d.id, ...(d.data() as any) }, role)),
+        err => logError(`layout:${role}Bookings`, err),
+      );
+
+    const unsubAuth = onAuthStateChanged(auth, user => {
+      unsubClient?.(); unsubClient = undefined;
+      unsubCleaner?.(); unsubCleaner = undefined;
+      if (!user) return;
+      unsubClient = watch('clientUid', 'client', user.uid);
+      unsubCleaner = watch('cleanerId', 'cleaner', user.uid);
+    });
+
+    return () => { unsubAuth(); unsubClient?.(); unsubCleaner?.(); };
+  }, []);
 
   // ── פופ-אפ הודעה חדשה — גלובלי (בכל מסך), ללא תלות בהתראות פוש ──────────────
   useEffect(() => {

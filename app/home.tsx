@@ -48,7 +48,7 @@ import { Lang } from '../lib/translations';
 import AccessibilityModal from '../lib/AccessibilityModal';
 import { MaterialIcons } from '@expo/vector-icons';
 import { TAB_BAR_CONTENT_HEIGHT } from '../lib/BottomTabBar';
-import { addBookingToCalendar, removeBookingFromCalendar, calendarSyncMessage } from '../lib/calendarSync';
+import { removeBookingFromCalendar } from '../lib/calendarSync';
 // expo-audio — הקלטה והשמעה של הודעות קוליות (SDK 54, מחליף את expo-av)
 import { useAudioRecorder, createAudioPlayer, RecordingPresets, setAudioModeAsync, AudioModule } from 'expo-audio';
 import * as ImagePicker from 'expo-image-picker';
@@ -4910,28 +4910,10 @@ export default function HomeScreen() {
     const unsub = onSnapshot(q, snap => {
       snap.docs.forEach(d => {
         const data = d.data();
-        // סנכרון יומן רץ תמיד — גם בטעינה הראשונה, כך שהזמנה שאושרה או בוטלה
-        // בזמן שהאפליקציה הייתה סגורה עדיין מגיעה ליומן / יורדת ממנו.
-        // (addBookingToCalendar אידמפוטנטית, אז אין כפילויות.)
-        if (data.status === 'confirmed') {
-          addBookingToCalendar({ id: d.id, ...(data as any) }, { role: 'client' })
-            .then(res => {
-              // Tell the client when it didn't work. This used to be
-              // `.catch(() => {})` over a function that returned a bare false
-              // for six different reasons, so "the booking never reached my
-              // calendar" was indistinguishable from every other cause.
-              if (res === 'bad-slot' || res === 'no-id') {
-                logError('home:calendarSlot', { id: d.id, bookingDate: data.bookingDate, startTime: data.startTime, res });
-                return;
-              }
-              const msg = calendarSyncMessage(res);
-              if (msg) showToast(msg, 'info');
-            })
-            .catch(err => logError('home:calendarAdd', err));
-        }
-        if (data.status === 'cancelled') {
-          removeBookingFromCalendar(d.id).catch(() => {});
-        }
+        // Calendar sync is NOT done here any more — it lives in _layout.tsx, so
+        // it runs on every screen instead of only while this one is mounted.
+        // This listener is now purely about the popups below.
+        //
         // טעינה ראשונה — מסמנים את המצב הקיים כ"נראה" בלי להקפיץ פופאפים,
         // אחרת כל אישור/ביטול ישן היה קופץ מחדש בכל פתיחת מסך.
         if (initialLoad) {
