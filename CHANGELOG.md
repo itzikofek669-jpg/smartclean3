@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.2.6 (versionCode 9) — 2026-08-17
+
+- Stop reading everyone's bookings to find busy cleaners
+- Logo on the home header, and a calendar toggle beside the push one
+
 ## 1.2.5 (versionCode 8) — 2026-08-17
 
 - Move calendar sync to the root layout, where it can actually run
