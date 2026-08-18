@@ -5237,18 +5237,41 @@ export default function HomeScreen() {
               )}
             </ScrollView>
 
-            {/* Logo, on the button row rather than a centred row of its own.
-                It cost a full row of height at the top of the screen the
-                cleaner spends the most time on, pushing the job list down.
-                flexShrink:0 so the scrolling buttons give way, never the
-                brand. `logo-trimmed` because this header is white — the white
-                variant would be invisible on it. */}
-            <Image
-              source={require('../assets/images/logo-trimmed.png')}
-              style={{ width: 84, height: 30, flexShrink: 0, marginHorizontal: 4 }}
-              contentFit="contain"
-              accessibilityLabel="A&M Clean"
-            />
+            {/* Logo, on the button row rather than a centred row of its own —
+                that row cost a full band of height at the top of the screen
+                the cleaner spends the most time on, pushing the job list down.
+                `logo-trimmed` because this header is white; the white variant
+                would be invisible on it.
+
+                Two placements, because the two roles have very different rows.
+                The cleaner's scroller holds one small button, so the logo is
+                absolutely centred on the row — true centre, independent of how
+                wide the buttons on either side happen to be. pointerEvents
+                none so it can never swallow a tap meant for them.
+
+                The client's scroller holds four buttons that already need to
+                scroll; centring over them would sit the logo on top of the
+                buttons, so there it stays in the flow and takes its own width. */}
+            {myRole === 'cleaner' ? (
+              <View
+                style={{ position: 'absolute', left: 0, right: 0, alignItems: 'center' }}
+                pointerEvents="none"
+              >
+                <Image
+                  source={require('../assets/images/logo-trimmed.png')}
+                  style={{ width: 84, height: 30 }}
+                  contentFit="contain"
+                  accessibilityLabel="A&M Clean"
+                />
+              </View>
+            ) : (
+              <Image
+                source={require('../assets/images/logo-trimmed.png')}
+                style={{ width: 84, height: 30, flexShrink: 0, marginHorizontal: 4 }}
+                contentFit="contain"
+                accessibilityLabel="A&M Clean"
+              />
+            )}
 
             {/* כפתור תפריט — צד ימין. flexShrink:0 כדי שלעולם לא ייחתך/ייעלם. */}
             <TouchableOpacity
