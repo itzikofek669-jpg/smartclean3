@@ -46,3 +46,15 @@ export async function setDemoMode(on: boolean): Promise<void> {
     logError('demoMode:save', err);
   }
 }
+
+/**
+ * The stored per-device preference, ignoring the `__DEV__` override.
+ *
+ * The admin toggle shows this rather than `demoCleanersEnabled()`: in a dev
+ * build the latter is always true, so a switch bound to it would sit on ON and
+ * ignore being turned off, which reads as a broken control rather than as the
+ * override it is.
+ */
+export function demoModeStored(): boolean {
+  return enabled;
+}

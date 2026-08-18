@@ -2,7 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import {
   View, ScrollView, TouchableOpacity, TextInput,
   Alert, StyleSheet, StatusBar, ActivityIndicator,
-  Animated, Platform,
+  Animated, Platform, Switch,
 } from 'react-native';
 import {
   collection, onSnapshot, query, orderBy, limit,
@@ -15,6 +15,7 @@ import { useRouter } from 'expo-router';
 import { useLanguage, T } from '../lib/LanguageContext';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { TAB_BAR_CONTENT_HEIGHT } from '../lib/BottomTabBar';
+import { demoModeStored, setDemoMode } from '../lib/demoMode';
 
 // ─── Palette ──────────────────────────────────────────────────────────────────
 const C_DEFAULT = {
@@ -109,6 +110,7 @@ export default function AdminScreen() {
   const [clientSearch,  setClientSearch]  = useState('');
   const [bookingSearch, setBookingSearch] = useState('');
   const [reports,       setReports]       = useState<any[]>([]);
+  const [demoOn,        setDemoOn]        = useState(demoModeStored);
 
   useEffect(() => {
     // הגנה — רק אדמין מורשה
@@ -692,6 +694,30 @@ export default function AdminScreen() {
                     : `📢 שלח ל-${users.filter(u => u.pushToken).length} משתמשים`}
                 </T>
               </TouchableOpacity>
+            </View>
+
+            {/* Demo cleaners */}
+            <View style={s.card}>
+              <T style={s.cardTitle}>🤖 מנקי דמו במכשיר הזה</T>
+              <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+                <T style={[s.fieldLabel, { flex: 1, marginTop: 0 }]}>
+                  הצג 200 מנקים מומצאים ברשימה ובמפה
+                </T>
+                <Switch
+                  value={demoOn}
+                  onValueChange={async on => {
+                    setDemoOn(on);
+                    await setDemoMode(on);
+                  }}
+                  trackColor={{ false: C.border, true: C.blue }}
+                  thumbColor={C.white}
+                />
+              </View>
+              <T style={[s.fieldLabel, { color: C.sub, fontWeight: '400' }]}>
+                נשמר על המכשיר הזה בלבד ולא משפיע על אף משתמש אחר. המנקים האלה
+                נושאים שמות ודירוגים מומצאים, ולכן הם כבויים כברירת מחדל — הזמנה
+                וצ׳אט מסרבים להם בכל מצב. השינוי נכנס לתוקף בכניסה הבאה למסך הבית.
+              </T>
             </View>
 
             {/* App summary */}
