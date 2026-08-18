@@ -2,7 +2,7 @@
   "expo": {
     "name": "A&M Clean",
     "slug": "cleantouch",
-    "version": "1.2.9",
+    "version": "1.2.10",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "cleantouch",
@@ -23,7 +23,7 @@
       "predictiveBackGestureEnabled": false,
       "softwareKeyboardLayoutMode": "pan",
       "package": "com.itzik669.cleantouch",
-      "versionCode": 12,
+      "versionCode": 13,
       "config": {
         "googleMaps": {
           "apiKey": "AIzaSyDgFAy6_0c9X_lN6JV4j6fWfCyn4vCcDdA"

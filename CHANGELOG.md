@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.2.10 (versionCode 13) — 2026-08-18
+
+- Give the demo cleaners an on-switch in the admin Tools tab
+- Bring back the 200 demo cleaners as a per-device opt-in
+- Stop old cancellations deleting new calendar entries
+
 ## 1.2.9 (versionCode 12) — 2026-08-17
 
 - Show the push and calendar card to clients too
