@@ -20,6 +20,7 @@ import {
   type SavedAddress,
 } from '../lib/savedAddresses';
 import { diagnosticsEnabled, setDiagnostics, getLog, clearLog, record } from '../lib/diagnostics';
+import { describeCalendars } from '../lib/calendarSync';
 import * as Calendar from 'expo-calendar';
 import { saveAvatar as savePhotoDoc, fetchAvatar, resolvePhoto } from '../lib/photos';
 import {
@@ -3699,6 +3700,16 @@ export default function ProfileScreen() {
                       <T style={{ fontWeight: '800', color: C.blue }}>נקה</T>
                     </TouchableOpacity>
                   </View>
+                  <TouchableOpacity
+                    onPress={async () => {
+                      const rows = await describeCalendars();
+                      rows.forEach(r => record('calendars', r));
+                      setDiagLog(getLog());
+                    }}
+                    style={{ backgroundColor: C.blueLight, borderRadius: 10, paddingVertical: 10, alignItems: 'center', marginTop: 8 }}
+                  >
+                    <T style={{ fontWeight: '800', color: C.blue }}>📅 רשימת היומנים במכשיר</T>
+                  </TouchableOpacity>
                   {diagLog.length === 0 ? (
                     <T style={{ fontSize: 12, color: C.textSub, textAlign: 'center', marginTop: 10 }}>
                       אין רשומות עדיין — בצע את הפעולה שנכשלת ואז לחץ רענן

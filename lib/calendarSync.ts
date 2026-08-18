@@ -357,3 +357,32 @@ export async function removeBookingFromCalendar(
     logError('calendarSync:remove', err);
   }
 }
+/**
+ * Every calendar on the device, and the one this module would choose.
+ *
+ * The selection logic is an inference from flags; this is the fact it is
+ * inferring from. It settles the question no result code can: whether the
+ * phone has a visible, synced calendar to write to at all. A device with
+ * only a local account has nowhere an event can be seen, and no amount of
+ * fixing the picker changes that — it is a device setting, not a bug.
+ */
+export async function describeCalendars(): Promise<string[]> {
+  try {
+    const cals = await Calendar.getCalendarsAsync(Calendar.EntityTypes.EVENT);
+    const chosen = await writableCalendarId();
+    const out = cals.map((c: any) => [
+      c.id === chosen ? String.fromCharCode(9656) + ' ' : "  ",
+      `id=${c.id}`,
+      `"${c.title ?? "?"}"`,
+      `src=${c.source?.name ?? "?"}/${c.source?.type ?? "?"}`,
+      `write=${c.allowsModifications ? "Y" : "n"}`,
+      `visible=${c.isVisible === undefined ? "?" : (c.isVisible ? "Y" : "n")}`,
+      `synced=${c.isSynced === undefined ? "?" : (c.isSynced ? "Y" : "n")}`,
+    ].join(" "));
+    out.unshift(`${cals.length} calendars, chosen: ${chosen ?? "NONE"}`);
+    return out;
+  } catch (err) {
+    logError("calendarSync:describe", err);
+    return ["failed to read calendars"];
+  }
+}
