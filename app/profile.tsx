@@ -15,6 +15,10 @@ import {
   collection, query, where, orderBy, arrayRemove, arrayUnion, onSnapshot, runTransaction,
 } from 'firebase/firestore';
 import { auth, db } from '../lib/firebase';
+import {
+  getSavedAddresses, upsertAddress, setPrimaryAddress, deleteAddressById,
+  type SavedAddress,
+} from '../lib/savedAddresses';
 import * as Calendar from 'expo-calendar';
 import { saveAvatar as savePhotoDoc, fetchAvatar, resolvePhoto } from '../lib/photos';
 import {
@@ -473,33 +477,25 @@ export default function ProfileScreen() {
   const [portfolioSaved,   setPortfolioSaved]   = useState(false); // סימן שמור אחרי העלאת תמונה
 
   // ── כתובות שמורות (לקוח) ───────────────────────────────────────────────
-  type SavedAddr = { id: string; address: string; isPrimary: boolean; lastUsed: string };
-  const ADDR_KEY = 'saved_addresses';
+  // Shared with the booking form and stored on the user document — this
+  // screen used to keep its own flatter copy under the same SecureStore key,
+  // so the two overwrote each other's shape. See lib/savedAddresses.ts.
+  type SavedAddr = SavedAddress;
   const [savedAddrs, setSavedAddrs] = useState<SavedAddr[]>([]);
   const [newAddrInput, setNewAddrInput] = useState('');
 
   const loadAddrs = async () => {
-    try {
-      const raw = await import('expo-secure-store').then(m => m.getItemAsync(ADDR_KEY));
-      setSavedAddrs(raw ? JSON.parse(raw) : []);
-    } catch { setSavedAddrs([]); }
-  };
-
-  const saveAddrs = async (list: SavedAddr[]) => {
-    const { setItemAsync } = await import('expo-secure-store');
-    await setItemAsync(ADDR_KEY, JSON.stringify(list));
-    setSavedAddrs(list);
+    setSavedAddrs(await getSavedAddresses());
   };
 
   const handleSetPrimary = async (id: string) => {
-    const updated = savedAddrs.map(a => ({ ...a, isPrimary: a.id === id }));
-    await saveAddrs(updated);
+    await setPrimaryAddress(id);
+    await loadAddrs();
   };
 
   const handleDeleteAddr = async (id: string) => {
-    const filtered = savedAddrs.filter(a => a.id !== id);
-    if (savedAddrs.find(a => a.id === id)?.isPrimary && filtered.length > 0) filtered[0].isPrimary = true;
-    await saveAddrs(filtered);
+    await deleteAddressById(id);
+    await loadAddrs();
   };
 
   const handleAddAddr = async () => {
@@ -508,9 +504,8 @@ export default function ProfileScreen() {
     if (savedAddrs.length >= 5) return Alert.alert('', t.maxAddressesReached);
     const exists = savedAddrs.find(a => a.address === trimmed);
     if (exists) { setNewAddrInput(''); return; }
-    const isFirst = savedAddrs.length === 0;
-    const newList = [{ id: Date.now().toString(), address: trimmed, isPrimary: isFirst, lastUsed: new Date().toISOString() }, ...savedAddrs];
-    await saveAddrs(newList);
+    await upsertAddress(trimmed);
+    await loadAddrs();
     setNewAddrInput('');
   };
 
@@ -996,14 +991,8 @@ export default function ProfileScreen() {
       });
       // לקוח: עדכן/הוסף את הכתובת הראשית ב"הכתובות שלי" כדי שתופיע מיד
       if (!isCleaner && clientFullAddr) {
-        let list = [...savedAddrs];
-        const primaryIdx = list.findIndex(a => a.isPrimary);
-        if (primaryIdx >= 0) {
-          list[primaryIdx] = { ...list[primaryIdx], address: clientFullAddr, lastUsed: new Date().toISOString() };
-        } else {
-          list = [{ id: Date.now().toString(), address: clientFullAddr, isPrimary: true, lastUsed: new Date().toISOString() }, ...list];
-        }
-        await saveAddrs(list);
+        await upsertAddress(clientFullAddr);
+        await loadAddrs();
       }
 
       // update local state

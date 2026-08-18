@@ -19,6 +19,10 @@ import { signOut } from 'firebase/auth';
 import * as SecureStore from 'expo-secure-store';
 import { collection, addDoc, getDocs, query, where, doc, getDoc, setDoc, onSnapshot, orderBy, updateDoc, arrayUnion, arrayRemove, runTransaction } from 'firebase/firestore';
 import { auth, db } from '../lib/firebase';
+import {
+  getSavedAddresses, upsertStructuredAddress, setPrimaryAddress, deleteAddressById,
+  MAX_ADDRESSES, upsertAddress, replaceSavedAddresses, type SavedAddress,
+} from '../lib/savedAddresses';
 import { resolvePhoto } from '../lib/photos';
 import { useAvatar } from '../lib/useAvatar';
 import { fetchPortfolio } from '../lib/portfolio';
@@ -2030,84 +2034,8 @@ function InlineBookingChat({ open, onToggle, messages, text, onChangeText, onSen
 }
 
 // ─── Address management helpers ──────────────────────────────────────────────
-/**
- * Saved addresses, per signed-in user.
- *
- * This was a single key shared by every account on the device — the same
- * mistake the calendar event ids had. Sign in as a client, save an address,
- * sign in as a cleaner, and you saw the client's address list; whoever wrote
- * last overwrote the other.
- *
- * The legacy key is read once and migrated rather than deleted. Addresses
- * are typed by hand and easy to lose, and this list has already been lost
- * once on this project.
- */
-const ADDRESSES_KEY_LEGACY = 'saved_addresses';
-const addressesKey = () => `saved_addresses_${auth.currentUser?.uid ?? 'anon'}`;
-const MAX_ADDRESSES = 5;
-
-export type SavedAddress = {
-  id: string;
-  address: string;      // full formatted string (computed)
-  city: string;
-  street: string;       // רחוב + מספר בית
-  floor: string;
-  apt: string;
-  isPrivate: boolean;   // בית פרטי
-  isPrimary: boolean;
-  lastUsed: string;
-  lat?: number;
-  lng?: number;
-};
-
-
-
-export async function getSavedAddresses(): Promise<SavedAddress[]> {
-  try {
-    const raw = await SecureStore.getItemAsync(addressesKey());
-    if (raw) return JSON.parse(raw);
-    // Nothing under this user's key yet — adopt whatever the old shared key
-    // holds, once, instead of showing an empty list to someone who has
-    // addresses saved. Left in place, so a second account can migrate too.
-    const legacy = await SecureStore.getItemAsync(ADDRESSES_KEY_LEGACY);
-    if (!legacy) return [];
-    await SecureStore.setItemAsync(addressesKey(), legacy).catch(() => {});
-    return JSON.parse(legacy);
-  } catch { return []; }
-}
-
-export async function upsertStructuredAddress(fields: Omit<SavedAddress, 'id' | 'isPrimary' | 'lastUsed'>): Promise<void> {
-  if (!fields.address.trim()) return;
-  const addrs = await getSavedAddresses();
-  const existing = addrs.find(a => a.address === fields.address);
-  if (existing) {
-    Object.assign(existing, fields, { lastUsed: new Date().toISOString() });
-  } else {
-    const isFirst = addrs.length === 0;
-    addrs.unshift({ ...fields, id: Date.now().toString(), isPrimary: isFirst, lastUsed: new Date().toISOString() });
-    if (addrs.length > MAX_ADDRESSES) addrs.pop();
-  }
-  await SecureStore.setItemAsync(addressesKey(), JSON.stringify(addrs));
-}
-
-// backward-compat
-export async function upsertAddress(address: string): Promise<void> {
-  await upsertStructuredAddress({ address, city: '', street: address, floor: '', apt: '', isPrivate: false });
-}
-
-export async function setPrimaryAddress(id: string): Promise<void> {
-  const addrs = await getSavedAddresses();
-  addrs.forEach(a => { a.isPrimary = a.id === id; });
-  await SecureStore.setItemAsync(addressesKey(), JSON.stringify(addrs));
-}
-
-export async function deleteAddressById(id: string): Promise<void> {
-  const addrs = await getSavedAddresses();
-  const wasDefault = addrs.find(a => a.id === id)?.isPrimary ?? false;
-  const filtered = addrs.filter(a => a.id !== id);
-  if (wasDefault && filtered.length > 0) filtered[0].isPrimary = true;
-  await SecureStore.setItemAsync(addressesKey(), JSON.stringify(filtered));
-}
+// Saved addresses now live on the Firestore user document, shared with the
+// profile screen and readable by the web. See lib/savedAddresses.ts.
 
 // ─── AddressPicker component ──────────────────────────────────────────────────
 function AddressPicker({ selectedId, onSelect, savedAddresses }: {
@@ -2200,7 +2128,7 @@ function BookingModal({ cleaner, visible, onClose, onBookingCreated, prebookData
           } catch (_) {}
         }
       }
-      await SecureStore.setItemAsync(addressesKey(), JSON.stringify(addrs));
+      await replaceSavedAddresses(addrs);
       // find nearest saved address
       let nearest: SavedAddress | null = null;
       let minDist = Infinity;

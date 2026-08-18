@@ -13,6 +13,7 @@ import { useRouter } from 'expo-router';
 import { createUserWithEmailAndPassword } from 'firebase/auth';
 import { doc, setDoc } from 'firebase/firestore';
 import { auth, db } from '../lib/firebase';
+import { upsertStructuredAddress } from '../lib/savedAddresses';
 import { saveAvatar } from '../lib/photos';
 import {
   firstError, validateName, validateEmail, validatePassword,
@@ -702,15 +703,14 @@ export default function RegisterScreen() {
           const lastComma = fullAddr.lastIndexOf(',');
           const addrStreetPart = lastComma > 0 ? fullAddr.slice(0, lastComma).trim() : fullAddr;
           const addrCityPart   = lastComma > 0 ? fullAddr.slice(lastComma + 1).trim() : '';
-          const initialAddr = [{
-            id: Date.now().toString(),
+          // Onto the account, not the device: registering on one phone and
+          // booking on another used to lose this.
+          await upsertStructuredAddress({
             address: fullAddr,
             street: addrStreetPart,
             city: addrCityPart,
-            isPrimary: true,
-            lastUsed: new Date().toISOString(),
-          }];
-          await setItemAsync('saved_addresses', JSON.stringify(initialAddr));
+            floor: '', apt: '', isPrivate: false,
+          });
         } catch (_) {}
       }
 
