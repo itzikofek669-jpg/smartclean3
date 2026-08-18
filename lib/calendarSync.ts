@@ -322,9 +322,25 @@ export async function removeBookingFromCalendar(
   try {
     const key = evtKey(bookingId);
     const id = await SecureStore.getItemAsync(key).catch(() => null);
-    if (id) {
-      await Calendar.deleteEventAsync(id).catch(() => {});
-      await SecureStore.deleteItemAsync(key).catch(() => {});
+    if (!id) {
+      // Nothing recorded for this booking on this device. Worth saying so:
+      // it is the difference between "removed" and "there was never an
+      // entry here", which look the same from the calendar.
+      record('calendar:remove', { id: bookingId, res: 'no-stored-event' });
+    } else {
+      // The key is only dropped once the event is actually gone. It used to
+      // be deleted regardless: a failed delete then left the entry sitting
+      // in the calendar with nothing left pointing at it, so no later
+      // cancellation could ever find it again.
+      let deleted = false;
+      try {
+        await Calendar.deleteEventAsync(id);
+        deleted = true;
+      } catch (err) {
+        logError('calendarSync:delete', err);
+      }
+      if (deleted) await SecureStore.deleteItemAsync(key).catch(() => {});
+      record('calendar:remove', { id: bookingId, event: id, res: deleted ? 'deleted' : 'delete-failed' });
     }
 
     // The sweep is OFF unless asked for, and that default matters.

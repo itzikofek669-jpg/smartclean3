@@ -239,6 +239,10 @@ export default function RootLayout() {
         // this particular booking cancelled.
         if (!removedCancelled.has(b.id)) {
           removedCancelled.add(b.id);
+          // Which role's listener saw the cancellation is the thing that
+          // separates "the removal ran and failed" from "this device never
+          // heard about it" — and those need completely different fixes.
+          record(`cancel:${role}`, { id: b.id, date: b.bookingDate });
           removeBookingFromCalendar(b.id, b, { sweep: true })
             .catch(err => logError('layout:calendarRemove', err));
         }
