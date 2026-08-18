@@ -55,6 +55,47 @@ numbers were hardcoded in `android/app/build.gradle`, and `/android` is
 gitignored, so they were invisible to review and nobody noticed they never
 moved.
 
+## Signing
+
+Release builds are signed with a real release key. The keystore and its
+password live **outside both repos**:
+
+```
+D:\AM-Clean\secrets\
+  am-clean-release.jks       the key itself
+  keystore.properties        storeFile / storePassword / keyAlias / keyPassword
+```
+
+`android/app/build.gradle` reads `../secrets/keystore.properties` relative to
+the project root, or `$AMCLEAN_KEYSTORE_PROPS` if that is set.
+
+**A release build fails if the keystore is missing.** It does not fall back to
+the debug key. That fallback is how every build up to 1.2.10 shipped
+debug-signed without anyone noticing — a debug-signed APK sideloads perfectly
+well, and only Play tells you otherwise.
+
+### ⚠️ Back this up, off this machine
+
+`secrets/` is in no repository. If it is lost, the Play Store listing can
+never be updated again — not by rebuilding, not by appeal. Google cannot
+re-issue it. Copy it somewhere durable now, and copy it to any new machine
+(see the migration list).
+
+### ⚠️ Changing the key breaks existing installs
+
+Android refuses to update an app whose signing key changed. Anything signed
+with the old debug key — 1.2.10 and earlier — must be uninstalled before
+1.2.11 or later will install. This cost is paid once.
+
+Check what an APK is signed with:
+
+```bash
+"$ANDROID_HOME/build-tools/37.0.0/apksigner.bat" verify --print-certs app-release.apk
+```
+
+The release key's SHA-256 is `05:DB:69:2F:A8:1C:88:D9:...`; the old debug key
+was `FA:C6:17:45:DC:09:03:78:...`.
+
 ## ⚠️ `android/` is generated, and hand-edited here
 
 `/android` is gitignored — it is meant to be produced by `expo prebuild`.
@@ -64,6 +105,10 @@ maintained by hand and its edits exist only on this machine:
 - Calendar permissions (`READ_CALENDAR` / `WRITE_CALENDAR`) in
   `android/app/src/main/AndroidManifest.xml`.
 - The `app.json` version reader in `android/app/build.gradle`.
+- The release signing config in `android/app/build.gradle` (see Signing).
+  **This one does not restore itself** — prebuild writes the stock block that
+  signs release with the debug key, and the build will then refuse to run
+  until it is put back.
 
 **If anyone ever runs `expo prebuild`, both are wiped — and both come back
 on their own**, because `app.json` is the real source for each: the
