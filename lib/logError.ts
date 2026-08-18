@@ -14,13 +14,18 @@
  *
  *   try { await optionalThing(); } catch (err) { logError('where', err); }
  *
- * In development it prints with context; in production it stays quiet. Swap the
- * body for Crashlytics/Sentry when you add one and every call site starts
- * reporting without being touched again.
+ * It used to print in development and do nothing otherwise, which meant the
+ * build people actually run could not explain itself: a released app hitting
+ * one of these paths produced no console, no log, no trace of any kind. Every
+ * call now also lands in the in-app diagnostics buffer, which costs a string in
+ * a bounded array and is what makes a fault reproducible on a real device
+ * without a laptop attached to it. See lib/diagnostics.ts.
  */
+import { record } from './diagnostics';
+
 export function logError(context: string, err: unknown): void {
   if (__DEV__) {
     console.warn(`[${context}]`, err);
   }
-  // Production hook: report(context, err)
+  record(context, err);
 }

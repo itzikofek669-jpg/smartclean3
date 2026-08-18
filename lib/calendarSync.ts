@@ -12,6 +12,7 @@ import * as Calendar from 'expo-calendar';
 import * as SecureStore from 'expo-secure-store';
 import { Alert, Platform } from 'react-native';
 import { logError } from './logError';
+import { record } from './diagnostics';
 import { auth } from './firebase';
 
 /**
@@ -257,6 +258,11 @@ async function addBookingToCalendarInner(
 
     if (eventId) {
       await SecureStore.setItemAsync(key, String(eventId)).catch(() => {});
+      // Which calendar matters: writableCalendarId falls back to the first
+      // writable one, which on a phone with no primary can be a local
+      // calendar the user's calendar app does not display. The event is
+      // real, just invisible — indistinguishable from never created.
+      record('calendar:added', { calendarId, start: start.toISOString() });
       return 'added';
     }
     return 'error';

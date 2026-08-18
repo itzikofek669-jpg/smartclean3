@@ -19,6 +19,7 @@ import {
   getSavedAddresses, upsertAddress, setPrimaryAddress, deleteAddressById,
   type SavedAddress,
 } from '../lib/savedAddresses';
+import { diagnosticsEnabled, setDiagnostics, getLog, clearLog, record } from '../lib/diagnostics';
 import * as Calendar from 'expo-calendar';
 import { saveAvatar as savePhotoDoc, fetchAvatar, resolvePhoto } from '../lib/photos';
 import {
@@ -483,6 +484,11 @@ export default function ProfileScreen() {
   type SavedAddr = SavedAddress;
   const [savedAddrs, setSavedAddrs] = useState<SavedAddr[]>([]);
   const [newAddrInput, setNewAddrInput] = useState('');
+  // Diagnostics: on the profile screen rather than the admin one, because
+  // the person who needs to turn it on is whoever is hitting the fault —
+  // usually a cleaner, who never sees /admin.
+  const [diagOn, setDiagOn] = useState(diagnosticsEnabled);
+  const [diagLog, setDiagLog] = useState<string[]>([]);
 
   const loadAddrs = async () => {
     setSavedAddrs(await getSavedAddresses());
@@ -1957,12 +1963,16 @@ export default function ProfileScreen() {
       // dropping every failure on the floor.
       addBookingToCalendar(confirmed, { role: 'cleaner' })
         .then(res => {
+          record('calendar:confirm', { id: b.id, date: confirmed.bookingDate, time: confirmed.startTime, res });
           if (res === 'bad-slot' || res === 'no-id') {
             logError('profile:calendarSlot', { id: b.id, bookingDate: confirmed.bookingDate, startTime: confirmed.startTime, res });
             return;
           }
           const msg = calendarSyncMessage(res);
           if (msg) Alert.alert('', msg);
+          else if (diagnosticsEnabled() && res !== 'added') {
+            Alert.alert('אבחון — יומן (אישור)', `תוצאה: ${res}`);
+          }
         })
         .catch(err => logError('profile:calendarAdd', err));
       setPendingConfirmBooking(null);
@@ -3645,6 +3655,70 @@ export default function ProfileScreen() {
             <TouchableOpacity style={s.reportBtn} onPress={() => setReportOpen(true)}>
               <T style={s.reportBtnText}>{t.reportBtn}</T>
             </TouchableOpacity>
+
+            {/* ── אבחון ─────────────────────────────────────────────────── */}
+            <View style={{ backgroundColor: C.white, borderRadius: 16, padding: 16, marginTop: 12, borderWidth: 1, borderColor: C.blueBorder }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+                <T style={{ flex: 1, fontSize: 15, fontWeight: '800', color: C.textDark, textAlign: 'right' }}>
+                  🔍 מצב אבחון
+                </T>
+                <Switch
+                  value={diagOn}
+                  onValueChange={async on => {
+                    setDiagOn(on);
+                    await setDiagnostics(on);
+                    if (on) setDiagLog(getLog());
+                  }}
+                  trackColor={{ false: C.blueBorder, true: C.blue }}
+                  thumbColor={C.white}
+                />
+              </View>
+              <T style={{ fontSize: 12, color: C.textSub, textAlign: 'right', marginTop: 6, lineHeight: 18 }}>
+                מקפיץ הודעה על כל תקלה שקטה — למשל הזמנה שלא נכנסה ליומן — ומציג
+                את היומן הפנימי למטה. נשמר במכשיר הזה בלבד. אפשר לכבות אחרי הבדיקה.
+              </T>
+
+              {diagOn && (
+                <View style={{ marginTop: 12 }}>
+                  <View style={{ flexDirection: 'row', gap: 8 }}>
+                    <TouchableOpacity
+                      onPress={() => setDiagLog(getLog())}
+                      style={{ flex: 1, backgroundColor: C.blueLight, borderRadius: 10, paddingVertical: 10, alignItems: 'center' }}
+                    >
+                      <T style={{ fontWeight: '800', color: C.blue }}>רענן</T>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      onPress={() => { clearLog(); setDiagLog([]); }}
+                      style={{ flex: 1, backgroundColor: C.blueLight, borderRadius: 10, paddingVertical: 10, alignItems: 'center' }}
+                    >
+                      <T style={{ fontWeight: '800', color: C.blue }}>נקה</T>
+                    </TouchableOpacity>
+                  </View>
+                  {diagLog.length === 0 ? (
+                    <T style={{ fontSize: 12, color: C.textSub, textAlign: 'center', marginTop: 10 }}>
+                      אין רשומות עדיין — בצע את הפעולה שנכשלת ואז לחץ רענן
+                    </T>
+                  ) : (
+                    <ScrollView
+                      horizontal
+                      style={{ marginTop: 10, maxHeight: 220, backgroundColor: '#0B1020', borderRadius: 10 }}
+                    >
+                      <View style={{ padding: 10 }}>
+                        {diagLog.map((line, i) => (
+                          <T
+                            key={i}
+                            selectable
+                            style={{ color: '#D1FAE5', fontSize: 11, fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace', textAlign: 'left' }}
+                          >
+                            {line}
+                          </T>
+                        ))}
+                      </View>
+                    </ScrollView>
+                  )}
+                </View>
+              )}
+            </View>
           </View>
 
         </ScrollView>

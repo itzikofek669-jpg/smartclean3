@@ -10,6 +10,7 @@ import { auth, db } from '../lib/firebase';
 import { getActiveChat } from '../lib/chatPresence';
 import { logError } from '../lib/logError';
 import { loadDemoMode } from '../lib/demoMode';
+import { loadDiagnostics, diagnosticsEnabled, record } from '../lib/diagnostics';
 import { primeCalendarPermission, addBookingToCalendar, removeBookingFromCalendar, calendarSyncMessage } from '../lib/calendarSync';
 import { LanguageProvider } from '../lib/LanguageContext';
 import { ThemeProvider } from '../lib/ThemeContext';
@@ -126,7 +127,7 @@ export default function RootLayout() {
 
   // Demo-cleaner opt-in is stored per device; read it once before the
   // cleaner list is built. See lib/demoMode.
-  useEffect(() => { loadDemoMode(); }, []);
+  useEffect(() => { loadDemoMode(); loadDiagnostics(); }, []);
 
   // ── Auth routing ──────────────────────────────────────────────────────────
   useEffect(() => {
@@ -205,12 +206,21 @@ export default function RootLayout() {
       if (b?.status === 'confirmed') {
         addBookingToCalendar(b, { role })
           .then(res => {
+            // Every outcome, not just the two that used to be logged. The
+            // silent ones — already-synced above all — are exactly the
+            // answers we could never get out of a release build.
+            record(`calendar:${role}`, { id: b.id, date: b.bookingDate, time: b.startTime, res });
             if (res === 'bad-slot' || res === 'no-id') {
               logError('layout:calendarSlot', { id: b.id, bookingDate: b.bookingDate, startTime: b.startTime, res });
               return;
             }
             const msg = calendarSyncMessage(res);
             if (msg && !warned) { warned = true; Alert.alert('', msg); }
+            else if (diagnosticsEnabled() && res !== 'added' && !warned) {
+              warned = true;
+              Alert.alert('אבחון — יומן', `תפקיד: ${role}
+תוצאה: ${res}`);
+            }
           })
           .catch(err => logError('layout:calendarAdd', err));
       }
@@ -285,7 +295,14 @@ export default function RootLayout() {
           });
           if (role === 'cleaner') firstSnapshot = false;
         },
-        err => logError(`layout:${role}Bookings`, err),
+        err => {
+          logError(`layout:${role}Bookings`, err);
+          // A failed query means the sync never even ran for this role.
+          if (diagnosticsEnabled()) {
+            Alert.alert('אבחון — שאילתת הזמנות נכשלה', `תפקיד: ${role}
+${(err as any)?.message ?? err}`);
+          }
+        },
       );
 
     const unsubAuth = onAuthStateChanged(auth, user => {
