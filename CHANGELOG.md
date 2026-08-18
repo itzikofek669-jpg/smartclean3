@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.2.12 (versionCode 15) — 2026-08-18
+
+- Stop bookings being saved at 24:30, and landing a day late
+
 ## 1.2.11 (versionCode 14) — 2026-08-18
 
 - Sign release builds with a real release key instead of the debug keystore.
