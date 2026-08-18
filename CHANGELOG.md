@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.2.15 (versionCode 18) — 2026-08-18
+
+- Give the client's header its logo row back
+- Stop a failed calendar delete stranding the event, and record removals
+- Let stranded calendar entries be re-created
+- Show the device's actual calendar list in diagnostics
+
 ## 1.2.14 (versionCode 17) — 2026-08-18
 
 - One confirmation when a booking is confirmed, not three
