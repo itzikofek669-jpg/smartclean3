@@ -347,6 +347,10 @@ ${(err as any)?.message ?? err}`);
           stamps[c.id] = cur;
           if (!cur || cur === prev || popped) return;
           if (getActiveChat() === c.id) return;   // המשתמש כבר בצ'אט הזה — לא להקפיץ
+          // An automatic message announcing something the user is already
+          // being told about by a dialog. It belongs in the chat, not on top
+          // of the dialog that says the same thing.
+          if (c.lastMessageAuto === true) return;
           const forMe     = Array.isArray(c.unreadBy) && c.unreadBy.includes(uid);
           // הודעה נכנסת בלבד — לא הודעה ששלחתי בעצמי (לפי lastSenderUid אם קיים)
           const fromOther = c.lastSenderUid ? c.lastSenderUid !== uid : forMe;

@@ -2013,6 +2013,11 @@ export default function ProfileScreen() {
           lastMessage: chatMsg, lastMessageAt: new Date().toISOString(),
           lastSenderUid: uid,
           unreadBy: [b.clientUid],
+          // Nobody typed this. The client is already being shown a booking-
+          // confirmed dialog for the very same event, so a "new message"
+          // alert on top of it is the same news twice. The message still
+          // lands in the chat to read; it just does not interrupt.
+          lastMessageAuto: true,
         }, { merge: true });
       } catch (err) { logError('profile:write', err); }
     } catch (e: any) {

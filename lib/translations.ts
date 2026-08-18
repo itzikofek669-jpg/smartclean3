@@ -472,7 +472,7 @@ const he = {
   bestMonthLabel:       'חודש שיא',
 
   // UX improvements
-  nextStep1:           'המנקה יאשר את ההזמנה בקרוב',
+  nextStep1:           'המנקה אישר — ההזמנה סגורה',
   nextStep2:           'תקבל/י הודעה כשהמנקה בדרך',
   nextStep3:           'אחרי הניקוי תוכל/י לדרג את השירות',
   viewMyBookings:      '📋 ההזמנות שלי',
@@ -1039,7 +1039,7 @@ const en: typeof he = {
   earningsChartLabel:   '📊 Monthly Earnings',
   bestMonthLabel:       'Best Month',
 
-  nextStep1:           'The cleaner will confirm your booking soon',
+  nextStep1:           'The cleaner confirmed — your booking is set',
   nextStep2:           'You\'ll get a notification when the cleaner is on the way',
   nextStep3:           'After cleaning you can rate the service',
   viewMyBookings:      '📋 My Bookings',
@@ -1602,7 +1602,7 @@ const ru: typeof he = {
   earningsChartLabel:   '📊 Заработок по месяцам',
   bestMonthLabel:       'Лучший месяц',
 
-  nextStep1:           'Уборщик скоро подтвердит вашу заявку',
+  nextStep1:           'Уборщик подтвердил — заказ закреплён',
   nextStep2:           'Вы получите уведомление, когда уборщик будет в пути',
   nextStep3:           'После уборки вы сможете оценить услугу',
   viewMyBookings:      '📋 Мои заказы',
@@ -2164,7 +2164,7 @@ const ar: typeof he = {
   earningsChartLabel:   '📊 الأرباح الشهرية',
   bestMonthLabel:       'أفضل شهر',
 
-  nextStep1:           'سيؤكد المنظف حجزك قريباً',
+  nextStep1:           'أكد المنظف — حجزك مثبت',
   nextStep2:           'ستتلقى إشعاراً عندما يكون المنظف في الطريق',
   nextStep3:           'بعد التنظيف يمكنك تقييم الخدمة',
   viewMyBookings:      '📋 حجوزاتي',
@@ -2665,7 +2665,7 @@ const fr: typeof he = {
   earningsChartLabel:   '📊 Gains mensuels',
   bestMonthLabel:       'Meilleur mois',
 
-  nextStep1:           'Le nettoyeur confirmera votre réservation bientôt',
+  nextStep1:           'Le nettoyeur a confirmé — votre réservation est fixée',
   nextStep2:           'Vous recevrez une notification quand il sera en route',
   nextStep3:           'Après le nettoyage, vous pourrez évaluer le service',
   viewMyBookings:      '📋 Mes réservations',
@@ -3166,7 +3166,7 @@ const hi: typeof he = {
   earningsChartLabel:   '📊 मासिक कमाई',
   bestMonthLabel:       'सर्वश्रेष्ठ माह',
 
-  nextStep1:           'क्लीनर जल्द आपकी बुकिंग की पुष्टि करेगा',
+  nextStep1:           'क्लीनर ने पुष्टि की — आपकी बुकिंग तय है',
   nextStep2:           'जब क्लीनर रास्ते में होगा तो आपको सूचना मिलेगी',
   nextStep3:           'सफाई के बाद आप सेवा को रेट कर सकते हैं',
   viewMyBookings:      '📋 मेरी बुकिंग',

@@ -19,6 +19,7 @@ import { signOut } from 'firebase/auth';
 import * as SecureStore from 'expo-secure-store';
 import { collection, addDoc, getDocs, query, where, doc, getDoc, setDoc, onSnapshot, orderBy, updateDoc, arrayUnion, arrayRemove, runTransaction } from 'firebase/firestore';
 import { auth, db } from '../lib/firebase';
+import { setAnnouncedBooking, getAnnouncedBooking } from '../lib/confirmPresence';
 import {
   getSavedAddresses, upsertStructuredAddress, setPrimaryAddress, deleteAddressById,
   MAX_ADDRESSES, upsertAddress, replaceSavedAddresses, type SavedAddress,
@@ -2428,6 +2429,9 @@ function BookingModal({ cleaner, visible, onClose, onBookingCreated, prebookData
         const status = snap.data()?.status;
         if (status === 'confirmed' || status === 'active') {
           if (unsubBookingRef.current) { unsubBookingRef.current(); unsubBookingRef.current = null; }
+          // Claim it: this screen is about to say so itself, and the home
+          // screen's dialog would otherwise say the same thing on top of it.
+          setAnnouncedBooking(bookingRef.id);
           setShowWaiting(false);
           setShowSuccess(true);
         }
@@ -2636,6 +2640,7 @@ function BookingModal({ cleaner, visible, onClose, onBookingCreated, prebookData
     setBookingDate(new Date()); setStartHour(9); setRecurring('once');
     setRecurringDates([]);
     setServiceTypes([]); setShowSuccess(false); setBookedDetails(null);
+    setAnnouncedBooking(null);
     setShowWaiting(false); setPendingBookingId(null);
     setInlineChatOpen(false); setInlineChatMsgs([]); setInlineChatText('');
     prevInlineMsgCount.current = 0;
@@ -4944,7 +4949,9 @@ export default function HomeScreen() {
         // זיהוי מעבר חדש ל-confirmed
         if (data.status === 'confirmed' && !seenConfirmedRef.current.has(d.id)) {
           seenConfirmedRef.current.add(d.id);
-          setConfirmedPopup({ id: d.id, ...data });
+          // Already on screen in the booking flow — marking it seen without
+          // opening the dialog is what keeps it to one confirmation.
+          if (getAnnouncedBooking() !== d.id) setConfirmedPopup({ id: d.id, ...data });
         }
         // ביטול ביוזמת המנקה — הלקוח נשאר בלי מנקה, אז מציגים לו את מלוא פרטי
         // ההזמנה שבוטלה ומציעים לפרסם אותה מחדש.
