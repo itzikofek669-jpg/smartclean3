@@ -5189,6 +5189,22 @@ export default function HomeScreen() {
       <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
 
       <View style={{ backgroundColor: '#FFFFFF', flexShrink: 0, paddingTop: Platform.OS === 'ios' ? insets.top : (StatusBar.currentHeight || 0) }}>
+        {/* The client's header carries four buttons that already have to
+            scroll horizontally, so there is no room to put the logo beside
+            them — it ended up overlapping them. It keeps its own row here.
+            The cleaner's header has one small button and plenty of space, so
+            there the logo sits centred on the button row itself and saves a
+            band of height above the job list. */}
+        {myRole !== 'cleaner' && (
+          <View style={{ alignItems: 'center', paddingTop: 6 }}>
+            <Image
+              source={require('../assets/images/logo-trimmed.png')}
+              style={{ width: 96, height: 34 }}
+              contentFit="contain"
+              accessibilityLabel="A&M Clean"
+            />
+          </View>
+        )}
         <View style={s.header}>
           <View style={[s.headerLogoRow, flipSide && { flexDirection: 'row-reverse' }]}>
             {/* כפתורי אמצע (הנגישות עברה לתפריט הצד).
@@ -5244,22 +5260,12 @@ export default function HomeScreen() {
               )}
             </ScrollView>
 
-            {/* Logo, on the button row rather than a centred row of its own —
-                that row cost a full band of height at the top of the screen
-                the cleaner spends the most time on, pushing the job list down.
-                `logo-trimmed` because this header is white; the white variant
-                would be invisible on it.
-
-                Two placements, because the two roles have very different rows.
-                The cleaner's scroller holds one small button, so the logo is
-                absolutely centred on the row — true centre, independent of how
-                wide the buttons on either side happen to be. pointerEvents
-                none so it can never swallow a tap meant for them.
-
-                The client's scroller holds four buttons that already need to
-                scroll; centring over them would sit the logo on top of the
-                buttons, so there it stays in the flow and takes its own width. */}
-            {myRole === 'cleaner' ? (
+            {/* Cleaner only: absolutely centred on the button row, which is a
+                true centre regardless of how wide the buttons either side
+                are, and saves the band of height a row of its own costs at
+                the top of the screen they spend the most time on.
+                pointerEvents none so it can never swallow a tap. */}
+            {myRole === 'cleaner' && (
               <View
                 style={{ position: 'absolute', left: 0, right: 0, alignItems: 'center' }}
                 pointerEvents="none"
@@ -5271,13 +5277,6 @@ export default function HomeScreen() {
                   accessibilityLabel="A&M Clean"
                 />
               </View>
-            ) : (
-              <Image
-                source={require('../assets/images/logo-trimmed.png')}
-                style={{ width: 84, height: 30, flexShrink: 0, marginHorizontal: 4 }}
-                contentFit="contain"
-                accessibilityLabel="A&M Clean"
-              />
             )}
 
             {/* כפתור תפריט — צד ימין. flexShrink:0 כדי שלעולם לא ייחתך/ייעלם. */}
