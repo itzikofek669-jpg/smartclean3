@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.2.14 (versionCode 17) — 2026-08-18
+
+- One confirmation when a booking is confirmed, not three
+- Write bookings to a calendar the user can actually see
+
 ## 1.2.13 (versionCode 16) — 2026-08-18
 
 - Make the release build able to explain itself
