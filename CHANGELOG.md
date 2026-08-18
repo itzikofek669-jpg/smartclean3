@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.2.13 (versionCode 16) — 2026-08-18
+
+- Make the release build able to explain itself
+- Centre the logo on the cleaner's header row
+- Put the logo on the header button row instead of above it
+- Move saved addresses onto the account, and widen the city table
+- Keep saved addresses per account, and suggest cities where bookings are made
+
 ## 1.2.12 (versionCode 15) — 2026-08-18
 
 - Stop bookings being saved at 24:30, and landing a day late
