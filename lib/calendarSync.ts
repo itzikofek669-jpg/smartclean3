@@ -70,9 +70,19 @@ function startDateOf(b: CalendarBooking): Date | null {
 }
 
 /**
- * Pick a calendar we're actually allowed to write to. `getDefaultCalendarAsync`
- * is iOS-only, and on Android the default can be a read-only subscription (a
- * holiday feed), so filter on `allowsModifications` rather than trusting it.
+ * Pick a calendar the user can actually see, and that we may write to.
+ *
+ * Writability alone is not enough, and that cost a whole round of debugging.
+ * An Android phone carries several writable calendars, and the first one is
+ * usually a local, unsynced account — id "1" on the device this was traced on.
+ * Events written there are created perfectly: the API returns an id, the sync
+ * reports 'added', and the entry never appears in the user's calendar app,
+ * because that app does not display that calendar. From the outside it is
+ * indistinguishable from a booking that never synced at all.
+ *
+ * So `isVisible` is the property that matters most, and it is checked before
+ * anything else. Ordering after that goes from the strongest signal of "this
+ * is the calendar this person lives in" to the weakest.
  */
 async function writableCalendarId(): Promise<string | null> {
   const cals = await Calendar.getCalendarsAsync(Calendar.EntityTypes.EVENT);
@@ -85,10 +95,27 @@ async function writableCalendarId(): Promise<string | null> {
       if (def?.id && writable.some(c => c.id === def.id)) return def.id;
     } catch (_) { /* fall through to the heuristics below */ }
   }
-  // Prefer the primary/local account, else just the first writable one.
-  const primary = writable.find(c => (c as any).isPrimary)
-    ?? writable.find(c => c.source?.name && c.source.name !== 'Other');
-  return (primary ?? writable[0]).id;
+
+  // isVisible is undefined on platforms that do not report it; treat only an
+  // explicit false as hidden, so a missing field never empties the list.
+  const shown = writable.filter(c => (c as any).isVisible !== false);
+  const pool = shown.length > 0 ? shown : writable;
+
+  const synced = pool.filter(c => (c as any).isSynced !== false);
+  const google = synced.filter(c => String(c.source?.type ?? '').includes('google'));
+
+  const pick =
+    // the account's own calendar: its owner is the account itself
+    google.find(c => (c as any).ownerAccount && (c as any).ownerAccount === c.source?.name)
+    ?? google.find(c => (c as any).isPrimary)
+    ?? google[0]
+    ?? synced.find(c => (c as any).isPrimary)
+    // anything but the local phone account, which is the trap above
+    ?? synced.find(c => c.source?.isLocalAccount !== true)
+    ?? synced[0]
+    ?? pool[0];
+
+  return pick.id;
 }
 
 /** Marks that we've already offered calendar access once on this install. */
@@ -241,6 +268,14 @@ async function addBookingToCalendarInner(
     // vanishing.
     const calendarId = await writableCalendarId();
     if (!calendarId) return 'no-calendar';
+    // Named in the log too: an id alone cannot tell you whether the event
+    // landed somewhere the user will ever look.
+    const calendarName = await Calendar.getCalendarsAsync(Calendar.EntityTypes.EVENT)
+      .then(all => {
+        const c: any = all.find(x => x.id === calendarId);
+        return c ? `${c.title ?? '?'} / ${c.source?.name ?? '?'}` : '?';
+      })
+      .catch(() => '?');
 
     const other = opts.role === 'cleaner' ? b.clientName : b.cleanerName;
     const title = opts.title
@@ -262,7 +297,7 @@ async function addBookingToCalendarInner(
       // writable one, which on a phone with no primary can be a local
       // calendar the user's calendar app does not display. The event is
       // real, just invisible — indistinguishable from never created.
-      record('calendar:added', { calendarId, start: start.toISOString() });
+      record('calendar:added', { calendarId, calendar: calendarName, start: start.toISOString() });
       return 'added';
     }
     return 'error';
