@@ -5182,18 +5182,6 @@ export default function HomeScreen() {
       <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
 
       <View style={{ backgroundColor: '#FFFFFF', flexShrink: 0, paddingTop: Platform.OS === 'ios' ? insets.top : (StatusBar.currentHeight || 0) }}>
-        {/* The logo only ever appeared on the sign-in, register and drawer
-            screens, so the brand vanished from the one screen users actually
-            spend time on. `logo-trimmed` because the header is white — the
-            white variant would be invisible here. Matches the web's header. */}
-        <View style={{ alignItems: 'center', paddingTop: 6 }}>
-          <Image
-            source={require('../assets/images/logo-trimmed.png')}
-            style={{ width: 96, height: 34 }}
-            contentFit="contain"
-            accessibilityLabel="A&M Clean"
-          />
-        </View>
         <View style={s.header}>
           <View style={[s.headerLogoRow, flipSide && { flexDirection: 'row-reverse' }]}>
             {/* כפתורי אמצע (הנגישות עברה לתפריט הצד).
@@ -5248,6 +5236,19 @@ export default function HomeScreen() {
                 </TouchableOpacity>
               )}
             </ScrollView>
+
+            {/* Logo, on the button row rather than a centred row of its own.
+                It cost a full row of height at the top of the screen the
+                cleaner spends the most time on, pushing the job list down.
+                flexShrink:0 so the scrolling buttons give way, never the
+                brand. `logo-trimmed` because this header is white — the white
+                variant would be invisible on it. */}
+            <Image
+              source={require('../assets/images/logo-trimmed.png')}
+              style={{ width: 84, height: 30, flexShrink: 0, marginHorizontal: 4 }}
+              contentFit="contain"
+              accessibilityLabel="A&M Clean"
+            />
 
             {/* כפתור תפריט — צד ימין. flexShrink:0 כדי שלעולם לא ייחתך/ייעלם. */}
             <TouchableOpacity
