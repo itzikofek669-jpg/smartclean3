@@ -260,6 +260,7 @@ async function addBookingToCalendarInner(
 export async function removeBookingFromCalendar(
   bookingId: string,
   b?: CalendarBooking,
+  opts: { sweep?: boolean } = {},
 ): Promise<void> {
   try {
     const key = evtKey(bookingId);
@@ -269,17 +270,18 @@ export async function removeBookingFromCalendar(
       await SecureStore.deleteItemAsync(key).catch(() => {});
     }
 
-    // Sweep the slot for strays.
+    // The sweep is OFF unless asked for, and that default matters.
     //
-    // The stored key holds ONE id. A race that created the event twice
-    // therefore left a copy that nothing could ever remove — visible right now
-    // as the same cleaning listed twice, and still there after a cancellation.
-    // The race is fixed above, but devices already carry the duplicates.
+    // It exists to catch duplicates left by a race that older builds had, and
+    // it identifies events by start minute alone — it cannot tell which booking
+    // an event belongs to. Run it on every snapshot, as the root listener did,
+    // and every past cancellation keeps re-sweeping its old slot: book the same
+    // hour again later and the new event is created and then deleted moments
+    // afterwards by the ghost of the cancelled one.
     //
-    // Scoped tightly so this can only ever touch our own events: the exact
-    // start minute of this booking, and `notes === 'A&M Clean'`, which every
-    // event we create carries and nothing else does.
-    if (!b) return;
+    // So it runs only on a genuine transition to cancelled, once, and never
+    // again for that booking.
+    if (!opts.sweep || !b) return;
     const start = startDateOf(b);
     if (!start) return;
     const end = new Date(start.getTime() + (Number(b.hours) > 0 ? Number(b.hours) : 2) * 3600000);

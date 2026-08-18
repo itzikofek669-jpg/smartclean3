@@ -193,6 +193,8 @@ export default function RootLayout() {
     // per booking in the snapshot, which on a busy account would be a wall of
     // identical alerts.
     let warned = false;
+    // Bookings whose calendar entry we have already taken out on this run.
+    const removedCancelled = new Set<string>();
 
     const sync = (b: any, role: 'client' | 'cleaner') => {
       if (b?.status === 'confirmed') {
@@ -208,8 +210,23 @@ export default function RootLayout() {
           .catch(err => logError('layout:calendarAdd', err));
       }
       if (b?.status === 'cancelled') {
-        // Pass the booking so the sweep can scope itself to its exact slot.
-        removeBookingFromCalendar(b.id, b).catch(err => logError('layout:calendarRemove', err));
+        // Remove once per booking, not once per snapshot.
+        //
+        // This callback runs over every document on every snapshot, so an
+        // already-cancelled booking was re-processed on every launch and every
+        // change. The stray-sweep inside identifies events by start minute
+        // alone, so each replay re-swept that old slot -- and a NEW booking for
+        // the same hour later on was created and then deleted moments
+        // afterwards by the ghost of the cancelled one. That is the "the
+        // booking never reaches the calendar" report.
+        //
+        // The sweep is opt-in now and fires only here, the first time we see
+        // this particular booking cancelled.
+        if (!removedCancelled.has(b.id)) {
+          removedCancelled.add(b.id);
+          removeBookingFromCalendar(b.id, b, { sweep: true })
+            .catch(err => logError('layout:calendarRemove', err));
+        }
       }
     };
 
@@ -272,6 +289,7 @@ export default function RootLayout() {
       // A different account starts with a clean slate, or the previous user's
       // cancellations would be treated as already announced.
       seenCancelled.clear();
+      removedCancelled.clear();
       firstSnapshot = true;
       if (!user) return;
       unsubClient = watch('clientUid', 'client', user.uid);
