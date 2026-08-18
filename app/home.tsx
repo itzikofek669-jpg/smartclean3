@@ -2030,7 +2030,20 @@ function InlineBookingChat({ open, onToggle, messages, text, onChangeText, onSen
 }
 
 // ─── Address management helpers ──────────────────────────────────────────────
-const ADDRESSES_KEY = 'saved_addresses';
+/**
+ * Saved addresses, per signed-in user.
+ *
+ * This was a single key shared by every account on the device — the same
+ * mistake the calendar event ids had. Sign in as a client, save an address,
+ * sign in as a cleaner, and you saw the client's address list; whoever wrote
+ * last overwrote the other.
+ *
+ * The legacy key is read once and migrated rather than deleted. Addresses
+ * are typed by hand and easy to lose, and this list has already been lost
+ * once on this project.
+ */
+const ADDRESSES_KEY_LEGACY = 'saved_addresses';
+const addressesKey = () => `saved_addresses_${auth.currentUser?.uid ?? 'anon'}`;
 const MAX_ADDRESSES = 5;
 
 export type SavedAddress = {
@@ -2051,8 +2064,15 @@ export type SavedAddress = {
 
 export async function getSavedAddresses(): Promise<SavedAddress[]> {
   try {
-    const raw = await SecureStore.getItemAsync(ADDRESSES_KEY);
-    return raw ? JSON.parse(raw) : [];
+    const raw = await SecureStore.getItemAsync(addressesKey());
+    if (raw) return JSON.parse(raw);
+    // Nothing under this user's key yet — adopt whatever the old shared key
+    // holds, once, instead of showing an empty list to someone who has
+    // addresses saved. Left in place, so a second account can migrate too.
+    const legacy = await SecureStore.getItemAsync(ADDRESSES_KEY_LEGACY);
+    if (!legacy) return [];
+    await SecureStore.setItemAsync(addressesKey(), legacy).catch(() => {});
+    return JSON.parse(legacy);
   } catch { return []; }
 }
 
@@ -2067,7 +2087,7 @@ export async function upsertStructuredAddress(fields: Omit<SavedAddress, 'id' | 
     addrs.unshift({ ...fields, id: Date.now().toString(), isPrimary: isFirst, lastUsed: new Date().toISOString() });
     if (addrs.length > MAX_ADDRESSES) addrs.pop();
   }
-  await SecureStore.setItemAsync(ADDRESSES_KEY, JSON.stringify(addrs));
+  await SecureStore.setItemAsync(addressesKey(), JSON.stringify(addrs));
 }
 
 // backward-compat
@@ -2078,7 +2098,7 @@ export async function upsertAddress(address: string): Promise<void> {
 export async function setPrimaryAddress(id: string): Promise<void> {
   const addrs = await getSavedAddresses();
   addrs.forEach(a => { a.isPrimary = a.id === id; });
-  await SecureStore.setItemAsync(ADDRESSES_KEY, JSON.stringify(addrs));
+  await SecureStore.setItemAsync(addressesKey(), JSON.stringify(addrs));
 }
 
 export async function deleteAddressById(id: string): Promise<void> {
@@ -2086,7 +2106,7 @@ export async function deleteAddressById(id: string): Promise<void> {
   const wasDefault = addrs.find(a => a.id === id)?.isPrimary ?? false;
   const filtered = addrs.filter(a => a.id !== id);
   if (wasDefault && filtered.length > 0) filtered[0].isPrimary = true;
-  await SecureStore.setItemAsync(ADDRESSES_KEY, JSON.stringify(filtered));
+  await SecureStore.setItemAsync(addressesKey(), JSON.stringify(filtered));
 }
 
 // ─── AddressPicker component ──────────────────────────────────────────────────
@@ -2148,6 +2168,10 @@ function BookingModal({ cleaner, visible, onClose, onBookingCreated, prebookData
   const [addrApt,        setAddrApt]        = useState('');
   const [addrPrivate,    setAddrPrivate]    = useState(false);
   const [selectedAddrId, setSelectedAddrId] = useState('');
+  // The job-post form has offered city suggestions all along; this form, the
+  // one most bookings go through, left the user to spell it themselves — and
+  // a typo here silently drops the booking out of every city-based match.
+  const [addrCitySugg, setAddrCitySugg] = useState<string[]>([]);
   const [addrEditMode,   setAddrEditMode]   = useState(false); // false = הצג סיכום כתובת ראשית; true = עריכה/בחירה
   const [detectingLoc,   setDetectingLoc]   = useState(false);
 
@@ -2176,7 +2200,7 @@ function BookingModal({ cleaner, visible, onClose, onBookingCreated, prebookData
           } catch (_) {}
         }
       }
-      await SecureStore.setItemAsync(ADDRESSES_KEY, JSON.stringify(addrs));
+      await SecureStore.setItemAsync(addressesKey(), JSON.stringify(addrs));
       // find nearest saved address
       let nearest: SavedAddress | null = null;
       let minDist = Infinity;
@@ -3047,9 +3071,27 @@ function BookingModal({ cleaner, visible, onClose, onBookingCreated, prebookData
                 style={[s.input, { textAlign: 'right' }]}
                 placeholder={t.cityOptionalPh}
                 value={addrCity}
-                onChangeText={t => { setAddrCity(t); setSelectedAddrId(''); }}
+                onChangeText={txt => {
+                  setAddrCity(txt); setSelectedAddrId('');
+                  const q = txt.trim();
+                  setAddrCitySugg(q ? CITY_KEYS_BY_LEN.filter(c => c.includes(q)).slice(0, 6) : []);
+                }}
+                onBlur={() => setTimeout(() => setAddrCitySugg([]), 180)}
                 placeholderTextColor={C.textSub}
               />
+              {addrCitySugg.length > 0 && (
+                <View style={{ backgroundColor: C.white, borderRadius: 12, borderWidth: 1.5, borderColor: C.blueBorder, overflow: 'hidden' }}>
+                  {addrCitySugg.map((c, i) => (
+                    <TouchableOpacity
+                      key={c}
+                      onPress={() => { setAddrCity(c); setAddrCitySugg([]); setSelectedAddrId(''); }}
+                      style={{ paddingVertical: 11, paddingHorizontal: 14, borderBottomWidth: i < addrCitySugg.length - 1 ? 1 : 0, borderBottomColor: C.blueBorder }}
+                    >
+                      <T style={{ textAlign: 'right', color: C.textDark, fontWeight: '600' }}>{c}</T>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              )}
               {/* רחוב + מספר בית */}
               <TextInput
                 style={[s.input, { textAlign: 'right' }]}
