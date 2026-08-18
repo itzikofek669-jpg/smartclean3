@@ -20,7 +20,7 @@ import {
   type SavedAddress,
 } from '../lib/savedAddresses';
 import { diagnosticsEnabled, setDiagnostics, getLog, clearLog, record } from '../lib/diagnostics';
-import { describeCalendars } from '../lib/calendarSync';
+import { describeCalendars, resyncBooking } from '../lib/calendarSync';
 import * as Calendar from 'expo-calendar';
 import { saveAvatar as savePhotoDoc, fetchAvatar, resolvePhoto } from '../lib/photos';
 import {
@@ -3709,6 +3709,25 @@ export default function ProfileScreen() {
                     style={{ backgroundColor: C.blueLight, borderRadius: 10, paddingVertical: 10, alignItems: 'center', marginTop: 8 }}
                   >
                     <T style={{ fontWeight: '800', color: C.blue }}>📅 רשימת היומנים במכשיר</T>
+                  </TouchableOpacity>
+
+                  {/* Repairs bookings whose event went to a calendar nobody can
+                      see. Those are marked synced, so nothing else will ever
+                      place them again. */}
+                  <TouchableOpacity
+                    onPress={async () => {
+                      const live = incomingBks.filter((b: any) => b.status === 'confirmed' || b.status === 'active');
+                      if (live.length === 0) { record('resync', 'no confirmed bookings'); setDiagLog(getLog()); return; }
+                      for (const b of live) {
+                        const res = await resyncBooking(b, 'cleaner');
+                        record('resync', { id: b.id, date: b.bookingDate, res });
+                      }
+                      setDiagLog(getLog());
+                      Alert.alert('', `נוצרו מחדש ${live.length} אירועי יומן`);
+                    }}
+                    style={{ backgroundColor: C.blueLight, borderRadius: 10, paddingVertical: 10, alignItems: 'center', marginTop: 8 }}
+                  >
+                    <T style={{ fontWeight: '800', color: C.blue }}>🔁 צור מחדש את אירועי היומן</T>
                   </TouchableOpacity>
                   {diagLog.length === 0 ? (
                     <T style={{ fontSize: 12, color: C.textSub, textAlign: 'center', marginTop: 10 }}>

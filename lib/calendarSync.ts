@@ -386,3 +386,27 @@ export async function describeCalendars(): Promise<string[]> {
     return ["failed to read calendars"];
   }
 }
+/**
+ * Re-create a booking's calendar entry, wherever it went last time.
+ *
+ * The stored event id is what makes the sync idempotent — and what strands a
+ * booking whose event was written somewhere the user cannot see. It says
+ * "already synced", so the entry is never made again, and no amount of fixing
+ * where new events go helps the ones already placed.
+ *
+ * Deleting the old event first, rather than only forgetting it, avoids leaving
+ * a duplicate behind in the calendar it originally landed in.
+ */
+export async function resyncBooking(b: CalendarBooking, role: 'client' | 'cleaner'): Promise<CalendarSyncResult> {
+  try {
+    const key = evtKey(b.id);
+    const old = await SecureStore.getItemAsync(key).catch(() => null);
+    if (old) {
+      await Calendar.deleteEventAsync(old).catch(() => {});
+      await SecureStore.deleteItemAsync(key).catch(() => {});
+    }
+  } catch (err) {
+    logError('calendarSync:resync', err);
+  }
+  return addBookingToCalendar(b, { role });
+}
