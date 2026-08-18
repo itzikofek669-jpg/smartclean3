@@ -9,6 +9,7 @@ import { doc, updateDoc, collection, query, where, onSnapshot } from 'firebase/f
 import { auth, db } from '../lib/firebase';
 import { getActiveChat } from '../lib/chatPresence';
 import { logError } from '../lib/logError';
+import { loadDemoMode } from '../lib/demoMode';
 import { primeCalendarPermission, addBookingToCalendar, removeBookingFromCalendar, calendarSyncMessage } from '../lib/calendarSync';
 import { LanguageProvider } from '../lib/LanguageContext';
 import { ThemeProvider } from '../lib/ThemeContext';
@@ -122,6 +123,10 @@ export default function RootLayout() {
       router.push('/messages');
     }
   };
+
+  // Demo-cleaner opt-in is stored per device; read it once before the
+  // cleaner list is built. See lib/demoMode.
+  useEffect(() => { loadDemoMode(); }, []);
 
   // ── Auth routing ──────────────────────────────────────────────────────────
   useEffect(() => {

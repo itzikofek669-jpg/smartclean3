@@ -66,6 +66,31 @@ export const CITY_COORDS: Record<string, { lat: number; lng: number }> = {
   'מבשרת ציון':     { lat: 31.808, lng: 35.156 }, 'גבעת זאב':       { lat: 31.869, lng: 35.168 },
   'ביתר עלית':      { lat: 31.697, lng: 35.120 }, 'מודיעין עלית':   { lat: 31.930, lng: 35.043 },
   'רהט':            { lat: 31.393, lng: 34.754 }, 'ירוחם':          { lat: 30.987, lng: 34.930 },
+  // ── Added: northern and Arab-majority towns, Negev townships and small
+  //    Sharon/Carmel towns that had no entry. A missing town is not cosmetic:
+  //    getCoordsForCleaner falls back to a region centroid, so a real cleaner
+  //    living there is drawn tens of kilometres from where they actually are,
+  //    and the home-screen city search offers nothing when a client types it.
+  'כרמיאל': { lat: 32.916, lng: 35.295 }, 'מעלות תרשיחא': { lat: 33.017, lng: 35.270 },
+  'סחנין': { lat: 32.865, lng: 35.300 }, 'עראבה': { lat: 32.851, lng: 35.337 },
+  'מגאר': { lat: 32.889, lng: 35.406 }, 'ירכא': { lat: 32.955, lng: 35.200 },
+  'כפר יאסיף': { lat: 32.955, lng: 35.162 }, 'כאבול': { lat: 32.868, lng: 35.213 },
+  'כפר מנדא': { lat: 32.810, lng: 35.257 }, 'ריינה': { lat: 32.730, lng: 35.310 },
+  'יפיע': { lat: 32.690, lng: 35.276 }, 'אכסאל': { lat: 32.680, lng: 35.330 },
+  'דאלית אל-כרמל': { lat: 32.695, lng: 35.053 }, 'עוספיא': { lat: 32.708, lng: 35.068 },
+  'קצרין': { lat: 32.991, lng: 35.689 }, 'מטולה': { lat: 33.279, lng: 35.579 },
+  'ראש פינה': { lat: 32.969, lng: 35.542 }, 'יקנעם עילית': { lat: 32.656, lng: 35.110 },
+  'בנימינה': { lat: 32.515, lng: 34.950 }, 'אבן יהודה': { lat: 32.270, lng: 34.888 },
+  'תל מונד': { lat: 32.250, lng: 34.918 }, 'גן יבנה': { lat: 31.786, lng: 34.706 },
+  'קרית עקרון': { lat: 31.869, lng: 34.820 }, 'טירה': { lat: 32.234, lng: 34.950 },
+  "ג'לג'וליה": { lat: 32.150, lng: 34.955 }, "בית ג'ן": { lat: 32.966, lng: 35.379 },
+  "ג'דיידה-מכר": { lat: 32.928, lng: 35.144 }, 'אבו סנאן': { lat: 32.956, lng: 35.170 },
+  'מיתר': { lat: 31.325, lng: 34.930 }, 'להבים': { lat: 31.371, lng: 34.817 },
+  'עומר': { lat: 31.267, lng: 34.848 }, 'כסייפה': { lat: 31.234, lng: 35.036 },
+  'שגב שלום': { lat: 31.187, lng: 34.842 }, 'חורה': { lat: 31.294, lng: 34.947 },
+  'כפר ורדים': { lat: 32.995, lng: 35.270 }, 'שלומי': { lat: 33.073, lng: 35.147 },
+  'מעיליא': { lat: 33.021, lng: 35.257 }, 'פקיעין': { lat: 32.978, lng: 35.334 },
+
 };
 
 export const REGION_CENTER: Record<string, { lat: number; lng: number }> = {

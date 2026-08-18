@@ -22,6 +22,7 @@ import { auth, db } from '../lib/firebase';
 import { resolvePhoto } from '../lib/photos';
 import { useAvatar } from '../lib/useAvatar';
 import { fetchPortfolio } from '../lib/portfolio';
+import { demoCleanersEnabled } from '../lib/demoMode';
 import { canRepost } from '../lib/bookingOrigin';
 import {
   LANGUAGE_FLAGS, groupConsecutiveDays, normalizeLanguages, workDaysFromAvailability,
@@ -379,7 +380,13 @@ export function isDemoCleanerId(id: any): boolean {
   return typeof id === 'string' && id.startsWith('bot_');
 }
 
-const BOTS: any[] = !__DEV__ ? [] : (() => {
+// Built lazily and cached: the opt-in is a runtime flag now (see
+// lib/demoMode), so this can no longer be decided at module load.
+let BOTS_CACHE: any[] | null = null;
+function getBots(): any[] {
+  if (!demoCleanersEnabled()) return [];
+  if (BOTS_CACHE) return BOTS_CACHE;
+  BOTS_CACHE = ((() => {
   const cities = Object.entries(CITY_COORDS);
   const typeKeys = Object.keys(TYPE_ICONS);
   const out: any[] = [];
@@ -389,7 +396,10 @@ const BOTS: any[] = !__DEV__ ? [] : (() => {
     const isFemale = Math.random() < 0.55;
     const pool = isFemale ? BOT_FEMALE_NAMES : BOT_MALE_NAMES;
     const name = pool[Math.floor(Math.random() * pool.length)];
-    const photo = `https://randomuser.me/api/portraits/${isFemale ? 'women' : 'men'}/${Math.floor(Math.random() * 100)}.jpg`;
+    // No photo, deliberately: these were photographs of real people
+    // hot-linked from randomuser.me, inside a commercial product. The card
+    // already falls back to initials when a cleaner has no picture.
+    const photo = '';
     const region = regionFromLat(c.lat);
     const t1 = typeKeys[Math.floor(Math.random() * typeKeys.length)];
     let t2 = typeKeys[Math.floor(Math.random() * typeKeys.length)];
@@ -416,7 +426,9 @@ const BOTS: any[] = !__DEV__ ? [] : (() => {
     });
   }
   return out;
-})();
+})()) as any[];
+  return BOTS_CACHE;
+}
 
 // city names sorted longest-first so e.g. "קריית אתא" matches before "אתא"
 
@@ -4292,7 +4304,7 @@ export default function HomeScreen() {
   // מנקים אמיתיים ראשונים, ואחריהם 200 בוטים מפוזרים בכל הערים
   const ALL_CLEANERS = [
     ...realCleaners.filter(r => !CLEANERS.some(c => c.id === r.id)),
-    ...BOTS,
+    ...getBots(),
   ];
 
   // ── Search autocomplete ────────────────────────────────────────────────────
