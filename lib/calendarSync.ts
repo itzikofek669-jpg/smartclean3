@@ -49,7 +49,23 @@ function startDateOf(b: CalendarBooking): Date | null {
   const [y, mo, d] = date.split('-').map(Number);
   const [h, mi] = time.split(':').map(Number);
   const dt = new Date(y, mo - 1, d, h, mi, 0, 0);
-  return isNaN(dt.getTime()) ? null : dt;
+  if (isNaN(dt.getTime())) return null;
+  // Reject anything the Date constructor silently rolled over.
+  //
+  // The regexes above check shape, not range, so '24:30' passes them — and
+  // new Date(y, m, d, 24, 30) is not invalid, it is 00:30 the NEXT DAY. A
+  // booking saved with that time produced a real calendar event on the wrong
+  // date, which reads to the user as 'it never reached my calendar' while
+  // every result code reports success. Month 13 and day 32 roll the same way.
+  //
+  // Comparing the parts back is the whole check: if any field moved, the
+  // input was not a real instant, and it belongs in bad-slot where it gets
+  // logged instead of quietly landing on another day.
+  if (
+    dt.getFullYear() !== y || dt.getMonth() !== mo - 1 || dt.getDate() !== d
+    || dt.getHours() !== h || dt.getMinutes() !== mi
+  ) return null;
+  return dt;
 }
 
 /**

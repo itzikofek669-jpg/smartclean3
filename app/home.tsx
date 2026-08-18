@@ -235,6 +235,13 @@ const CLEANERS = !__DEV__ ? [] : [
   { id:'99', name:'איתי כהן',    initials:'אכ', city:'גדרה',         region:'center', workAreas:['center','south'], types:['שטיפת רכב','ניקיון אחרי אירוע'],price:76, rating:4.7, reviews:48, available:true, payment:['cash','bit'],         lat:31.812, lng:34.778, bio:'מנקה גדרה ואזוריה.', reviewsList:RL },
 ];
 
+/**
+ * Latest hour a job may start. The time picker has always been capped at 20,
+ * but nothing capped the computed minimum, so late at night the two
+ * disagreed and the minimum won. Naming it once keeps them in step.
+ */
+const MAX_BOOKING_HOUR = 20;
+
 const TYPE_ICONS: Record<string, string> = {
   'ניקיון רגיל': '🏠', 'ניקוי לפסח': '🧹', 'חלונות': '🪟', 'לאחר שיפוץ': '🔨',
   'שטיפת רכב': '🚗', 'ניקיון משרדים': '🏢',
@@ -2266,13 +2273,33 @@ function BookingModal({ cleaner, visible, onClose, onBookingCreated, prebookData
     const nextSlotMins = Math.ceil((mins + 30) / 30) * 30; // slot הבא עם 30 דקות קדימה
     return Math.max(7, nextSlotMins / 60);
   };
-  const minHour = calcMinHour();
+  // The next free slot runs past the end of the working day once it is late
+  // enough — and nothing used to stop it. After 23:00 calcMinHour returns 24
+  // or 24.5, the effect below forced startHour to it despite the picker's
+  // maxHour of 20, and the booking was saved as "24:30". That is not a time:
+  // new Date(..., 24, 30) is 00:30 the NEXT day, so the calendar entry landed
+  // a day late and looked like it had never been created at all.
+  const rawMinHour = calcMinHour();
+  const todayIsFull = isToday && rawMinHour > MAX_BOOKING_HOUR;
+  const minHour = todayIsFull ? 7 : Math.min(rawMinHour, MAX_BOOKING_HOUR);
 
   // ── כשמשנים תאריך — עדכן שעה אם צריך ──────────────────────────────────
   useEffect(() => {
-    const mh = calcMinHour();
-    if (startHour < mh) setStartHour(mh);
-  }, [bookingDate]);
+    // No slot left today: move to tomorrow rather than inventing an hour that
+    // does not exist. Re-runs once on the new date, where todayIsFull is false.
+    if (todayIsFull) {
+      const tomorrow = new Date();
+      tomorrow.setDate(tomorrow.getDate() + 1);
+      tomorrow.setHours(0, 0, 0, 0);
+      setBookingDate(tomorrow);
+      setStartHour(7);
+      return;
+    }
+    // Clamp at both ends. Raising to the minimum was the only rule before, so
+    // nothing ever pulled an out-of-range hour back down.
+    const clamped = Math.min(Math.max(startHour, minHour), MAX_BOOKING_HOUR);
+    if (clamped !== startHour) setStartHour(clamped);
+  }, [bookingDate, todayIsFull, minHour]);
   const [pendingBookingId, setPendingBookingId] = useState<string | null>(null);
   const [cancellingBooking, setCancellingBooking] = useState(false);
   const unsubBookingRef = useRef<(() => void) | null>(null);
@@ -2916,7 +2943,7 @@ function BookingModal({ cleaner, visible, onClose, onBookingCreated, prebookData
                 ⚠️ ניתן להזמין מ-{String(Math.floor(minHour)).padStart(2,'0')}:{minHour % 1 === 0.5 ? '30' : '00'} ומעלה
               </T>
             )}
-            <TimeWheelPicker value={startHour} onChange={setStartHour} minHour={minHour} maxHour={20} />
+            <TimeWheelPicker value={startHour} onChange={setStartHour} minHour={minHour} maxHour={MAX_BOOKING_HOUR} />
 
             {/* Recurring */}
             <T style={s.fieldLabel}>🔁 {t.recurringLabel}</T>
