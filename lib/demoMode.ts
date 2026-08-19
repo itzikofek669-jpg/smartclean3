@@ -18,9 +18,23 @@ import { logError } from './logError';
  */
 const KEY = 'amclean_demo_cleaners';
 
+/**
+ * TEMPORARY — demo data on unless this device has explicitly turned it off.
+ *
+ * On for the duration of testing so nobody has to walk into the admin screen
+ * on every install just to see the demo cleaners and the demo job board.
+ *
+ * TO REVERT: set this to false. That restores opt-in without touching
+ * anything else — the stored preference is still read, and a device that
+ * chose either way keeps its choice. Search DEMO_DEFAULT_ON; the web has
+ * the same switch in src/lib/botCleaners.ts and both must be turned back
+ * together.
+ */
+const DEMO_DEFAULT_ON = true;
+
 // Read synchronously by the cleaner list, so it is cached in memory and primed
 // once at startup rather than awaited on every render.
-let enabled = false;
+let enabled = DEMO_DEFAULT_ON;
 
 /** True when this device has opted in. Always true in a dev build. */
 export function demoCleanersEnabled(): boolean {
@@ -30,7 +44,11 @@ export function demoCleanersEnabled(): boolean {
 /** Load the stored preference. Called once, at app start. */
 export async function loadDemoMode(): Promise<void> {
   try {
-    enabled = (await SecureStore.getItemAsync(KEY)) === '1';
+    // Three states, not two: unset means "never decided" and follows the
+    // default, which is what lets the default be flipped without overriding
+    // someone who deliberately turned it off.
+    const stored = await SecureStore.getItemAsync(KEY);
+    enabled = stored === null ? DEMO_DEFAULT_ON : stored === '1';
   } catch (err) {
     logError('demoMode:load', err);
   }
@@ -40,8 +58,9 @@ export async function loadDemoMode(): Promise<void> {
 export async function setDemoMode(on: boolean): Promise<void> {
   enabled = on;
   try {
-    if (on) await SecureStore.setItemAsync(KEY, '1');
-    else await SecureStore.deleteItemAsync(KEY);
+    // '0' rather than deleting: an absent key means "never decided" and
+    // would fall back to the default, so turning it off would not stick.
+    await SecureStore.setItemAsync(KEY, on ? '1' : '0');
   } catch (err) {
     logError('demoMode:save', err);
   }
