@@ -4728,8 +4728,12 @@ export default function HomeScreen() {
   // same reason: a hundred invented jobs in front of a real cleaner is a
   // hundred pieces of work that do not exist, and their time is real.
   const botJobs = React.useMemo(() => {
-    if (!myCleanerCoords) return [] as any[];
     const wide = demoCleanersEnabled();
+    // Without coordinates there is no radius to filter on and no distance to
+    // sort by, so the small in-range set cannot be built at all. The demo set
+    // can: it is for testing, and a declined location prompt is exactly when
+    // an empty board is least useful. Those cards simply carry no distance.
+    if (!myCleanerCoords && !wide) return [] as any[];
     const COUNT = wide ? 100 : 6;
 
     // De-duplicated by coordinate: the table carries deliberate aliases
@@ -4743,13 +4747,18 @@ export default function HomeScreen() {
         seen.add(k);
         return true;
       })
-      .map(([city, c]) => ({ city, c, d: getDistanceKm(myCleanerCoords.lat, myCleanerCoords.lng, c.lat, c.lng) }));
+      .map(([city, c]) => ({
+        city, c,
+        d: myCleanerCoords ? getDistanceKm(myCleanerCoords.lat, myCleanerCoords.lng, c.lat, c.lng) : null,
+      }));
 
     const pool = wide
-      // Every town, nearest first, so the board opens on what is actually
-      // reachable and the rest is there to scroll through.
-      ? all.sort((a, b) => a.d - b.d)
-      : all.filter(x => x.d > 0.5 && x.d <= myMaxKm).sort((a, b) => a.d - b.d).slice(0, COUNT);
+      // Every town, nearest first when there is a position to measure from,
+      // so the board opens on what is reachable and the rest scrolls.
+      ? (myCleanerCoords ? [...all].sort((a, b) => (a.d ?? 0) - (b.d ?? 0)) : all)
+      : all.filter(x => x.d != null && x.d > 0.5 && x.d <= myMaxKm)
+           .sort((a, b) => (a.d ?? 0) - (b.d ?? 0))
+           .slice(0, COUNT);
     if (pool.length === 0) return [] as any[];
 
     // Cycle when there are fewer towns than jobs, so a cleaner with a tight
