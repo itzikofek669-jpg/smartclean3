@@ -4717,16 +4717,47 @@ export default function HomeScreen() {
   }, [myRole]);
 
   // עבודות מאוחדות ללוח (מסתירים "נדחו" מקומית)
-  // עבודות דמה (בוטים) — כדי שהלוח לא יהיה ריק. נוצרות בערים אמיתיות בטווח שבחר המנקה.
+  // עבודות דמה (בוטים) — כדי שהלוח לא יהיה ריק. נוצרות בערים אמיתיות.
+  //
+  // Two sizes, for two different purposes. With demo mode off a handful of
+  // jobs sit inside the cleaner's chosen radius, so a quiet board still shows
+  // the shape of the thing. With it on the board fills out across the whole
+  // country, which is what testing coverage needs.
+  //
+  // The large set is behind the same switch as the demo cleaners, and for the
+  // same reason: a hundred invented jobs in front of a real cleaner is a
+  // hundred pieces of work that do not exist, and their time is real.
   const botJobs = React.useMemo(() => {
     if (!myCleanerCoords) return [] as any[];
-    const near = Object.entries(CITY_COORDS)
-      .map(([city, c]) => ({ city, c, d: getDistanceKm(myCleanerCoords.lat, myCleanerCoords.lng, c.lat, c.lng) }))
-      .filter(x => x.d > 0.5 && x.d <= myMaxKm)
-      .sort((a, b) => a.d - b.d)
-      .slice(0, 6);
+    const wide = demoCleanersEnabled();
+    const COUNT = wide ? 100 : 6;
+
+    // De-duplicated by coordinate: the table carries deliberate aliases
+    // (ת"א and תל אביב, נוף הגליל and נצרת עילית) that would otherwise put
+    // two jobs on the same pin under different names.
+    const seen = new Set<string>();
+    const all = Object.entries(CITY_COORDS)
+      .filter(([, c]) => {
+        const k = `${c.lat},${c.lng}`;
+        if (seen.has(k)) return false;
+        seen.add(k);
+        return true;
+      })
+      .map(([city, c]) => ({ city, c, d: getDistanceKm(myCleanerCoords.lat, myCleanerCoords.lng, c.lat, c.lng) }));
+
+    const pool = wide
+      // Every town, nearest first, so the board opens on what is actually
+      // reachable and the rest is there to scroll through.
+      ? all.sort((a, b) => a.d - b.d)
+      : all.filter(x => x.d > 0.5 && x.d <= myMaxKm).sort((a, b) => a.d - b.d).slice(0, COUNT);
+    if (pool.length === 0) return [] as any[];
+
+    // Cycle when there are fewer towns than jobs, so a cleaner with a tight
+    // radius still gets a full board rather than one card.
+    const near = Array.from({ length: COUNT }, (_, i) => pool[i % pool.length]);
     const svcOptions = Object.keys(SERVICE_DESCRIPTIONS);
-    const names = ['דנה', 'יוסי', 'מרים', 'אבי', 'נועה', 'רון'];
+    const names = ['דנה', 'יוסי', 'מרים', 'אבי', 'נועה', 'רון', 'שירה', 'עידן',
+      'תמר', 'אלון', 'הילה', 'ניר', 'מאיה', 'גיל', 'רותם', 'עומר'];
     const ymd = (d: Date) =>
       `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
     return near.map((x, i) => {
@@ -4767,6 +4798,8 @@ export default function HomeScreen() {
         createdAt: new Date(Date.now() - i * 60000).toISOString(),
       };
     });
+  // demoCleanersEnabled() is a cached module flag, so this picks up a change
+  // the next time the screen mounts — the same as the demo cleaners list.
   }, [myCleanerCoords, myMaxKm]);
 
   const jobBoard = React.useMemo(() => {
