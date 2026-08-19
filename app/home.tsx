@@ -4444,6 +4444,23 @@ export default function HomeScreen() {
         { latitude: match.lat, longitude: match.lng, latitudeDelta: 0.3, longitudeDelta: 0.3 },
         600,
       );
+      return;
+    }
+    // Nothing matched among the cleaners — which is always the case for a
+    // cleaner, whose board holds jobs rather than people. Fall back to the
+    // city table so the map follows the search for both roles instead of
+    // sitting still while the list below it changes.
+    const key = CITY_KEYS_BY_LEN.find(c => {
+      const he = c.toLowerCase();
+      const tr = String((t.cities as any)?.[c] || '').toLowerCase();
+      return he.includes(trimmed) || (tr && tr.includes(trimmed));
+    });
+    const coords = key ? CITY_COORDS[key] : null;
+    if (coords) {
+      mapRef.current.animateToRegion(
+        { latitude: coords.lat, longitude: coords.lng, latitudeDelta: 0.3, longitudeDelta: 0.3 },
+        600,
+      );
     }
   }, [search]);
 
@@ -4835,6 +4852,26 @@ export default function HomeScreen() {
         const w = bookingBusyWindow(j);
         if (!w) return true;
         return !cleanerBusy.some(b => windowsOverlap(b, w));
+      })
+      // The search box sits directly above this board and did nothing to it.
+      // A cleaner typing a town got the same list back, which reads as the
+      // search being broken rather than as it belonging to another screen.
+      //
+      // Matches city and service, in Hebrew and in the selected language, the
+      // same way the client's cleaner list matches.
+      .filter(j => {
+        const q = search.trim().toLowerCase();
+        if (!q) return true;
+        const cityRaw = String(j.addrCity || j.address || '');
+        const cityHe  = cityRaw.toLowerCase();
+        const cityTr  = String((t.cities as any)?.[cityRaw] || '').toLowerCase();
+        if (cityHe.includes(q) || (cityTr && cityTr.includes(q))) return true;
+        const types = Array.isArray(j.serviceTypes)
+          ? j.serviceTypes
+          : (j.serviceType ? [j.serviceType] : []);
+        return types.some((tp: string) =>
+          String(tp).toLowerCase().includes(q)
+          || String((t.types as any)?.[tp] || '').toLowerCase().includes(q));
       });
     // מיון: הכי קרוב ראשון (עבודות ללא מרחק — בסוף, לפי זמן)
     return jobs.sort((a, b) => {
@@ -4843,7 +4880,7 @@ export default function HomeScreen() {
       if (b._distKm != null) return 1;
       return String(b.createdAt || '').localeCompare(String(a.createdAt || ''));
     });
-  }, [openUrgent, openBookings, botJobs, hiddenJobIds, myCleanerCoords, myMaxKm, cleanerBusy]);
+  }, [openUrgent, openBookings, botJobs, hiddenJobIds, myCleanerCoords, myMaxKm, cleanerBusy, search, t]);
 
   // ── תפיסת עבודה מהלוח ──────────────────────────────────────────────────────
   // צ'אט מנקה↔לקוח דרך מסך ההודעות הכללי (ניטרלי לתפקיד, ללא בוט תגובה אוטומטית)
