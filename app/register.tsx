@@ -592,6 +592,41 @@ export default function RegisterScreen() {
       if (invalid) return Alert.alert(t.error, invalid);
     }
 
+    // ── מיקום — חובה לשני התפקידים ───────────────────────────────────────
+    //
+    // The whole product is proximity: a client sees who is near them, a
+    // cleaner sees work within the distance they chose. An account with no
+    // coordinates falls back to a region centroid, which puts a real person
+    // tens of kilometres from where they are — they see the wrong jobs and
+    // the wrong people see them.
+    //
+    // Asked before the Auth account exists, so refusing leaves nothing behind
+    // to clean up. It was previously requested for cleaners only, after
+    // registration, and not required at all.
+    let coords: { lat: number; lng: number } | null = null;
+    try {
+      const Location = await import('expo-location');
+      let perm = await Location.getForegroundPermissionsAsync();
+      if (perm.status !== 'granted') perm = await Location.requestForegroundPermissionsAsync();
+      if (perm.status !== 'granted') {
+        return Alert.alert(
+          (t as any).locationRequiredTitle ?? '📍 נדרשת הרשאת מיקום',
+          (t as any).locationRequiredMsg ??
+            'האפליקציה מתאימה בין לקוחות למנקים לפי מרחק, ולכן ההרשמה דורשת גישה למיקום. '
+            + 'אפשר לאשר עכשיו, או לשנות בהגדרות המכשיר ולנסות שוב.',
+        );
+      }
+      const pos = await Location.getCurrentPositionAsync({});
+      coords = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+    } catch (err) {
+      logError('register:location', err);
+      return Alert.alert(
+        (t as any).locationFailedTitle ?? '📍 לא הצלחנו לקבוע מיקום',
+        (t as any).locationFailedMsg ??
+          'בדוק/י שהמיקום מופעל במכשיר ונסה/י שוב.',
+      );
+    }
+
     setLoading(true);
     // ── שלב 1: יצירת חשבון Auth ──────────────────────────────────────────
     let cred: any;
@@ -620,6 +655,9 @@ export default function RegisterScreen() {
         termsAccepted: true,
         termsAcceptedAt: new Date().toISOString(),
         createdAt: new Date().toISOString(),
+        // Both roles: matching is by distance in both directions.
+        lat: coords!.lat,
+        lng: coords!.lng,
       };
       if (role === 'client') {
         // כתובת מלאה — כולל קומה ומספר דירה אם גר בבניין
