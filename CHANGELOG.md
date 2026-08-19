@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.2.16 (versionCode 19) — 2026-08-19
+
+- Require location at registration, for clients as well as cleaners
+- Fill the job board with 100 demo jobs when demo mode is on
+
 ## 1.2.15 (versionCode 18) — 2026-08-18
 
 - Give the client's header its logo row back
