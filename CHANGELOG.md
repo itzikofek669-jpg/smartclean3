@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.2.17 (versionCode 20) — 2026-08-19
+
+- TEMPORARY: demo data on by default while testing
+- Show the demo job board even without a location fix
+
 ## 1.2.16 (versionCode 19) — 2026-08-19
 
 - Require location at registration, for clients as well as cleaners
