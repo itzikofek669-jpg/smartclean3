@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.2.18 (versionCode 21) — 2026-08-22
+
+- Drop the review count from the cleaner cards
+- Strip the badge strip off the cleaner cards
+- Make the search box filter the cleaner's job board
+
 ## 1.2.17 (versionCode 20) — 2026-08-19
 
 - TEMPORARY: demo data on by default while testing
