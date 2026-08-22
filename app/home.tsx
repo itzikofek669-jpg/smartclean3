@@ -3506,6 +3506,13 @@ function CleanerCardInner({ cleaner, isSel, onSelect, onProfile, onBook, onChat,
             </TouchableOpacity>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
               <T style={[s.cardCity, { fontSize: fs(12), color: highContrast ? HC.sub : C.textSub }]}>{(() => { const cn = cityNameOf(cleaner); return t.cities[cn] || cn; })()}</T>
+              {/* Beside the city rather than on a row of its own. It used to
+                  share a bordered strip with the availability pill and the
+                  0% badge; with those gone, a whole row for one number is
+                  more chrome than the number is worth. */}
+              <TouchableOpacity onPress={() => (onReviews ? onReviews(cleaner) : onProfile(cleaner))}>
+                <T style={[s.reviewsLink, { fontSize: fs(11) }]} numberOfLines={1}>({cleaner.reviews})</T>
+              </TouchableOpacity>
             </View>
           </View>
           {/* gradient avatar */}
@@ -3538,21 +3545,26 @@ function CleanerCardInner({ cleaner, isSel, onSelect, onProfile, onBook, onChat,
           ))}
         </View>
 
-        {/* status row — all tags in one evenly-spaced row */}
-        <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'nowrap', gap: 4, borderTopWidth: 1, borderTopColor: C.blueBorder, paddingTop: 8, marginTop: 1 }}>
-          <TouchableOpacity onPress={() => (onReviews ? onReviews(cleaner) : onProfile(cleaner))}><T style={s.reviewsLink} numberOfLines={1}>({cleaner.reviews})</T></TouchableOpacity>
-          <View style={[s.availPill, !cleaner.available && s.availPillOff]}>
-            <T style={[s.availPillText, !cleaner.available && { color: C.textSub }]} numberOfLines={1}>{(cleaner.available ? t.availPill : t.notAvailPill).replace(/[●○]\s*/g, '')}</T>
+        {/* The 0% commission badge, the availability pill and the plain
+            'verified' tag used to sit on a bordered strip here. Availability
+            is already carried by the dot on the avatar and by the book
+            button, and the other two appeared on nearly every card — a lot of
+            green for no information. The review count moved up beside the
+            city.
+
+            The earned badges stay: super-cleaner and top-rated are thresholds
+            a cleaner actually reaches (4.8 with 20 reviews, or 50 reviews),
+            and ID-verified is a real check rather than a default. They only
+            get a row when there is one to show. */}
+        {getBadges(cleaner).filter(b => b !== 'verified').length > 0 && (
+          <View style={{ flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 4 }}>
+            {getBadges(cleaner).filter(b => b !== 'verified').map(b => (
+              <View key={b} style={[s.badgePill, { backgroundColor: BADGE_COLORS[b]?.bg || '#F0F0F0' }]}>
+                <T style={[s.badgePillText, { color: BADGE_COLORS[b]?.color || '#666' }]} numberOfLines={1}>{badgeLabel(b, t)}</T>
+              </View>
+            ))}
           </View>
-          {getBadges(cleaner).map(b => (
-            <View key={b} style={[s.badgePill, { backgroundColor: BADGE_COLORS[b]?.bg || '#F0F0F0' }]}>
-              <T style={[s.badgePillText, { color: BADGE_COLORS[b]?.color || '#666' }]} numberOfLines={1}>{badgeLabel(b, t)}</T>
-            </View>
-          ))}
-          <View style={s.freeCommissionBadge}>
-            <T style={s.freeCommissionBadgeText} numberOfLines={1}>{t.freeCommissionBadge}</T>
-          </View>
-        </View>
+        )}
       </View>
       {isSel && (
         <View style={s.cardExpanded}>
@@ -6561,9 +6573,6 @@ function createS(c: AppColors) {
   priceSub:     { fontSize: 9, color: c.textSub },
   ratingVal:    { fontSize: 12, fontWeight: '700', color: c.textDark },
   reviewsLink:  { fontSize: 11, color: c.blue, textDecorationLine: 'underline' },
-  availPill:    { backgroundColor: c.greenBg, borderRadius: 10, paddingHorizontal: 7, paddingVertical: 2 },
-  availPillOff: { backgroundColor: c.grayBg, borderWidth: 1, borderColor: c.grayBorder },
-  availPillText:{ fontSize: 10, fontWeight: '700', color: c.green },
   typePill:     { backgroundColor: c.blueLight, borderRadius: 8, paddingHorizontal: 5, paddingVertical: 2 },
   typePillText: { fontSize: 9, fontWeight: '600', color: c.blueDark },
   cardExpanded: { marginTop: 12, paddingTop: 12, borderTopWidth: 1, borderColor: c.blueBorder },
@@ -6689,8 +6698,6 @@ function createS(c: AppColors) {
   // Badges
   badgePill:     { borderRadius: 8, paddingHorizontal: 8, paddingVertical: 3 },
   badgePillText: { fontSize: 10, fontWeight: '800' },
-  freeCommissionBadge:     { borderRadius: 8, paddingHorizontal: 8, paddingVertical: 3, backgroundColor: '#D1FAE5', borderWidth: 1, borderColor: '#6EE7B7' },
-  freeCommissionBadgeText: { fontSize: 10, fontWeight: '800', color: '#065F46' },
   freeBanner:      { backgroundColor: '#ECFDF5', borderRadius: 12, marginHorizontal: 0, marginBottom: 6, height: 40, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, borderWidth: 1, borderColor: '#6EE7B7' },
   freeBannerTitle: { fontSize: 13, fontWeight: '900', color: '#065F46', textAlign: 'center' },
   freeBannerSub:   { fontSize: 11, color: '#047857', textAlign: 'center' },
