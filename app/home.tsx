@@ -3542,26 +3542,12 @@ function CleanerCardInner({ cleaner, isSel, onSelect, onProfile, onBook, onChat,
           ))}
         </View>
 
-        {/* The 0% commission badge, the availability pill and the plain
-            'verified' tag used to sit on a bordered strip here. Availability
-            is already carried by the dot on the avatar and by the book
-            button, and the other two appeared on nearly every card — a lot of
-            green for no information. The review count moved up beside the
-            city.
-
-            The earned badges stay: super-cleaner and top-rated are thresholds
-            a cleaner actually reaches (4.8 with 20 reviews, or 50 reviews),
-            and ID-verified is a real check rather than a default. They only
-            get a row when there is one to show. */}
-        {getBadges(cleaner).filter(b => b !== 'verified').length > 0 && (
-          <View style={{ flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 4 }}>
-            {getBadges(cleaner).filter(b => b !== 'verified').map(b => (
-              <View key={b} style={[s.badgePill, { backgroundColor: BADGE_COLORS[b]?.bg || '#F0F0F0' }]}>
-                <T style={[s.badgePillText, { color: BADGE_COLORS[b]?.color || '#666' }]} numberOfLines={1}>{badgeLabel(b, t)}</T>
-              </View>
-            ))}
-          </View>
-        )}
+        {/* No badges on the card at all now. It carried a bordered strip of
+            0% commission, verified and availability, then just the earned
+            ones — super-cleaner, top-rated, ID-verified. Even those made the
+            card busy for what a client scanning a list actually decides on:
+            name, city, price, what the cleaner does. The badges are still on
+            the cleaner's profile, where there is room to explain them. */}
       </View>
       {isSel && (
         <View style={s.cardExpanded}>
