@@ -3506,13 +3506,10 @@ function CleanerCardInner({ cleaner, isSel, onSelect, onProfile, onBook, onChat,
             </TouchableOpacity>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
               <T style={[s.cardCity, { fontSize: fs(12), color: highContrast ? HC.sub : C.textSub }]}>{(() => { const cn = cityNameOf(cleaner); return t.cities[cn] || cn; })()}</T>
-              {/* Beside the city rather than on a row of its own. It used to
-                  share a bordered strip with the availability pill and the
-                  0% badge; with those gone, a whole row for one number is
-                  more chrome than the number is worth. */}
-              <TouchableOpacity onPress={() => (onReviews ? onReviews(cleaner) : onProfile(cleaner))}>
-                <T style={[s.reviewsLink, { fontSize: fs(11) }]} numberOfLines={1}>({cleaner.reviews})</T>
-              </TouchableOpacity>
+              {/* The review count in brackets used to sit here. Removed: a bare
+                  number said little on a card this size, and on a new cleaner
+                  it read as (0) — the worst thing to show first. Reviews are
+                  still on the profile. */}
             </View>
           </View>
           {/* gradient avatar */}
@@ -6572,7 +6569,6 @@ function createS(c: AppColors) {
   priceText:    { fontSize: 14, fontWeight: '900', color: c.blue },
   priceSub:     { fontSize: 9, color: c.textSub },
   ratingVal:    { fontSize: 12, fontWeight: '700', color: c.textDark },
-  reviewsLink:  { fontSize: 11, color: c.blue, textDecorationLine: 'underline' },
   typePill:     { backgroundColor: c.blueLight, borderRadius: 8, paddingHorizontal: 5, paddingVertical: 2 },
   typePillText: { fontSize: 9, fontWeight: '600', color: c.blueDark },
   cardExpanded: { marginTop: 12, paddingTop: 12, borderTopWidth: 1, borderColor: c.blueBorder },
