@@ -5053,6 +5053,17 @@ export default function HomeScreen() {
           // Per-day availability the profile screen writes. The service-details
           // card derives the working days from it — see workDaysFromAvailability.
           availability:     data.availability      || {},
+          // The rest of what the service-details card reads. These were simply
+          // missing from this mapping, so the mobility, range and languages
+          // rows had nothing to render and silently dropped out -- while the
+          // web, which does carry them, showed all four. Mirrors the web's
+          // useCleaners field for field.
+          cleanerAddress:   data.cleanerAddress     || '',
+          // Absent means mobile: every cleaner predating the flag travelled to
+          // the client, so defaulting to false would mark them all stationary.
+          isMobile:         data.isMobile !== false,
+          maxDistance:      Number(data.maxDistance) || 0,
+          languages:        data.languages          || [],
           identityVerified: data.identityVerified === true,
           // Legacy documents only; current ones keep the photo in `userPhotos`
           // and are drawn through useAvatar, which `hasPhoto` lets it skip.
@@ -6562,10 +6573,24 @@ function createS(c: AppColors) {
   profileSection:     { backgroundColor: c.white, margin: 12, marginBottom: 0, borderRadius: 16, padding: 16, borderWidth: 1, borderColor: c.blueBorder, alignItems: 'center' },
   profileSectionTitle:{ fontSize: 15, fontWeight: '800', color: c.textDark, marginBottom: 10, textAlign: 'center' },
   // Service-details rows (location / mobility / range / languages / days).
-  traitList:  { gap: 0 },
-  traitRow:   { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12, paddingVertical: 8, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: c.blueBorder },
+  // alignSelf: 'stretch' is load-bearing. profileSection sets alignItems:
+  // 'center', so without it this list is sized to its content: the rows came
+  // out as a narrow cluster in the middle of the card instead of spanning it,
+  // and the values were clipped to nothing while their labels showed. Yoga
+  // gives a flex: 1 child (basis 0) no room to grow into inside a row that was
+  // itself sized to content, which is the likeliest reason the text vanished --
+  // stated as the reading of the screenshots, not something reproduced here,
+  // since browser flexbox keeps such a child at min-content and Yoga does not.
+  // Stretching the list is right either way: it is what makes these rows span
+  // the card the way the web's do.
+  traitList:  { gap: 0, alignSelf: 'stretch' },
+  // row-reverse, not row: this app never calls I18nManager.forceRTL, so a plain
+  // row starts at the physical left and the Hebrew label would hang off the
+  // wrong edge. Reversed, the label hugs the right and the value sits to its
+  // left -- which is what the web gets for free from direction: rtl.
+  traitRow:   { flexDirection: 'row-reverse', alignItems: 'flex-start', flexWrap: 'wrap', gap: 10, paddingVertical: 8, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: c.blueBorder },
   traitLabel: { fontSize: 13, fontWeight: '700', color: c.textSub, flexShrink: 0 },
-  traitValue: { fontSize: 13.5, fontWeight: '800', color: c.textDark, flex: 1, textAlign: 'left' },
+  traitValue: { fontSize: 13.5, fontWeight: '800', color: c.textDark, flexShrink: 1, textAlign: 'right' },
   profileBio:         { fontSize: 14, color: c.textMid, lineHeight: 22, textAlign: 'center' },
   phonePill:          { backgroundColor: c.blueLight, borderRadius: 10, paddingHorizontal: 14, paddingVertical: 10, borderWidth: 1, borderColor: c.blueBorder },
   phonePillText:      { fontSize: 14, fontWeight: '700', color: c.blue },
