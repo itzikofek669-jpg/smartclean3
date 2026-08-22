@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.2.19 (versionCode 22) — 2026-08-22
+
+- Take the last badges off the cleaner cards
+
 ## 1.2.18 (versionCode 21) — 2026-08-22
 
 - Drop the review count from the cleaner cards
