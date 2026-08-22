@@ -316,28 +316,11 @@ const SERVICE_DESCRIPTIONS: Record<string, string[]> = {
   ],
 };
 
-function getBadges(cleaner: any): string[] {
-  const b: string[] = [];
-  if (cleaner.identityVerified)                                      b.push('idVerified');
-  if (cleaner.rating >= 4.8 && (cleaner.reviews || 0) >= 20)        b.push('superCleaner');
-  if ((cleaner.reviews || 0) >= 50)                                  b.push('topRated');
-  if (cleaner.phone && cleaner.bio && (cleaner.types?.length || 0) >= 3) b.push('verified');
-  return b;
-}
-
-function badgeLabel(b: string, t: any): string {
-  if (b === 'idVerified')    return t.badgeIdVerified;
-  if (b === 'superCleaner')  return t.badgeSuperCleaner;
-  if (b === 'topRated')      return t.badgeTopRated;
-  return t.badgeVerified;
-}
-
-const BADGE_COLORS: Record<string, { bg: string; color: string }> = {
-  idVerified:   { bg: '#DCFCE7', color: '#15803D' },
-  superCleaner: { bg: '#FEF3C7', color: '#D97706' },
-  topRated:     { bg: '#EDE9FE', color: '#7C3AED' },
-  verified:     { bg: '#D1FAE5', color: '#059669' },
-};
+/* getBadges / badgeLabel / BADGE_COLORS lived here. The profile hero was their
+   last caller; the cards dropped their badges earlier. Kept out rather than
+   left dangling -- the thresholds (4.8 with 20 reviews, 50 reviews) were the
+   whole definition of "super cleaner" and "top rated", and nothing surfaced
+   them to either side. */
 const PAY_ICONS: Record<string, string> = { bit: '📱', cash: '💵', paybox: '🅿️', bank: '🏦' };
 const PAYBOX_BLUE = '#11AEE8';
 
@@ -1029,20 +1012,12 @@ function CleanerProfile({ cleaner, visible, onClose, onBook, onChat, initialShow
                 {cleaner.available ? t.availNow : t.notAvailNow}
               </T>
             </View>
-            {(() => {
-              const badges = getBadges(cleaner);
-              return badges.length > 0 ? (
-                <View style={{ flexDirection: 'row', gap: 6, flexWrap: 'wrap', justifyContent: 'center', marginTop: 4 }}>
-                  {badges.map(b => (
-                    <View key={b} style={[s.badgePill, { backgroundColor: BADGE_COLORS[b]?.bg || '#F0F0F0' }]}>
-                      <T style={[s.badgePillText, { color: BADGE_COLORS[b]?.color || '#666' }]}>
-                        {badgeLabel(b, t)}
-                      </T>
-                    </View>
-                  ))}
-                </View>
-              ) : null;
-            })()}
+            {/* The badge row -- ID verified / super cleaner / top rated -- used to
+                sit here. Removed with the same badges on the card: they were
+                awarded by thresholds this product does not explain anywhere, so
+                a client could not tell what any of them meant or how a cleaner
+                earned one. The rating, review count and price below say the same
+                thing with numbers the client can check. */}
             <View style={s.statsRow}>
               <View style={s.statBox}><T style={s.statVal}>{cleaner.rating}</T><T style={s.statLabel}>{t.ratingLabel}</T></View>
               <View style={s.statDivider} />
@@ -6678,8 +6653,6 @@ function createS(c: AppColors) {
   promoBtn:      { backgroundColor: c.blue, borderRadius: 10, paddingHorizontal: 14, paddingVertical: 13, alignItems: 'center', justifyContent: 'center' },
   promoBtnText:  { fontSize: 13, fontWeight: '800', color: c.white, textAlign: 'center' },
   // Badges
-  badgePill:     { borderRadius: 8, paddingHorizontal: 8, paddingVertical: 3 },
-  badgePillText: { fontSize: 10, fontWeight: '800' },
   freeBanner:      { backgroundColor: '#ECFDF5', borderRadius: 12, marginHorizontal: 0, marginBottom: 6, height: 40, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, borderWidth: 1, borderColor: '#6EE7B7' },
   freeBannerTitle: { fontSize: 13, fontWeight: '900', color: '#065F46', textAlign: 'center' },
   freeBannerSub:   { fontSize: 11, color: '#047857', textAlign: 'center' },
