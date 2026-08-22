@@ -370,6 +370,26 @@ const BOT_FEMALE_NAMES = ['יעל כהן','דנה לוי','מירי אבני','�
 const BOT_MALE_NAMES = ['אבי דוד','יוסי חזן','משה עמר','דוד שלום','עמית רז','איל נוי','רן הראל','גיא ספיר','ניר אלון','עומר טל','דור שביט','אלון מור','יובל סער','ליאור דגן','אסף יונה','עידן כרמי','נדב גבע','ארז שדה','חיים פרי','יעקב נסים','אהרון רחמים','מאיר אביב','שלמה בן דוד','אורי הדר','בני זיו','גד אוחיון','זיו שני','איתי כספי'];
 const BOT_BIOS = ['מנקה מקצועית ואמינה.','שירות יסודי ומהיר.','ניקיון מושלם בכל פעם.','מנקה ותיקה ומנוסה.','דייקנית ואחראית.','שירות אדיב ומקצועי.','מומחית לניקיון בתים ומשרדים.','עבודה נקייה ומדויקת.'];
 const BOT_PAYMENTS: string[][] = [['cash'],['cash','bit'],['cash','bit','paybox'],['paybox','cash'],['bit','cash'],['cash','bit','paybox','bank']];
+// Service-details traits for demo cleaners. Without them a bot's profile shows
+// a "service details" card holding nothing but its city, because every other
+// row is skipped when its field is unset -- so the card that is supposed to be
+// the reason to book reads as empty. Demo data only: the generator is not even
+// called unless demo mode is on.
+//
+// Mirrored in the other repo's generator; the two should stay in step.
+const BOT_RANGES = [5, 10, 15, 20, 30];
+const BOT_LANGUAGE_SETS: string[][] = [['he'], ['he','en'], ['he','ru'], ['he','ar'], ['he','en','ru']];
+/** The shapes an Israeli working week actually takes -- not random day sets. */
+const BOT_WEEKS: number[][] = [[0,1,2,3,4], [0,1,2,3,4,5], [1,2,3,4], [0,1,2,3,4,5,6]];
+const BOT_DAY_KEYS = ['sun','mon','tue','wed','thu','fri','sat'];
+/** The `availability` map shape the profile screen writes, so a bot's days are
+ *  read by exactly the same workDaysFromAvailability a real cleaner's are. */
+function botAvailability(days: number[]) {
+  const out: Record<string, { active: boolean; start: number; end: number }> = {};
+  BOT_DAY_KEYS.forEach((k, i) => { out[k] = { active: days.includes(i), start: 8, end: 18 }; });
+  return out;
+}
+const pick = <X,>(arr: X[]): X => arr[Math.floor(Math.random() * arr.length)];
 /** מזהה מנקה דמו (`bot_0`, `bot_1`, …) — הזמנה וצ'אט מסרבים עליו בכל בילד. */
 export function isDemoCleanerId(id: any): boolean {
   return typeof id === 'string' && id.startsWith('bot_');
@@ -416,6 +436,10 @@ function getBots(): any[] {
       lat: c.lat + (Math.random() - 0.5) * 0.03,
       lng: c.lng + (Math.random() - 0.5) * 0.03,
       bio: BOT_BIOS[Math.floor(Math.random() * BOT_BIOS.length)],
+      isMobile: Math.random() < 0.85,
+      maxDistance: pick(BOT_RANGES),
+      languages: pick(BOT_LANGUAGE_SETS),
+      availability: botAvailability(pick(BOT_WEEKS)),
       reviewsList: [],
       isBot: true,
     });
@@ -902,37 +926,46 @@ function CleanerTraitsSection({ cleaner, s, t }: any) {
       .join(', ');
   };
 
-  const Row = ({ label, value }: { label: string; value: string }) => (
-    <View style={s.traitRow}>
-      <T style={s.traitLabel}>{label}</T>
-      <T style={s.traitValue} numberOfLines={2}>{value}</T>
-    </View>
-  );
+  // Collected as data rather than rendered inline, so the hairline can go
+  // between rows only. The web draws it with `.ctrait-row + .ctrait-row`, which
+  // leaves the first row clean; with rows that each decide their own border,
+  // and each one optional, "first" is not knowable at the call site.
+  const rows: { label: string; value: string }[] = [];
+  if (cityLabel) {
+    rows.push({ label: t.traitLocation ?? 'מיקום', value: `📍 ${cityLabel}` });
+  }
+  if (isMobile !== undefined) {
+    rows.push({
+      label: t.traitMobile ?? 'ניידות',
+      value: isMobile ? (t.traitMobileYes ?? '🚗 מגיע/ה אליך') : (t.traitMobileNo ?? '🏠 עבודה במקום קבוע'),
+    });
+  }
+  if (showDistance) {
+    rows.push({
+      label: t.traitDistance ?? 'טווח הגעה',
+      value: String(t.traitDistanceVal ?? 'עד {km} ק״מ').replace('{km}', String(distance)),
+    });
+  }
+  if (languages.length > 0) {
+    rows.push({
+      label: t.traitLanguages ?? 'שפות',
+      value: languages.map((c: string) => `${LANGUAGE_FLAGS[c as never] ?? ''} ${t.langNames?.[c] ?? c}`.trim()).join(', '),
+    });
+  }
+  if (workDays.length > 0) {
+    rows.push({ label: t.traitWorkDays ?? 'ימי עבודה', value: daysLabel() });
+  }
 
   return (
     <View style={s.profileSection}>
       <T style={s.profileSectionTitle}>{t.traitsSection ?? 'פרטי שירות'}</T>
       <View style={s.traitList}>
-        {!!cityLabel && <Row label={t.traitLocation ?? 'מיקום'} value={`📍 ${cityLabel}`} />}
-        {isMobile !== undefined && (
-          <Row
-            label={t.traitMobile ?? 'ניידות'}
-            value={isMobile ? (t.traitMobileYes ?? '🚗 מגיע/ה אליך') : (t.traitMobileNo ?? '🏠 עבודה במקום קבוע')}
-          />
-        )}
-        {showDistance && (
-          <Row
-            label={t.traitDistance ?? 'טווח הגעה'}
-            value={String(t.traitDistanceVal ?? 'עד {km} ק״מ').replace('{km}', String(distance))}
-          />
-        )}
-        {languages.length > 0 && (
-          <Row
-            label={t.traitLanguages ?? 'שפות'}
-            value={languages.map((c: string) => `${LANGUAGE_FLAGS[c as never] ?? ''} ${t.langNames?.[c] ?? c}`.trim()).join(', ')}
-          />
-        )}
-        {workDays.length > 0 && <Row label={t.traitWorkDays ?? 'ימי עבודה'} value={daysLabel()} />}
+        {rows.map((r, i) => (
+          <View key={r.label} style={[s.traitRow, i > 0 && s.traitRowDivided]}>
+            <T style={s.traitLabel}>{r.label}</T>
+            <T style={s.traitValue} numberOfLines={2}>{r.value}</T>
+          </View>
+        ))}
       </View>
     </View>
   );
@@ -6573,22 +6606,28 @@ function createS(c: AppColors) {
   profileSection:     { backgroundColor: c.white, margin: 12, marginBottom: 0, borderRadius: 16, padding: 16, borderWidth: 1, borderColor: c.blueBorder, alignItems: 'center' },
   profileSectionTitle:{ fontSize: 15, fontWeight: '800', color: c.textDark, marginBottom: 10, textAlign: 'center' },
   // Service-details rows (location / mobility / range / languages / days).
-  // alignSelf: 'stretch' is load-bearing. profileSection sets alignItems:
-  // 'center', so without it this list is sized to its content: the rows came
-  // out as a narrow cluster in the middle of the card instead of spanning it,
-  // and the values were clipped to nothing while their labels showed. Yoga
-  // gives a flex: 1 child (basis 0) no room to grow into inside a row that was
-  // itself sized to content, which is the likeliest reason the text vanished --
-  // stated as the reading of the screenshots, not something reproduced here,
-  // since browser flexbox keeps such a child at min-content and Yoga does not.
-  // Stretching the list is right either way: it is what makes these rows span
-  // the card the way the web's do.
-  traitList:  { gap: 0, alignSelf: 'stretch' },
+  // Measured off the deployed web page, not eyeballed: .cprof-card is a flex
+  // column with align-items: center, so in a 496px card the list came out
+  // 157px wide -- the width of its widest row -- and centred. Every row then
+  // shares that width, each label ends flush at the list's right edge, and the
+  // value sits directly to its left across a 10px gap.
+  //
+  // So this list is deliberately NOT stretched: profileSection already centres
+  // it, and content width is the layout the web has. An earlier attempt here
+  // stretched it to fill the card, which looked nothing like the reference.
+  traitList:  { gap: 0 },
   // row-reverse, not row: this app never calls I18nManager.forceRTL, so a plain
   // row starts at the physical left and the Hebrew label would hang off the
   // wrong edge. Reversed, the label hugs the right and the value sits to its
   // left -- which is what the web gets for free from direction: rtl.
-  traitRow:   { flexDirection: 'row-reverse', alignItems: 'flex-start', flexWrap: 'wrap', gap: 10, paddingVertical: 8, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: c.blueBorder },
+  //
+  // The value must not take flex: 1. With basis 0 inside a row that is itself
+  // sized to content, Yoga leaves it no space to grow into and the text renders
+  // into a zero-width box -- which is why every value was invisible while its
+  // label showed. Browser flexbox does not reproduce this: CSS holds such a
+  // child at min-content, Yoga does not.
+  traitRow:   { flexDirection: 'row-reverse', alignItems: 'baseline', flexWrap: 'wrap', gap: 10, paddingVertical: 8 },
+  traitRowDivided: { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: c.blueBorder },
   traitLabel: { fontSize: 13, fontWeight: '700', color: c.textSub, flexShrink: 0 },
   traitValue: { fontSize: 13.5, fontWeight: '800', color: c.textDark, flexShrink: 1, textAlign: 'right' },
   profileBio:         { fontSize: 14, color: c.textMid, lineHeight: 22, textAlign: 'center' },
