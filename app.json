@@ -68,7 +68,8 @@
       "expo-asset",
       "expo-web-browser",
       "expo-image",
-      "expo-status-bar"
+      "expo-status-bar",
+      "./plugins/withGoogleMapsPodspecFix"
     ],
     "extra": {
       "router": {},
