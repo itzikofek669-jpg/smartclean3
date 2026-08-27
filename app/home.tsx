@@ -4507,11 +4507,18 @@ export default function HomeScreen() {
     return () => clearTimeout(id);
   }, [region, nearbyMode, search, realCleaners.length, filterMinRating, filterMaxPrice, filterAvailOnly, filterTypes.length]);
 
-  // Set Android navigation bar color
+  // Android navigation bar: dark buttons, to stay legible over the light UI.
+  //
+  // SDK 56 replaced setButtonStyleAsync/setBackgroundColorAsync with a single
+  // synchronous setStyle. Note the inverted naming — 'light' means a LIGHT bar
+  // with DARK content, which is what setButtonStyleAsync('dark') used to do.
+  //
+  // The bar's background colour (#F4F8FD) can no longer be set at all: Android
+  // 15 draws the navigation bar edge-to-edge over the app, so the colour behind
+  // it now comes from the screen itself rather than from this API.
   useEffect(() => {
     if (Platform.OS === 'android') {
-      NavigationBar.setBackgroundColorAsync('#F4F8FD').catch(() => {});
-      NavigationBar.setButtonStyleAsync('dark').catch(() => {});
+      NavigationBar.setStyle('light');
     }
   }, []);
 

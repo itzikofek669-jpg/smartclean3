@@ -7,7 +7,6 @@
     "icon": "./assets/images/icon.png",
     "scheme": "cleantouch",
     "userInterfaceStyle": "automatic",
-    "newArchEnabled": true,
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.itzik669.cleantouch",
@@ -67,7 +66,10 @@
       "expo-font",
       "expo-audio",
       "expo-asset",
-      "expo-web-browser"
+      "expo-web-browser",
+      "expo-image",
+      "expo-status-bar",
+      "./plugins/withGoogleMapsPodspecFix"
     ],
     "extra": {
       "router": {},
