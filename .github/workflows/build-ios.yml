@@ -1,0 +1,96 @@
+name: Build iOS
+
+# Until now nothing built iOS anywhere. That is how the react-native-maps
+# podspec break (see plugins/withGoogleMapsPodspecFix.js) sat unnoticed — it
+# only surfaces at `pod install`, which no CI ran. This job compiles for the
+# simulator so a packaging break fails here instead of at App Store submission.
+#
+# No signing: a simulator build needs no certificates or provisioning profiles,
+# so this stays useful without any secrets in the repo.
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:   # אפשר גם הפעלה ידנית
+
+jobs:
+  build:
+    runs-on: macos-latest
+    timeout-minutes: 90
+
+    env:
+      # CocoaPods aborts with "Unicode Normalization not appropriate for
+      # ASCII-8BIT" unless the locale is UTF-8.
+      LANG: en_US.UTF-8
+      LC_ALL: en_US.UTF-8
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Show toolchain
+        run: |
+          xcodebuild -version
+          xcrun --sdk iphonesimulator --show-sdk-version
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Prebuild iOS (generate native project)
+        run: npx expo prebuild --platform ios --no-install
+        env:
+          EXPO_NO_GIT_STATUS: 1
+
+      - name: Cache CocoaPods
+        uses: actions/cache@v4
+        with:
+          path: |
+            ios/Pods
+            ~/Library/Caches/CocoaPods
+            ~/Library/Caches/ReactNative
+          key: pods-${{ hashFiles('ios/Podfile.lock', 'package-lock.json') }}
+          restore-keys: pods-
+
+      - name: Pod install
+        run: cd ios && pod install
+
+      - name: Confirm the Google Maps subspec was used
+        run: |
+          if grep -q "pod 'react-native-google-maps'" ios/Podfile; then
+            echo "::error::Podfile still names react-native-google-maps — withGoogleMapsPodspecFix did not run"
+            exit 1
+          fi
+          grep -q "pod 'react-native-maps/Google'" ios/Podfile \
+            && echo "OK: Podfile uses the react-native-maps/Google subspec"
+
+      - name: Build for simulator
+        run: |
+          set -o pipefail
+          xcodebuild \
+            -workspace ios/AMClean.xcworkspace \
+            -scheme AMClean \
+            -configuration Release \
+            -sdk iphonesimulator \
+            -destination 'generic/platform=iOS Simulator' \
+            -derivedDataPath build-ios \
+            CODE_SIGNING_ALLOWED=NO \
+            build 2>&1 | { command -v xcpretty >/dev/null && xcpretty || cat; }
+
+      - name: Check the JS bundle was embedded
+        run: |
+          APP=$(find build-ios/Build/Products/Release-iphonesimulator -maxdepth 1 -name "*.app" | head -1)
+          echo "App: $APP"
+          ls -la "$APP/main.jsbundle"
+
+      - name: Upload app
+        uses: actions/upload-artifact@v4
+        with:
+          name: AMClean-iOS-Simulator
+          path: build-ios/Build/Products/Release-iphonesimulator/*.app
+          retention-days: 30
