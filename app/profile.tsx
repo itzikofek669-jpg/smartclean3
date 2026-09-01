@@ -21,7 +21,16 @@ import {
 } from '../lib/savedAddresses';
 import { diagnosticsEnabled, setDiagnostics, getLog, clearLog, record } from '../lib/diagnostics';
 import { describeCalendars, resyncBooking } from '../lib/calendarSync';
-import * as Calendar from 'expo-calendar';
+// expo-calendar 57 החליף את ה-API הראשי. הייבוא מ-'expo-calendar' מחזיר מאז את
+// ה-API החדש, וכל קריאה לשיטה הישנה — getCalendarsAsync, createEventAsync,
+// requestCalendarPermissionsAsync — נזרקת עם ההודעה
+// "Import the legacy API from expo-calendar/legacy".
+//
+// כלומר סנכרון היומן היה שבור לגמרי מאז שדרוג ה-SDK, לא רק רועש: כל הוספה וכל
+// מחיקה נכשלו, וזה מה שהחזיר 'error' והקפיץ "ההזמנה לא נוספה ליומן" בכל כניסה.
+// נקודת הכניסה legacy היא מסלול התאימות הרשמי של הספרייה, וכל השיטות שבשימוש
+// כאן קיימות בה.
+import * as Calendar from 'expo-calendar/legacy';
 import { saveAvatar as savePhotoDoc, fetchAvatar, resolvePhoto } from '../lib/photos';
 import {
   fetchPortfolio, savePortfolio as savePortfolioDoc,

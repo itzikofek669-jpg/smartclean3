@@ -8,7 +8,16 @@
 // refuse, and a cleaning is still perfectly valid without a calendar entry — so
 // no failure in this module is ever allowed to break the booking flow.
 
-import * as Calendar from 'expo-calendar';
+// expo-calendar 57 החליף את ה-API הראשי. הייבוא מ-'expo-calendar' מחזיר מאז את
+// ה-API החדש, וכל קריאה לשיטה הישנה — getCalendarsAsync, createEventAsync,
+// requestCalendarPermissionsAsync — נזרקת עם ההודעה
+// "Import the legacy API from expo-calendar/legacy".
+//
+// כלומר סנכרון היומן היה שבור לגמרי מאז שדרוג ה-SDK, לא רק רועש: כל הוספה וכל
+// מחיקה נכשלו, וזה מה שהחזיר 'error' והקפיץ "ההזמנה לא נוספה ליומן" בכל כניסה.
+// נקודת הכניסה legacy היא מסלול התאימות הרשמי של הספרייה, וכל השיטות שבשימוש
+// כאן קיימות בה.
+import * as Calendar from 'expo-calendar/legacy';
 import * as SecureStore from 'expo-secure-store';
 import { Alert, Platform } from 'react-native';
 import { logError } from './logError';
@@ -171,6 +180,32 @@ export async function primeCalendarPermission(): Promise<void> {
     if (proceed) await Calendar.requestCalendarPermissionsAsync();
   } catch (err) {
     logError('calendarSync:prime', err);
+  }
+}
+
+const warnKey = (bookingId: string) => `cal_warned_${bookingId}`;
+
+/**
+ * האם כדאי לספר למשתמש על כישלון הסנכרון של ההזמנה הזו — פעם אחת, אי פעם.
+ *
+ * הסנכרון רץ מחדש בכל עליית אפליקציה, וכישלון הוא בדרך כלל מצב קבוע: יומן שלא
+ * ניתן לכתוב אליו, הרשאה שנשללה, שגיאה שחוזרת על עצמה. הדגל שהיה קודם היה
+ * משתנה מקומי בתוך ה-effect, כלומר הוא אופס בכל פתיחה — ולכן אותה הזמנה
+ * הקפיצה את אותה הודעה בכל כניסה לאפליקציה, בלי סוף.
+ *
+ * הסימון נשמר במכשיר, ולכן ההודעה מופיעה פעם אחת בלבד לכל הזמנה. הניסיון עצמו
+ * ממשיך לרוץ בכל פעם — כישלון עלול להיות זמני, ואם הוא ייפתר ההזמנה עוד תגיע
+ * ליומן בשקט.
+ */
+export async function shouldWarnCalendarOnce(bookingId: string): Promise<boolean> {
+  if (!bookingId) return false;
+  try {
+    if (await SecureStore.getItemAsync(warnKey(bookingId))) return false;
+    await SecureStore.setItemAsync(warnKey(bookingId), new Date().toISOString());
+    return true;
+  } catch {
+    // אחסון לא זמין — נופלים חזרה לדגל של הקורא, שמגביל לפעם אחת בריצה.
+    return true;
   }
 }
 
