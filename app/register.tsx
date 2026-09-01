@@ -10,7 +10,7 @@ import { Image } from 'expo-image';
 import * as ImagePicker from 'expo-image-picker';
 import * as ImageManipulator from 'expo-image-manipulator';
 import { useRouter } from 'expo-router';
-import { createUserWithEmailAndPassword } from 'firebase/auth';
+import { createUserWithEmailAndPassword, signOut } from 'firebase/auth';
 import { doc, setDoc } from 'firebase/firestore';
 import { auth, db } from '../lib/firebase';
 import { upsertStructuredAddress } from '../lib/savedAddresses';
@@ -25,6 +25,7 @@ import { TERMS_BY_LANG } from '../lib/terms';
 import ServiceInfoBtn from '../lib/ServiceInfoBtn';
 import { MaterialIcons } from '@expo/vector-icons';
 import { logError } from '../lib/logError';
+import { sendVerificationEmail } from '../lib/emailVerification';
 
 const NAV_BAR_HEIGHT = Platform.OS === 'android'
   ? Math.max(0, Dimensions.get('screen').height - Dimensions.get('window').height - (StatusBar.currentHeight || 0))
@@ -655,6 +656,10 @@ export default function RegisterScreen() {
         termsAccepted: true,
         termsAcceptedAt: new Date().toISOString(),
         createdAt: new Date().toISOString(),
+        // עובר ל-true בכניסה הראשונה עם כתובת מאומתת (ראה home.tsx). עד אז מנקה
+        // שנרשם עם כתובת שגויה או מומצאת אינו מופיע ברשימת המנקים, כדי שאף לקוח
+        // לא יזמין מישהו שלעולם לא יוכל להתחבר ולענות.
+        emailVerified: false,
         // Both roles: matching is by distance in both directions.
         lat: coords!.lat,
         lng: coords!.lng,
@@ -753,24 +758,52 @@ export default function RegisterScreen() {
       }
 
 
-      // ── מנקה: הצג הסבר חשוב ואז בקש הרשאות מיקום + התראות ──
-      if (role === 'cleaner') {
-        const requestCleanerPermissions = async () => {
-          try {
-            const Notifications = await import('expo-notifications');
-            const notif = await Notifications.getPermissionsAsync();
-            if (notif.status !== 'granted') await Notifications.requestPermissionsAsync();
-          } catch (_) {}
-          try {
-            const Location = await import('expo-location');
-            const loc = await Location.getForegroundPermissionsAsync();
-            if (loc.status !== 'granted') await Location.requestForegroundPermissionsAsync();
-          } catch (_) {}
-        };
-        Alert.alert(t.cleanerPermTitle, t.cleanerPermBody, [
-          { text: t.cleanerPermBtn, onPress: () => { requestCleanerPermissions(); } },
-        ]);
+      // הכתובת לא מוכחת עד שנפתח הקישור שבמייל, ולכן החשבון החדש נשלח מיד
+      // החוצה במקום להיכנס לאפליקציה — כתובת עם טעות הקלדה או כתובת מומצאת
+      // אסור שתהפוך לחשבון עובד.
+      //
+      // השליחה וההתנתקות רצות כאן ולא בתוך onPress של דיאלוג: משתמש שסוגר
+      // דיאלוג בלי לבחור (Back באנדרואיד) היה נשאר מחובר ולא מאומת.
+      //
+      // שליחה שנכשלת אינה סיבה לגלגל את ההרשמה לאחור: הפרופיל נשמר, ומסך
+      // הכניסה מציע שליחה חוזרת למי שהמייל לא הגיע אליו.
+      try {
+        await sendVerificationEmail(cred.user, prefLang);
+      } catch (mailErr) {
+        logError('register:sendVerification', mailErr);
       }
+      await signOut(auth).catch(() => {});
+
+      const goToLogin = () => router.replace('/');
+
+      // ── מנקה: הסבר קצר ואז בקשת הרשאות מיקום + התראות ──
+      // ההרשאות נשאלות אחרי הודעת האימות: היא הדבר שהמשתמש חייב לפעול לפיו,
+      // ולכן היא נפתחת ראשונה. ההרשאה עצמה נשמרת במכשיר ותקפה גם אחרי הכניסה.
+      const requestCleanerPermissions = async () => {
+        try {
+          const Notifications = await import('expo-notifications');
+          const notif = await Notifications.getPermissionsAsync();
+          if (notif.status !== 'granted') await Notifications.requestPermissionsAsync();
+        } catch (_) {}
+        try {
+          const Location = await import('expo-location');
+          const loc = await Location.getForegroundPermissionsAsync();
+          if (loc.status !== 'granted') await Location.requestForegroundPermissionsAsync();
+        } catch (_) {}
+      };
+      const afterVerifyNotice = role === 'cleaner'
+        ? () => Alert.alert(t.cleanerPermTitle, t.cleanerPermBody, [
+            { text: t.cleanerPermBtn, onPress: () => { requestCleanerPermissions().finally(goToLogin); } },
+          ])
+        : goToLogin;
+
+      Alert.alert(
+        t.verifyEmailTitle || 'אימות כתובת המייל',
+        `${t.verifyEmailSentTo || 'שלחנו קישור אימות לכתובת:'}\n${email.trim()}\n\n${
+          t.verifyEmailInstructions
+          || 'יש לפתוח את הקישור שבמייל ואז להתחבר. אם המייל לא הגיע תוך כמה דקות, בדקו גם בתיקיית הספאם.'}`,
+        [{ text: t.loginBtn || 'התחברות', onPress: afterVerifyNotice }],
+      );
     } catch (e: any) {
       console.error('[REGISTER FIRESTORE ERROR]', e.code, e.message);
       Alert.alert(t.error, `שגיאת שמירת פרופיל (${e.code || e.message || 'unknown'})\nהחשבון נוצר — נסה להתחבר ולפנות לתמיכה`);

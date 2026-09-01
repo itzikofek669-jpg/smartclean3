@@ -4529,6 +4529,12 @@ export default function HomeScreen() {
     getDoc(doc(db, 'users', uid)).then(snap => {
       if (snap.exists()) {
         const data = snap.data();
+        // קישור האימות נפתח בתוכנת דואר, שבה שום קוד שלנו לא רץ — הפרופיל לומד
+        // שהכתובת תקינה רק בכניסה הבאה. נכתב כאן כי זה המקום שכבר קורא את
+        // המסמך, ורק כשהערך השמור באמת חולק על המצב בפועל.
+        if (data?.emailVerified === false && auth.currentUser?.emailVerified) {
+          setDoc(doc(db, 'users', uid), { emailVerified: true }, { merge: true }).catch(() => {});
+        }
         if (data?.blockedUntilReview) setIsBlocked(true);
         if (data?.role === 'cleaner') {
           setMyRole('cleaner');
@@ -5063,7 +5069,10 @@ export default function HomeScreen() {
   // Load real cleaners from Firestore — בזמן אמת (מנקה חדש מופיע מיד)
   useEffect(() => {
     const unsub = onSnapshot(query(collection(db, 'users'), where('role', '==', 'cleaner')), snap => {
-      const list = snap.docs.map(d => {
+      // false מופיע רק על חשבון שנרשם תחת דרישת אימות המייל ועדיין לא אימת — הוא
+      // אינו יכול להתחבר, ולכן הצגתו הייתה מציעה ללקוחות מנקה שלעולם לא יענה.
+      // לכל מסמך ישן אין את השדה הזה, והוא ממשיך להופיע.
+      const list = snap.docs.filter(d => d.data().emailVerified !== false).map(d => {
         const data = d.data();
         const coords = getCoordsForCleaner(data);
         return {

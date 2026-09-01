@@ -4,12 +4,13 @@ import {
   SafeAreaView, StatusBar, KeyboardAvoidingView, Platform, Alert, ScrollView, Modal, Image,
 } from 'react-native';
 import { useRouter } from 'expo-router';
-import { signInWithEmailAndPassword, sendPasswordResetEmail } from 'firebase/auth';
+import { signInWithEmailAndPassword, sendPasswordResetEmail, signOut } from 'firebase/auth';
 import * as SecureStore from 'expo-secure-store';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { auth, db } from '../lib/firebase';
 import { useLanguage, T, useAppColors, AppColors } from '../lib/LanguageContext';
 import { Lang } from '../lib/translations';
+import { mustVerifyEmail, sendVerificationEmail } from '../lib/emailVerification';
 
 function createS(c: AppColors) {
   return StyleSheet.create({
@@ -114,11 +115,52 @@ export default function LoginScreen() {
     })();
   }, []);
 
+  /**
+   * שליחה חוזרת של קישור האימות. Firebase שולח רק עבור משתמש מחובר, ולכן זה
+   * מתחבר שוב עם הפרטים שכבר בטופס, שולח, ומתנתק מיד — חשבון לא מאומת לעולם
+   * אינו נשאר מחובר.
+   */
+  const resendVerification = async () => {
+    try {
+      const cred = await signInWithEmailAndPassword(auth, email.trim(), password);
+      await sendVerificationEmail(cred.user, lang);
+      await signOut(auth).catch(() => {});
+      Alert.alert(t.verifyEmailTitle || 'אימות כתובת המייל',
+        t.verifyEmailResent || 'שלחנו מייל אימות חדש.');
+    } catch (_) {
+      await signOut(auth).catch(() => {});
+      Alert.alert(t.error, t.verifyEmailResendFailed
+        || 'לא הצלחנו לשלוח מייל אימות כרגע. נסו שוב בעוד כמה דקות.');
+    }
+  };
+
   const handleLogin = async () => {
     if (!email.trim() || !password) return Alert.alert(t.error, `${t.emailLabel} & ${t.passwordLabel}`);
     setLoading(true);
     try {
-      await signInWithEmailAndPassword(auth, email.trim(), password);
+      const cred = await signInWithEmailAndPassword(auth, email.trim(), password);
+      // נקרא ישירות מהרשומה הטרייה, בלי reload ובלי שום await בין הכניסה לבין
+      // ההתנתקות שמיד אחריה — כך חשבון לא מאומת לא נשאר מחובר ולו לרגע, ולא
+      // מספיק להיזרק פנימה ל-/home ובחזרה. (סשן ששרד במכשיר הוא המקרה שצריך
+      // רענון; כניסה הרגע שאלה את השרת, ולכן מי שלחץ על הקישור לפני רגע נקרא
+      // כאן כמאומת.)
+      if (mustVerifyEmail(cred.user)) {
+        await signOut(auth).catch(() => {});
+        // הפרטים לא נשמרים ל"זכור אותי": אחרת הכניסה האוטומטית ב-_layout הייתה
+        // מנסה שוב בכל פתיחה ונחסמת שוב.
+        await SecureStore.deleteItemAsync('remember_email').catch(() => {});
+        await SecureStore.deleteItemAsync('remember_pass').catch(() => {});
+        Alert.alert(
+          t.verifyEmailTitle || 'אימות כתובת המייל',
+          t.verifyEmailNotVerified
+            || 'כתובת המייל עדיין לא אומתה. פתחו את קישור האימות ששלחנו ונסו שוב.',
+          [
+            { text: t.verifyEmailResend || 'שליחת מייל אימות שוב', onPress: () => { resendVerification(); } },
+            { text: t.cancel || 'ביטול', style: 'cancel' },
+          ],
+        );
+        return;
+      }
       if (rememberMe) {
         await SecureStore.setItemAsync('remember_email', email.trim());
         await SecureStore.setItemAsync('remember_pass',  password);

@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { Platform, View, StyleSheet, Alert, LogBox } from 'react-native';
 import { Stack, useRouter, useSegments } from 'expo-router';
-import { onAuthStateChanged, signInWithEmailAndPassword } from 'firebase/auth';
+import { onAuthStateChanged, signInWithEmailAndPassword, signOut } from 'firebase/auth';
 import * as SecureStore from 'expo-secure-store';
 import * as Notifications from 'expo-notifications';
 import Constants from 'expo-constants';
@@ -9,6 +9,7 @@ import { doc, updateDoc, collection, query, where, onSnapshot } from 'firebase/f
 import { auth, db } from '../lib/firebase';
 import { getActiveChat } from '../lib/chatPresence';
 import { logError } from '../lib/logError';
+import { mustVerifyEmail } from '../lib/emailVerification';
 import { loadDemoMode } from '../lib/demoMode';
 import { loadDiagnostics, diagnosticsEnabled, record } from '../lib/diagnostics';
 import { primeCalendarPermission, addBookingToCalendar, removeBookingFromCalendar, calendarSyncMessage } from '../lib/calendarSync';
@@ -144,6 +145,26 @@ export default function RootLayout() {
       } catch (_) {
         await SecureStore.deleteItemAsync('remember_email').catch(() => {});
         await SecureStore.deleteItemAsync('remember_pass').catch(() => {});
+      }
+
+      // חשבון שנרשם תחת דרישת אימות המייל ולא אימת — לא נכנס, גם לא דרך
+      // "זכור אותי" ולא דרך סשן ששרד במכשיר.
+      //
+      // נבדק כאן, לפני שההאזנה מתחילה לנתב, ולא בתוך ההאזנה עצמה: שם הוא היה
+      // מנתק גם את החשבון שנוצר ברגע זה במסך ההרשמה (ומפיל את כתיבת הפרופיל
+      // שרצה מיד אחריו) וגם את השליחה החוזרת של קישור האימות ממסך הכניסה.
+      // שני המסכים האלה מתנתקים בעצמם בסיום.
+      //
+      // ה-reload נדרש כי הדגל צרוב באסימון: מי שאימת בדפדפן עדיין נושא אסימון
+      // ישן, ובלעדיו היה נחסם בדיוק על ידי הבדיקה שהקישור אמור היה לספק.
+      const restored = auth.currentUser;
+      if (!cancelled && restored && mustVerifyEmail(restored)) {
+        await restored.reload().catch(() => {});
+        if (!cancelled && mustVerifyEmail(restored)) {
+          await SecureStore.deleteItemAsync('remember_email').catch(() => {});
+          await SecureStore.deleteItemAsync('remember_pass').catch(() => {});
+          await signOut(auth).catch(() => {});
+        }
       }
 
       unsubAuth = onAuthStateChanged(auth, user => {

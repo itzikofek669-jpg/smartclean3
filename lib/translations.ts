@@ -3,6 +3,14 @@ import { ukData } from './ukData';
 export type Lang = 'he' | 'en' | 'ru' | 'ar' | 'fr' | 'hi' | 'uk';
 
 const he = {
+  // ── Email verification (registration) ─────────────────────────────────
+  verifyEmailTitle: 'אימות כתובת המייל',
+  verifyEmailSentTo: 'שלחנו קישור אימות לכתובת:',
+  verifyEmailInstructions: 'יש לפתוח את הקישור שבמייל ואז להתחבר. אם המייל לא הגיע תוך כמה דקות, בדקו גם בתיקיית הספאם.',
+  verifyEmailNotVerified: 'כתובת המייל עדיין לא אומתה. פתחו את קישור האימות ששלחנו ונסו שוב.',
+  verifyEmailResend: 'שליחת מייל אימות שוב',
+  verifyEmailResent: 'שלחנו מייל אימות חדש.',
+  verifyEmailResendFailed: 'לא הצלחנו לשלוח מייל אימות כרגע. נסו שוב בעוד כמה דקות.',
   // Bottom tab bar
   navHome:     'ראשי',
   navMessages: 'הודעות',
@@ -728,6 +736,14 @@ const he = {
 };
 
 const en: typeof he = {
+  // ── Email verification (registration) ─────────────────────────────────
+  verifyEmailTitle: 'Verify your email address',
+  verifyEmailSentTo: 'We sent a verification link to:',
+  verifyEmailInstructions: 'Open the link in that email, then sign in. If it has not arrived within a few minutes, check your spam folder.',
+  verifyEmailNotVerified: 'This email address has not been verified yet. Open the verification link we sent, then try again.',
+  verifyEmailResend: 'Send the verification email again',
+  verifyEmailResent: 'A new verification email is on its way.',
+  verifyEmailResendFailed: 'We could not send a verification email right now. Please try again in a few minutes.',
   navHome: 'Home', navMessages: 'Messages', navProfile: 'Profile',
   drawerProfile: 'My Profile',
   drawerLogout: 'Logout',
@@ -1295,6 +1311,14 @@ const en: typeof he = {
 };
 
 const ru: typeof he = {
+  // ── Email verification (registration) ─────────────────────────────────
+  verifyEmailTitle: 'Подтвердите адрес эл. почты',
+  verifyEmailSentTo: 'Мы отправили ссылку для подтверждения на адрес:',
+  verifyEmailInstructions: 'Откройте ссылку из письма, затем войдите. Если письмо не пришло за несколько минут, проверьте папку «Спам».',
+  verifyEmailNotVerified: 'Этот адрес эл. почты ещё не подтверждён. Откройте отправленную нами ссылку и попробуйте снова.',
+  verifyEmailResend: 'Отправить письмо с подтверждением ещё раз',
+  verifyEmailResent: 'Новое письмо с подтверждением отправлено.',
+  verifyEmailResendFailed: 'Сейчас не удалось отправить письмо. Попробуйте через несколько минут.',
   navHome: 'Главная', navMessages: 'Сообщения', navProfile: 'Профиль',
   drawerProfile: 'Мой профиль',
   drawerLogout: 'Выйти',
@@ -1861,6 +1885,14 @@ const ru: typeof he = {
 };
 
 const ar: typeof he = {
+  // ── Email verification (registration) ─────────────────────────────────
+  verifyEmailTitle: 'تأكيد عنوان البريد الإلكتروني',
+  verifyEmailSentTo: 'أرسلنا رابط تأكيد إلى:',
+  verifyEmailInstructions: 'افتح الرابط الموجود في الرسالة ثم سجّل الدخول. إذا لم تصل خلال بضع دقائق، تحقّق من مجلد الرسائل غير المرغوب فيها.',
+  verifyEmailNotVerified: 'لم يتم تأكيد هذا البريد الإلكتروني بعد. افتح رابط التأكيد الذي أرسلناه ثم حاول مرة أخرى.',
+  verifyEmailResend: 'إعادة إرسال رسالة التأكيد',
+  verifyEmailResent: 'تم إرسال رسالة تأكيد جديدة.',
+  verifyEmailResendFailed: 'تعذّر إرسال رسالة التأكيد الآن. حاول مرة أخرى بعد بضع دقائق.',
   navHome: 'الرئيسية', navMessages: 'الرسائل', navProfile: 'الملف',
   drawerProfile: 'ملفي الشخصي',
   drawerLogout: 'تسجيل الخروج',
@@ -2427,6 +2459,14 @@ const ar: typeof he = {
 };
 
 const fr: typeof he = {
+  // ── Email verification (registration) ─────────────────────────────────
+  verifyEmailTitle: 'Vérifiez votre adresse e-mail',
+  verifyEmailSentTo: 'Nous avons envoyé un lien de vérification à :',
+  verifyEmailInstructions: 'Ouvrez le lien contenu dans cet e-mail, puis connectez-vous. S’il n’arrive pas d’ici quelques minutes, vérifiez vos spams.',
+  verifyEmailNotVerified: 'Cette adresse e-mail n’a pas encore été vérifiée. Ouvrez le lien de vérification que nous avons envoyé, puis réessayez.',
+  verifyEmailResend: 'Renvoyer l’e-mail de vérification',
+  verifyEmailResent: 'Un nouvel e-mail de vérification vient d’être envoyé.',
+  verifyEmailResendFailed: 'Impossible d’envoyer l’e-mail de vérification pour le moment. Réessayez dans quelques minutes.',
   navHome: 'Accueil', navMessages: 'Messages', navProfile: 'Profil',
   drawerProfile: 'Mon profil', drawerLogout: 'Déconnexion', drawerLanguage: 'Langue',
   logoutMsg: 'Voulez-vous vraiment vous déconnecter ?', logoutConfirm: 'Déconnexion',
@@ -2932,6 +2972,14 @@ const fr: typeof he = {
 };
 
 const hi: typeof he = {
+  // ── Email verification (registration) ─────────────────────────────────
+  verifyEmailTitle: 'अपना ईमेल पता सत्यापित करें',
+  verifyEmailSentTo: 'हमने इस पते पर सत्यापन लिंक भेजा है:',
+  verifyEmailInstructions: 'उस ईमेल में दिए गए लिंक को खोलें, फिर साइन इन करें। यदि कुछ मिनटों में ईमेल न आए तो अपना स्पैम फ़ोल्डर देखें।',
+  verifyEmailNotVerified: 'यह ईमेल पता अभी तक सत्यापित नहीं हुआ है। हमने जो सत्यापन लिंक भेजा है उसे खोलें और फिर से प्रयास करें।',
+  verifyEmailResend: 'सत्यापन ईमेल फिर से भेजें',
+  verifyEmailResent: 'नया सत्यापन ईमेल भेज दिया गया है।',
+  verifyEmailResendFailed: 'अभी सत्यापन ईमेल नहीं भेजा जा सका। कुछ मिनट बाद फिर प्रयास करें।',
   navHome: 'होम', navMessages: 'संदेश', navProfile: 'प्रोफ़ाइल',
   drawerProfile: 'मेरी प्रोफ़ाइल', drawerLogout: 'लॉगआउट', drawerLanguage: 'भाषा',
   logoutMsg: 'क्या आप लॉगआउट करना चाहते हैं?', logoutConfirm: 'लॉगआउट',
