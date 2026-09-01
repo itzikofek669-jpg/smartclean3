@@ -5,6 +5,14 @@ on:
     branches: [main]
   workflow_dispatch:   # אפשר גם הפעלה ידנית
 
+# בונה APK עצמאי (release), לא dev client.
+#
+# הוורקפלואו הזה בנה קודם `assembleDebug` עם expo-dev-client. בנייה כזו אינה
+# מכילה את קוד ה-JavaScript של האפליקציה בכלל — היא קליפה נייטיב שמושכת אותו
+# משרת Metro בזמן ריצה. כל שינוי ב-TypeScript פשוט לא היה נמצא בקובץ, ושני
+# APK-ים מקומיטים שונים יצאו זהים לחלוטין מבחינת תוכן. `assembleRelease` מטמיע
+# את ה-bundle, ולכן ה-APK באמת מכיל את הקוד של הקומיט שממנו נבנה.
+
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -29,8 +37,22 @@ jobs:
       - name: Install dependencies
         run: npm install
 
-      - name: Install expo-dev-client (dev build)
-        run: npm install expo-dev-client --save
+      # מזהה בנייה שאפשר לראות מהטלפון: הגדרות → אפליקציות → A&M Clean מציג
+      # את versionName, ולכן הקומיט נכנס לתוכו. בלי זה כל הבניות מדווחות אותה
+      # גרסה ואי אפשר לדעת מה מותקן.
+      # versionCode עולה בכל ריצה, אחרת אנדרואיד מסרב להתקין בנייה חדשה על
+      # ישנה עם אותו מספר.
+      - name: Stamp the commit into the app version
+        run: |
+          node -e "
+            const fs = require('fs');
+            const sha = process.env.GITHUB_SHA.slice(0, 7);
+            const j = JSON.parse(fs.readFileSync('app.json', 'utf8'));
+            j.expo.version = j.expo.version + '+' + sha;
+            j.expo.android.versionCode = 1000 + Number(process.env.GITHUB_RUN_NUMBER);
+            fs.writeFileSync('app.json', JSON.stringify(j, null, 2));
+            console.log('version', j.expo.version, 'versionCode', j.expo.android.versionCode);
+          "
 
       - name: Cache Android debug keystore (keeps SHA-1 stable)
         uses: actions/cache@v4
@@ -58,23 +80,60 @@ jobs:
         env:
           EXPO_NO_GIT_STATUS: 1
 
-      - name: Build Dev APK
+      - name: Build release APK
         run: |
           cd android
           chmod +x gradlew
-          ./gradlew assembleDebug --no-daemon
+          ./gradlew assembleRelease --no-daemon
         env:
           GRADLE_OPTS: "-Dorg.gradle.jvmargs=-Xmx4g"
+
+      # תבנית ה-release של Expo/RN מכוונת לחתימת ה-debug, ואז gradle מוציא
+      # app-release.apk חתום. אם התבנית תשתנה ותשאיר קובץ לא חתום, הוא לא ניתן
+      # להתקנה — אז חותמים כאן באותו keystore, כדי שה-SHA-1 יישאר זהה.
+      - name: Sign the APK if gradle left it unsigned
+        run: |
+          set -e
+          cd android/app/build/outputs/apk/release
+          ls -la
+          if [ ! -f app-release.apk ] && [ -f app-release-unsigned.apk ]; then
+            BT=$(ls -d "$ANDROID_SDK_ROOT"/build-tools/* | sort -V | tail -1)
+            "$BT/apksigner" sign \
+              --ks ~/.android/debug.keystore \
+              --ks-key-alias androiddebugkey \
+              --ks-pass pass:android --key-pass pass:android \
+              --out app-release.apk app-release-unsigned.apk
+            echo "Signed with the debug keystore"
+          fi
+
+      # השומר החשוב. בלעדיו הוורקפלואו יכול לחזור בשקט לייצר קליפה בלי קוד,
+      # וזה נראה כמו הצלחה מלאה עד שמתקינים ומגלים שהאפליקציה מחפשת Metro.
+      - name: Verify the APK actually contains the app's JavaScript
+        run: |
+          APK=android/app/build/outputs/apk/release/app-release.apk
+          test -f "$APK" || { echo "::error::No app-release.apk was produced"; exit 1; }
+          if ! unzip -l "$APK" | grep -qE 'assets/index\.android\.bundle'; then
+            echo "::error::index.android.bundle is missing — this APK is a shell that loads JS from Metro, not a standalone build."
+            unzip -l "$APK" | grep '^.*assets/' | head -20
+            exit 1
+          fi
+          echo "OK — the JS bundle is embedded"
 
       - name: Print debug SHA-1
         run: keytool -list -v -keystore ~/.android/debug.keystore -alias androiddebugkey -storepass android -keypass android 2>/dev/null | grep SHA1
 
-      - name: Find and upload APK
-        run: find android/app/build/outputs/apk -name "*.apk" | head -5
+      - name: Name the APK after the commit
+        id: apk
+        run: |
+          SHA=$(git rev-parse --short HEAD)
+          NAME="AM-Clean-${SHA}-build${GITHUB_RUN_NUMBER}.apk"
+          cp android/app/build/outputs/apk/release/app-release.apk "$NAME"
+          echo "name=$NAME" >> "$GITHUB_OUTPUT"
+          ls -lh "$NAME"
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: SmartClean-DEV-APK
-          path: android/app/build/outputs/apk/debug/*.apk
+          name: ${{ steps.apk.outputs.name }}
+          path: ${{ steps.apk.outputs.name }}
           retention-days: 30
