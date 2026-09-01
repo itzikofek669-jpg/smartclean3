@@ -12,7 +12,7 @@ import { logError } from '../lib/logError';
 import { mustVerifyEmail } from '../lib/emailVerification';
 import { loadDemoMode } from '../lib/demoMode';
 import { loadDiagnostics, diagnosticsEnabled, record } from '../lib/diagnostics';
-import { primeCalendarPermission, addBookingToCalendar, removeBookingFromCalendar, calendarSyncMessage } from '../lib/calendarSync';
+import { primeCalendarPermission, addBookingToCalendar, removeBookingFromCalendar, calendarSyncMessage, shouldWarnCalendarOnce } from '../lib/calendarSync';
 import { LanguageProvider } from '../lib/LanguageContext';
 import { ThemeProvider } from '../lib/ThemeContext';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
@@ -219,6 +219,13 @@ export default function RootLayout() {
     // Actionable failures are worth telling the user about, but once — not once
     // per booking in the snapshot, which on a busy account would be a wall of
     // identical alerts.
+    //
+    // This flag alone was not enough: it lives in the effect, so it reset on
+    // every launch, and a booking whose sync keeps failing (an unwritable
+    // calendar, a revoked permission) re-alerted every single time the app was
+    // opened. shouldWarnCalendarOnce remembers on the device, so each booking
+    // can produce at most one message ever; this flag still caps a single run
+    // to one message across all of them.
     let warned = false;
     // Bookings whose calendar entry we have already taken out on this run.
     const removedCancelled = new Set<string>();
@@ -226,7 +233,7 @@ export default function RootLayout() {
     const sync = (b: any, role: 'client' | 'cleaner') => {
       if (b?.status === 'confirmed') {
         addBookingToCalendar(b, { role })
-          .then(res => {
+          .then(async res => {
             // Every outcome, not just the two that used to be logged. The
             // silent ones — already-synced above all — are exactly the
             // answers we could never get out of a release build.
@@ -236,12 +243,21 @@ export default function RootLayout() {
               return;
             }
             const msg = calendarSyncMessage(res);
-            if (msg && !warned) { warned = true; Alert.alert('', msg); }
-            else if (diagnosticsEnabled() && res !== 'added' && !warned) {
-              warned = true;
-              Alert.alert('אבחון — יומן', `תפקיד: ${role}
+            if (!msg) {
+              if (diagnosticsEnabled() && res !== 'added' && !warned) {
+                warned = true;
+                Alert.alert('אבחון — יומן', `תפקיד: ${role}
 תוצאה: ${res}`);
+              }
+              return;
             }
+            if (warned) return;
+            if (!(await shouldWarnCalendarOnce(String(b.id)))) return;
+            // נבדק שוב: הקריאה לאחסון היא await, והזמנה אחרת יכולה הייתה לזכות
+            // במרוץ בזמן הזה.
+            if (warned) return;
+            warned = true;
+            Alert.alert('', msg);
           })
           .catch(err => logError('layout:calendarAdd', err));
       }
