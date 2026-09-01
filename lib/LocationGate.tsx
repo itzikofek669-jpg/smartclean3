@@ -21,6 +21,16 @@ export default function LocationGate() {
   const { t } = useLanguage();
   const C = useAppColors();
   const [isCleaner, setIsCleaner] = useState(false);
+  /**
+   * האם לפרופיל יש קואורדינטות מההרשמה, שבה המיקום הוא חובה וסירוב עוצר את
+   * ההרשמה.
+   *
+   * אלה הקואורדינטות שכל חישובי המרחק בשני המוצרים קוראים בפועל — רשימת
+   * המנקים, המפה ורדיוס לוח העבודות. המיקום החי רק מוסיף מעליהן את חיווי
+   * "כמה רחוק ממני עכשיו". חשבון שיש לו אותן ניתן להתאמה מלאה, ונעילתו הייתה
+   * אכיפה של דרישה שכבר מולאה.
+   */
+  const [hasProfileCoords, setHasProfileCoords] = useState(false);
   const [granted, setGranted] = useState(true);
   const roleUidRef = useRef<string | null>(null);
 
@@ -32,7 +42,9 @@ export default function LocationGate() {
     roleUidRef.current = user.uid;
     try {
       const snap = await getDoc(doc(db, 'users', user.uid));
-      setIsCleaner(snap.data()?.role === 'cleaner');
+      const d = snap.data();
+      setIsCleaner(d?.role === 'cleaner');
+      setHasProfileCoords(typeof d?.lat === 'number' && typeof d?.lng === 'number');
     } catch (err) {
       // קריאה שנכשלה לא נועלת אף אחד — עדיף חשבון פתוח בלי לדעת את התפקיד
       // מאשר מנקה שנחסם בגלל תקלת רשת.
@@ -45,6 +57,7 @@ export default function LocationGate() {
     // אין setState כאן ללקוח/אדמין: הרינדור כבר יוצא מוקדם על !isCleaner, וקביעת
     // state באופן סינכרוני מתוך effect גוררת רינדור מיותר בכל טעינה.
     if (!isCleaner) return;
+    if (hasProfileCoords) { setGranted(true); return; }
     try {
       const perm = await Location.getForegroundPermissionsAsync();
       setGranted(perm.status === 'granted');
@@ -52,7 +65,7 @@ export default function LocationGate() {
       logError('LocationGate/permission', err);
       setGranted(true);   // כנ"ל: תקלה אינה סירוב
     }
-  }, [isCleaner]);
+  }, [isCleaner, hasProfileCoords]);
 
   // הכלל לא רואה מבעד לגבול ה-async: כל setGranted ב-check רץ אחרי await, ולכן
   // שום state לא נקבע סינכרונית בגוף ה-effect. אזהרה שגויה.
@@ -81,6 +94,10 @@ export default function LocationGate() {
       <T style={{ fontSize: 56, marginBottom: 10 }}>📍</T>
       <T style={[s.title, { color: C.textDark }]}>
         {tt.locationLockTitle || 'נדרשת הרשאת מיקום'}
+      </T>
+      <T style={[s.body, { color: C.textSub, marginBottom: 12 }]}>
+        {tt.locationLockNoAddress
+          || 'לא נמצאה כתובת בפרופיל שלך. הוסיפו כתובת בפרופיל והחשבון ייפתח — או אשרו מיקום בהגדרות.'}
       </T>
       <T style={[s.body, { color: C.textSub }]}>
         {tt.locationLockBody

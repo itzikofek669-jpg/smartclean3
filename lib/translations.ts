@@ -3,6 +3,7 @@ import { ukData } from './ukData';
 export type Lang = 'he' | 'en' | 'ru' | 'ar' | 'fr' | 'hi' | 'uk';
 
 const he = {
+  locationLockNoAddress: 'לא נמצאה כתובת בפרופיל שלך. הוסיפו כתובת בפרופיל והחשבון ייפתח — או אשרו מיקום בהגדרות.',
   // ── Location gate (cleaners) ──────────────────────────────────────────
   locationLockTitle: 'נדרשת הרשאת מיקום',
   locationLockBody: 'ההתאמה בין מנקים ללקוחות מבוססת על מרחק, ולכן חשבון מנקה אינו יכול לפעול בלי גישה למיקום. עד שתפעילו את ההרשאה, החשבון יישאר נעול.',
@@ -741,6 +742,7 @@ const he = {
 };
 
 const en: typeof he = {
+  locationLockNoAddress: 'No address was found on your profile. Add one there and the account opens — or allow location in settings.',
   // ── Location gate (cleaners) ──────────────────────────────────────────
   locationLockTitle: 'Location access required',
   locationLockBody: 'Cleaners and clients are matched by distance, so a cleaner account cannot work without access to your location. The account stays locked until you turn the permission on.',
@@ -1321,6 +1323,7 @@ const en: typeof he = {
 };
 
 const ru: typeof he = {
+  locationLockNoAddress: 'В вашем профиле нет адреса. Добавьте его — и аккаунт откроется, либо разрешите геолокацию в настройках.',
   // ── Location gate (cleaners) ──────────────────────────────────────────
   locationLockTitle: 'Требуется доступ к геолокации',
   locationLockBody: 'Исполнители и клиенты подбираются по расстоянию, поэтому аккаунт исполнителя не может работать без доступа к вашей геолокации. Аккаунт останется заблокированным, пока вы не включите разрешение.',
@@ -1900,6 +1903,7 @@ const ru: typeof he = {
 };
 
 const ar: typeof he = {
+  locationLockNoAddress: 'لا يوجد عنوان في ملفك الشخصي. أضف عنواناً وسيُفتح الحساب — أو اسمح بالموقع من الإعدادات.',
   // ── Location gate (cleaners) ──────────────────────────────────────────
   locationLockTitle: 'مطلوب إذن الوصول إلى الموقع',
   locationLockBody: 'تتم المطابقة بين عمال النظافة والعملاء حسب المسافة، ولذلك لا يمكن لحساب عامل النظافة أن يعمل دون الوصول إلى موقعك. سيبقى الحساب مقفلاً حتى تُفعّل الإذن.',
@@ -2479,6 +2483,7 @@ const ar: typeof he = {
 };
 
 const fr: typeof he = {
+  locationLockNoAddress: 'Aucune adresse dans votre profil. Ajoutez-en une et le compte s’ouvre — ou autorisez la localisation dans les réglages.',
   // ── Location gate (cleaners) ──────────────────────────────────────────
   locationLockTitle: 'Autorisation de localisation requise',
   locationLockBody: 'Les agents et les clients sont mis en relation selon la distance : un compte agent ne peut donc pas fonctionner sans accès à votre position. Le compte reste verrouillé tant que l’autorisation n’est pas activée.',
@@ -2997,6 +3002,7 @@ const fr: typeof he = {
 };
 
 const hi: typeof he = {
+  locationLockNoAddress: 'आपकी प्रोफ़ाइल में कोई पता नहीं मिला। पता जोड़ें और खाता खुल जाएगा — या सेटिंग्स में स्थान की अनुमति दें।',
   // ── Location gate (cleaners) ──────────────────────────────────────────
   locationLockTitle: 'स्थान की अनुमति आवश्यक है',
   locationLockBody: 'क्लीनर और ग्राहक दूरी के आधार पर जोड़े जाते हैं, इसलिए क्लीनर खाता आपके स्थान तक पहुँच के बिना काम नहीं कर सकता। जब तक आप अनुमति चालू नहीं करते, खाता लॉक रहेगा।',
