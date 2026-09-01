@@ -3,6 +3,11 @@ import { ukData } from './ukData';
 export type Lang = 'he' | 'en' | 'ru' | 'ar' | 'fr' | 'hi' | 'uk';
 
 const he = {
+  // ── Location gate (cleaners) ──────────────────────────────────────────
+  locationLockTitle: 'נדרשת הרשאת מיקום',
+  locationLockBody: 'ההתאמה בין מנקים ללקוחות מבוססת על מרחק, ולכן חשבון מנקה אינו יכול לפעול בלי גישה למיקום. עד שתפעילו את ההרשאה, החשבון יישאר נעול.',
+  locationLockRecheck: 'הפעלתי — בדקו שוב',
+  locationLockOpenSettings: 'פתיחת ההגדרות',
   // ── Email verification (registration) ─────────────────────────────────
   verifyEmailTitle: 'אימות כתובת המייל',
   verifyEmailSentTo: 'שלחנו קישור אימות לכתובת:',
@@ -736,6 +741,11 @@ const he = {
 };
 
 const en: typeof he = {
+  // ── Location gate (cleaners) ──────────────────────────────────────────
+  locationLockTitle: 'Location access required',
+  locationLockBody: 'Cleaners and clients are matched by distance, so a cleaner account cannot work without access to your location. The account stays locked until you turn the permission on.',
+  locationLockRecheck: 'I turned it on — check again',
+  locationLockOpenSettings: 'Open settings',
   // ── Email verification (registration) ─────────────────────────────────
   verifyEmailTitle: 'Verify your email address',
   verifyEmailSentTo: 'We sent a verification link to:',
@@ -1311,6 +1321,11 @@ const en: typeof he = {
 };
 
 const ru: typeof he = {
+  // ── Location gate (cleaners) ──────────────────────────────────────────
+  locationLockTitle: 'Требуется доступ к геолокации',
+  locationLockBody: 'Исполнители и клиенты подбираются по расстоянию, поэтому аккаунт исполнителя не может работать без доступа к вашей геолокации. Аккаунт останется заблокированным, пока вы не включите разрешение.',
+  locationLockRecheck: 'Я включил — проверить снова',
+  locationLockOpenSettings: 'Открыть настройки',
   // ── Email verification (registration) ─────────────────────────────────
   verifyEmailTitle: 'Подтвердите адрес эл. почты',
   verifyEmailSentTo: 'Мы отправили ссылку для подтверждения на адрес:',
@@ -1885,6 +1900,11 @@ const ru: typeof he = {
 };
 
 const ar: typeof he = {
+  // ── Location gate (cleaners) ──────────────────────────────────────────
+  locationLockTitle: 'مطلوب إذن الوصول إلى الموقع',
+  locationLockBody: 'تتم المطابقة بين عمال النظافة والعملاء حسب المسافة، ولذلك لا يمكن لحساب عامل النظافة أن يعمل دون الوصول إلى موقعك. سيبقى الحساب مقفلاً حتى تُفعّل الإذن.',
+  locationLockRecheck: 'فعّلته — تحقّق مرة أخرى',
+  locationLockOpenSettings: 'فتح الإعدادات',
   // ── Email verification (registration) ─────────────────────────────────
   verifyEmailTitle: 'تأكيد عنوان البريد الإلكتروني',
   verifyEmailSentTo: 'أرسلنا رابط تأكيد إلى:',
@@ -2459,6 +2479,11 @@ const ar: typeof he = {
 };
 
 const fr: typeof he = {
+  // ── Location gate (cleaners) ──────────────────────────────────────────
+  locationLockTitle: 'Autorisation de localisation requise',
+  locationLockBody: 'Les agents et les clients sont mis en relation selon la distance : un compte agent ne peut donc pas fonctionner sans accès à votre position. Le compte reste verrouillé tant que l’autorisation n’est pas activée.',
+  locationLockRecheck: 'C’est activé — vérifier à nouveau',
+  locationLockOpenSettings: 'Ouvrir les réglages',
   // ── Email verification (registration) ─────────────────────────────────
   verifyEmailTitle: 'Vérifiez votre adresse e-mail',
   verifyEmailSentTo: 'Nous avons envoyé un lien de vérification à :',
@@ -2972,6 +2997,11 @@ const fr: typeof he = {
 };
 
 const hi: typeof he = {
+  // ── Location gate (cleaners) ──────────────────────────────────────────
+  locationLockTitle: 'स्थान की अनुमति आवश्यक है',
+  locationLockBody: 'क्लीनर और ग्राहक दूरी के आधार पर जोड़े जाते हैं, इसलिए क्लीनर खाता आपके स्थान तक पहुँच के बिना काम नहीं कर सकता। जब तक आप अनुमति चालू नहीं करते, खाता लॉक रहेगा।',
+  locationLockRecheck: 'मैंने चालू कर दिया — फिर से जाँचें',
+  locationLockOpenSettings: 'सेटिंग्स खोलें',
   // ── Email verification (registration) ─────────────────────────────────
   verifyEmailTitle: 'अपना ईमेल पता सत्यापित करें',
   verifyEmailSentTo: 'हमने इस पते पर सत्यापन लिंक भेजा है:',

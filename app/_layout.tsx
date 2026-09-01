@@ -18,6 +18,7 @@ import { ThemeProvider } from '../lib/ThemeContext';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { useFonts, NotoSansDevanagari_400Regular } from '@expo-google-fonts/noto-sans-devanagari';
 import ErrorBoundary from '../lib/ErrorBoundary';
+import LocationGate from '../lib/LocationGate';
 
 // Hide the Expo Go push-notification warnings (remote push isn't supported in
 // Expo Go since SDK 53; works in a real build). Avoids the red error overlay.
@@ -469,6 +470,10 @@ ${(err as any)?.message ?? err}`);
           <LanguageProvider>
             <ErrorBoundary context="root">
               <Stack screenOptions={{ headerShown: false }} />
+              {/* אחרי ה-Stack ומעליו: מנקה בלי הרשאת מיקום מקבל נעילה על כל
+                  מסך, כולל סרגל הניווט, ולא רק על המסך הראשי. בתוך הספקים כדי
+                  שיוכל להציג עברית בערכת הנושא של המשתמש. */}
+              <LocationGate />
             </ErrorBoundary>
           </LanguageProvider>
         </ThemeProvider>
