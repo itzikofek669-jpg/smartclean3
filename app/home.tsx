@@ -39,6 +39,7 @@ import {
   formatJobDate, bookingBusyWindow, windowsOverlap,
   stripEmoji, countWords, limitWords, buildFullAddress,
 } from '../lib/jobUtils';
+import { compareCleaners, compareJobs, rotationRank } from '../lib/displayOrder';
 
 // Re-exported so the screens that already import these from `home` keep working
 // while the helpers themselves live in lib/jobUtils.
@@ -3803,8 +3804,13 @@ export default function HomeScreen() {
   const [mapRegion,     setMapRegion]     = useState<any>(REGION_DEFAULTS.all); // אזור המפה הנוכחי — לרינדור סמנים בתצוגה בלבד
   const [nearbyMode,    setNearbyMode]    = useState(false);
   const [realCleaners,  setRealCleaners]  = useState<any[]>([]);
-  // סדר ערבוב קבוע לכל הסשן — מחושב פעם אחת בפתיחת האפליקציה
-  const staticCleanerOrderRef = useRef<any[]>([...CLEANERS].sort(() => Math.random() - 0.5));
+  // סדר ערבוב קבוע לכל הסשן — מחושב פעם אחת בפתיחת האפליקציה.
+  // דרך rotationRank ולא sort(() => Math.random() - 0.5): הקומפרטור ההוא מחזיר
+  // תשובה שונה לאותו זוג באותו מעבר, מה שאסור לקומפרטור, והתוצאה שלו אינה
+  // התפלגות אחידה.
+  const staticCleanerOrderRef = useRef<any[]>(
+    [...CLEANERS].sort((a, b) => rotationRank(String(a.id)) - rotationRank(String(b.id))),
+  );
 
   // Advanced filter
   const [filterVisible,  setFilterVisible]  = useState(false);
@@ -4410,6 +4416,25 @@ export default function HomeScreen() {
     if (nearby.length > 0) filtered = nearby;
   }
 
+  // ── סדר התצוגה ─────────────────────────────────────────────────────────────
+  // זמינות, ואז רצועת מרחק, ואז רצועת דירוג, ואז רוטציה — ראה lib/displayOrder.
+  // נעשה כאן ולא בזמן ה-snapshot כי רק בשלב הזה ידוע מיקום הלקוח. הרוטציה היא
+  // פונקציה טהורה של המזהה ושל זרע שנקבע בעליית האפליקציה, ולכן היא יציבה בין
+  // רינדורים — הרשימה נבנית מחדש בכל רינדור וכרטיסים עדיין לא זזים תוך כדי.
+  {
+    const withDist = filtered.map(c => ({
+      c,
+      distKm: userCoords && typeof c.lat === 'number' && typeof c.lng === 'number'
+        ? getDistanceKm(userCoords.lat, userCoords.lng, c.lat, c.lng)
+        : null,
+    }));
+    withDist.sort((x, y) => compareCleaners(
+      { id: String(x.c.id), available: x.c.available, rating: x.c.rating, distKm: x.distKm },
+      { id: String(y.c.id), available: y.c.available, rating: y.c.rating, distKm: y.distKm },
+    ));
+    filtered = withDist.map(x => x.c);
+  }
+
   // Count active filters for badge
   const activeFilterCount = (filterMinRating > 0 ? 1 : 0) + (filterMaxPrice < 999 ? 1 : 0) + (filterAvailOnly ? 1 : 0) + filterTypes.length + (region !== 'all' ? 1 : 0) + (filterCity.trim() ? 1 : 0);
 
@@ -4889,13 +4914,13 @@ export default function HomeScreen() {
           String(tp).toLowerCase().includes(q)
           || String((t.types as any)?.[tp] || '').toLowerCase().includes(q));
       });
-    // מיון: הכי קרוב ראשון (עבודות ללא מרחק — בסוף, לפי זמן)
-    return jobs.sort((a, b) => {
-      if (a._distKm != null && b._distKm != null) return a._distKm - b._distKm;
-      if (a._distKm != null) return -1;
-      if (b._distKm != null) return 1;
-      return String(b.createdAt || '').localeCompare(String(a.createdAt || ''));
-    });
+    // רצועת מרחק ואז רוטציה — ראה lib/displayOrder. מיון לפי מרחק מדויק ואז
+    // לפי זמן השאיר את אותן עבודות בראש הלוח של כל מנקה כל היום, ועבודה שלא
+    // נתפסה שקעה עוד ועוד עם כל פרסום חדש.
+    return jobs.sort((a, b) => compareJobs(
+      { id: String(a._id), distKm: a._distKm },
+      { id: String(b._id), distKm: b._distKm },
+    ));
   }, [openUrgent, openBookings, botJobs, hiddenJobIds, myCleanerCoords, myMaxKm, cleanerBusy, search, t]);
 
   // ── תפיסת עבודה מהלוח ──────────────────────────────────────────────────────
@@ -5124,8 +5149,9 @@ export default function HomeScreen() {
           uid:           d.id,
         };
       });
-      // סדר יציב: זמינים קודם, ואז לפי דירוג ושם (בלי ערבוב שקופץ בכל עדכון)
-      list.sort((a, b) => (Number(b.available) - Number(a.available)) || (b.rating - a.rating) || String(a.name).localeCompare(String(b.name)));
+      // סדר בסיס יציב בלבד. סדר התצוגה בפועל נקבע בסוף צינור הסינון דרך
+      // compareCleaners (lib/displayOrder), שם גם המרחק מהלקוח ידוע.
+      list.sort((a, b) => String(a.name).localeCompare(String(b.name)));
       setRealCleaners(list);
 
       // One-time precise geocoding: cleaners with an address but no saved lat/lng
