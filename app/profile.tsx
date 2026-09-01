@@ -45,6 +45,7 @@ import * as Notifications from 'expo-notifications';
 import Constants from 'expo-constants';
 import { addBookingToCalendar, removeBookingFromCalendar, calendarSyncMessage } from '../lib/calendarSync';
 import { logError } from '../lib/logError';
+import { releaseUrgentRequest } from '../lib/urgentRelease';
 
 
 function createRM(c: AppColors) {
@@ -2270,6 +2271,8 @@ export default function ProfileScreen() {
         onPress: async () => {
           try {
             await updateDoc(doc(db, 'bookings', b.id), { status: 'cancelled', cancelledBy: userRole || 'client', cancelledAt: new Date().toISOString() });
+            // אל תשאיר את הבקשה הדחופה שממנה נולדה ההזמנה נעולה על 'taken'
+            await releaseUrgentRequest(b, userRole === 'cleaner' ? 'cleaner' : 'client');
             setBookings(prev => prev.filter(x => x.id !== b.id));
             setIncomingBks(prev => prev.filter(x => x.id !== b.id));
             // הסר מהיומן של מי שביטל — הצד השני מסיר אצלו דרך המאזין שלו
@@ -2921,6 +2924,8 @@ export default function ProfileScreen() {
                             if (pcb?.urgentUnclaimed) { setPendingConfirmBooking(null); return; }
                             SHOWN_PENDING.add(pcb.id); // לא להקפיץ שוב את אותה הזמנה
                             await updateDoc(doc(db, 'bookings', pcb.id), { status: 'cancelled', cancelledBy: 'cleaner', cancelledAt: new Date().toISOString() });
+                            // המנקה דחה — הבקשה הדחופה חוזרת ללוח של השאר
+                            await releaseUrgentRequest(pcb, 'cleaner');
                             setIncomingBks(prev => prev.filter(x => x.id !== pcb.id));
                             removeBookingFromCalendar(pcb.id, pcb).catch(() => {});
                             // פוש ללקוח על הדחייה

@@ -6,7 +6,7 @@ import {
 } from 'react-native';
 import {
   collection, onSnapshot, query, orderBy, limit,
-  updateDoc, doc, addDoc, deleteDoc,
+  updateDoc, doc, getDoc, addDoc, deleteDoc,
 } from 'firebase/firestore';
 import { signOut } from 'firebase/auth';
 import * as SecureStore from 'expo-secure-store';
@@ -16,6 +16,7 @@ import { useLanguage, T } from '../lib/LanguageContext';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { TAB_BAR_CONTENT_HEIGHT } from '../lib/BottomTabBar';
 import { demoModeStored, setDemoMode } from '../lib/demoMode';
+import { releaseUrgentRequest } from '../lib/urgentRelease';
 
 // ─── Palette ──────────────────────────────────────────────────────────────────
 const C_DEFAULT = {
@@ -216,7 +217,13 @@ export default function AdminScreen() {
     Alert.alert('ביטול הזמנה', 'האם לבטל הזמנה זו?', [
       { text: 'לא', style: 'cancel' },
       { text: 'כן, בטל', style: 'destructive', onPress: async () => {
-        await updateDoc(doc(db, 'bookings', bookingId), { status: 'cancelled' });
+        const ref = doc(db, 'bookings', bookingId);
+        // נקרא לפני הביטול כדי לשחרר גם את הבקשה הדחופה שממנה נולדה ההזמנה —
+        // אחרת היא נשארת 'taken' לנצח: מחוץ ללוח של כולם ולא ניתנת לתפיסה.
+        let urgentRequestId = '';
+        try { urgentRequestId = String((await getDoc(ref)).data()?.urgentRequestId ?? ''); } catch (_) {}
+        await updateDoc(ref, { status: 'cancelled', cancelledBy: 'admin', cancelledAt: new Date().toISOString() });
+        await releaseUrgentRequest({ urgentRequestId }, 'admin');
       }},
     ]);
   };
