@@ -1120,7 +1120,7 @@ function CleanerProfile({ cleaner, visible, onClose, onBook, onChat, initialShow
                         inlinePill
                         pillStyle={[s.servicePill, { alignSelf: 'stretch', justifyContent: 'center', paddingVertical: 11 }]}
                         pillTextStyle={s.servicePillText}
-                        label={`${TYPE_ICONS[tp] || '🧹'} ${t.types[tp] || tp}`}
+                        label={stripEmoji(t.types[tp] || tp)}
                       />
                     </View>
                     {svcPrice != null && (
