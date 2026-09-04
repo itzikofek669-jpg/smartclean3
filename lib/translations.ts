@@ -3,6 +3,12 @@ import { ukData } from './ukData';
 export type Lang = 'he' | 'en' | 'ru' | 'ar' | 'fr' | 'hi' | 'uk';
 
 const he = {
+  // ── Email verification gate ───────────────────────────────────────────
+  verifyEmailContinue: 'אימתתי — המשך',
+  verifyEmailNotYet: 'הכתובת עדיין לא מאומתת. פתחו את הקישור שבמייל ואז נסו שוב.',
+  verifyEmailSendFailed: 'לא הצלחנו לשלוח את מייל האימות. לחצו על \'שליחה שוב\' — ואם זה נמשך, פנו לתמיכה.',
+  // ── Phone uniqueness ──────────────────────────────────────────────────
+  vErrPhoneTaken: 'מספר הטלפון הזה כבר רשום במערכת. אם זה המספר שלך — התחבר/י לחשבון הקיים.',
   // ── Job board, calendar & shared UI (were falling back to Hebrew) ──────
   alreadyBookedThenMsg: 'כבר יש לך עבודה בשעה הזו — לא ניתן לקחת שתיים חופפות',
   atHour: 'בשעה',
@@ -803,6 +809,12 @@ const he = {
 };
 
 const en: typeof he = {
+  // ── Email verification gate ───────────────────────────────────────────
+  verifyEmailContinue: 'I have verified — continue',
+  verifyEmailNotYet: 'The address is not verified yet. Open the link in the email, then try again.',
+  verifyEmailSendFailed: 'We could not send the verification email. Press “Send again” — if it keeps failing, contact support.',
+  // ── Phone uniqueness ──────────────────────────────────────────────────
+  vErrPhoneTaken: 'That phone number is already registered. If it is yours, sign in to the existing account.',
   // ── Job board, calendar & shared UI (were falling back to Hebrew) ──────
   alreadyBookedThenMsg: 'You already have a job at that time — you can\'t take two overlapping ones',
   atHour: 'at',
@@ -1445,6 +1457,12 @@ const en: typeof he = {
 };
 
 const ru: typeof he = {
+  // ── Email verification gate ───────────────────────────────────────────
+  verifyEmailContinue: 'Я подтвердил — продолжить',
+  verifyEmailNotYet: 'Адрес ещё не подтверждён. Откройте ссылку из письма и попробуйте снова.',
+  verifyEmailSendFailed: 'Не удалось отправить письмо с подтверждением. Нажмите «Отправить снова» — если не помогает, обратитесь в поддержку.',
+  // ── Phone uniqueness ──────────────────────────────────────────────────
+  vErrPhoneTaken: 'Этот номер телефона уже зарегистрирован. Если он ваш — войдите в существующий аккаунт.',
   // ── Job board, calendar & shared UI (were falling back to Hebrew) ──────
   alreadyBookedThenMsg: 'У вас уже есть работа в это время — нельзя взять две пересекающиеся',
   atHour: 'в',
@@ -2086,6 +2104,12 @@ const ru: typeof he = {
 };
 
 const ar: typeof he = {
+  // ── Email verification gate ───────────────────────────────────────────
+  verifyEmailContinue: 'لقد أكّدت — متابعة',
+  verifyEmailNotYet: 'لم يتم تأكيد العنوان بعد. افتح الرابط في الرسالة ثم حاول مرة أخرى.',
+  verifyEmailSendFailed: 'تعذّر إرسال رسالة التأكيد. اضغط «إرسال مرة أخرى» — وإن استمر الأمر، تواصل مع الدعم.',
+  // ── Phone uniqueness ──────────────────────────────────────────────────
+  vErrPhoneTaken: 'رقم الهاتف هذا مسجّل بالفعل. إذا كان رقمك، سجّل الدخول إلى حسابك الحالي.',
   // ── Job board, calendar & shared UI (were falling back to Hebrew) ──────
   alreadyBookedThenMsg: 'لديك عمل بالفعل في هذا الوقت — لا يمكن أخذ عملين متداخلين',
   atHour: 'في الساعة',
@@ -2727,6 +2751,12 @@ const ar: typeof he = {
 };
 
 const fr: typeof he = {
+  // ── Email verification gate ───────────────────────────────────────────
+  verifyEmailContinue: 'J’ai vérifié — continuer',
+  verifyEmailNotYet: 'L’adresse n’est pas encore vérifiée. Ouvrez le lien dans l’e-mail, puis réessayez.',
+  verifyEmailSendFailed: 'Impossible d’envoyer l’e-mail de vérification. Appuyez sur « Renvoyer » — si cela persiste, contactez le support.',
+  // ── Phone uniqueness ──────────────────────────────────────────────────
+  vErrPhoneTaken: 'Ce numéro de téléphone est déjà enregistré. S’il est le vôtre, connectez-vous au compte existant.',
   // ── Job board, calendar & shared UI (were falling back to Hebrew) ──────
   alreadyBookedThenMsg: 'Vous avez déjà une mission à cette heure — impossible d’en prendre deux qui se chevauchent',
   atHour: 'à',
@@ -3307,6 +3337,12 @@ const fr: typeof he = {
 };
 
 const hi: typeof he = {
+  // ── Email verification gate ───────────────────────────────────────────
+  verifyEmailContinue: 'मैंने सत्यापित कर लिया — जारी रखें',
+  verifyEmailNotYet: 'पता अभी सत्यापित नहीं हुआ। ईमेल में दिए लिंक को खोलें, फिर प्रयास करें।',
+  verifyEmailSendFailed: 'सत्यापन ईमेल नहीं भेजा जा सका। “फिर भेजें” दबाएँ — यदि समस्या बनी रहे तो सहायता से संपर्क करें।',
+  // ── Phone uniqueness ──────────────────────────────────────────────────
+  vErrPhoneTaken: 'यह फ़ोन नंबर पहले से पंजीकृत है। यदि यह आपका है, तो मौजूदा खाते में साइन इन करें।',
   // ── Job board, calendar & shared UI (were falling back to Hebrew) ──────
   alreadyBookedThenMsg: 'उस समय आपका पहले से काम है — दो ओवरलैपिंग काम नहीं ले सकते',
   atHour: 'बजे',

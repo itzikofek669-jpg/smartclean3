@@ -9,7 +9,6 @@ import { doc, updateDoc, collection, query, where, onSnapshot } from 'firebase/f
 import { auth, db } from '../lib/firebase';
 import { getActiveChat } from '../lib/chatPresence';
 import { logError } from '../lib/logError';
-import { mustVerifyEmail } from '../lib/emailVerification';
 import { loadDemoMode } from '../lib/demoMode';
 import { loadDiagnostics, diagnosticsEnabled, record } from '../lib/diagnostics';
 import { primeCalendarPermission, addBookingToCalendar, removeBookingFromCalendar, calendarSyncMessage, shouldWarnCalendarOnce } from '../lib/calendarSync';
@@ -19,6 +18,7 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { useFonts, NotoSansDevanagari_400Regular } from '@expo-google-fonts/noto-sans-devanagari';
 import ErrorBoundary from '../lib/ErrorBoundary';
 import LocationGate from '../lib/LocationGate';
+import EmailVerifyGate from '../lib/EmailVerifyGate';
 
 // Hide the Expo Go push-notification warnings (remote push isn't supported in
 // Expo Go since SDK 53; works in a real build). Avoids the red error overlay.
@@ -148,25 +148,10 @@ export default function RootLayout() {
         await SecureStore.deleteItemAsync('remember_pass').catch(() => {});
       }
 
-      // חשבון שנרשם תחת דרישת אימות המייל ולא אימת — לא נכנס, גם לא דרך
-      // "זכור אותי" ולא דרך סשן ששרד במכשיר.
-      //
-      // נבדק כאן, לפני שההאזנה מתחילה לנתב, ולא בתוך ההאזנה עצמה: שם הוא היה
-      // מנתק גם את החשבון שנוצר ברגע זה במסך ההרשמה (ומפיל את כתיבת הפרופיל
-      // שרצה מיד אחריו) וגם את השליחה החוזרת של קישור האימות ממסך הכניסה.
-      // שני המסכים האלה מתנתקים בעצמם בסיום.
-      //
-      // ה-reload נדרש כי הדגל צרוב באסימון: מי שאימת בדפדפן עדיין נושא אסימון
-      // ישן, ובלעדיו היה נחסם בדיוק על ידי הבדיקה שהקישור אמור היה לספק.
-      const restored = auth.currentUser;
-      if (!cancelled && restored && mustVerifyEmail(restored)) {
-        await restored.reload().catch(() => {});
-        if (!cancelled && mustVerifyEmail(restored)) {
-          await SecureStore.deleteItemAsync('remember_email').catch(() => {});
-          await SecureStore.deleteItemAsync('remember_pass').catch(() => {});
-          await signOut(auth).catch(() => {});
-        }
-      }
+      // אין כאן יותר ניתוק של חשבון שלא אומת. ניתוק בפתיחת האפליקציה הוא בדיוק
+      // מה שנעל בחוץ מי שנרשם והמייל לא הגיע אליו — הוא איבד את הסשן ולא נותרה
+      // לו שום דרך לבקש אותו שוב. EmailVerifyGate חוסם את המסכים במקום, מתוך
+      // סשן חי שיכול לשלוח מייל חוזר ולהמשיך פנימה ברגע שהכתובת מאומתת.
 
       unsubAuth = onAuthStateChanged(auth, user => {
         if (cancelled) return;
@@ -474,6 +459,8 @@ ${(err as any)?.message ?? err}`);
                   מסך, כולל סרגל הניווט, ולא רק על המסך הראשי. בתוך הספקים כדי
                   שיוכל להציג עברית בערכת הנושא של המשתמש. */}
               <LocationGate />
+              {/* מעל שער המיקום: אימות המייל הוא התנאי הבסיסי יותר. */}
+              <EmailVerifyGate />
             </ErrorBoundary>
           </LanguageProvider>
         </ThemeProvider>

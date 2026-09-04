@@ -26,6 +26,7 @@ import ServiceInfoBtn from '../lib/ServiceInfoBtn';
 import { MaterialIcons } from '@expo/vector-icons';
 import { logError } from '../lib/logError';
 import { sendVerificationEmail } from '../lib/emailVerification';
+import { isPhoneTaken } from '../lib/accountChecks';
 
 const NAV_BAR_HEIGHT = Platform.OS === 'android'
   ? Math.max(0, Dimensions.get('screen').height - Dimensions.get('window').height - (StatusBar.currentHeight || 0))
@@ -718,6 +719,17 @@ export default function RegisterScreen() {
         }
       }
 
+      // הטלפון נבדק רק עכשיו: users קריא לקורא מחובר בלבד, ומי שממלא את הטופס
+      // עדיין אינו כזה. מספר תפוס מגלגל את החשבון לאחור, כמו כישלון כתיבת פרופיל.
+      if (await isPhoneTaken(normalizePhone(phone))) {
+        try {
+          const { deleteUser } = await import('firebase/auth');
+          await deleteUser(cred.user);
+        } catch (_) {}
+        Alert.alert(t.error, t.vErrPhoneTaken || 'מספר הטלפון הזה כבר רשום במערכת.');
+        return;
+      }
+
       // הרשמה היא שתי כתיבות שחייבות להצליח יחד: חשבון ההזדהות ומסמך הפרופיל.
       // אם כתיבת הפרופיל נכשלת אנחנו מגלגלים את החשבון לאחור — אחרת המשתמש
       // נשאר עם זהות בלי פרופיל, מצב שהאפליקציה מתייחסת אליו כשבור, וגם חוסם
@@ -758,23 +770,18 @@ export default function RegisterScreen() {
       }
 
 
-      // הכתובת לא מוכחת עד שנפתח הקישור שבמייל, ולכן החשבון החדש נשלח מיד
-      // החוצה במקום להיכנס לאפליקציה — כתובת עם טעות הקלדה או כתובת מומצאת
-      // אסור שתהפוך לחשבון עובד.
+      // שולחים את הקישור ונשארים מחוברים. EmailVerifyGate חוסם כל מסך עד
+      // לאימות, ולכן שום דבר לא נפתח כאן — אבל הסשן שורד, וזה מה שמאפשר
+      // לשלוח את המייל שוב ולהמשיך בלי להקליד סיסמה מחדש.
       //
-      // השליחה וההתנתקות רצות כאן ולא בתוך onPress של דיאלוג: משתמש שסוגר
-      // דיאלוג בלי לבחור (Back באנדרואיד) היה נשאר מחובר ולא מאומת.
-      //
-      // שליחה שנכשלת אינה סיבה לגלגל את ההרשמה לאחור: הפרופיל נשמר, ומסך
-      // הכניסה מציע שליחה חוזרת למי שהמייל לא הגיע אליו.
+      // ניתוק מיד אחרי ההרשמה הוא מה שנעל בחוץ כל מי שהמייל לא הגיע אליו.
       try {
         await sendVerificationEmail(cred.user, prefLang);
       } catch (mailErr) {
         logError('register:sendVerification', mailErr);
       }
-      await signOut(auth).catch(() => {});
 
-      const goToLogin = () => router.replace('/');
+      const goToLogin = () => router.replace('/home');
 
       // ── מנקה: הסבר קצר ואז בקשת הרשאות מיקום + התראות ──
       // ההרשאות נשאלות אחרי הודעת האימות: היא הדבר שהמשתמש חייב לפעול לפיו,
@@ -797,13 +804,7 @@ export default function RegisterScreen() {
           ])
         : goToLogin;
 
-      Alert.alert(
-        t.verifyEmailTitle || 'אימות כתובת המייל',
-        `${t.verifyEmailSentTo || 'שלחנו קישור אימות לכתובת:'}\n${email.trim()}\n\n${
-          t.verifyEmailInstructions
-          || 'יש לפתוח את הקישור שבמייל ואז להתחבר. אם המייל לא הגיע תוך כמה דקות, בדקו גם בתיקיית הספאם.'}`,
-        [{ text: t.loginBtn || 'התחברות', onPress: afterVerifyNotice }],
-      );
+      afterVerifyNotice();
     } catch (e: any) {
       console.error('[REGISTER FIRESTORE ERROR]', e.code, e.message);
       Alert.alert(t.error, `שגיאת שמירת פרופיל (${e.code || e.message || 'unknown'})\nהחשבון נוצר — נסה להתחבר ולפנות לתמיכה`);

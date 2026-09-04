@@ -1,9 +1,6 @@
 import { sendEmailVerification, type User } from 'firebase/auth';
 import { auth } from './firebase';
 
-/** Where the confirmation link lands once Firebase has marked the address good. */
-const CONTINUE_URL = 'https://smartclean1-db1fb.web.app/';
-
 /**
  * הרשמה מחייבת תיבת דואר עובדת מהרגע הזה והלאה.
  *
@@ -33,5 +30,9 @@ export async function sendVerificationEmail(user: User, lang?: string): Promise<
   // Firebase בוחר את שפת תבנית המייל לפי זה. קוד שפה שאינו נתמך נופל לאנגלית
   // ולא נכשל, ולכן בטוח להעביר כל ערך.
   if (lang) auth.languageCode = lang;
-  await sendEmailVerification(user, { url: CONTINUE_URL, handleCodeInApp: false });
+  // בכוונה בלי actionCodeSettings. כתובת המשך חייבת להופיע ברשימת הדומיינים
+  // המורשים של Auth, וכשהיא לא שם Firebase דוחה את כל הקריאה עם
+  // auth/unauthorized-continue-uri — לא נשלח מייל, והתסמין היחיד הוא שליחה
+  // ששקטה ולא עשתה כלום. הצורה הפשוטה לא יכולה להיכשל כך.
+  await sendEmailVerification(user);
 }
