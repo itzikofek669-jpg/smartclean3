@@ -26,7 +26,6 @@ import ServiceInfoBtn from '../lib/ServiceInfoBtn';
 import { MaterialIcons } from '@expo/vector-icons';
 import { logError } from '../lib/logError';
 import { sendVerificationEmail } from '../lib/emailVerification';
-import { isPhoneTaken } from '../lib/accountChecks';
 
 const NAV_BAR_HEIGHT = Platform.OS === 'android'
   ? Math.max(0, Dimensions.get('screen').height - Dimensions.get('window').height - (StatusBar.currentHeight || 0))
@@ -719,17 +718,6 @@ export default function RegisterScreen() {
         }
       }
 
-      // הטלפון נבדק רק עכשיו: users קריא לקורא מחובר בלבד, ומי שממלא את הטופס
-      // עדיין אינו כזה. מספר תפוס מגלגל את החשבון לאחור, כמו כישלון כתיבת פרופיל.
-      if (await isPhoneTaken(normalizePhone(phone))) {
-        try {
-          const { deleteUser } = await import('firebase/auth');
-          await deleteUser(cred.user);
-        } catch (_) {}
-        Alert.alert(t.error, t.vErrPhoneTaken || 'מספר הטלפון הזה כבר רשום במערכת.');
-        return;
-      }
-
       // הרשמה היא שתי כתיבות שחייבות להצליח יחד: חשבון ההזדהות ומסמך הפרופיל.
       // אם כתיבת הפרופיל נכשלת אנחנו מגלגלים את החשבון לאחור — אחרת המשתמש
       // נשאר עם זהות בלי פרופיל, מצב שהאפליקציה מתייחסת אליו כשבור, וגם חוסם
@@ -807,6 +795,7 @@ export default function RegisterScreen() {
       afterVerifyNotice();
     } catch (e: any) {
       console.error('[REGISTER FIRESTORE ERROR]', e.code, e.message);
+      logError('register:afterAuth', e);
       Alert.alert(t.error, `שגיאת שמירת פרופיל (${e.code || e.message || 'unknown'})\nהחשבון נוצר — נסה להתחבר ולפנות לתמיכה`);
     } finally {
       setLoading(false);
