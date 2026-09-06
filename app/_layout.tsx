@@ -90,10 +90,18 @@ async function registerPushToken(uid: string) {
 
     const tokenData = await Notifications.getExpoPushTokenAsync({ projectId });
     const token = tokenData?.data;
-    if (!token) return;
+    if (!token) { record('push:noToken', { projectId }); return; }
 
     await updateDoc(doc(db, 'users', uid), { pushToken: token });
-  } catch (_) {}
+    record('push:registered', { token: token.slice(0, 24) + '…' });
+  } catch (err) {
+    // Was an empty catch, which is how this could be broken for months without
+    // a trace. On Android the usual cause is FCM not being configured in the
+    // build at all — no google-services.json — and the throw is the only thing
+    // that says so.
+    logError('push:register', err);
+    record('push:failed', { message: String((err as any)?.message ?? err).slice(0, 200) });
+  }
 }
 
 /** `YYYY-MM-DD` as day-first `DD/MM/YYYY`, the order Hebrew readers expect. */
