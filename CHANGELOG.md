@@ -1,5 +1,41 @@
 # Changelog
 
+## 1.2.21 (versionCode 24) — 2026-09-06
+
+- Close the four review findings the last round left open
+- Make the urgent release actually put the job back, and stop mislabelling failures
+- Give the verification gate a way out, and stop rewriting a settled flag
+- Stop guessing the role, and put the decisions under test
+- Let the build carry FCM credentials, and say so when it cannot
+- Stop swallowing push-registration failures
+- Refresh the token before deciding a profile is still unverified
+- Mark the profile verified the moment verification is detected
+- Make the map follow the app's theme instead of the phone's
+- Keep the house number when an address suggestion is picked
+- Let the verification screen admit people by itself
+- Take the phone-uniqueness check back out of registration
+- Drop the service-type icons from the cleaner card
+- Stop signing unverified accounts out — gate the screens instead
+- Translate the 60 keys the app read but never defined
+- Open the location gate on the address given at registration
+- Lock the app for a cleaner who has not granted location access
+- Stop re-alerting about a failed calendar sync on every launch
+- Fix calendar sync, which every SDK-57 build has thrown on
+- Build a standalone APK, not a shell that needs Metro
+- Rotate the cleaner and job lists instead of fixing them in place
+- Release an urgent request when the booking it produced is cancelled
+- Require a confirmed email address before a new account may sign in
+- Add an iOS build to CI, which the project never had
+- Fix the Google Maps pod name for iOS, which SDK 57 leaves broken
+- Step 3/3: Expo SDK 56 -> 57 — no high-severity advisories left
+- Step 2/3: Expo SDK 55 -> 56
+- Step 1/3: Expo SDK 54 -> 55
+- Pin brace-expansion to 2.1.4, not 5 — 5 breaks the Android codegen
+- Add the missing expo-asset peer dep, and catch the SDK 54 patch releases up
+- app: finish the profile's service-details card
+- app: make the profile's service details match the web
+- app: drop the badge row from the cleaner profile
+
 ## 1.2.19 (versionCode 22) — 2026-08-22
 
 - Take the last badges off the cleaner cards
