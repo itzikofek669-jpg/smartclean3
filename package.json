@@ -10,7 +10,8 @@
     "web": "expo start --web",
     "lint": "expo lint",
     "version:bump": "node scripts/bump-version.js",
-    "version:show": "node -e \"const a=require('./app.json').expo;console.log(a.version+' (versionCode '+a.android.versionCode+')')\""
+    "version:show": "node -e \"const a=require('./app.json').expo;console.log(a.version+' (versionCode '+a.android.versionCode+')')\"",
+    "test": "rm -rf .tsbuild && tsc -p tsconfig.test.json && for f in .tsbuild/*.js; do mv \"$f\" \"${f%.js}.mjs\"; done && node --test test/*.test.mjs"
   },
   "dependencies": {
     "@expo-google-fonts/noto-sans-devanagari": "^0.4.1",

@@ -40,6 +40,7 @@ import {
   stripEmoji, countWords, limitWords, buildFullAddress,
 } from '../lib/jobUtils';
 import { compareCleaners, compareJobs, rotationRank } from '../lib/displayOrder';
+import { resolveRole } from '../lib/resolveRole';
 import { MAP_STYLE_LIGHT, MAP_STYLE_DARK } from '../lib/mapStyle';
 import { useTheme } from '../lib/ThemeContext';
 
@@ -3862,6 +3863,9 @@ export default function HomeScreen() {
   const [openBookings, setOpenBookings] = useState<any[]>([]);   // bookings: open==true, pending
   const [openUrgent,   setOpenUrgent]   = useState<any[]>([]);   // urgentRequests: status==open
   const [hiddenJobIds, setHiddenJobIds] = useState<Set<string>>(new Set()); // "דחה" מקומי
+  // התפקיד שכבר הקמנו עבורו את המאזינים, כדי שכתיבה למסמך המשתמש (busySlots,
+  // emailVerified) לא תקים אותם מחדש בכל פעם.
+  const roleSetupRef = useRef<'client' | 'cleaner' | null>(null);
   const prevCleanerPendingRef = useRef(-1);
   const cleanerPendingUnsubRef = useRef<(() => void) | null>(null);
   // busySlots האחרון שנכתב — כדי לא לכתוב לפיירסטור בכל snapshot ללא שינוי
@@ -4554,7 +4558,16 @@ export default function HomeScreen() {
   useEffect(() => {
     const uid = auth.currentUser?.uid;
     if (!uid) return;
-    getDoc(doc(db, 'users', uid)).then(snap => {
+    // מנוי חי ולא קריאה חד-פעמית.
+    //
+    // הקריאה החד-פעמית רצה ברגע שמסך הבית עולה, ומסך הבית עולה ברגע שנוצר
+    // חשבון ההזדהות — עוד לפני שההרשמה הספיקה לכתוב את מסמך הפרופיל. המסמך לא
+    // נמצא, והקוד הסיק "לקוח". מנקה שזה עתה נרשמה קיבלה את המסך של לקוח, וזה
+    // לא תוקן לעולם כי אף אחד לא קרא שוב.
+    //
+    // מסמך שעדיין לא קיים אינו "לקוח" — הוא תשובה שטרם הגיעה. עכשיו מחכים לו,
+    // והתפקיד נקבע כשהוא באמת נכתב.
+    const unsubUserDoc = onSnapshot(doc(db, 'users', uid), snap => {
       if (snap.exists()) {
         const data = snap.data();
         // קישור האימות נפתח בתוכנת דואר, שבה שום קוד שלנו לא רץ — הפרופיל לומד
@@ -4575,11 +4588,20 @@ export default function HomeScreen() {
           })();
         }
         if (data?.blockedUntilReview) setIsBlocked(true);
-        if (data?.role === 'cleaner') {
-          setMyRole('cleaner');
-          // מרחק מקסימלי + מיקום המנקה — לסינון ומיון לוח העבודות
+        const role = resolveRole({ exists: snap.exists(), data });
+        if (!role) return;                       // ראה lib/resolveRole
+        setMyRole(role);
+
+        // אלה נקראים בכל עדכון ולא רק בהקמה: עריכת המרחק או הכתובת בפרופיל
+        // צריכה להשתקף בלוח העבודות מיד, בלי לצאת ולהיכנס למסך.
+        if (role === 'cleaner') {
           setMyMaxKm(Number(data.maxDistance) > 0 ? Number(data.maxDistance) : 30);
           try { setMyCleanerCoords(getCoordsForCleaner(data)); } catch (_) {}
+        }
+
+        if (roleSetupRef.current === role) return;   // המאזינים כבר הוקמו לתפקיד הזה
+        roleSetupRef.current = role;
+        if (role === 'cleaner') {
           // האזן בזמן אמת להזמנות ממתינות עבור מנקה
           if (cleanerPendingUnsubRef.current) cleanerPendingUnsubRef.current();
           // טען את מזהי ההזמנות שכבר נראו/נסגרו (נשמרו במכשיר) כדי שהבאנר לא יחזור אחרי צפייה
@@ -4643,14 +4665,11 @@ export default function HomeScreen() {
             prevCleanerPendingRef.current = count;
             setCleanerPendingCount(count);
           }, () => {});
-        } else {
-          setMyRole('client');
         }
-      } else {
-        // משתמש קיים אך ללא מסמך — סמן כלקוח
-        setMyRole('client');
       }
-    }).catch(() => { setMyRole('client'); });
+      // אין ענף else: מסמך שאינו קיים עדיין אינו לקוח. משאירים את התפקיד ריק
+      // וממתינים לכתיבה — המנוי הזה יורה שוב ברגע שהיא מגיעה.
+    }, err => logError('home:userDoc', err));
 
     // Load client bookings for recurring rebook detection + mandatory review
     // ללא orderBy כדי להימנע מ-composite index — המיון נעשה ב-JS
@@ -4701,6 +4720,7 @@ export default function HomeScreen() {
         }
       }).catch(() => {});
     return () => {
+      unsubUserDoc();
       if (cleanerPendingUnsubRef.current) cleanerPendingUnsubRef.current();
     };
   }, []);
