@@ -54,27 +54,6 @@ jobs:
             console.log('version', j.expo.version, 'versionCode', j.expo.android.versionCode);
           "
 
-      - name: Cache Android debug keystore (keeps SHA-1 stable)
-        uses: actions/cache@v4
-        with:
-          path: ~/.android/debug.keystore
-          key: android-debug-keystore-v1
-
-      - name: Generate debug keystore if not cached
-        run: |
-          if [ ! -f ~/.android/debug.keystore ]; then
-            mkdir -p ~/.android
-            keytool -genkeypair -v \
-              -keystore ~/.android/debug.keystore \
-              -alias androiddebugkey \
-              -keyalg RSA -keysize 2048 -validity 10000 \
-              -storepass android -keypass android \
-              -dname "CN=Android Debug,O=Android,C=US"
-            echo "Keystore generated"
-          else
-            echo "Keystore restored from cache"
-          fi
-
       # בלי FCM אין טוקן פוש, ובלי טוקן אין התראות. EAS Build הזריק את
       # google-services.json מההרשאות ששמורות אצל Expo; בנייה מקומית על שרת
       # GitHub לא רואה אותן, ולכן הקובץ חייב להגיע לכאן כסוד של הריפו.
@@ -112,22 +91,26 @@ jobs:
         env:
           GRADLE_OPTS: "-Dorg.gradle.jvmargs=-Xmx4g"
 
-      # תבנית ה-release של Expo/RN מכוונת לחתימת ה-debug, ואז gradle מוציא
-      # app-release.apk חתום. אם התבנית תשתנה ותשאיר קובץ לא חתום, הוא לא ניתן
-      # להתקנה — אז חותמים כאן באותו keystore, כדי שה-SHA-1 יישאר זהה.
-      - name: Sign the APK if gradle left it unsigned
+      # תבנית ה-release של Expo/RN מכוונת לחתימת ה-debug, ו-gradle מוציא
+      # app-release.apk חתום. אם התבנית תשתנה ותשאיר קובץ לא חתום — עוצרים.
+      #
+      # קודם עמד כאן גיבוי שחתם ב-keystore שיוצר כאן בריצה ונשמר בקאש, "כדי
+      # שה-SHA-1 יישאר זהה". זה לא היה נכון: נמדד בבילד 190 ש-gradle חותם
+      # במפתח אחר לגמרי (‎5E:8F:16:…‎), ולא בזה (‎5D:F7:F2:…‎). כלומר אילו
+      # הגיבוי היה נכנס לפעולה, ה-APK היה יוצא חתום במפתח שונה מכל הבילדים
+      # שלפניו — לא מתקין מעל גרסה קיימת ("signatures do not match"), ו-Google
+      # Sign-In שבור, בלי ששום דבר בלוג יצביע לכאן.
+      #
+      # כישלון רועש עדיף על APK שנראה תקין ולא ניתן להתקנה. חתימה במפתח קבוע
+      # ומפורש (secret) היא הפתרון האמיתי כשיגיע הרגע לפרסם בחנות.
+      - name: Fail if gradle left the APK unsigned
         run: |
           set -e
           cd android/app/build/outputs/apk/release
           ls -la
-          if [ ! -f app-release.apk ] && [ -f app-release-unsigned.apk ]; then
-            BT=$(ls -d "$ANDROID_SDK_ROOT"/build-tools/* | sort -V | tail -1)
-            "$BT/apksigner" sign \
-              --ks ~/.android/debug.keystore \
-              --ks-key-alias androiddebugkey \
-              --ks-pass pass:android --key-pass pass:android \
-              --out app-release.apk app-release-unsigned.apk
-            echo "Signed with the debug keystore"
+          if [ ! -f app-release.apk ]; then
+            echo "::error::gradle produced no signed app-release.apk. Signing it here would use a different key than every previous build, so the APK would refuse to install over an existing one. Add an explicit signing keystore as a repo secret instead."
+            exit 1
           fi
 
       # השומר החשוב. בלעדיו הוורקפלואו יכול לחזור בשקט לייצר קליפה בלי קוד,
@@ -171,14 +154,14 @@ jobs:
           echo "APK signing SHA-1 (register this one in Firebase): $FMT"
           echo "::notice title=APK signing SHA-1::$FMT"
 
-          # אם זו עדיין חתימת ה-debug keystore שלנו, שתיהן יסכימו. כשהן לא —
-          # התבנית חתמה במפתח אחר, וזה בדיוק המקרה שההדפסה הישנה החביאה.
-          KS=$(keytool -list -v -keystore ~/.android/debug.keystore -alias androiddebugkey \
-                 -storepass android -keypass android 2>/dev/null \
-               | grep -m1 'SHA1:' | awk '{print $NF}')
-          if [ -n "$KS" ] && [ "$KS" != "$FMT" ]; then
-            echo "::warning::The cached debug keystore ($KS) is NOT what signed this APK ($FMT). Register the APK's fingerprint, not the keystore's."
+          # שמירה על יציבות: המפתח חייב להישאר זה שכל הבילדים הקודמים חתומים
+          # בו, אחרת אי אפשר להתקין מעל גרסה מותקנת. נמדד על בילד 186 ועל 190.
+          EXPECTED="5E:8F:16:06:2E:A3:CD:2C:4A:0D:54:78:76:BA:A6:F3:8C:AB:F6:25"
+          if [ "$FMT" != "$EXPECTED" ]; then
+            echo "::error::This APK is signed with $FMT, but every previous build used $EXPECTED. It will not install over an existing copy, and the Firebase SHA-1 no longer matches. Do not distribute this build."
+            exit 1
           fi
+          echo "Signing key unchanged from previous builds."
 
       - name: Name the APK after the commit
         id: apk

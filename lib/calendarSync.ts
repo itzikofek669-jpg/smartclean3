@@ -23,6 +23,10 @@ import { Alert, Platform } from 'react-native';
 import { logError } from './logError';
 import { record } from './diagnostics';
 import { auth } from './firebase';
+// The slot arithmetic lives on its own so it can be tested without a device —
+// it is the part that has already put an event on the wrong day. See
+// lib/bookingSlot.ts.
+import { startDateOf, bookingHours } from './bookingSlot';
 
 /**
  * SecureStore key holding the created event id for a booking, per signed-in user.
@@ -49,33 +53,6 @@ export interface CalendarBooking {
   serviceType?: string;
   cleanerName?: string;
   clientName?: string;
-}
-
-/** Parse the stored date + time into a real Date, or null if unusable. */
-function startDateOf(b: CalendarBooking): Date | null {
-  const date = String(b.bookingDate || '').trim();
-  const time = String(b.startTime || '').trim();
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || !/^\d{1,2}:\d{2}$/.test(time)) return null;
-  const [y, mo, d] = date.split('-').map(Number);
-  const [h, mi] = time.split(':').map(Number);
-  const dt = new Date(y, mo - 1, d, h, mi, 0, 0);
-  if (isNaN(dt.getTime())) return null;
-  // Reject anything the Date constructor silently rolled over.
-  //
-  // The regexes above check shape, not range, so '24:30' passes them — and
-  // new Date(y, m, d, 24, 30) is not invalid, it is 00:30 the NEXT DAY. A
-  // booking saved with that time produced a real calendar event on the wrong
-  // date, which reads to the user as 'it never reached my calendar' while
-  // every result code reports success. Month 13 and day 32 roll the same way.
-  //
-  // Comparing the parts back is the whole check: if any field moved, the
-  // input was not a real instant, and it belongs in bad-slot where it gets
-  // logged instead of quietly landing on another day.
-  if (
-    dt.getFullYear() !== y || dt.getMonth() !== mo - 1 || dt.getDate() !== d
-    || dt.getHours() !== h || dt.getMinutes() !== mi
-  ) return null;
-  return dt;
 }
 
 /**
@@ -314,7 +291,7 @@ async function addBookingToCalendarInner(
 
     const start = startDateOf(b);
     if (!start) return 'bad-slot';
-    const end = new Date(start.getTime() + (Number(b.hours) > 0 ? Number(b.hours) : 2) * 3600000);
+    const end = new Date(start.getTime() + bookingHours(b) * 3600000);
 
     const { status } = await Calendar.requestCalendarPermissionsAsync();
     if (status !== 'granted') return 'denied';
@@ -413,7 +390,7 @@ export async function removeBookingFromCalendar(
     if (!opts.sweep || !b) return;
     const start = startDateOf(b);
     if (!start) return;
-    const end = new Date(start.getTime() + (Number(b.hours) > 0 ? Number(b.hours) : 2) * 3600000);
+    const end = new Date(start.getTime() + bookingHours(b) * 3600000);
 
     const cals = await Calendar.getCalendarsAsync(Calendar.EntityTypes.EVENT);
     const ids = cals.filter(c => c.allowsModifications).map(c => c.id);

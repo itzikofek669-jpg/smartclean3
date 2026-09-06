@@ -12,6 +12,7 @@
   "files": [
     "lib/resolveRole.ts",
     "lib/verifyRule.ts",
-    "lib/displayOrder.ts"
+    "lib/displayOrder.ts",
+    "lib/bookingSlot.ts"
   ]
 }
