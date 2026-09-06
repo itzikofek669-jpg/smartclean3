@@ -75,6 +75,30 @@ jobs:
             echo "Keystore restored from cache"
           fi
 
+      # בלי FCM אין טוקן פוש, ובלי טוקן אין התראות. EAS Build הזריק את
+      # google-services.json מההרשאות ששמורות אצל Expo; בנייה מקומית על שרת
+      # GitHub לא רואה אותן, ולכן הקובץ חייב להגיע לכאן כסוד של הריפו.
+      #
+      # אם הסוד לא הוגדר, הבנייה ממשיכה בדיוק כמו קודם ומדפיסה אזהרה — כדי
+      # שהיעדר הפוש יהיה גלוי בלוג במקום להתגלות על מכשיר.
+      - name: Wire FCM when the credential is available
+        env:
+          GOOGLE_SERVICES_JSON: ${{ secrets.GOOGLE_SERVICES_JSON }}
+        run: |
+          if [ -n "$GOOGLE_SERVICES_JSON" ]; then
+            printf '%s' "$GOOGLE_SERVICES_JSON" > google-services.json
+            node -e "
+              const fs = require('fs');
+              const j = JSON.parse(fs.readFileSync('app.json', 'utf8'));
+              j.expo.android = j.expo.android || {};
+              j.expo.android.googleServicesFile = './google-services.json';
+              fs.writeFileSync('app.json', JSON.stringify(j, null, 2));
+              console.log('FCM wired — push notifications will work in this build');
+            "
+          else
+            echo "::warning::GOOGLE_SERVICES_JSON is not set. This APK will have no FCM, so push notifications will not work in it."
+          fi
+
       - name: Prebuild Android (generate native code)
         run: npx expo prebuild --platform android --no-install
         env:
