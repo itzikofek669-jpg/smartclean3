@@ -105,3 +105,49 @@ export function compareJobs(a: OrderableJob, b: OrderableJob): number {
   if (byDistance) return byDistance;
   return rotationRank(a.id) - rotationRank(b.id);
 }
+
+/** A window a cleaner is already booked for, as published on their user doc. */
+export interface BusySlot {
+  from?: string;
+  until?: string;
+}
+
+/** What deciding availability needs about a cleaner document, and nothing more. */
+export interface AvailabilityInput {
+  /** Absent counts as available — every profile predating the flag was listed. */
+  available?: boolean;
+  /** Accepted work the cleaner publishes on their own document. */
+  busySlots?: BusySlot[] | null;
+}
+
+/**
+ * Is this cleaner bookable right now?
+ *
+ * This existed twice and the two copies disagreed. The app subtracted the
+ * cleaner's `busySlots` — a cleaner in the middle of a job showed as busy — and
+ * the website read the `available` flag alone, so the same cleaner at the same
+ * moment was "available" on the web and "busy" in the app. Worse, the flag also
+ * feeds `compareCleaners`, whose whole contract is that both products rank the
+ * same people the same way; the ordering silently diverged with it.
+ *
+ * It is the recurring shape of every bug in this codebase: a decision taken in
+ * two places instead of one. So it is a pure function, shared, and tested.
+ *
+ * The manual flag wins when it says no — a cleaner who switched themselves off
+ * is off, whatever their calendar says. Otherwise an overlapping accepted
+ * booking makes them busy. Unparseable slots are skipped rather than treated as
+ * busy: a malformed timestamp is our bug, and it must not take a working
+ * cleaner off the market.
+ */
+export function isAvailableNow(cleaner: AvailabilityInput, now: Date = new Date()): boolean {
+  if (cleaner?.available === false) return false;
+  const slots = Array.isArray(cleaner?.busySlots) ? cleaner.busySlots : [];
+  const t = now.getTime();
+  for (const s of slots) {
+    const from = Date.parse(String(s?.from ?? ''));
+    const until = Date.parse(String(s?.until ?? ''));
+    if (Number.isNaN(from) || Number.isNaN(until)) continue;
+    if (from <= t && t < until) return false;
+  }
+  return true;
+}

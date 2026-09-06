@@ -183,29 +183,50 @@ export async function primeCalendarPermission(): Promise<void> {
   }
 }
 
-const warnKey = (bookingId: string) => `cal_warned_${bookingId}`;
+/**
+ * SecureStore key marking that this booking's sync failure has been reported.
+ *
+ * Scoped by uid and by role for the same reason evtKey is (see above): both
+ * parties sync the SAME booking id. A key of just `cal_warned_{bookingId}` was
+ * one slot shared by two people, so on a device where both roles are used the
+ * client's warning silenced the cleaner's — and after a sign-out the next
+ * account inherited the previous one's marks.
+ */
+const warnKey = (bookingId: string, role: string) =>
+  `cal_warned_${auth.currentUser?.uid ?? 'anon'}_${role}_${bookingId}`;
 
 /**
- * האם כדאי לספר למשתמש על כישלון הסנכרון של ההזמנה הזו — פעם אחת, אי פעם.
+ * האם כבר סיפרנו למשתמש הזה על כישלון הסנכרון של ההזמנה הזו.
  *
  * הסנכרון רץ מחדש בכל עליית אפליקציה, וכישלון הוא בדרך כלל מצב קבוע: יומן שלא
  * ניתן לכתוב אליו, הרשאה שנשללה, שגיאה שחוזרת על עצמה. הדגל שהיה קודם היה
  * משתנה מקומי בתוך ה-effect, כלומר הוא אופס בכל פתיחה — ולכן אותה הזמנה
  * הקפיצה את אותה הודעה בכל כניסה לאפליקציה, בלי סוף.
  *
- * הסימון נשמר במכשיר, ולכן ההודעה מופיעה פעם אחת בלבד לכל הזמנה. הניסיון עצמו
- * ממשיך לרוץ בכל פעם — כישלון עלול להיות זמני, ואם הוא ייפתר ההזמנה עוד תגיע
- * ליומן בשקט.
+ * הבדיקה והסימון הופרדו בכוונה. קודם הייתה כאן פונקציה אחת שגם בדקה וגם
+ * סימנה, והקורא היה יכול לוותר על ההודעה *אחרי* שהסימון כבר נכתב (הזמנה אחרת
+ * זכתה במרוץ על דגל הריצה) — כלומר האסימון נשרף בלי שאיש ראה הודעה, וההזמנה
+ * הזו לא תדווח לעולם. עכשיו הסימון נכתב רק כשההודעה באמת מוצגת.
+ *
+ * כשל באחסון נופל למצב "עוד לא הוזהר": הודעה כפולה עדיפה על אזהרה שנעלמת.
  */
-export async function shouldWarnCalendarOnce(bookingId: string): Promise<boolean> {
-  if (!bookingId) return false;
+export async function hasWarnedCalendar(bookingId: string, role: string): Promise<boolean> {
+  if (!bookingId) return true;
   try {
-    if (await SecureStore.getItemAsync(warnKey(bookingId))) return false;
-    await SecureStore.setItemAsync(warnKey(bookingId), new Date().toISOString());
-    return true;
+    return (await SecureStore.getItemAsync(warnKey(bookingId, role))) != null;
   } catch {
-    // אחסון לא זמין — נופלים חזרה לדגל של הקורא, שמגביל לפעם אחת בריצה.
-    return true;
+    return false;
+  }
+}
+
+/** מסמן שההודעה על ההזמנה הזו כבר הוצגה. נקרא רק אחרי שהיא באמת הוצגה. */
+export async function markCalendarWarned(bookingId: string, role: string): Promise<void> {
+  if (!bookingId) return;
+  try {
+    await SecureStore.setItemAsync(warnKey(bookingId, role), new Date().toISOString());
+  } catch (err) {
+    // אחסון לא זמין — הדגל של הקורא עדיין מגביל לפעם אחת בריצה הזו.
+    logError('calendarSync:markWarned', err);
   }
 }
 

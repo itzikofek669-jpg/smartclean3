@@ -11,6 +11,7 @@
   },
   "files": [
     "lib/resolveRole.ts",
-    "lib/verifyRule.ts"
+    "lib/verifyRule.ts",
+    "lib/displayOrder.ts"
   ]
 }

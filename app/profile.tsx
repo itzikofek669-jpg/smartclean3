@@ -1133,8 +1133,22 @@ export default function ProfileScreen() {
             }
             return true;
           });
-        // מחק אוטומטית פניות שפג תוקפן
-        expired.forEach(r => deleteDoc(doc(db, 'urgentRequests', r.id)).catch(() => {}));
+        // מחק אוטומטית פניות שפג תוקפן — אבל רק כאלה שמותר לנו למחוק.
+        //
+        // קודם נשלחה מחיקה על *כל* בקשה שפג תוקפה בתוצאות, כולל בקשות של
+        // לקוחות אחרים. חוקי Firestore מתירים מחיקה רק לבעל הבקשה או למנקה
+        // שמשויך אליה (firestore.rules, urgentRequests), ולכן כל שאר המחיקות
+        // נדחו — ו-`.catch(() => {})` בלע את הדחייה. התוצאה: גל קבוע של
+        // כתיבות שנדחות בכל snapshot, ולוג שקט שנראה כאילו הניקוי עובד.
+        //
+        // הבקשה שפג תוקפה נעלמת מהמסך בכל מקרה (היא סוננה למעלה). המחיקה
+        // בפועל קורית כשהבעלים פותח את המסך שלו — וזה היחיד שהחוקים מרשים לו.
+        expired
+          .filter((r: any) => r.clientUid === uid || r.cleanerId === uid)
+          .forEach((r: any) => deleteDoc(doc(db, 'urgentRequests', r.id))
+            // לא נבלע יותר: מחיקה שנדחית למרות שאנחנו הבעלים היא באג בחוקים,
+            // ואי אפשר לתקן מה שלא רואים.
+            .catch(err => logError('profile:urgentExpiredDelete', err)));
         setUrgentRequests(reqs);
         if (prevUrgentCount >= 0 && reqs.length > prevUrgentCount) setActiveTab('urgent');
         prevUrgentCount = reqs.length;

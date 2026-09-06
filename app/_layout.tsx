@@ -11,7 +11,7 @@ import { getActiveChat } from '../lib/chatPresence';
 import { logError } from '../lib/logError';
 import { loadDemoMode } from '../lib/demoMode';
 import { loadDiagnostics, diagnosticsEnabled, record } from '../lib/diagnostics';
-import { primeCalendarPermission, addBookingToCalendar, removeBookingFromCalendar, calendarSyncMessage, shouldWarnCalendarOnce } from '../lib/calendarSync';
+import { primeCalendarPermission, addBookingToCalendar, removeBookingFromCalendar, calendarSyncMessage, hasWarnedCalendar, markCalendarWarned } from '../lib/calendarSync';
 import { LanguageProvider } from '../lib/LanguageContext';
 import { ThemeProvider } from '../lib/ThemeContext';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
@@ -217,9 +217,9 @@ export default function RootLayout() {
     // This flag alone was not enough: it lives in the effect, so it reset on
     // every launch, and a booking whose sync keeps failing (an unwritable
     // calendar, a revoked permission) re-alerted every single time the app was
-    // opened. shouldWarnCalendarOnce remembers on the device, so each booking
-    // can produce at most one message ever; this flag still caps a single run
-    // to one message across all of them.
+    // opened. hasWarnedCalendar / markCalendarWarned remember on the device, per
+    // user and per role, so each booking can produce at most one message ever;
+    // this flag still caps a single run to one message across all of them.
     let warned = false;
     // Bookings whose calendar entry we have already taken out on this run.
     const removedCancelled = new Set<string>();
@@ -246,11 +246,16 @@ export default function RootLayout() {
               return;
             }
             if (warned) return;
-            if (!(await shouldWarnCalendarOnce(String(b.id)))) return;
+            if (await hasWarnedCalendar(String(b.id), role)) return;
             // נבדק שוב: הקריאה לאחסון היא await, והזמנה אחרת יכולה הייתה לזכות
             // במרוץ בזמן הזה.
+            //
+            // קודם הבדיקה הזו גם *כתבה* את הסימון, ולכן יציאה כאן שרפה את
+            // האסימון של ההזמנה בלי להציג עליה שום דבר — והיא לא הייתה מדווחת
+            // לעולם. הסימון נכתב עכשיו רק אחרי שההודעה באמת יצאה.
             if (warned) return;
             warned = true;
+            await markCalendarWarned(String(b.id), role);
             Alert.alert('', msg);
           })
           .catch(err => logError('layout:calendarAdd', err));

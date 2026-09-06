@@ -39,7 +39,7 @@ import {
   formatJobDate, bookingBusyWindow, windowsOverlap,
   stripEmoji, countWords, limitWords, buildFullAddress,
 } from '../lib/jobUtils';
-import { compareCleaners, compareJobs, rotationRank } from '../lib/displayOrder';
+import { compareCleaners, compareJobs, isAvailableNow, rotationRank } from '../lib/displayOrder';
 import { resolveRole } from '../lib/resolveRole';
 import { MAP_STYLE_LIGHT, MAP_STYLE_DARK } from '../lib/mapStyle';
 import { useTheme } from '../lib/ThemeContext';
@@ -5153,12 +5153,10 @@ export default function HomeScreen() {
           price:      data.price       || 0,
           rating:     data.rating      || 0,
           reviews:    data.reviewCount || 0,
-          available:  (() => {
-            const nowTs = new Date();
-            const slots: { from: string; until: string }[] = data.busySlots || [];
-            const isBusy = slots.some(s => new Date(s.from) <= nowTs && nowTs < new Date(s.until));
-            return isBusy ? false : data.available !== false;
-          })(),
+          // Shared with the website through lib/displayOrder, because the two
+          // used to compute this differently and showed the same cleaner as
+          // available on one and busy on the other.
+          available:  isAvailableNow(data),
           payment:    data.payment     || [],
           lat:        coords.lat,
           lng:        coords.lng,

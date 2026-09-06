@@ -143,8 +143,42 @@ jobs:
           fi
           echo "OK — the JS bundle is embedded"
 
-      - name: Print debug SHA-1
-        run: keytool -list -v -keystore ~/.android/debug.keystore -alias androiddebugkey -storepass android -keypass android 2>/dev/null | grep SHA1
+      # הטביעה שנרשמת ב-Firebase חייבת להיות זו שה-APK באמת חתום בה.
+      #
+      # קודם הודפס כאן ה-SHA-1 של ~/.android/debug.keystore. זה ה-keystore
+      # שאנחנו יוצרים ושומרים בקאש, אבל gradle חותם לפי signingConfig שתבנית
+      # expo prebuild מייצרת — והיא מצביעה על android/app/debug.keystore, קובץ
+      # שנוצר מחדש בכל prebuild. כלומר ההדפסה תיארה מפתח שייתכן שכלל לא שימש
+      # לחתימה, ורישום שלו ב-Firebase שובר את Google Sign-In בלי שום הודעת
+      # שגיאה שמצביעה לכאן.
+      #
+      # apksigner קורא את התעודה מתוך ה-APK הבנוי. זו האמת היחידה שיש, ולא
+      # משנה איזה keystore gradle בחר בסוף.
+      - name: Print the SHA-1 the APK is actually signed with
+        run: |
+          set -e
+          APK=android/app/build/outputs/apk/release/app-release.apk
+          BT=$(ls -d "$ANDROID_SDK_ROOT"/build-tools/* | sort -V | tail -1)
+          CERTS=$("$BT/apksigner" verify --print-certs "$APK")
+          echo "$CERTS" | grep -E 'SHA-1|SHA-256' || true
+          SHA1=$(echo "$CERTS" | grep -m1 'SHA-1 digest' | awk '{print $NF}')
+          if [ -z "$SHA1" ]; then
+            echo "::error::Could not read a SHA-1 out of the APK. Google Sign-In cannot be configured without it."
+            exit 1
+          fi
+          # בפורמט שמדביקים ל-Firebase Console (זוגות מופרדים בנקודתיים).
+          FMT=$(echo "$SHA1" | tr 'a-z' 'A-Z' | sed 's/../&:/g; s/:$//')
+          echo "APK signing SHA-1 (register this one in Firebase): $FMT"
+          echo "::notice title=APK signing SHA-1::$FMT"
+
+          # אם זו עדיין חתימת ה-debug keystore שלנו, שתיהן יסכימו. כשהן לא —
+          # התבנית חתמה במפתח אחר, וזה בדיוק המקרה שההדפסה הישנה החביאה.
+          KS=$(keytool -list -v -keystore ~/.android/debug.keystore -alias androiddebugkey \
+                 -storepass android -keypass android 2>/dev/null \
+               | grep -m1 'SHA1:' | awk '{print $NF}')
+          if [ -n "$KS" ] && [ "$KS" != "$FMT" ]; then
+            echo "::warning::The cached debug keystore ($KS) is NOT what signed this APK ($FMT). Register the APK's fingerprint, not the keystore's."
+          fi
 
       - name: Name the APK after the commit
         id: apk

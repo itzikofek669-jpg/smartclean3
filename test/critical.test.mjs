@@ -2,6 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { resolveRole } from '../.tsbuild/resolveRole.mjs';
 import { mustVerifyEmail, VERIFY_REQUIRED_FROM } from '../.tsbuild/verifyRule.mjs';
+import { isAvailableNow } from '../.tsbuild/displayOrder.mjs';
 
 // Every case here is a bug that reached a real user. They are regression tests,
 // not coverage: each one failed in production before it was written.
@@ -46,4 +47,50 @@ test('an unreadable creation time fails open, never closed', () => {
   // leaving one address unverified.
   assert.equal(mustVerifyEmail(user(false, undefined)), false);
   assert.equal(mustVerifyEmail(user(false, 'not a date')), false);
+});
+
+// ── Availability ───────────────────────────────────────────────────────────
+// The bug: this was computed in two places. The app subtracted the cleaner's
+// busySlots; the website read the `available` flag alone. The same cleaner at
+// the same moment was busy in one product and available in the other — and
+// `available` is the first key compareCleaners sorts on, so the shared ordering
+// drifted with it.
+
+const AT = t => new Date(t);
+const slot = (from, until) => ({ from, until });
+
+test('a cleaner with no flag and no bookings is available', () => {
+  assert.equal(isAvailableNow({}, AT('2026-09-06T10:00:00Z')), true);
+});
+
+test('switching yourself off wins over an empty calendar', () => {
+  assert.equal(isAvailableNow({ available: false }, AT('2026-09-06T10:00:00Z')), false);
+});
+
+test('a cleaner inside an accepted booking is busy', () => {
+  const doc = { busySlots: [slot('2026-09-06T09:00:00Z', '2026-09-06T12:00:00Z')] };
+  assert.equal(isAvailableNow(doc, AT('2026-09-06T10:00:00Z')), false);
+});
+
+test('the end of a slot frees the cleaner, the start takes them', () => {
+  const doc = { busySlots: [slot('2026-09-06T09:00:00Z', '2026-09-06T12:00:00Z')] };
+  assert.equal(isAvailableNow(doc, AT('2026-09-06T09:00:00Z')), false, 'start is inside');
+  assert.equal(isAvailableNow(doc, AT('2026-09-06T12:00:00Z')), true, 'end is not');
+});
+
+test('a booking that is over does not keep the cleaner busy', () => {
+  const doc = { busySlots: [slot('2026-09-06T06:00:00Z', '2026-09-06T08:00:00Z')] };
+  assert.equal(isAvailableNow(doc, AT('2026-09-06T10:00:00Z')), true);
+});
+
+test('a malformed slot never takes a working cleaner off the market', () => {
+  // A bad timestamp is our bug. Failing closed would hide a real cleaner from
+  // every client until someone noticed.
+  const doc = { busySlots: [slot('not a date', ''), null, undefined] };
+  assert.equal(isAvailableNow(doc, AT('2026-09-06T10:00:00Z')), true);
+});
+
+test('busySlots that is not an array is ignored, not thrown on', () => {
+  assert.equal(isAvailableNow({ busySlots: null }, AT('2026-09-06T10:00:00Z')), true);
+  assert.equal(isAvailableNow({ busySlots: 'nonsense' }, AT('2026-09-06T10:00:00Z')), true);
 });
