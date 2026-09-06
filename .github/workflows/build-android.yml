@@ -1,9 +1,14 @@
 name: Build Android APK
 
+# הפעלה ידנית בלבד.
+#
+# קודם היה כאן גם `push: branches: [main]`, כלומר כל דחיפה ל-main פתחה בילד
+# של רבע שעה. בפועל זה גם קידם את מספר הבילד בלי קשר לגרסה: דחיפה, דחיפה,
+# והפעלה ידנית פתחו שלוש ריצות במקביל, ומה שהיה אמור להיות 187 יצא 190.
+#
+# APK נוצר כשמבקשים אותו:  gh workflow run build-android.yml --ref main
 on:
-  push:
-    branches: [main]
-  workflow_dispatch:   # אפשר גם הפעלה ידנית
+  workflow_dispatch:
 
 # בונה APK עצמאי (release), לא dev client.
 #
