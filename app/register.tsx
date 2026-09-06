@@ -415,6 +415,28 @@ export default function RegisterScreen() {
     }, 350);
   };
 
+  /**
+   * החזרת מספר הבית שהמשתמש הקליד לתוך ההצעה שנבחרה.
+   *
+   * Nominatim מחזיר לרוב את הרחוב בלי מספר — חיפוש "רקפת 27 חריש" חוזר כ-
+   * "רקפת, חריש". לחיצה על ההצעה דרסה את כל השדה, וה-27 פשוט נעלם: המשתמש
+   * הקליד כתובת מלאה, בחר במה שנראה כמו אישור שלה, וקיבל כתובת חלקית.
+   *
+   * לכן אם להצעה אין מספר ולמה שהוקלד יש — המספר נשתל חזרה אחרי שם הרחוב.
+   * להצעה שכבר כוללת מספר לא נוגעים: היא באה מהשרת ומדויקת יותר.
+   */
+  const withTypedHouseNumber = (typed: string, suggestion: string): string => {
+    const parts  = suggestion.split(',');
+    const street = parts[0].trim();
+    const rest   = parts.slice(1).join(',').trim();
+    if (/\d/.test(street)) return suggestion;
+    // מספר עומד בפני עצמו, עם אות בית אופציונלית ("27", "27א", "12 B")
+    const m = String(typed).match(/(?:^|\s)(\d{1,4}\s?[א-תA-Za-z]?)(?=\s|,|$)/);
+    if (!m) return suggestion;
+    const num = m[1].trim();
+    return rest ? `${street} ${num}, ${rest}` : `${street} ${num}`;
+  };
+
   const handleCityChange = (text: string) => {
     setCity(text);
     fetchAddrSuggestions(text);
@@ -893,7 +915,7 @@ export default function RegisterScreen() {
                       <TouchableOpacity
                         key={i}
                         style={[s.addrSugRow, i < addrSuggestions.length - 1 && s.addrSugBorder]}
-                        onPress={() => { setCity(sug); setAddrSuggestions([]); }}
+                        onPress={() => { setCity(withTypedHouseNumber(city, sug)); setAddrSuggestions([]); }}
                       >
                         <Text style={s.addrSugText}>📍 {sug}</Text>
                       </TouchableOpacity>
