@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { AppState, Linking, StyleSheet, TouchableOpacity, View } from 'react-native';
+import { AppState, Linking, Platform, StyleSheet, TouchableOpacity, View } from 'react-native';
 import { onAuthStateChanged, type User } from 'firebase/auth';
 import { auth } from './firebase';
 import { mustVerifyEmail, sendVerificationEmail } from './emailVerification';
@@ -45,8 +45,10 @@ export default function EmailVerifyGate() {
       await u.reload();
       const still = mustVerifyEmail(u);
       setBlocked(still);
-      if (still) setNote((t as any).verifyEmailNotYet
-        || 'הכתובת עדיין לא מאומתת. פתחו את הקישור שבמייל ואז נסו שוב.');
+      // Deliberately silent when still unverified: this runs every few seconds,
+      // and a message that reappears on its own reads as a repeating failure.
+      // The explicit button reports; the poll just waits.
+      if (!still) setNote('');
     } catch (err) { logError('EmailVerifyGate/reload', err); }
   }, [t]);
 
@@ -55,9 +57,42 @@ export default function EmailVerifyGate() {
     return () => sub.remove();
   }, [recheck]);
 
+  // While this screen is up, keep asking. The link is confirmed in a browser,
+  // and coming back to a screen that still says "not verified" — with a button
+  // to press — reads as though nothing happened. Polling lets the app open
+  // itself the moment the address goes through, which is what the returning
+  // user expects. Only runs while blocked, so it costs nothing otherwise.
+  useEffect(() => {
+    if (!blocked) return;
+    const id = setInterval(() => { void recheck(); }, 4000);
+    return () => clearInterval(id);
+  }, [blocked, recheck]);
+
   if (!blocked || !user) return null;
 
   const tt = t as any;
+
+  /**
+   * Open the inbox, not a blank compose window.
+   *
+   * `mailto:` opens a new message, which is not where the confirmation link is.
+   * Android's own way to reach whatever mail app the person actually uses is
+   * the APP_EMAIL category; Gmail's scheme is tried first because it is the
+   * common case, and mailto: stays as the last resort so the button always
+   * does something.
+   */
+  const openInbox = async () => {
+    const targets = Platform.OS === 'android'
+      ? ['googlegmail://', 'intent://#Intent;action=android.intent.action.MAIN;category=android.intent.category.APP_EMAIL;end', 'mailto:']
+      : ['message://', 'googlegmail://', 'mailto:'];
+    for (const url of targets) {
+      try {
+        if (await Linking.canOpenURL(url)) { await Linking.openURL(url); return; }
+      } catch (_) { /* try the next one */ }
+    }
+    Linking.openURL('mailto:').catch(() => {});
+  };
+
   const resend = async () => {
     setBusy(true); setNote('');
     try {
@@ -83,6 +118,9 @@ export default function EmailVerifyGate() {
           || 'יש לפתוח את הקישור שבמייל ואז להתחבר. אם המייל לא הגיע תוך כמה דקות, בדקו גם בתיקיית הספאם.'}
       </T>
 
+      <T style={[s.note, { color: C.textSub }]}>
+        {tt.verifyEmailWaiting || 'ממתינים לאישור… ברגע שתאשרו במייל, ניכנס אוטומטית.'}
+      </T>
       {!!note && <T style={[s.note, { color: C.blue }]}>{note}</T>}
 
       <TouchableOpacity style={[s.btn, { backgroundColor: C.blue, opacity: busy ? 0.6 : 1 }]}
@@ -92,7 +130,7 @@ export default function EmailVerifyGate() {
       <TouchableOpacity style={s.linkBtn} disabled={busy} onPress={resend}>
         <T style={[s.linkText, { color: C.blue }]}>{tt.verifyEmailResend || 'שליחת מייל אימות שוב'}</T>
       </TouchableOpacity>
-      <TouchableOpacity style={s.linkBtn} onPress={() => Linking.openURL('mailto:').catch(() => {})}>
+      <TouchableOpacity style={s.linkBtn} onPress={openInbox}>
         <T style={[s.linkText, { color: C.textSub }]}>{tt.openMailApp || 'פתיחת אפליקציית המייל'}</T>
       </TouchableOpacity>
     </View>

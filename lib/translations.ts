@@ -3,6 +3,10 @@ import { ukData } from './ukData';
 export type Lang = 'he' | 'en' | 'ru' | 'ar' | 'fr' | 'hi' | 'uk';
 
 const he = {
+  // ── Mail app shortcuts / verification waiting ─────────────────────────
+  openMailApp: 'פתיחת אפליקציית המייל',
+  openMailInbox: 'פתיחת תיבת המייל',
+  verifyEmailWaiting: 'ממתינים לאישור… ברגע שתאשרו במייל, ניכנס אוטומטית.',
   // ── Email verification gate ───────────────────────────────────────────
   verifyEmailContinue: 'אימתתי — המשך',
   verifyEmailNotYet: 'הכתובת עדיין לא מאומתת. פתחו את הקישור שבמייל ואז נסו שוב.',
@@ -809,6 +813,10 @@ const he = {
 };
 
 const en: typeof he = {
+  // ── Mail app shortcuts / verification waiting ─────────────────────────
+  openMailApp: 'Open the mail app',
+  openMailInbox: 'Open your inbox',
+  verifyEmailWaiting: 'Waiting for confirmation… the moment you confirm in the email, we go straight in.',
   // ── Email verification gate ───────────────────────────────────────────
   verifyEmailContinue: 'I have verified — continue',
   verifyEmailNotYet: 'The address is not verified yet. Open the link in the email, then try again.',
@@ -1457,6 +1465,10 @@ const en: typeof he = {
 };
 
 const ru: typeof he = {
+  // ── Mail app shortcuts / verification waiting ─────────────────────────
+  openMailApp: 'Открыть почту',
+  openMailInbox: 'Открыть входящие',
+  verifyEmailWaiting: 'Ожидаем подтверждения… как только вы подтвердите в письме, мы войдём автоматически.',
   // ── Email verification gate ───────────────────────────────────────────
   verifyEmailContinue: 'Я подтвердил — продолжить',
   verifyEmailNotYet: 'Адрес ещё не подтверждён. Откройте ссылку из письма и попробуйте снова.',
@@ -2104,6 +2116,10 @@ const ru: typeof he = {
 };
 
 const ar: typeof he = {
+  // ── Mail app shortcuts / verification waiting ─────────────────────────
+  openMailApp: 'فتح تطبيق البريد',
+  openMailInbox: 'فتح صندوق الوارد',
+  verifyEmailWaiting: 'بانتظار التأكيد… بمجرد أن تؤكد في الرسالة، سندخل تلقائياً.',
   // ── Email verification gate ───────────────────────────────────────────
   verifyEmailContinue: 'لقد أكّدت — متابعة',
   verifyEmailNotYet: 'لم يتم تأكيد العنوان بعد. افتح الرابط في الرسالة ثم حاول مرة أخرى.',
@@ -2751,6 +2767,10 @@ const ar: typeof he = {
 };
 
 const fr: typeof he = {
+  // ── Mail app shortcuts / verification waiting ─────────────────────────
+  openMailApp: 'Ouvrir l’application e-mail',
+  openMailInbox: 'Ouvrir votre boîte de réception',
+  verifyEmailWaiting: 'En attente de confirmation… dès que vous confirmez dans l’e-mail, on entre automatiquement.',
   // ── Email verification gate ───────────────────────────────────────────
   verifyEmailContinue: 'J’ai vérifié — continuer',
   verifyEmailNotYet: 'L’adresse n’est pas encore vérifiée. Ouvrez le lien dans l’e-mail, puis réessayez.',
@@ -3337,6 +3357,10 @@ const fr: typeof he = {
 };
 
 const hi: typeof he = {
+  // ── Mail app shortcuts / verification waiting ─────────────────────────
+  openMailApp: 'मेल ऐप खोलें',
+  openMailInbox: 'अपना इनबॉक्स खोलें',
+  verifyEmailWaiting: 'पुष्टि की प्रतीक्षा… जैसे ही आप ईमेल में पुष्टि करेंगे, हम अपने आप अंदर चले जाएँगे।',
   // ── Email verification gate ───────────────────────────────────────────
   verifyEmailContinue: 'मैंने सत्यापित कर लिया — जारी रखें',
   verifyEmailNotYet: 'पता अभी सत्यापित नहीं हुआ। ईमेल में दिए लिंक को खोलें, फिर प्रयास करें।',
