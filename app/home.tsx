@@ -5007,7 +5007,15 @@ export default function HomeScreen() {
           tx.update(ref, { cleanerId: uid, cleanerName: myName, open: false, status: 'confirmed' });
           return true;
         });
-      } catch (_) { won = false; }
+      } catch (err) {
+        // Not "someone beat you to it". A transaction that throws on a bad
+        // connection was reported as the job having been taken, so a cleaner on
+        // a weak signal was told to give up on a job that is still open. Only
+        // the check inside the transaction knows it was taken.
+        logError('home:claimJob', err);
+        Alert.alert(t.error, (t as any).jobClaimError ?? 'שגיאה בתפיסת העבודה — נסה שוב');
+        return;
+      }
       if (!won) {
         Alert.alert('', (t as any).jobTakenMsg ?? 'העבודה כבר נתפסה על ידי מנקה אחר');
         return;

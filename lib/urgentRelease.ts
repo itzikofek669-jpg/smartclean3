@@ -21,17 +21,34 @@ import { logError } from './logError';
  * חייב להישאר זהה ל-releaseUrgentRequest באתר (src/lib/cleanerActions.ts).
  */
 export async function releaseUrgentRequest(
-  booking: { urgentRequestId?: string } | null | undefined,
+  booking: { urgentRequestId?: string; bookingDate?: string; startTime?: string } | null | undefined,
   cancelledBy: 'cleaner' | 'client' | 'admin',
 ): Promise<void> {
   const reqId = booking?.urgentRequestId;
   if (!reqId) return;
+
+  // חלון חדש, אחרת השחרור הוא ריק מתוכן.
+  //
+  // expiresAt נקבע לשעתיים מרגע *היצירה*. בקשה שנוצרה ב-09:00 למחר ב-10:00 פגה
+  // כבר ב-11:00 היום, ולכן החזרתה ל-open מחר בבוקר החזירה כרטיס פג — וכל לוח
+  // מסנן אותו החוצה מיד. השחרור עבד על הנייר ולא הופיע אצל אף מנקה.
+  //
+  // ואם המועד שביקש הלקוח כבר עבר, אין מה להחזיר: הבקשה נסגרת.
+  const slot = booking?.bookingDate && booking?.startTime
+    ? new Date(`${booking.bookingDate}T${booking.startTime}`)
+    : null;
+  const slotStillAhead = !!slot && !Number.isNaN(slot.getTime()) && slot.getTime() > Date.now();
+  const reopen = cancelledBy === 'cleaner' && slotStillAhead;
+
   try {
     await updateDoc(
       doc(db, 'urgentRequests', reqId),
-      cancelledBy === 'cleaner'
+      reopen
         ? {
             status: 'open',
+            // חלון חדש שנמשך עד המועד עצמו, ולכל הפחות שעה — מספיק זמן למנקה
+            // אחר לראות ולקחת.
+            expiresAt: new Date(Math.max(slot!.getTime(), Date.now() + 3600000)).toISOString(),
             // נמחקים, לא נדרסים ב-'': בדיקות התפיסה קוראות אותם כדי לדעת אם
             // מישהו כבר מחזיק בבקשה.
             takenByUid: deleteField(),
