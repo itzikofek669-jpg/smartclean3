@@ -40,6 +40,8 @@ import {
   stripEmoji, countWords, limitWords, buildFullAddress,
 } from '../lib/jobUtils';
 import { compareCleaners, compareJobs, rotationRank } from '../lib/displayOrder';
+import { MAP_STYLE_LIGHT, MAP_STYLE_DARK } from '../lib/mapStyle';
+import { useTheme } from '../lib/ThemeContext';
 
 // Re-exported so the screens that already import these from `home` keep working
 // while the helpers themselves live in lib/jobUtils.
@@ -3740,6 +3742,7 @@ export default function HomeScreen() {
   const ds = createDS(C);
   const [a11yOpen, setA11yOpen] = useState(false);
   const insets   = useSafeAreaInsets();
+  const { dark: themeDark } = useTheme();
   const mapRef      = useRef<MapView>(null);
   const flatListRef = useRef<FlatList>(null);
   const handleSelectCleaner = React.useCallback((id: string) => setSelected(prev => prev === id ? null : id), []);
@@ -5503,6 +5506,9 @@ export default function HomeScreen() {
         <View style={s.mapWrap}>
           <MapView ref={mapRef} style={s.map}
             provider={(Platform.OS === 'ios' && Constants.appOwnership === 'expo') ? undefined : PROVIDER_GOOGLE}
+            // Follows the app's theme, not the phone's. See lib/mapStyle.
+            customMapStyle={themeDark ? MAP_STYLE_DARK : MAP_STYLE_LIGHT}
+            userInterfaceStyle={themeDark ? 'dark' : 'light'}
             initialRegion={REGION_DEFAULTS.all} showsUserLocation={false} showsMyLocationButton={false} onRegionChangeComplete={setMapRegion}>
             {nearbyMode && userCoords && (
               <Circle
