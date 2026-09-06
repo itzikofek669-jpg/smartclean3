@@ -4558,10 +4558,21 @@ export default function HomeScreen() {
       if (snap.exists()) {
         const data = snap.data();
         // קישור האימות נפתח בתוכנת דואר, שבה שום קוד שלנו לא רץ — הפרופיל לומד
-        // שהכתובת תקינה רק בכניסה הבאה. נכתב כאן כי זה המקום שכבר קורא את
-        // המסמך, ורק כשהערך השמור באמת חולק על המצב בפועל.
-        if (data?.emailVerified === false && auth.currentUser?.emailVerified) {
-          setDoc(doc(db, 'users', uid), { emailVerified: true }, { merge: true }).catch(() => {});
+        // שהכתובת תקינה רק כשהאפליקציה נפתחת שוב.
+        //
+        // ה-reload הוא העיקר כאן: emailVerified נקרא מהאסימון השמור במכשיר,
+        // והסשן משוחזר עם האסימון שנוצר *לפני* הלחיצה על הקישור. בלעדיו התנאי
+        // לא מתקיים לעולם, הדגל נשאר false, והמנקה נשארת מוסתרת מכל לקוח גם
+        // אחרי שאימתה ופתחה מחדש את האפליקציה.
+        if (data?.emailVerified === false) {
+          (async () => {
+            try {
+              await auth.currentUser?.reload();
+              if (auth.currentUser?.emailVerified) {
+                await setDoc(doc(db, 'users', uid), { emailVerified: true }, { merge: true });
+              }
+            } catch (err) { logError('home:flagVerified', err); }
+          })();
         }
         if (data?.blockedUntilReview) setIsBlocked(true);
         if (data?.role === 'cleaner') {
