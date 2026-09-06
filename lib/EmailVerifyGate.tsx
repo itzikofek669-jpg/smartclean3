@@ -1,7 +1,8 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { AppState, Linking, Platform, StyleSheet, TouchableOpacity, View } from 'react-native';
 import { onAuthStateChanged, type User } from 'firebase/auth';
-import { auth } from './firebase';
+import { doc, setDoc } from 'firebase/firestore';
+import { auth, db } from './firebase';
 import { mustVerifyEmail, sendVerificationEmail } from './emailVerification';
 import { useLanguage, T, useAppColors } from './LanguageContext';
 import { logError } from './logError';
@@ -45,6 +46,19 @@ export default function EmailVerifyGate() {
       await u.reload();
       const still = mustVerifyEmail(u);
       setBlocked(still);
+      // Flip the profile flag here, the instant verification is detected.
+      //
+      // It used to happen only on the home screen, which made a cleaner's
+      // visibility to clients depend on her reopening the app after clicking
+      // the link. Verify in a desktop browser, never reopen — and the account
+      // is verified as far as Auth is concerned while the document still says
+      // false, so she is filtered out of every client's list and search with
+      // nothing to explain it. This is the moment we know, and she is signed
+      // in, so it is also the moment we are allowed to write it.
+      if (!still) {
+        setDoc(doc(db, 'users', u.uid), { emailVerified: true }, { merge: true })
+          .catch(err => logError('EmailVerifyGate/flagVerified', err));
+      }
       // Deliberately silent when still unverified: this runs every few seconds,
       // and a message that reappears on its own reads as a repeating failure.
       // The explicit button reports; the poll just waits.
