@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { AppState, Linking, Platform, StyleSheet, TouchableOpacity, View } from 'react-native';
-import { onAuthStateChanged, type User } from 'firebase/auth';
+import { onAuthStateChanged, signOut, type User } from 'firebase/auth';
+import * as SecureStore from 'expo-secure-store';
 import { doc, setDoc } from 'firebase/firestore';
 import { auth, db } from './firebase';
 import { mustVerifyEmail, sendVerificationEmail } from './emailVerification';
@@ -41,6 +42,7 @@ export default function EmailVerifyGate() {
   const recheck = useCallback(async () => {
     const u = auth.currentUser;
     if (!u) return;
+    const wasBlocked = mustVerifyEmail(u);
     try {
       // הדגל צרוב באסימון, ולכן לחיצה על הקישור בדפדפן לא משנה כאן דבר עד רענון.
       await u.reload();
@@ -55,7 +57,10 @@ export default function EmailVerifyGate() {
       // false, so she is filtered out of every client's list and search with
       // nothing to explain it. This is the moment we know, and she is signed
       // in, so it is also the moment we are allowed to write it.
-      if (!still) {
+      // Only when this gate was actually holding someone. Writing on every
+      // foreground transition meant an account verified months ago re-wrote the
+      // same value each time the app was opened.
+      if (!still && wasBlocked) {
         setDoc(doc(db, 'users', u.uid), { emailVerified: true }, { merge: true })
           .catch(err => logError('EmailVerifyGate/flagVerified', err));
       }
@@ -107,6 +112,15 @@ export default function EmailVerifyGate() {
     Linking.openURL('mailto:').catch(() => {});
   };
 
+  /** Sign out and clear remember-me, so the next launch does not land here again. */
+  const leave = async () => {
+    try {
+      await SecureStore.deleteItemAsync('remember_email');
+      await SecureStore.deleteItemAsync('remember_pass');
+    } catch (_) {}
+    await signOut(auth).catch(() => {});
+  };
+
   const resend = async () => {
     setBusy(true); setNote('');
     try {
@@ -146,6 +160,17 @@ export default function EmailVerifyGate() {
       </TouchableOpacity>
       <TouchableOpacity style={s.linkBtn} onPress={openInbox}>
         <T style={[s.linkText, { color: C.textSub }]}>{tt.openMailApp || 'פתיחת אפליקציית המייל'}</T>
+      </TouchableOpacity>
+
+      {/* The way out. Every control above acts on the address that was typed,
+          so a typo — yosi@gmial.com — leaves a person facing a screen whose
+          only actions all send mail to an inbox nobody owns. This overlay
+          covers every screen and the session is restored on each launch, so
+          without this the app is finished for them short of clearing its data
+          — and the address is taken, so registering again with the real one is
+          refused too. */}
+      <TouchableOpacity style={s.linkBtn} onPress={leave}>
+        <T style={[s.linkText, { color: C.blue }]}>{tt.backToLogin || '← חזרה להתחברות'}</T>
       </TouchableOpacity>
     </View>
   );
