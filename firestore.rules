@@ -280,8 +280,18 @@ service cloud.firestore {
         return signedIn() && uid() in resource.data.participants;
       }
 
+      // `participants` decides who may read the thread, and it was writable by
+      // a participant to any value at all — so one party could add a third uid
+      // and that outsider could then read the chat document, `lastMessage` and
+      // participant names included. The doc id already names both parties;
+      // the field may only restate it.
+      function participantsMatchId() {
+        return !('participants' in request.resource.data)
+          || request.resource.data.participants.hasOnly(chatId.split('_'));
+      }
+
       allow read: if isParticipant() || inChatId() || isAdmin();
-      allow write: if inChatId() || isAdmin();
+      allow write: if isAdmin() || (inChatId() && participantsMatchId());
 
       match /messages/{messageId} {
         // Messages are queried by orderBy(createdAt) with no field filter, so
@@ -334,7 +344,22 @@ service cloud.firestore {
         ]);
       }
 
-      allow read: if signedIn();
+      // Open requests are a broadcast; everything else is not.
+      //
+      // This was `allow read: if signedIn()` with no filter on status, so every
+      // cancelled, expired and completed request stayed readable to every
+      // account forever — and these documents carry `address`, a full street
+      // address, alongside the client's name and the time their home is empty.
+      // Broadcasting live work to cleaners is the point; retaining the archive
+      // for anyone who ever signed up is not.
+      //
+      // Every query either product runs is `status == 'open'` or
+      // `clientUid == me`, so nothing on any screen changes.
+      allow read: if isAdmin()
+        || urgentOwner()
+        || urgentHolder()
+        || (signedIn() && resource.data.get('status', '') == 'open');
+
       allow create: if signedIn()
         && request.resource.data.get('clientUid', '') == uid();
 
@@ -379,7 +404,12 @@ service cloud.firestore {
     // quietly delete the report filed against them.
     match /reports/{reportId} {
       allow read: if isAdmin();
-      allow create: if signedIn();
+      // `reportedBy` had no validation, so a report could be filed under
+      // somebody else's name — a way to make a user look like they were
+      // harassing another. The collection is invisible to non-admins either
+      // way, so this costs nothing and closes the frame-up.
+      allow create: if signedIn()
+        && request.resource.data.get('reportedBy', '') == uid();
       allow update, delete: if isAdmin();
     }
 
@@ -400,7 +430,12 @@ service cloud.firestore {
 
     // ── Promo codes ──────────────────────────────────────────────────────────
     match /promoCodes/{promoId} {
-      allow read: if signedIn();
+      // Every discount code in the product was readable by any signed-in
+      // account. The only readers in either product are the admin screens
+      // (app/admin.tsx, src/hooks/useAdminData.ts), so nothing else loses
+      // anything. Redemption, if it is ever built, must not be a client-side
+      // read of this collection for the same reason.
+      allow read: if isAdmin();
       allow write: if isAdmin();
     }
 
