@@ -38,7 +38,13 @@ export type PushPayload = Record<string, unknown> | null | undefined;
  */
 export function readCalendarRemoval(data: PushPayload): CalendarRemoval | null {
   if (!data || typeof data !== 'object') return null;
-  if (data.type !== 'booking-cancelled') return null;
+  // Both spellings. `booking_cancelled` is what the apps have sent on the
+  // visible cancellation notification since long before this existed, and
+  // reusing that push is what makes this work without a Cloud Function — the
+  // project is on the Spark plan and cannot deploy one (see the website's
+  // src/lib/features.ts). `booking-cancelled` is what the server-side trigger
+  // sends, for the day the project moves to Blaze.
+  if (data.type !== 'booking_cancelled' && data.type !== 'booking-cancelled') return null;
 
   const bookingId = typeof data.bookingId === 'string' ? data.bookingId.trim() : '';
   const uid = typeof data.uid === 'string' ? data.uid.trim() : '';

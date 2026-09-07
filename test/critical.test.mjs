@@ -185,6 +185,16 @@ test('a cancellation push is read into a removal', () => {
   );
 });
 
+test('the spelling the apps already send is accepted too', () => {
+  // The visible cancellation notification has carried `booking_cancelled`
+  // since long before this task existed; reusing it is what lets the removal
+  // work with no Cloud Function, which this project cannot deploy.
+  assert.deepEqual(
+    readCalendarRemoval({ type: 'booking_cancelled', bookingId: 'bk1', uid: 'u1' }),
+    { bookingId: 'bk1', uid: 'u1' },
+  );
+});
+
 test('a push of any other type removes nothing', () => {
   assert.equal(readCalendarRemoval({ type: 'message', bookingId: 'bk1', uid: 'u1' }), null);
   assert.equal(readCalendarRemoval({ bookingId: 'bk1', uid: 'u1' }), null, 'no type at all');

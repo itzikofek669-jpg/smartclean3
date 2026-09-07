@@ -350,7 +350,13 @@ const SERVICE_DETAIL: Record<string, string[]> = {
 
 const DAYS_KEYS = ['sun','mon','tue','wed','thu','fri','sat'] as const;
 
-async function sendPushNotification(token: string, title: string, body: string, data?: any) {
+async function sendPushNotification(
+  token: string,
+  title: string,
+  body: string,
+  data?: any,
+  opts: { contentAvailable?: boolean } = {},
+) {
   try {
     await fetch('https://exp.host/--/api/v2/push/send', {
       method: 'POST',
@@ -360,6 +366,12 @@ async function sendPushNotification(token: string, title: string, body: string, 
         sound: 'default',
         channelId: 'messages',
         priority: 'high',
+        // Without this iOS delivers the banner and nothing else — the app is
+        // never given a chance to act on the payload unless it happens to be
+        // in the foreground. Set for the cancellation push so the receiving
+        // device can take the cleaning out of its calendar without being
+        // opened. See lib/calendarTask.ts.
+        ...(opts.contentAvailable ? { _contentAvailable: true } : {}),
         ...(data ? { data } : {}),
       }),
     });
@@ -2322,7 +2334,11 @@ export default function ProfileScreen() {
                     token,
                     (t as any).pushBookingCancelledTitle ?? '❌ הזמנה בוטלה',
                     ((t as any).pushBookingCancelledBody ?? 'ההזמנה בוטלה על ידי {who}').replace('{who}', byName) + (dateLabel ? ` · ${dateLabel}` : ''),
-                    { type: 'booking_cancelled', bookingId: b.id },
+                    // `uid` names whose calendar entry to remove: the stored
+                    // event ids are keyed per user, and the background task
+                    // runs before auth has been restored so it cannot ask.
+                    { type: 'booking_cancelled', bookingId: b.id, uid: otherUid },
+                    { contentAvailable: true },
                   );
                 }
               }
@@ -2961,7 +2977,7 @@ export default function ProfileScreen() {
                                 const tok = cs.data()?.pushToken;
                                 if (tok) {
                                   const dl = `${pcb.bookingDate || ''}${pcb.startTime ? ' ' + pcb.startTime : ''}`.trim();
-                                  await sendPushNotification(tok, (t as any).pushBookingCancelledTitle ?? '❌ הזמנה בוטלה', ((t as any).pushBookingCancelledBody ?? 'ההזמנה בוטלה על ידי {who}').replace('{who}', pcb.cleanerName || 'המנקה') + (dl ? ` · ${dl}` : ''), { type: 'booking_cancelled', bookingId: pcb.id });
+                                  await sendPushNotification(tok, (t as any).pushBookingCancelledTitle ?? '❌ הזמנה בוטלה', ((t as any).pushBookingCancelledBody ?? 'ההזמנה בוטלה על ידי {who}').replace('{who}', pcb.cleanerName || 'המנקה') + (dl ? ` · ${dl}` : ''), { type: 'booking_cancelled', bookingId: pcb.id, uid: pcb.clientUid }, { contentAvailable: true });
                                 }
                               }
                             } catch (err) { logError('profile:write', err); }
