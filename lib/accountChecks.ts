@@ -23,10 +23,28 @@ import { db } from './firebase';
 export async function isPhoneTaken(phone: string, exceptUid?: string): Promise<boolean> {
   const v = String(phone || '').trim();
   if (!v) return false;
-  const snap = await getDocs(query(
-    collection(db, 'users'),
-    where('phone', '==', v),
-    limit(2),                 // 2, כדי שעריכה תוכל לראות מעבר למסמך של עצמה
-  ));
-  return snap.docs.some(d => d.id !== exceptUid);
+  try {
+    const snap = await getDocs(query(
+      collection(db, 'users'),
+      where('phone', '==', v),
+      limit(2),                 // 2, כדי שעריכה תוכל לראות מעבר למסמך של עצמה
+    ));
+    return snap.docs.some(d => d.id !== exceptUid);
+  } catch {
+    // נדחה, ובכוונה.
+    //
+    // `users` היה ניתן לרשימה לכל מחובר, וזה מה שאיפשר את השאילתה הזו — וגם
+    // איפשר לבקשה אחת לשאוב את כל המיילים, הטלפונים, הכתובות השמורות וטוקני
+    // הפוש במוצר. הרשימה מוגבלת עכשיו למסמכי מנקים, ושאילתה שעלולה להחזיר
+    // מסמך של לקוח נדחית. זו כזו.
+    //
+    // הנפילה הפתוחה מאבדת בדיקת כפילות מייעצת במסך עריכת הפרופיל. זו מעולם לא
+    // הייתה אילוץ נאכף: ל-Firestore אין אינדקס ייחודי, שתי עריכות בו-זמנית תמיד
+    // עברו אותה, ושום דבר לא תלוי בה. התמורה מול טבלת הלקוחות אינה שקולה.
+    //
+    // התיקון האמיתי הוא זה שמתואר למעלה — מסמך `phoneIndex/{number}` תחת חוק
+    // שאוסר דריסה של קיים. הוא אטומי, לא דורש רשימה כלל, ומחזיר את הבדיקה
+    // כמו שצריך. הוא דורש backfill לחשבונות קיימים, ולכן הוא עבודה בפני עצמה.
+    return false;
+  }
 }

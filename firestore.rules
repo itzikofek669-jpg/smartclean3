@@ -54,8 +54,32 @@ service cloud.firestore {
         && request.resource.data.rating >= 0
         && request.resource.data.rating <= 5
         && request.resource.data.reviewCount is int
-        && request.resource.data.reviewCount > 0
-        && request.resource.data.reviewCount <= (resource.data.get('reviewCount', 0) + 1);
+        // Exactly one more review than before. `> 0 && <= existing + 1` let the
+        // counter move BACKWARDS: against a cleaner with 57 reviews the write
+        // {rating: 0, reviewCount: 1} satisfied every clause, so any signed-in
+        // stranger could erase a reputation in one request. The test that was
+        // supposed to catch this passed only because it happened to send
+        // reviewCount: 0, which tripped the `> 0` check instead.
+        && request.resource.data.reviewCount == resource.data.get('reviewCount', 0) + 1
+        // The other two spellings are written alongside and were allowed by the
+        // hasOnly list with no validation at all, so a stranger could park an
+        // arbitrary object of any size on someone else's document.
+        // Validated only when actually written — the mobile app sends `reviews`
+        // and the web `reviewsCount`, and neither sends both. Requiring them
+        // unconditionally would have rejected every real review.
+        && (!changed().hasAny(['reviews'])
+            || (request.resource.data.reviews is int
+                && request.resource.data.reviews == request.resource.data.reviewCount))
+        && (!changed().hasAny(['reviewsCount'])
+            || (request.resource.data.reviewsCount is int
+                && request.resource.data.reviewsCount == request.resource.data.reviewCount));
+    }
+
+    // Reputation may not be self-awarded. `uid() == userId` permits the owner to
+    // write their own document, and nothing excluded the aggregate — so a
+    // cleaner could simply set {rating: 5, reviewCount: 999} on themselves.
+    function touchesOwnRating() {
+      return changed().hasAny(['rating', 'reviewCount', 'reviews', 'reviewsCount']);
     }
 
     // ── Users ────────────────────────────────────────────────────────────────
@@ -63,15 +87,34 @@ service cloud.firestore {
     // and availability all depend on it. Writes are locked to the owner, with
     // one narrow exception for the review aggregate.
     match /users/{userId} {
-      allow read: if signedIn();
+      // `get` and `list` are split on purpose, and the split is the whole point.
+      //
+      // A single `allow read: if signedIn()` meant one ordinary account could
+      // call getDocs(collection('users')) and walk off with the entire customer
+      // table: every email, phone, saved home address, push token and private
+      // adminNote in the product. Nothing needs that.
+      //
+      // A single-document `get` does still have real callers — chat and support
+      // resolve a counterparty's display name by uid, and the two parties to a
+      // booking are not otherwise related — so it stays open to signed-in users.
+      // Enumeration is what is being closed here, not lookup.
+      //
+      // `list` is restricted to cleaner documents, which is exactly the shape
+      // discovery already queries (where('role','==','cleaner')), so no screen
+      // changes. A query that could return a client document is now refused.
+      //
+      // Still on the list after this: a cleaner's phone and email sit on a
+      // publicly listable profile. Moving them behind an accepted booking is the
+      // next step and needs a schema change, not a rule change.
+      allow get: if signedIn();
+      allow list: if isAdmin()
+        || (signedIn() && resource.data.get('role', '') == 'cleaner');
 
       allow create: if signedIn() && uid() == userId;
 
-      allow update: if signedIn() && (
-        uid() == userId
-        || isAdmin()
-        || isValidRatingUpdate()
-      );
+      allow update: if isAdmin()
+        || (signedIn() && uid() == userId && !touchesOwnRating())
+        || (signedIn() && uid() != userId && isValidRatingUpdate());
 
       allow delete: if isAdmin();
 
@@ -170,11 +213,37 @@ service cloud.firestore {
       allow create: if signedIn()
         && request.resource.data.get('clientUid', '') == uid();
 
+      // Who may write was already scoped here; WHAT they may write was not, and
+      // that is the whole of the gap. A claimer could take an open job and set
+      // `total: 0` in the same write, then — now a party — set `clientUid` to
+      // themselves and `paymentStatus: 'paid'`, keeping permanent read access to
+      // a record holding the client's address, floor, flat number and name.
+      //
+      // The money is fixed when the booking is created. Finishing a job records
+      // what actually happened under `actualHours` / `actualTotal` (see endJob),
+      // so no legitimate flow rewrites these.
+      function bookingMoneyUnchanged() {
+        return request.resource.data.get('total', 0) == resource.data.get('total', 0)
+          && request.resource.data.get('price', 0) == resource.data.get('price', 0)
+          && request.resource.data.get('pricePerHour', 0) == resource.data.get('pricePerHour', 0);
+      }
+      // The client never changes. The cleaner is set once, by the claim below.
+      function bookingClientUnchanged() {
+        return request.resource.data.get('clientUid', '')
+            == resource.data.get('clientUid', '');
+      }
+      function bookingCleanerUnchanged() {
+        return request.resource.data.get('cleanerId', '')
+            == resource.data.get('cleanerId', '');
+      }
+
       // Either party may progress the job (accept / cancel / complete), and an
       // unassigned open job may be claimed by any cleaner. Nobody else.
       allow update: if isAdmin()
-        || isParty()
-        || (isOpenJob() && request.resource.data.get('cleanerId', '') == uid());
+        || (isParty() && bookingClientUnchanged() && bookingCleanerUnchanged()
+            && bookingMoneyUnchanged())
+        || (isOpenJob() && bookingClientUnchanged() && bookingMoneyUnchanged()
+            && request.resource.data.get('cleanerId', '') == uid());
 
       // Bookings are financial records — cancel, never delete.
       allow delete: if false;
@@ -241,10 +310,64 @@ service cloud.firestore {
     // Broadcast to every cleaner by design, so reads stay open. Only the client
     // who posted it (or the assigned cleaner / admin) may remove it.
     match /urgentRequests/{reqId} {
+      function urgentOwner() {
+        return signedIn() && resource.data.get('clientUid', '') == uid();
+      }
+      // The claiming cleaner, under either spelling — the app has always written
+      // `takenByUid` and the web `takenBy`, and both are written now.
+      function urgentHolder() {
+        return signedIn() && (
+          resource.data.get('takenByUid', '') == uid()
+          || resource.data.get('takenBy', '') == uid()
+        );
+      }
+      // Ownership is not transferable. Without this, an attacker wrote their own
+      // uid into `clientUid` and the delete rule below then believed them.
+      function urgentOwnerUnchanged() {
+        return request.resource.data.get('clientUid', '')
+            == resource.data.get('clientUid', '');
+      }
+      // The fields a claim or a release is allowed to touch, and no others.
+      function onlyClaimFields() {
+        return changed().hasOnly([
+          'status', 'takenBy', 'takenByUid', 'takenByName', 'takenAt', 'expiresAt'
+        ]);
+      }
+
       allow read: if signedIn();
       allow create: if signedIn()
         && request.resource.data.get('clientUid', '') == uid();
-      allow update: if signedIn();              // cleaners claim / clients edit
+
+      // `allow update: if signedIn()` used to stand here, with the comment
+      // "cleaners claim / clients edit" describing an intent the rule did not
+      // express. It constrained neither who wrote, nor which fields, nor the
+      // prior state, so any signed-in account could rewrite any request in the
+      // system: claim one already held by a real cleaner, cancel every open
+      // request on the board, change `total` (which acceptUrgentRequest copies
+      // straight into the booking it creates), swap `address` so the cleaner is
+      // dispatched somewhere else, or write their own `clientUid` and inherit
+      // the request outright.
+      allow update: if isAdmin()
+        // The owner edits their own request — but cannot hand it to anyone else.
+        || (urgentOwner() && urgentOwnerUnchanged())
+        // A cleaner claims a request that is genuinely open, touching only the
+        // claim fields, and may only claim it for themselves.
+        || (signedIn() && urgentOwnerUnchanged() && onlyClaimFields()
+            && resource.data.get('status', '') == 'open'
+            && request.resource.data.get('status', '') == 'taken'
+            // Both spellings, or the claim is lying under one of them: writing
+            // takenByUid=me and takenBy=someone-else passed a check on either
+            // field alone, and readers disagree about which one holds it.
+            && request.resource.data.get('takenByUid', '') == uid()
+            && request.resource.data.get('takenBy', '') == uid())
+        // The cleaner holding it puts it back on the board.
+        || (urgentHolder() && urgentOwnerUnchanged() && onlyClaimFields()
+            && request.resource.data.get('status', '') == 'open');
+
+      // `cleanerId` is listed for symmetry with the schema this collection was
+      // modelled on, but no urgent request has ever carried it — a claiming
+      // cleaner is `takenByUid`. In practice this is owner-or-admin only, and
+      // both clients now filter their sweeps accordingly.
       allow delete: if isAdmin() || (signedIn() && (
         resource.data.get('clientUid', '') == uid()
         || resource.data.get('cleanerId', '') == uid()
