@@ -61,6 +61,20 @@ service cloud.firestore {
         // supposed to catch this passed only because it happened to send
         // reviewCount: 0, which tripped the `> 0` check instead.
         && request.resource.data.reviewCount == resource.data.get('reviewCount', 0) + 1
+        // And the average may only move as far as ONE review can move it.
+        //
+        // Fixing the counter alone left the exploit working with one digit
+        // changed: {rating: 0, reviewCount: existing + 1} passed every clause
+        // and erased a reputation in a single request. With n existing reviews
+        // and a new score in 0..5, the new average must satisfy
+        //     old*n <= new*(n+1) <= old*n + 5
+        // which is the whole of what a single honest review can do. Written as
+        // multiplication rather than division to keep it exact, with a small
+        // tolerance for the float rounding a client's own arithmetic produces.
+        && request.resource.data.rating * (resource.data.get('reviewCount', 0) + 1)
+             >= resource.data.get('rating', 0) * resource.data.get('reviewCount', 0) - 0.01
+        && request.resource.data.rating * (resource.data.get('reviewCount', 0) + 1)
+             <= resource.data.get('rating', 0) * resource.data.get('reviewCount', 0) + 5 + 0.01
         // The other two spellings are written alongside and were allowed by the
         // hasOnly list with no validation at all, so a stranger could park an
         // arbitrary object of any size on someone else's document.
@@ -237,12 +251,33 @@ service cloud.firestore {
             == resource.data.get('cleanerId', '');
       }
 
+      // What is actually billed and what is marked paid.
+      //
+      // Freezing `total`/`price`/`pricePerHour` missed the fields the product
+      // reads: every display and payment path takes `actualTotal ?? total`, and
+      // `paymentStatus` is what says the money arrived. A client could write
+      // {actualTotal: 0, actualHours: 0, paymentStatus: 'paid'} on a finished
+      // job and take a free cleaning, with the cleaner's earnings dropping to
+      // match. Both are the cleaner's to record — endJob and "payment received"
+      // are cleaner actions in both products — so only the cleaner may.
+      function bookingSettlementByCleaner() {
+        return !changed().hasAny(['actualTotal', 'actualHours', 'paymentStatus', 'paidAt'])
+          || resource.data.get('cleanerId', '') == uid();
+      }
+      // A claim is four fields, in both products (cleanerActions.ts,
+      // app/home.tsx). Without an allowlist the same write could rewrite the
+      // service address and mark the job paid while claiming it.
+      function onlyClaimsTheJob() {
+        return changed().hasOnly(['cleanerId', 'cleanerName', 'open', 'status']);
+      }
+
       // Either party may progress the job (accept / cancel / complete), and an
       // unassigned open job may be claimed by any cleaner. Nobody else.
       allow update: if isAdmin()
         || (isParty() && bookingClientUnchanged() && bookingCleanerUnchanged()
-            && bookingMoneyUnchanged())
+            && bookingMoneyUnchanged() && bookingSettlementByCleaner())
         || (isOpenJob() && bookingClientUnchanged() && bookingMoneyUnchanged()
+            && onlyClaimsTheJob()
             && request.resource.data.get('cleanerId', '') == uid());
 
       // Bookings are financial records — cancel, never delete.
@@ -291,7 +326,13 @@ service cloud.firestore {
       }
 
       allow read: if isParticipant() || inChatId() || isAdmin();
-      allow write: if isAdmin() || (inChatId() && participantsMatchId());
+      // Split, because `write` covers delete and `request.resource` is NULL on a
+      // delete — participantsMatchId() dereferenced it and the whole rule
+      // errored, so "delete conversation" started failing for everyone. Both
+      // products swallow that rejection, so the thread vanished from the list
+      // and came back on reload.
+      allow create, update: if isAdmin() || (inChatId() && participantsMatchId());
+      allow delete: if isAdmin() || inChatId();
 
       match /messages/{messageId} {
         // Messages are queried by orderBy(createdAt) with no field filter, so
@@ -385,9 +426,14 @@ service cloud.firestore {
             // field alone, and readers disagree about which one holds it.
             && request.resource.data.get('takenByUid', '') == uid()
             && request.resource.data.get('takenBy', '') == uid())
-        // The cleaner holding it puts it back on the board.
+        // The cleaner holding it lets it go — back to the board when the slot is
+        // still ahead, cancelled when it is not. Only 'open' was allowed here,
+        // and releaseUrgentRequest writes 'cancelled' for a slot already past
+        // (lib/urgentRelease.ts) — so a late cleaner cancellation was denied and
+        // the request stayed `taken` forever, off every board and claimable by
+        // nobody. That is the exact bug urgentRelease.ts exists to prevent.
         || (urgentHolder() && urgentOwnerUnchanged() && onlyClaimFields()
-            && request.resource.data.get('status', '') == 'open');
+            && request.resource.data.get('status', '') in ['open', 'cancelled']);
 
       // `cleanerId` is listed for symmetry with the schema this collection was
       // modelled on, but no urgent request has ever carried it — a claiming
@@ -441,7 +487,9 @@ service cloud.firestore {
 
     // ── Admin settings ───────────────────────────────────────────────────────
     match /settings/{settingId} {
-      allow read: if signedIn();
+      // Nothing in either product reads or writes this collection. It was the
+      // last unscoped `read: if signedIn()` left in the file.
+      allow read: if isAdmin();
       allow write: if isAdmin();
     }
 
