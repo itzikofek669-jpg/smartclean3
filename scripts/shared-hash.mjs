@@ -2,22 +2,30 @@
 /**
  * Prove this repo's copies of the shared files still match the other product's.
  *
- * The two products run on one Firebase project and share three files verbatim.
- * There was a test for that, and it could only ever run on one laptop: it read
- * the sibling repository through an absolute path. The repos live under
- * different GitHub accounts, so no CI job can check out both, and an edit to
- * either copy could be committed, built and deployed without the comparison
- * running once.
+ * The two products run on one Firebase project and share five files. A test for
+ * that existed and could only run on one laptop: it read the sibling repository
+ * through an absolute path, and the repos live under different GitHub accounts.
  *
- * So the comparison is inverted. Each repo hashes its OWN copies and checks
- * them against `shared-files.sha256`, a manifest kept identical in both. Change
- * a shared file on one side and its hash moves; the manifest has to be
- * rewritten, and because the manifest is itself one of the things that must
- * match, the other repo's CI fails until it is brought along. Neither job needs
- * to see the other repository.
+ * WHAT THE FIRST VERSION OF THIS FILE GOT WRONG. It hashed each repo's own
+ * copies against each repo's own manifest and claimed that, because the
+ * manifest must also match, the other side's CI would fail until it was brought
+ * along. That was simply false — the manifest was not one of the compared
+ * files, so changing a shared file and running `--write` in one repo left BOTH
+ * checks green while the files genuinely differed. A guard that cannot detect
+ * the drift it was built for is worse than none, because everyone stops
+ * looking.
  *
- *   node scripts/shared-hash.mjs           # check, exit 1 on drift
- *   node scripts/shared-hash.mjs --write   # rewrite the manifest, both repos
+ * WHAT ACTUALLY WORKS. The mobile app's repository is public, so its manifest
+ * can be fetched over plain HTTPS with no credentials. `--cross` does that and
+ * compares the two manifests directly. Whichever side edits a shared file, the
+ * two manifests diverge and the check fails — both directions, from the one CI
+ * job that can see both. The website's repo is private, so the app's CI cannot
+ * do the reverse; its local check still catches a file edited without a
+ * manifest rewrite, and the website's job is what catches real drift.
+ *
+ *   node scripts/shared-hash.mjs           # local: files match this manifest
+ *   node scripts/shared-hash.mjs --cross   # also: this manifest matches the app's
+ *   node scripts/shared-hash.mjs --write   # rewrite it, then copy to BOTH repos
  *
  * Keep this file identical in both repos too.
  */
@@ -26,58 +34,70 @@ import { readFileSync, writeFileSync, existsSync } from 'node:fs';
 
 /** Path in the mobile app -> path on the website. One of the two will exist. */
 const SHARED = [
-  { name: 'verifyRule',   app: 'lib/verifyRule.ts',   web: 'src/lib/verifyRule.ts' },
-  { name: 'displayOrder', app: 'lib/displayOrder.ts', web: 'src/lib/displayOrder.ts' },
-  { name: 'urgentRequest', app: 'lib/urgentRequest.ts', web: 'src/lib/urgentRequest.ts' },
-  { name: 'cleanerTraits', app: 'lib/cleanerTraits.ts', web: 'src/lib/cleanerTraits.ts' },
-  { name: 'firestoreRules', app: 'firestore.rules',   web: 'firestore.rules' },
+  { name: 'verifyRule',     app: 'lib/verifyRule.ts',     web: 'src/lib/verifyRule.ts' },
+  { name: 'displayOrder',   app: 'lib/displayOrder.ts',   web: 'src/lib/displayOrder.ts' },
+  { name: 'urgentRequest',  app: 'lib/urgentRequest.ts',  web: 'src/lib/urgentRequest.ts' },
+  { name: 'cleanerTraits',  app: 'lib/cleanerTraits.ts',  web: 'src/lib/cleanerTraits.ts' },
+  { name: 'firestoreRules', app: 'firestore.rules',       web: 'firestore.rules' },
 ];
 
+const MANIFEST = 'shared-files.sha256';
+const APP_MANIFEST_URL =
+  'https://raw.githubusercontent.com/itzikofek669-jpg/smartclean3/main/shared-files.sha256';
+
 /**
- * Strip comments and whitespace so the two copies may explain themselves in
+ * Drop whole-line comments so the two copies may explain themselves in
  * different languages — the app comments in Hebrew, the website in English —
- * while a single token of behaviour may not differ.
+ * while a line of code may not differ.
  *
- * A character scanner, not a regex: comment delimiters inside a string literal
- * are not comment delimiters, and a review proved that a regex version could be
- * fooled into calling two different files identical.
+ * WHOLE-LINE only, and this is deliberate. The previous version walked the
+ * source character by character trying to track strings, template literals and
+ * comments, and a review broke it twice over: `/^https?:\/\//` was read as a
+ * comment and silently deleted the rest of the line, and `/a/*b/` sent it
+ * hunting for a block-comment terminator that never came, discarding the entire
+ * remainder of the file. Two different files hashed the same. There is no way
+ * to know whether `/` opens a regex or divides without parsing JavaScript, so
+ * this does not try: it never looks inside a line of code at all.
+ *
+ * Line structure is preserved rather than collapsed, because whitespace is not
+ * always insignificant — `return\n{ok:1}` and `return {ok:1}` return different
+ * things, and the old version hashed them identically.
+ *
+ * The cost is that a trailing comment after code, or a reformat that rewraps a
+ * line, is reported as drift. That is the right direction to be wrong in: a
+ * false alarm gets looked at, a false pass does not.
  */
 export function codeOnly(src) {
-  let out = '';
-  let i = 0;
-  while (i < src.length) {
-    const c = src[i];
-    const next = src[i + 1];
-    if (c === '/' && next === '*') {
-      const end = src.indexOf('*/', i + 2);
-      i = end === -1 ? src.length : end + 2;
-      continue;
+  const out = [];
+  let inBlock = false;
+  for (const raw of src.split('\n')) {
+    let line = raw.trim();
+    if (inBlock) {
+      const end = line.indexOf('*/');
+      if (end === -1) continue;
+      inBlock = false;
+      line = line.slice(end + 2).trim();
+      if (!line) continue;
     }
-    if (c === '/' && next === '/') {
-      const end = src.indexOf('\n', i);
-      i = end === -1 ? src.length : end;
-      continue;
+    if (line.startsWith('//')) continue;
+    if (line.startsWith('/*')) {
+      const end = line.indexOf('*/', 2);
+      if (end === -1) { inBlock = true; continue; }
+      line = (line.slice(0, 0) + line.slice(end + 2)).trim();
+      if (!line) continue;
     }
-    if (c === '"' || c === "'" || c === '`') {
-      const quote = c;
-      out += c;
-      i += 1;
-      while (i < src.length) {
-        if (src[i] === '\\') { out += src[i] + (src[i + 1] ?? ''); i += 2; continue; }
-        out += src[i];
-        if (src[i] === quote) { i += 1; break; }
-        i += 1;
-      }
-      continue;
-    }
-    if (/\s/.test(c)) { i += 1; continue; }
-    // A trailing comma before a closer is what a formatter adds, not a change.
-    if ((c === ')' || c === ']' || c === '}') && out.endsWith(',')) out = out.slice(0, -1);
-    out += c;
-    i += 1;
+    if (line) out.push(line);
   }
-  return out;
+  return out.join('\n');
 }
+
+/**
+ * Only run the checks when invoked as a command. test/shared.test.mjs imports
+ * `codeOnly` from here so there is exactly one copy of it — a second, drifting
+ * copy of the thing that decides whether two files agree would be its own joke.
+ */
+const RUN_AS_CLI = process.argv[1]
+  && process.argv[1].endsWith('shared-hash.mjs');
 
 function hashesHere() {
   const out = {};
@@ -92,46 +112,72 @@ function hashesHere() {
   return out;
 }
 
-const MANIFEST = 'shared-files.sha256';
-
-if (process.argv.includes('--write')) {
-  const body = Object.entries(hashesHere()).map(([k, v]) => `${v}  ${k}`).join('\n') + '\n';
-  writeFileSync(MANIFEST, body);
-  console.log(`Wrote ${MANIFEST}:\n${body}`);
-  console.log('Copy this file to the other repo unchanged, and commit both.');
-  process.exit(0);
-}
-
-if (!existsSync(MANIFEST)) {
-  console.error(`shared-hash: ${MANIFEST} is missing. Run: node scripts/shared-hash.mjs --write`);
-  process.exit(1);
-}
-
-const expected = Object.fromEntries(
-  readFileSync(MANIFEST, 'utf8').trim().split('\n')
-    .map((l) => l.trim().split(/\s+/))
-    .filter((p) => p.length === 2)
-    .map(([hash, name]) => [name, hash]),
+const parse = (text) => Object.fromEntries(
+  text.trim().split('\n').map((l) => l.trim().split(/\s+/))
+    .filter((p) => p.length === 2).map(([hash, name]) => [name, hash]),
 );
 
-const actual = hashesHere();
-let bad = 0;
-for (const [name, hash] of Object.entries(actual)) {
-  if (expected[name] === hash) {
-    console.log(`  ok    ${name}`);
-  } else {
-    bad += 1;
-    console.error(`  DRIFT ${name}`);
-    console.error(`        manifest: ${expected[name] ?? '(absent)'}`);
-    console.error(`        this repo: ${hash}`);
+if (RUN_AS_CLI) {
+  if (process.argv.includes('--write')) {
+    const body = Object.entries(hashesHere()).map(([k, v]) => `${v}  ${k}`).join('\n') + '\n';
+    writeFileSync(MANIFEST, body);
+    console.log(`Wrote ${MANIFEST}:\n${body}`);
+    console.log('Copy this file to the other repo unchanged, and commit both.');
+    process.exit(0);
+  }
+
+  if (!existsSync(MANIFEST)) {
+    console.error(`shared-hash: ${MANIFEST} is missing. Run: node scripts/shared-hash.mjs --write`);
+    process.exit(1);
+  }
+
+  const expected = parse(readFileSync(MANIFEST, 'utf8'));
+  const actual = hashesHere();
+  let bad = 0;
+  for (const [name, hash] of Object.entries(actual)) {
+    if (expected[name] === hash) console.log(`  ok    ${name}`);
+    else {
+      bad += 1;
+      console.error(`  DRIFT ${name}`);
+      console.error(`        manifest:  ${expected[name] ?? '(absent)'}`);
+      console.error(`        this repo: ${hash}`);
+    }
+  }
+  if (bad) {
+    console.error(`\n${bad} shared file(s) differ from this repo's manifest.`);
+    console.error('Either a shared file changed here — make the same change in the other repo —');
+    console.error('or the manifest is stale. When both copies match again, run --write and copy');
+    console.error(`${MANIFEST} to BOTH repos.`);
+    process.exit(1);
+  }
+  console.log('\nShared files match this repo\'s manifest.');
+
+  // ── The half that actually catches drift ──────────────────────────────────
+  if (process.argv.includes('--cross')) {
+    const res = await fetch(APP_MANIFEST_URL).catch((err) => ({ ok: false, err }));
+    if (!res.ok) {
+      console.error(`\n::error::Could not fetch the mobile app's manifest (${APP_MANIFEST_URL}).`);
+      console.error('Without it this job proves only that this repo agrees with itself.');
+      process.exit(1);
+    }
+    const theirs = parse(await res.text());
+    const mine = parse(readFileSync(MANIFEST, 'utf8'));
+    let diff = 0;
+    for (const name of Object.keys(mine)) {
+      if (mine[name] !== theirs[name]) {
+        diff += 1;
+        console.error(`  DRIFT ${name} — differs from the mobile app`);
+        console.error(`        here: ${mine[name]}`);
+        console.error(`        app:  ${theirs[name] ?? '(absent)'}`);
+      }
+    }
+    if (diff) {
+      console.error(`\n::error::${diff} shared file(s) have drifted between the two products.`);
+      console.error('One side changed a shared file and the other did not follow. For');
+      console.error('firestore.rules this matters most: one Firebase project, and whichever');
+      console.error('product deploys last wins.');
+      process.exit(1);
+    }
+    console.log('Manifest matches the mobile app\'s. The two products are in step.');
   }
 }
-if (bad) {
-  console.error(`\n${bad} shared file(s) differ from the manifest.`);
-  console.error('Either this repo changed a file the other product also has — in which case make');
-  console.error('the same change there — or the manifest is stale. When both copies really do');
-  console.error('match again, run `node scripts/shared-hash.mjs --write` and copy the manifest');
-  console.error('to BOTH repos.');
-  process.exit(1);
-}
-console.log('\nShared files match the manifest.');

@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import url from 'node:url';
+import { codeOnly } from '../scripts/shared-hash.mjs';
 
 // The two products share one Firebase project. Where they claim to agree, a
 // difference is not a style issue — it lets an account blocked on one side in
@@ -47,73 +48,10 @@ test('registration is never followed by a sign-out', crossRepo, () => {
   }
 });
 
-/**
- * Strip comments and collapse whitespace, so prose about "the app" vs "the
- * website" may differ while a single line of behaviour may not.
- *
- * The first version ran two regexes over the raw text, and a review broke it
- * in both directions. Block-comment delimiters appearing INSIDE a string
- * literal were treated as real ones, so a guard smuggled between two such
- * strings compared equal to the copy that did not have it; and any `//` in a
- * string that was not part of `://` deleted the rest of its line, hiding a
- * changed constant sitting after it. It also cried wolf on pure reformatting,
- * because it only trimmed line ends while the two repos run different
- * formatters.
- *
- * So this is a small scanner rather than a pair of regexes: it walks the
- * source one character at a time and knows whether it is inside a string, a
- * template literal or a comment. Whitespace outside strings collapses to
- * nothing, which makes the comparison immune to line wrapping while still
- * catching a changed token.
- *
- * (Writing the delimiters out literally here would end this comment early —
- * which is the same defect, one level up. See the test below, which feeds the
- * scanner the cases the review found.)
- */
-const codeOnly = (src) => {
-  let out = '';
-  let i = 0;
-  while (i < src.length) {
-    const c = src[i];
-    const next = src[i + 1];
-    // Comments — dropped whole.
-    if (c === '/' && next === '*') {
-      const end = src.indexOf('*/', i + 2);
-      i = end === -1 ? src.length : end + 2;
-      continue;
-    }
-    if (c === '/' && next === '/') {
-      const end = src.indexOf('\n', i);
-      i = end === -1 ? src.length : end;
-      continue;
-    }
-    // Strings and template literals — kept verbatim, delimiters and all, so
-    // nothing inside them can be mistaken for syntax.
-    if (c === '"' || c === "'" || c === '`') {
-      const quote = c;
-      out += c;
-      i += 1;
-      while (i < src.length) {
-        if (src[i] === '\\') { out += src[i] + (src[i + 1] ?? ''); i += 2; continue; }
-        out += src[i];
-        if (src[i] === quote) { i += 1; break; }
-        i += 1;
-      }
-      continue;
-    }
-    // Whitespace outside a string carries no meaning here.
-    if (/\s/.test(c)) { i += 1; continue; }
-    // A trailing comma before a closer is what a formatter adds, not what a
-    // change looks like. Dropped only outside strings, so it cannot reach into
-    // one and quietly erase a real difference.
-    if ((c === ')' || c === ']' || c === '}') && out.endsWith(',')) {
-      out = out.slice(0, -1);
-    }
-    out += c;
-    i += 1;
-  }
-  return out;
-};
+// One copy of the comparison, imported rather than repeated. This file used to
+// carry its own byte-identical duplicate of codeOnly, so a fix to one would
+// have left the other fooled — a drifting copy of the code that decides whether
+// two copies have drifted.
 
 test('both products order and rank identically', crossRepo, () => {
   // Comparing the email cutoff alone was not enough. `available` was computed
@@ -165,12 +103,39 @@ test('a changed constant after a slashed string is still caught', () => {
   assert.notEqual(codeOnly(five), codeOnly(nine), 'a changed band width compared equal');
 });
 
-test('reformatting alone never reports drift', () => {
-  // The two repos run different formatters (expo lint vs eslint), so a guard
-  // that fails on line wrapping is a guard that gets deleted.
+test('a regex containing // is not mistaken for a comment', () => {
+  // The scanner version read the `//` inside this regex as a comment and
+  // deleted the rest of the line, so a changed constant after it compared
+  // equal. There is no way to tell a regex from division without parsing
+  // JavaScript, so the comparison no longer looks inside a line of code.
+  const five = 'const RE = /^https?:\\/\\//; const LIMIT = 5;';
+  const many = 'const RE = /^https?:\\/\\//; const LIMIT = 999;';
+  assert.notEqual(codeOnly(five), codeOnly(many));
+});
+
+test('a regex that looks like a block comment does not eat the file', () => {
+  // `/a/*b/` sent the scanner hunting for a terminator that never came, and
+  // everything from there to end of file vanished from the hash.
+  const a = 'const r = /a/*b/; const Z = 1;\nexport const AFTER = 10;';
+  const b = 'const r = /a/*b/; const Z = 2;\nexport const AFTER = 20;';
+  assert.notEqual(codeOnly(a), codeOnly(b));
+  assert.ok(codeOnly(a).includes('AFTER'), 'the rest of the file survived');
+});
+
+test('a newline that changes what a function returns is not collapsed away', () => {
+  // Whitespace is not always insignificant: one of these returns undefined.
+  const asi  = 'function f(){ return\n{ok:1} }';
+  const same = 'function f(){ return {ok:1} }';
+  assert.notEqual(codeOnly(asi), codeOnly(same));
+});
+
+test('reformatting IS reported, and that is the deliberate trade', () => {
+  // Line structure is preserved now, so rewrapping a signature reads as drift.
+  // That direction is chosen on purpose: a false alarm gets looked at, a false
+  // pass does not — and the false passes above were real.
   const oneLine = 'export function f(a, b) { return a + b; }';
   const wrapped = 'export function f(\n  a,\n  b,\n) {\n  return a + b;\n}';
-  assert.equal(codeOnly(oneLine), codeOnly(wrapped));
+  assert.notEqual(codeOnly(oneLine), codeOnly(wrapped));
 });
 
 test('comments may differ, code may not', () => {

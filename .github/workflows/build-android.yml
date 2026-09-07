@@ -39,8 +39,13 @@ jobs:
           distribution: 'temurin'
           java-version: '17'
 
+      # `npm ci`, not `npm install`. The test workflow uses ci, so install here
+      # meant the APK people actually install was built from a dependency tree
+      # no test job ever ran against — npm install resolves newer transitives and
+      # rewrites the lock. A dependency change has broken this Android build
+      # before; that is exactly the gap it slipped through.
       - name: Install dependencies
-        run: npm install
+        run: npm ci
 
       # מזהה בנייה שאפשר לראות מהטלפון: הגדרות → אפליקציות → A&M Clean מציג
       # את versionName, ולכן הקומיט נכנס לתוכו. בלי זה כל הבניות מדווחות אותה

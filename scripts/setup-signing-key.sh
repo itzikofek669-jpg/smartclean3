@@ -25,8 +25,10 @@
 # If you lose it you can never publish an update to the same Play Store
 # listing. Keep a copy somewhere that is not this laptop and not this repo.
 #
-# You are prompted for the password; it is never written to disk in plain text,
-# never printed, and never passed through the assistant.
+# You are prompted for the password. It is never written to disk in plain text,
+# never printed, never passed through the assistant, and never given to keytool
+# on the command line — `ps` is readable by every process on this machine, and
+# an argument would sit there for the length of each call.
 
 set -euo pipefail
 
@@ -55,33 +57,43 @@ read -r -s -p "Confirm: " PASS2; echo
 [ "$PASS" = "$PASS2" ] || { echo "Passwords do not match."; exit 1; }
 [ ${#PASS} -ge 6 ]     || { echo "Too short."; exit 1; }
 
+export KS_PASS="$PASS"
 keytool -genkeypair -v \
   -keystore "$OUT" \
   -alias "$ALIAS" \
   -keyalg RSA -keysize 4096 -validity 10000 \
-  -storepass "$PASS" -keypass "$PASS" \
+  -storepass:env KS_PASS -keypass:env KS_PASS \
   -dname "CN=A&M Clean, O=A&M Clean, C=IL"
 
 chmod 600 "$OUT"
 
 echo
 echo "─── Fingerprints — register BOTH in Firebase ────────────────────────────"
-keytool -list -v -keystore "$OUT" -alias "$ALIAS" -storepass "$PASS" \
+keytool -list -v -keystore "$OUT" -alias "$ALIAS" -storepass:env KS_PASS \
   | grep -E 'SHA1:|SHA256:'
 echo "─────────────────────────────────────────────────────────────────────────"
 echo
 
-SHA1=$(keytool -list -v -keystore "$OUT" -alias "$ALIAS" -storepass "$PASS" \
+SHA1=$(keytool -list -v -keystore "$OUT" -alias "$ALIAS" -storepass:env KS_PASS \
        | grep -m1 'SHA1:' | awk '{print $NF}')
 
+# The keystore secret goes LAST.
+#
+# There is no way to set five secrets atomically, and the workflow treats a set
+# ANDROID_KEYSTORE_BASE64 with any of the other three missing as a hard error —
+# so a failure partway through the old order (keystore first) left the build
+# broken outright rather than falling back to the previous behaviour, and the
+# `[ -e "$OUT" ]` guard above then refused to re-run. Setting the keystore last
+# means a partial failure leaves signing simply not switched on yet, which is
+# where we already are.
 echo "Uploading secrets to $REPO ..."
-base64 < "$OUT" | gh secret set ANDROID_KEYSTORE_BASE64  --repo "$REPO"
 printf '%s' "$PASS"  | gh secret set ANDROID_KEYSTORE_PASSWORD --repo "$REPO"
 printf '%s' "$ALIAS" | gh secret set ANDROID_KEY_ALIAS         --repo "$REPO"
 printf '%s' "$PASS"  | gh secret set ANDROID_KEY_PASSWORD      --repo "$REPO"
 gh variable set EXPECTED_SIGNING_SHA1 --repo "$REPO" --body "$SHA1"
+base64 < "$OUT" | gh secret set ANDROID_KEYSTORE_BASE64  --repo "$REPO"
 
-unset PASS PASS2
+unset PASS PASS2 KS_PASS
 
 cat <<DONE
 

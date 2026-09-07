@@ -51,16 +51,30 @@ export function isUrgentRequestLive(
 }
 
 /**
- * May this request be deleted as expired?
+ * May this request be swept away?
  *
- * Only with a timestamp that parses and has passed. A missing or malformed one
- * is our defect, and destroying somebody's request over it is not a repair —
- * it stays hidden by isUrgentRequestLive until a person looks at it.
+ * True for a request that has genuinely lapsed, AND for one whose expiry
+ * cannot be read at all.
+ *
+ * The undateable case was excluded at first, on the reasoning that the missing
+ * timestamp is our defect and the client's request is real. A review showed
+ * that made things worse, not safer. Nothing displays such a request — every
+ * list filters on isUrgentRequestLive, including its owner's own dashboard —
+ * so the "it stays hidden until a person looks at it" escape hatch did not
+ * exist. Meanwhile hasClashingRequest queries by client and date with no status
+ * filter, so an invisible, undeletable, still-open request permanently blocked
+ * its own owner from posting anything at that date and time, with nothing on
+ * screen to explain why and no control that could clear it.
+ *
+ * Sweeping it is safe because only the owner ever does: both products filter
+ * their sweep to `clientUid == me`, which is also the only case the Firestore
+ * rules permit. So this deletes a person's own unreadable request, which is
+ * exactly what used to happen before the unification and what unblocks them.
  */
 export function isUrgentRequestExpired(
   r: ExpirableRequest | null | undefined,
   now: Date = new Date(),
 ): boolean {
   const t = expiryOf(r);
-  return t !== null && t <= now.getTime();
+  return t === null || t <= now.getTime();
 }

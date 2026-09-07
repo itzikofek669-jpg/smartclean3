@@ -58,13 +58,26 @@ if (repointed === gradle) {
 }
 gradle = repointed;
 
-fs.writeFileSync(path, gradle);
-
-// Prove it took, rather than trusting the replace.
-const after = fs.readFileSync(path, 'utf8');
-const releaseBlock = after.match(/buildTypes[\s\S]*?\brelease\s*\{[\s\S]*?\}/);
-if (!releaseBlock || !/signingConfigs\.release/.test(releaseBlock[0])) {
-  console.error('::error::Rewrote build.gradle but the release buildType is still not on the release key. Refusing to continue.');
-  process.exit(1);
+// Verify BEFORE writing. The check below used to run after fs.writeFileSync, so
+// a bad rewrite was already on disk by the time it was caught — in CI the step
+// exits and no APK ships, but run locally it left `expo run:android` broken and
+// asking for a release.keystore the developer does not have.
+//
+// The `[\s\S]*?` above can cross a block boundary when the release buildType
+// has no signingConfig line of its own, and the debug block that follows gets
+// repointed instead. That is the corruption this refuses to write.
+{
+  const releaseBlock = gradle.match(/buildTypes[\s\S]*?\brelease\s*\{[\s\S]*?\}/);
+  const debugBlock = gradle.match(/buildTypes[\s\S]*?\bdebug\s*\{[\s\S]*?\}/);
+  if (!releaseBlock || !/signingConfigs\.release/.test(releaseBlock[0])) {
+    console.error('::error::The release buildType is still not on the release key. Refusing to write.');
+    process.exit(1);
+  }
+  if (debugBlock && /signingConfigs\.release/.test(debugBlock[0])) {
+    console.error('::error::The rewrite moved the DEBUG buildType onto the release key, which would break local builds. Refusing to write.');
+    process.exit(1);
+  }
 }
+
+fs.writeFileSync(path, gradle);
 console.log('Release signing config wired into build.gradle');

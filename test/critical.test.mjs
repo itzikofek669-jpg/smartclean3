@@ -278,16 +278,21 @@ test('the exact moment of expiry is over, not still running', () => {
   assert.equal(isUrgentRequestExpired(r, AT2('2026-09-07T12:00:00Z')), true);
 });
 
-test('a request nobody can date is hidden but never destroyed', () => {
-  // The two answers deliberately disagree here, and that is the whole point:
-  // showing an unbounded request would rush a cleaner to a job that may have
-  // lapsed weeks ago, and deleting it would destroy a real request over our own
-  // missing field.
+test('a request nobody can date is hidden, and its owner can clear it', () => {
+  // Hidden from every board, because showing an unbounded request would rush a
+  // cleaner to a job that may have lapsed weeks ago.
+  //
+  // But sweepable, which is the correction to the first version of this. Not
+  // sweeping it left the request invisible AND undeletable while still open —
+  // and hasClashingRequest, which filters by client and date and not by status,
+  // then blocked its own owner from posting anything at that time, forever,
+  // with nothing on screen to explain it. Only the owner ever sweeps, in both
+  // products and in the rules, so this clears a person's own broken request.
   for (const bad of [req(undefined), req(null), req(''), req('   '), req('not a date'), {}, null]) {
     assert.equal(isUrgentRequestLive(bad, AT2('2026-09-07T12:00:00Z')), false,
       `live: ${JSON.stringify(bad)}`);
-    assert.equal(isUrgentRequestExpired(bad, AT2('2026-09-07T12:00:00Z')), false,
-      `expired: ${JSON.stringify(bad)}`);
+    assert.equal(isUrgentRequestExpired(bad, AT2('2026-09-07T12:00:00Z')), true,
+      `sweepable: ${JSON.stringify(bad)}`);
   }
 });
 

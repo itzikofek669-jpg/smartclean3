@@ -26,12 +26,15 @@ jobs:
       - name: Install
         run: npm ci
 
-      # The website lives in a separate repo under a different GitHub account,
-      # so this job cannot check it out. This compares our own copies of the
-      # shared files against the manifest both repos carry — see
-      # scripts/shared-hash.mjs. The sharper cross-repo comparison in
-      # test/shared.test.mjs skips here and runs when both are on one machine.
-      - name: Shared files have not drifted from the website
+      # A local check only: it proves nobody edited a shared file here without
+      # rewriting the manifest. It CANNOT prove the two products agree — this
+      # repo cannot read the website's private one.
+      #
+      # The real cross-product comparison runs in the website's CI, which can
+      # fetch this repo's manifest because this repo is public. If a shared file
+      # changes here, that job is what fails. Do not mistake a green tick on
+      # this step for the two products being in step.
+      - name: Shared files match this repo's manifest
         run: node scripts/shared-hash.mjs
 
       - name: Regression tests
