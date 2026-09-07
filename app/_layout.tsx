@@ -12,6 +12,10 @@ import { logError } from '../lib/logError';
 import { loadDemoMode } from '../lib/demoMode';
 import { loadDiagnostics, diagnosticsEnabled, record } from '../lib/diagnostics';
 import { primeCalendarPermission, addBookingToCalendar, removeBookingFromCalendar, calendarSyncMessage, hasWarnedCalendar, markCalendarWarned } from '../lib/calendarSync';
+// Imported for its side effect as well as the helper: the background task is
+// defined at module scope there, and a cold start triggered by a push must find
+// it already defined. See lib/calendarTask.ts.
+import { registerCalendarPushTask } from '../lib/calendarTask';
 import { LanguageProvider } from '../lib/LanguageContext';
 import { ThemeProvider } from '../lib/ThemeContext';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
@@ -94,6 +98,11 @@ async function registerPushToken(uid: string) {
 
     await updateDoc(doc(db, 'users', uid), { pushToken: token });
     record('push:registered', { token: token.slice(0, 24) + '…' });
+
+    // Only once a token exists: the background task has nothing to receive
+    // before the server can address this device. Registering it here also means
+    // it re-registers after a reinstall, when the OS has forgotten the task.
+    await registerCalendarPushTask();
   } catch (err) {
     // Was an empty catch, which is how this could be broken for months without
     // a trace. On Android the usual cause is FCM not being configured in the

@@ -12,6 +12,11 @@
       "bundleIdentifier": "com.itzik669.cleantouch",
       "config": {
         "googleMapsApiKey": "AIzaSyDgFAy6_0c9X_lN6JV4j6fWfCyn4vCcDdA"
+      },
+      "infoPlist": {
+        "UIBackgroundModes": [
+          "remote-notification"
+        ]
       }
     },
     "android": {

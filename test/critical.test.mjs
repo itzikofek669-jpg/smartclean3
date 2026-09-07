@@ -4,6 +4,7 @@ import { resolveRole } from '../.tsbuild/resolveRole.mjs';
 import { mustVerifyEmail, VERIFY_REQUIRED_FROM } from '../.tsbuild/verifyRule.mjs';
 import { isAvailableNow } from '../.tsbuild/displayOrder.mjs';
 import { startDateOf, endDateOf, bookingHours, DEFAULT_BOOKING_HOURS } from '../.tsbuild/bookingSlot.mjs';
+import { readCalendarRemoval, extractPushData } from '../.tsbuild/calendarPush.mjs';
 
 // Every case here is a bug that reached a real user. They are regression tests,
 // not coverage: each one failed in production before it was written.
@@ -171,4 +172,69 @@ test('a stated length is honoured', () => {
 
 test('an unreadable slot has no end either', () => {
   assert.equal(endDateOf(slotAt('2026-09-06', '24:30', 2)), null);
+});
+
+// ── Silent calendar push ───────────────────────────────────────────────────
+// The payload arrives from the network. The only thing it may cause is the
+// removal of an event this device created, for the user it names.
+
+test('a cancellation push is read into a removal', () => {
+  assert.deepEqual(
+    readCalendarRemoval({ type: 'booking-cancelled', bookingId: 'bk1', uid: 'u1' }),
+    { bookingId: 'bk1', uid: 'u1' },
+  );
+});
+
+test('a push of any other type removes nothing', () => {
+  assert.equal(readCalendarRemoval({ type: 'message', bookingId: 'bk1', uid: 'u1' }), null);
+  assert.equal(readCalendarRemoval({ bookingId: 'bk1', uid: 'u1' }), null, 'no type at all');
+});
+
+test('a payload missing either id removes nothing', () => {
+  const base = { type: 'booking-cancelled', bookingId: 'bk1', uid: 'u1' };
+  assert.equal(readCalendarRemoval({ ...base, bookingId: '' }), null);
+  assert.equal(readCalendarRemoval({ ...base, uid: '' }), null);
+  assert.equal(readCalendarRemoval({ ...base, bookingId: '   ' }), null, 'whitespace is empty');
+  assert.equal(readCalendarRemoval({ ...base, bookingId: undefined }), null);
+});
+
+test('a non-string id is not coerced into one', () => {
+  // `String(42)` would be a plausible id and a wrong one.
+  const base = { type: 'booking-cancelled', bookingId: 'bk1', uid: 'u1' };
+  assert.equal(readCalendarRemoval({ ...base, bookingId: 42 }), null);
+  assert.equal(readCalendarRemoval({ ...base, uid: { toString: () => 'u1' } }), null);
+});
+
+test('a malformed payload is ignored, never guessed at', () => {
+  for (const bad of [null, undefined, 'booking-cancelled', 42, []]) {
+    assert.equal(readCalendarRemoval(bad), null, `${JSON.stringify(bad)}`);
+  }
+});
+
+test('the notification payload is found in every shape the platforms send', () => {
+  const payload = { type: 'booking-cancelled', bookingId: 'bk1', uid: 'u1' };
+  const shapes = {
+    'android headless (raw data)':   { data: payload },
+    'ios notification object':       { request: { content: { data: payload } } },
+    'wrapped notification':          { notification: { request: { content: { data: payload } } } },
+    'android notification.data':     { notification: { data: payload } },
+    'content.data':                  { content: { data: payload } },
+    'already unwrapped':             payload,
+  };
+  for (const [name, shape] of Object.entries(shapes)) {
+    assert.deepEqual(readCalendarRemoval(extractPushData(shape)),
+      { bookingId: 'bk1', uid: 'u1' }, name);
+  }
+});
+
+test('an unrecognised shape yields nothing rather than a guess', () => {
+  for (const bad of [null, undefined, 42, 'x', {}, { data: {} }, { nope: { deep: 1 } }]) {
+    assert.equal(readCalendarRemoval(extractPushData(bad)), null, JSON.stringify(bad));
+  }
+});
+
+test('a self-referential payload does not hang the task', () => {
+  const loop = {};
+  loop.data = loop;
+  assert.equal(extractPushData(loop), null);
 });

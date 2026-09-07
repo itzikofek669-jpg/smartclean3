@@ -42,7 +42,16 @@ import { startDateOf, endDateOf } from './bookingSlot';
  * Falls back to `anon` when signed out, which only happens on paths that have
  * already checked for a user.
  */
-const evtKey = (bookingId: string) => `cal_evt_${auth.currentUser?.uid ?? 'anon'}_${bookingId}`;
+/**
+ * @param forUid pass explicitly when the caller cannot rely on `auth.currentUser`
+ *   — a background task runs in a fresh JS context where auth persistence has
+ *   not been restored yet, and `currentUser` is null there for a moment. Reading
+ *   it anyway would silently key on `anon`, find no stored event, and report a
+ *   clean no-op while the entry stayed in the calendar. Same shape as the role
+ *   bug in lib/resolveRole: null means "not loaded yet", not "nobody".
+ */
+const evtKey = (bookingId: string, forUid?: string) =>
+  `cal_evt_${forUid ?? auth.currentUser?.uid ?? 'anon'}_${bookingId}`;
 
 export interface CalendarBooking {
   id: string;
@@ -350,10 +359,10 @@ async function addBookingToCalendarInner(
 export async function removeBookingFromCalendar(
   bookingId: string,
   b?: CalendarBooking,
-  opts: { sweep?: boolean } = {},
+  opts: { sweep?: boolean; uid?: string } = {},
 ): Promise<void> {
   try {
-    const key = evtKey(bookingId);
+    const key = evtKey(bookingId, opts.uid);
     const id = await SecureStore.getItemAsync(key).catch(() => null);
     if (!id) {
       // Nothing recorded for this booking on this device. Worth saying so:

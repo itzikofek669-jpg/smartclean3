@@ -13,6 +13,7 @@
     "lib/resolveRole.ts",
     "lib/verifyRule.ts",
     "lib/displayOrder.ts",
-    "lib/bookingSlot.ts"
+    "lib/bookingSlot.ts",
+    "lib/calendarPush.ts"
   ]
 }
