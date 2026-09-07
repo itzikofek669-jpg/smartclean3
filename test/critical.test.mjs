@@ -5,6 +5,7 @@ import { mustVerifyEmail, VERIFY_REQUIRED_FROM } from '../.tsbuild/verifyRule.mj
 import { isAvailableNow } from '../.tsbuild/displayOrder.mjs';
 import { startDateOf, endDateOf, bookingHours, DEFAULT_BOOKING_HOURS } from '../.tsbuild/bookingSlot.mjs';
 import { readCalendarRemoval, extractPushData } from '../.tsbuild/calendarPush.mjs';
+import { isUrgentRequestLive, isUrgentRequestExpired, expiryOf } from '../.tsbuild/urgentRequest.mjs';
 
 // Every case here is a bug that reached a real user. They are regression tests,
 // not coverage: each one failed in production before it was written.
@@ -247,4 +248,53 @@ test('a self-referential payload does not hang the task', () => {
   const loop = {};
   loop.data = loop;
   assert.equal(extractPushData(loop), null);
+});
+
+// ── Urgent request expiry ──────────────────────────────────────────────────
+// One question was being answered five times, three different ways. A legacy
+// request with no `expiresAt` showed on both job boards, was invisible in the
+// app's urgent popup, and was deleted out from under all of them the moment its
+// owner opened their dashboard. An unparseable timestamp inverted every one of
+// those at once, because `NaN > now` and `NaN <= now` are both false.
+
+const AT2 = t => new Date(t);
+const req = expiresAt => ({ expiresAt });
+
+test('a request that has not yet lapsed is live and not deletable', () => {
+  const r = req('2026-09-07T18:00:00Z');
+  assert.equal(isUrgentRequestLive(r, AT2('2026-09-07T12:00:00Z')), true);
+  assert.equal(isUrgentRequestExpired(r, AT2('2026-09-07T12:00:00Z')), false);
+});
+
+test('a request past its expiry is neither live nor kept', () => {
+  const r = req('2026-09-07T10:00:00Z');
+  assert.equal(isUrgentRequestLive(r, AT2('2026-09-07T12:00:00Z')), false);
+  assert.equal(isUrgentRequestExpired(r, AT2('2026-09-07T12:00:00Z')), true);
+});
+
+test('the exact moment of expiry is over, not still running', () => {
+  const r = req('2026-09-07T12:00:00Z');
+  assert.equal(isUrgentRequestLive(r, AT2('2026-09-07T12:00:00Z')), false);
+  assert.equal(isUrgentRequestExpired(r, AT2('2026-09-07T12:00:00Z')), true);
+});
+
+test('a request nobody can date is hidden but never destroyed', () => {
+  // The two answers deliberately disagree here, and that is the whole point:
+  // showing an unbounded request would rush a cleaner to a job that may have
+  // lapsed weeks ago, and deleting it would destroy a real request over our own
+  // missing field.
+  for (const bad of [req(undefined), req(null), req(''), req('   '), req('not a date'), {}, null]) {
+    assert.equal(isUrgentRequestLive(bad, AT2('2026-09-07T12:00:00Z')), false,
+      `live: ${JSON.stringify(bad)}`);
+    assert.equal(isUrgentRequestExpired(bad, AT2('2026-09-07T12:00:00Z')), false,
+      `expired: ${JSON.stringify(bad)}`);
+  }
+});
+
+test('expiryOf returns null rather than NaN', () => {
+  // NaN was the bug: every comparison against it is false, so it read as
+  // "not expired" to one call site and "not live" to another.
+  assert.equal(expiryOf(req('not a date')), null);
+  assert.equal(expiryOf(req(undefined)), null);
+  assert.equal(expiryOf(req('2026-09-07T12:00:00Z')), Date.parse('2026-09-07T12:00:00Z'));
 });

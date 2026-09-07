@@ -40,6 +40,7 @@ import {
   stripEmoji, countWords, limitWords, buildFullAddress,
 } from '../lib/jobUtils';
 import { compareCleaners, compareJobs, isAvailableNow, rotationRank } from '../lib/displayOrder';
+import { isUrgentRequestLive } from '../lib/urgentRequest';
 import { resolveRole } from '../lib/resolveRole';
 import { MAP_STYLE_LIGHT, MAP_STYLE_DARK } from '../lib/mapStyle';
 import { useTheme } from '../lib/ThemeContext';
@@ -4799,7 +4800,7 @@ export default function HomeScreen() {
         const now = new Date();
         setOpenUrgent(
           snap.docs.map(d => ({ id: d.id, ...(d.data() as any) }))
-            .filter(r => (!r.expiresAt || new Date(r.expiresAt) > now) && r.clientUid !== uid)
+            .filter(r => isUrgentRequestLive(r, now) && r.clientUid !== uid)
             .sort((a, b) => String(b.createdAt || '').localeCompare(String(a.createdAt || '')))
         );
       },
@@ -5044,7 +5045,7 @@ export default function HomeScreen() {
     const q = query(collection(db, 'urgentRequests'), where('status', '==', 'open'));
     const unsub = onSnapshot(q, async snap => {
       const now = new Date();
-      const reqs = snap.docs.map(d => ({ id: d.id, ...d.data() } as any)).filter((r: any) => r.expiresAt && new Date(r.expiresAt) > now);
+      const reqs = snap.docs.map(d => ({ id: d.id, ...d.data() } as any)).filter((r: any) => isUrgentRequestLive(r, now));
       // טעינה ראשונית — מסמנים את כל הקיימות כ"הוצגו" בלי להקפיץ (מונע הקפצת backlog)
       if (!urgentInitedRef.current) {
         reqs.forEach((r: any) => shownUrgentRef.current.add(r.id));
@@ -5147,12 +5148,21 @@ export default function HomeScreen() {
           name:       data.name        || 'מנקה',
           initials:   (data.name || 'מ').split(' ').map((w: string) => w[0]).join('').slice(0, 2),
           city:       data.city        || '',
-          region:     data.workAreas?.[0] || 'center',
+          // כמו באתר: השדה region אם קיים, אחרת אזור אמיתי מתוך workAreas.
+          // קודם נלקח האיבר הראשון של workAreas ואם הוא היה שם עיר הוא הפך
+          // ל"אזור", ואם המערך היה ריק נקבע 'center' — כלומר אותה מנקה קיבלה
+          // אזור אחד באפליקציה ו-undefined באתר.
+          region:     data.region
+                      || (data.workAreas || []).find((w: string) => w === 'north' || w === 'center' || w === 'south')
+                      || 'center',
           workAreas:  data.workAreas   || [],
           types:      data.types       || [],
           price:      data.price       || 0,
           rating:     data.rating      || 0,
-          reviews:    data.reviewCount || 0,
+          // כל האיותים. האפליקציה כותבת reviewCount, הקוד הישן של האתר כתב
+          // reviewsCount, ושניהם כותבים היום את כולם — אבל מנקה שדורגה לפני כן
+          // הציגה N באתר ו-0 כאן.
+          reviews:    data.reviewCount ?? data.reviewsCount ?? data.reviews ?? 0,
           // Shared with the website through lib/displayOrder, because the two
           // used to compute this differently and showed the same cleaner as
           // available on one and busy on the other.
@@ -5176,8 +5186,12 @@ export default function HomeScreen() {
           // Absent means mobile: every cleaner predating the flag travelled to
           // the client, so defaulting to false would mark them all stationary.
           isMobile:         data.isMobile !== false,
-          maxDistance:      Number(data.maxDistance) || 0,
-          languages:        data.languages          || [],
+          // 0 מול undefined: האתר משאיר undefined כשאין ערך, וכאן 0 נראה כמו
+          // "לא נוסעת לשום מקום". אותה משמעות בשני המוצרים עכשיו.
+          maxDistance:      Number(data.maxDistance) > 0 ? Number(data.maxDistance) : undefined,
+          // דרך normalizeLanguages, כמו באתר: מסמך ישן ששמר 'עברית' במקום קוד
+          // הציג שפות באפליקציה ואף אחת באתר.
+          languages:        normalizeLanguages(data.languages),
           identityVerified: data.identityVerified === true,
           // Legacy documents only; current ones keep the photo in `userPhotos`
           // and are drawn through useAvatar, which `hasPhoto` lets it skip.

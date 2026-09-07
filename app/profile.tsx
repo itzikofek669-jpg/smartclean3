@@ -54,6 +54,7 @@ import * as Notifications from 'expo-notifications';
 import Constants from 'expo-constants';
 import { addBookingToCalendar, removeBookingFromCalendar, calendarSyncMessage } from '../lib/calendarSync';
 import { logError } from '../lib/logError';
+import { isUrgentRequestLive, isUrgentRequestExpired } from '../lib/urgentRequest';
 import { releaseUrgentRequest } from '../lib/urgentRelease';
 
 
@@ -1139,11 +1140,11 @@ export default function ProfileScreen() {
         const reqs = snap.docs
           .map(d => ({ id: d.id, ...d.data() }))
           .filter((r: any) => {
-            if (!r.expiresAt || new Date(r.expiresAt) <= now) {
-              expired.push(r);
-              return false;
-            }
-            return true;
+            // Hiding and deleting are different questions — a request we cannot
+            // date is not shown, but neither is it destroyed. See
+            // lib/urgentRequest.
+            if (isUrgentRequestExpired(r, now)) expired.push(r);
+            return isUrgentRequestLive(r, now);
           });
         // מחק אוטומטית פניות שפג תוקפן — אבל רק כאלה שמותר לנו למחוק.
         //

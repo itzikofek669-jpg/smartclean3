@@ -28,6 +28,8 @@ import { readFileSync, writeFileSync, existsSync } from 'node:fs';
 const SHARED = [
   { name: 'verifyRule',   app: 'lib/verifyRule.ts',   web: 'src/lib/verifyRule.ts' },
   { name: 'displayOrder', app: 'lib/displayOrder.ts', web: 'src/lib/displayOrder.ts' },
+  { name: 'urgentRequest', app: 'lib/urgentRequest.ts', web: 'src/lib/urgentRequest.ts' },
+  { name: 'cleanerTraits', app: 'lib/cleanerTraits.ts', web: 'src/lib/cleanerTraits.ts' },
   { name: 'firestoreRules', app: 'firestore.rules',   web: 'firestore.rules' },
 ];
 

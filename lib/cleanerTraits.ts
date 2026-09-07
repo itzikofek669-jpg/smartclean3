@@ -51,7 +51,38 @@ export function normalizeWorkDays(value: unknown): WorkDayCode[] {
  * Day keys used by the app's `availability` map, Sunday-first so the index is
  * already a `Date.getDay()` number.
  */
-const AVAILABILITY_DAY_KEYS = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'] as const;
+export const AVAILABILITY_DAY_KEYS = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'] as const;
+
+/** One day's entry in the `availability` map. Hours are whole numbers, 6–23. */
+export interface DayAvailability { active: boolean; start: number; end: number }
+
+/** What the app writes when a day has never been touched. */
+export const DEFAULT_DAY: DayAvailability = { active: false, start: 9, end: 18 };
+
+/**
+ * Coerce a stored `availability` map into a complete, well-typed one.
+ *
+ * Firestore holds whatever was written, and the app only ever stores the days
+ * a cleaner actually toggled — so most maps are partial. Filling the gaps here
+ * means the editor never has to reason about missing keys.
+ */
+export function normalizeAvailability(value: unknown): Record<string, DayAvailability> {
+  const src = (value && typeof value === 'object' ? value : {}) as Record<string, any>;
+  const out: Record<string, DayAvailability> = {};
+  for (const k of AVAILABILITY_DAY_KEYS) {
+    const d = src[k] ?? {};
+    const start = Number(d.start);
+    const end = Number(d.end);
+    out[k] = {
+      active: d.active === true,
+      start: Number.isFinite(start) ? Math.min(23, Math.max(6, start)) : DEFAULT_DAY.start,
+      end: Number.isFinite(end) ? Math.min(23, Math.max(6, end)) : DEFAULT_DAY.end,
+    };
+    // An inverted or empty window is unusable; fall back rather than store it.
+    if (out[k].end <= out[k].start) { out[k].start = DEFAULT_DAY.start; out[k].end = DEFAULT_DAY.end; }
+  }
+  return out;
+}
 
 /**
  * Which days a cleaner works, read from the `availability` map the app's

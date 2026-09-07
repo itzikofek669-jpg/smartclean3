@@ -14,6 +14,7 @@
     "lib/verifyRule.ts",
     "lib/displayOrder.ts",
     "lib/bookingSlot.ts",
-    "lib/calendarPush.ts"
+    "lib/calendarPush.ts",
+    "lib/urgentRequest.ts"
   ]
 }
