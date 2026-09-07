@@ -88,6 +88,35 @@ jobs:
           echo "App: $APP"
           ls -la "$APP/main.jsbundle"
 
+      # A simulator slice cannot be installed on a physical iPhone — different
+      # architecture — so the check above proves the project compiles and
+      # nothing more. This one builds the arm64 device binary, which is what a
+      # real install actually needs, and would have caught the fact that the
+      # iOS side had never been compiled for a device at all.
+      #
+      # Still unsigned: signing needs an Apple ID, and a free one is enough to
+      # install on your own iPhone from Xcode. CODE_SIGNING_ALLOWED=NO stops
+      # this job needing any credentials while still compiling every line.
+      - name: Compile for a real device (arm64, unsigned)
+        run: |
+          set -e
+          cd ios
+          xcodebuild \
+            -workspace AMClean.xcworkspace \
+            -scheme AMClean \
+            -configuration Release \
+            -sdk iphoneos \
+            -destination 'generic/platform=iOS' \
+            -derivedDataPath ../build-ios-device \
+            CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO \
+            build | tail -5
+          APP=$(find ../build-ios-device/Build/Products/Release-iphoneos -maxdepth 1 -name "*.app" | head -1)
+          test -n "$APP" || { echo "::error::No device .app was produced"; exit 1; }
+          ARCH=$(lipo -info "$APP/$(basename "$APP" .app)" | grep -o 'arm64')
+          test "$ARCH" = "arm64" || { echo "::error::The binary is not arm64, so it cannot run on an iPhone"; exit 1; }
+          test -f "$APP/main.jsbundle" || { echo "::error::main.jsbundle is missing — the app would have no JavaScript"; exit 1; }
+          echo "OK — arm64 device build with an embedded JS bundle"
+
       - name: Upload app
         uses: actions/upload-artifact@v4
         with:
