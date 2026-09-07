@@ -1,26 +1,48 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
+import path from 'node:path';
+import url from 'node:url';
 
 // The two products share one Firebase project. Where they claim to agree, a
 // difference is not a style issue — it lets an account blocked on one side in
 // through the other.
 
+/**
+ * Where the website repo sits. Absolute paths used to be baked in here, which
+ * meant these comparisons could only ever run on one laptop and never in CI —
+ * the two repos live under different GitHub accounts, so no job can check out
+ * both. `../A-M-Clean` is the layout on that machine; SITE_REPO overrides it.
+ *
+ * When it is not there the cross-repo checks skip rather than fail, because in
+ * CI they are not the guard that matters: scripts/shared-hash.mjs compares each
+ * repo's own copies against a manifest both repos carry, which needs no access
+ * to the other side at all. These tests are the sharper version of the same
+ * check, for when both repos are in front of you.
+ */
+const SITE = process.env.SITE_REPO
+  ?? path.resolve(path.dirname(url.fileURLToPath(import.meta.url)), '..', '..', 'A-M-Clean');
+const APP = path.resolve(path.dirname(url.fileURLToPath(import.meta.url)), '..');
+const haveSite = fs.existsSync(path.join(SITE, 'package.json'));
+const crossRepo = { skip: haveSite ? false : `website repo not found at ${SITE}` };
+
 const read = p => fs.readFileSync(p, 'utf8');
+const appFile = rel => path.join(APP, rel);
+const siteFile = rel => path.join(SITE, rel);
 const cutoff = src => src.match(/VERIFY_REQUIRED_FROM = Date\.parse\('([^']+)'\)/)?.[1];
 
-test('both products use the same email-verification cutoff', () => {
-  const app  = cutoff(read('/Users/ofek/Projects/smartclean3/lib/verifyRule.ts'));
-  const site = cutoff(read('/Users/ofek/Projects/A-M-Clean/src/lib/verifyRule.ts'));
+test('both products use the same email-verification cutoff', crossRepo, () => {
+  const app  = cutoff(read(appFile('lib/verifyRule.ts')));
+  const site = cutoff(read(siteFile('src/lib/verifyRule.ts')));
   assert.ok(app, 'the app declares a cutoff');
   assert.equal(app, site, 'a differing cutoff lets a blocked account in through the other product');
 });
 
-test('registration is never followed by a sign-out', () => {
+test('registration is never followed by a sign-out', crossRepo, () => {
   // The bug: signing the new account out meant a verification email that never
   // arrived left the account unreachable — nobody could complete a signup.
-  for (const p of ['/Users/ofek/Projects/smartclean3/app/register.tsx',
-                   '/Users/ofek/Projects/A-M-Clean/src/pages/Register.tsx']) {
+  for (const p of [appFile('app/register.tsx'),
+                   siteFile('src/pages/Register.tsx')]) {
     assert.ok(!/signOut\(/.test(read(p)), `${p} signs the new account out`);
   }
 });
@@ -93,7 +115,7 @@ const codeOnly = (src) => {
   return out;
 };
 
-test('both products order and rank identically', () => {
+test('both products order and rank identically', crossRepo, () => {
   // Comparing the email cutoff alone was not enough. `available` was computed
   // in each product separately and the two disagreed: a cleaner mid-job was
   // busy in the app and available on the web. It is the first key
@@ -101,22 +123,22 @@ test('both products order and rank identically', () => {
   //
   // The whole module is compared now, not one constant, because every export
   // in it is a promise that the two products show the same people the same way.
-  const app  = codeOnly(read('/Users/ofek/Projects/smartclean3/lib/displayOrder.ts'));
-  const site = codeOnly(read('/Users/ofek/Projects/A-M-Clean/src/lib/displayOrder.ts'));
+  const app  = codeOnly(read(appFile('lib/displayOrder.ts')));
+  const site = codeOnly(read(siteFile('src/lib/displayOrder.ts')));
   assert.equal(app, site, 'displayOrder.ts has drifted between the app and the website');
 });
 
-test('the verification rule is the same code, not just the same date', () => {
-  const app  = codeOnly(read('/Users/ofek/Projects/smartclean3/lib/verifyRule.ts'));
-  const site = codeOnly(read('/Users/ofek/Projects/A-M-Clean/src/lib/verifyRule.ts'));
+test('the verification rule is the same code, not just the same date', crossRepo, () => {
+  const app  = codeOnly(read(appFile('lib/verifyRule.ts')));
+  const site = codeOnly(read(siteFile('src/lib/verifyRule.ts')));
   assert.equal(app, site, 'verifyRule.ts has drifted between the app and the website');
 });
 
-test('both products enforce the same Firestore rules', () => {
+test('both products enforce the same Firestore rules', crossRepo, () => {
   // One project, one rules file. Whichever product deploys last wins, so a
   // difference here means the deployed rules depend on deploy order.
-  const app  = read('/Users/ofek/Projects/smartclean3/firestore.rules');
-  const site = read('/Users/ofek/Projects/A-M-Clean/firestore.rules');
+  const app  = read(appFile('firestore.rules'));
+  const site = read(siteFile('firestore.rules'));
   assert.equal(app, site, 'firestore.rules differs; the deployed rules depend on which product deployed last');
 });
 

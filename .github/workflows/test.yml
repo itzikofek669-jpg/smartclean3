@@ -1,0 +1,49 @@
+name: Test
+
+# Nothing ran these automatically until now. The regression suite here is made
+# entirely of bugs that reached real users — a cleaner shown the client home
+# screen, an account locked out by a typo, an event landing on the wrong day —
+# and it was protected only by remembering to type `npm test`.
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install
+        run: npm ci
+
+      # The website lives in a separate repo under a different GitHub account,
+      # so this job cannot check it out. This compares our own copies of the
+      # shared files against the manifest both repos carry — see
+      # scripts/shared-hash.mjs. The sharper cross-repo comparison in
+      # test/shared.test.mjs skips here and runs when both are on one machine.
+      - name: Shared files have not drifted from the website
+        run: node scripts/shared-hash.mjs
+
+      - name: Regression tests
+        run: npm test
+
+      - name: Types
+        run: npx tsc --noEmit
+
+      # Not a gate. The baseline is 282 problems, 64 of them errors, all
+      # predating this workflow — failing the build on day one would teach
+      # everyone to ignore it. It runs so the number is visible and so a
+      # deliberate cleanup has somewhere to show up.
+      - name: Lint (informational)
+        run: npm run lint
+        continue-on-error: true
