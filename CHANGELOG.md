@@ -1,5 +1,18 @@
 # Changelog
 
+## 1.2.22 (versionCode 25) — 2026-09-07
+
+- Read the same fields the website reads, and date requests the same way
+- Mirror the second round of rules tightening
+- Run the tests somewhere other than one laptop
+- Carry the calendar wake-up on the push the app already sends
+- Remove a cancelled cleaning from the calendar without opening the app
+- Make it possible to sign with a key that is not published on npm
+- Mirror the tightened rules, and let the phone check fail open
+- Fix what the review found in yesterday's fixes
+- Build the APK only when asked for one
+- Take out the signing trap, and put the slot arithmetic under test
+
 ## 1.2.21 (versionCode 24) — 2026-09-06
 
 - Close the four review findings the last round left open
