@@ -146,12 +146,20 @@ jobs:
         run: |
           set -e
           APK=android/app/build/outputs/apk/release/app-release.apk
-          BT=$(ls -d "$ANDROID_SDK_ROOT"/build-tools/* | sort -V | tail -1)
-          CERTS=$("$BT/apksigner" verify --print-certs "$APK")
+          BT=$(ls -d "$ANDROID_SDK_ROOT"/build-tools/* | sort -V | tail -1) || {
+            echo "::error::No Android build-tools found under ANDROID_SDK_ROOT ($ANDROID_SDK_ROOT)."; exit 1; }
+
+          # ‎`|| { ... }`‎ ולא השמה חשופה: apksigner יוצא בקוד שאינו אפס כשה-APK
+          # אינו מאומת, ועם set -e ההשמה עצמה הורגת את השלב — כלומר הבדיקה
+          # הידידותית שמתחתיה לא הייתה רצה אף פעם במקרה שבשבילו נכתבה, והלוג
+          # היה מראה יציאה שקטה בלי שום הסבר.
+          CERTS=$("$BT/apksigner" verify --print-certs "$APK") || {
+            echo "::error::apksigner could not verify $APK. The APK is unsigned or its signature is broken; it will not install."; exit 1; }
+
           echo "$CERTS" | grep -E 'SHA-1|SHA-256' || true
-          SHA1=$(echo "$CERTS" | grep -m1 'SHA-1 digest' | awk '{print $NF}')
+          SHA1=$(echo "$CERTS" | grep -m1 'SHA-1 digest' | awk '{print $NF}') || true
           if [ -z "$SHA1" ]; then
-            echo "::error::Could not read a SHA-1 out of the APK. Google Sign-In cannot be configured without it."
+            echo "::error::apksigner verified the APK but printed no SHA-1. Google Sign-In cannot be configured without it."
             exit 1
           fi
           # בפורמט שמדביקים ל-Firebase Console (זוגות מופרדים בנקודתיים).
@@ -159,14 +167,24 @@ jobs:
           echo "APK signing SHA-1 (register this one in Firebase): $FMT"
           echo "::notice title=APK signing SHA-1::$FMT"
 
-          # שמירה על יציבות: המפתח חייב להישאר זה שכל הבילדים הקודמים חתומים
-          # בו, אחרת אי אפשר להתקין מעל גרסה מותקנת. נמדד על בילד 186 ועל 190.
-          EXPECTED="5E:8F:16:06:2E:A3:CD:2C:4A:0D:54:78:76:BA:A6:F3:8C:AB:F6:25"
-          if [ "$FMT" != "$EXPECTED" ]; then
-            echo "::error::This APK is signed with $FMT, but every previous build used $EXPECTED. It will not install over an existing copy, and the Firebase SHA-1 no longer matches. Do not distribute this build."
+          # המפתח חייב להישאר זה שכל הבילדים הקודמים חתומים בו, אחרת אי אפשר
+          # להתקין מעל גרסה מותקנת. הערך יושב במשתנה ריפו ולא כאן, כדי
+          # שהחלפת מפתח מכוונת — בדיוק מה שצריך לקרות לפני פרסום בחנות — תהיה
+          # שינוי בהגדרות ולא עריכת וורקפלואו שנכשלת רבע שעה לתוך הריצה.
+          #
+          # ‎5E:8F:16:…‎ הוא ה-keystore של תבנית expo-template-bare-minimum,
+          # שנשלחת ב-npm עם הסיסמה android. הוא יציב, ולכן השדרוג-במקום עובד —
+          # אבל הוא ציבורי, וכל אחד יכול לחתום בו APK שיתקין מעל האמיתי.
+          # ההחלפה ב-keystore פרטי היא הצעד הבא, ואז מעדכנים את המשתנה.
+          EXPECTED="${{ vars.EXPECTED_SIGNING_SHA1 }}"
+          if [ -z "$EXPECTED" ]; then
+            echo "::warning::Repository variable EXPECTED_SIGNING_SHA1 is not set, so the signing key is not being checked. Set it to $FMT to pin the current key."
+          elif [ "$FMT" != "$EXPECTED" ]; then
+            echo "::error::This APK is signed with $FMT, but EXPECTED_SIGNING_SHA1 is $EXPECTED. If the key changed by accident this build will not install over an existing copy — do not distribute it. If you changed it deliberately, update the EXPECTED_SIGNING_SHA1 repository variable and re-register the fingerprint in Firebase."
             exit 1
+          else
+            echo "Signing key unchanged from previous builds."
           fi
-          echo "Signing key unchanged from previous builds."
 
       - name: Name the APK after the commit
         id: apk

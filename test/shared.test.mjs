@@ -26,16 +26,72 @@ test('registration is never followed by a sign-out', () => {
 });
 
 /**
- * Strip comments and blank lines, so prose about "the app" vs "the website"
- * may differ while a single line of behaviour may not.
+ * Strip comments and collapse whitespace, so prose about "the app" vs "the
+ * website" may differ while a single line of behaviour may not.
+ *
+ * The first version ran two regexes over the raw text, and a review broke it
+ * in both directions. Block-comment delimiters appearing INSIDE a string
+ * literal were treated as real ones, so a guard smuggled between two such
+ * strings compared equal to the copy that did not have it; and any `//` in a
+ * string that was not part of `://` deleted the rest of its line, hiding a
+ * changed constant sitting after it. It also cried wolf on pure reformatting,
+ * because it only trimmed line ends while the two repos run different
+ * formatters.
+ *
+ * So this is a small scanner rather than a pair of regexes: it walks the
+ * source one character at a time and knows whether it is inside a string, a
+ * template literal or a comment. Whitespace outside strings collapses to
+ * nothing, which makes the comparison immune to line wrapping while still
+ * catching a changed token.
+ *
+ * (Writing the delimiters out literally here would end this comment early —
+ * which is the same defect, one level up. See the test below, which feeds the
+ * scanner the cases the review found.)
  */
-const codeOnly = src => src
-  .replace(/\/\*[\s\S]*?\*\//g, '')
-  .replace(/(^|[^:])\/\/.*$/gm, '$1')
-  .split('\n')
-  .map(l => l.trim())
-  .filter(Boolean)
-  .join('\n');
+const codeOnly = (src) => {
+  let out = '';
+  let i = 0;
+  while (i < src.length) {
+    const c = src[i];
+    const next = src[i + 1];
+    // Comments — dropped whole.
+    if (c === '/' && next === '*') {
+      const end = src.indexOf('*/', i + 2);
+      i = end === -1 ? src.length : end + 2;
+      continue;
+    }
+    if (c === '/' && next === '/') {
+      const end = src.indexOf('\n', i);
+      i = end === -1 ? src.length : end;
+      continue;
+    }
+    // Strings and template literals — kept verbatim, delimiters and all, so
+    // nothing inside them can be mistaken for syntax.
+    if (c === '"' || c === "'" || c === '`') {
+      const quote = c;
+      out += c;
+      i += 1;
+      while (i < src.length) {
+        if (src[i] === '\\') { out += src[i] + (src[i + 1] ?? ''); i += 2; continue; }
+        out += src[i];
+        if (src[i] === quote) { i += 1; break; }
+        i += 1;
+      }
+      continue;
+    }
+    // Whitespace outside a string carries no meaning here.
+    if (/\s/.test(c)) { i += 1; continue; }
+    // A trailing comma before a closer is what a formatter adds, not what a
+    // change looks like. Dropped only outside strings, so it cannot reach into
+    // one and quietly erase a real difference.
+    if ((c === ')' || c === ']' || c === '}') && out.endsWith(',')) {
+      out = out.slice(0, -1);
+    }
+    out += c;
+    i += 1;
+  }
+  return out;
+};
 
 test('both products order and rank identically', () => {
   // Comparing the email cutoff alone was not enough. `available` was computed
@@ -62,4 +118,56 @@ test('both products enforce the same Firestore rules', () => {
   const app  = read('/Users/ofek/Projects/smartclean3/firestore.rules');
   const site = read('/Users/ofek/Projects/A-M-Clean/firestore.rules');
   assert.equal(app, site, 'firestore.rules differs; the deployed rules depend on which product deployed last');
+});
+
+// ── The drift guard's own guard ────────────────────────────────────────────
+// A comparison that can be fooled is worse than none: it reports "identical"
+// and everyone stops looking. Each case below defeated the regex version.
+
+const OPEN  = '/' + '*';
+const CLOSE = '*' + '/';
+
+test('a behaviour change hidden between two string delimiters is still caught', () => {
+  // The regex version deleted everything between these, guard included.
+  const clean  = `const A = '${OPEN}'; const B = '${CLOSE}';`;
+  const smuggled = `const A = '${OPEN}'; if (x !== true) return false; const B = '${CLOSE}';`;
+  assert.notEqual(codeOnly(clean), codeOnly(smuggled),
+    'a guard smuggled between two string literals compared equal');
+});
+
+test('a changed constant after a slashed string is still caught', () => {
+  // The regex spared `://` for URLs, so any other `//` in a string ate the
+  // rest of the line — and the constant sitting after it went with it.
+  const five = "const DOCS = '//docs/ranking'; export const DISTANCE_BAND_KM = 5;";
+  const nine = "const DOCS = '//docs/ranking'; export const DISTANCE_BAND_KM = 9;";
+  assert.notEqual(codeOnly(five), codeOnly(nine), 'a changed band width compared equal');
+});
+
+test('reformatting alone never reports drift', () => {
+  // The two repos run different formatters (expo lint vs eslint), so a guard
+  // that fails on line wrapping is a guard that gets deleted.
+  const oneLine = 'export function f(a, b) { return a + b; }';
+  const wrapped = 'export function f(\n  a,\n  b,\n) {\n  return a + b;\n}';
+  assert.equal(codeOnly(oneLine), codeOnly(wrapped));
+});
+
+test('comments may differ, code may not', () => {
+  const hebrew  = `${OPEN}* הסבר בעברית ${CLOSE}\nexport const N = 1;`;
+  const english = `${OPEN}* An explanation in English ${CLOSE}\nexport const N = 1;`;
+  assert.equal(codeOnly(hebrew), codeOnly(english), 'prose is allowed to differ');
+  const changed = `${OPEN}* An explanation in English ${CLOSE}\nexport const N = 2;`;
+  assert.notEqual(codeOnly(english), codeOnly(changed), 'the value is not');
+});
+
+test('a URL inside a string survives intact', () => {
+  const a = "const U = 'https://example.com/a'; const K = 1;";
+  const b = "const U = 'https://example.com/b'; const K = 1;";
+  assert.notEqual(codeOnly(a), codeOnly(b), 'a changed URL is a changed string');
+  assert.ok(codeOnly(a).includes('https://example.com/a'), 'the URL was not eaten');
+});
+
+test('an escaped quote does not end the string early', () => {
+  const a = `const S = 'it\\'s'; const N = 1;`;
+  const b = `const S = 'it\\'s'; const N = 2;`;
+  assert.notEqual(codeOnly(a), codeOnly(b));
 });

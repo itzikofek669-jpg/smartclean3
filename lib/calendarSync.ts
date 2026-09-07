@@ -26,7 +26,7 @@ import { auth } from './firebase';
 // The slot arithmetic lives on its own so it can be tested without a device —
 // it is the part that has already put an event on the wrong day. See
 // lib/bookingSlot.ts.
-import { startDateOf, bookingHours } from './bookingSlot';
+import { startDateOf, endDateOf } from './bookingSlot';
 
 /**
  * SecureStore key holding the created event id for a booking, per signed-in user.
@@ -290,8 +290,8 @@ async function addBookingToCalendarInner(
     if (existing) return 'already-synced';
 
     const start = startDateOf(b);
-    if (!start) return 'bad-slot';
-    const end = new Date(start.getTime() + bookingHours(b) * 3600000);
+    const end   = endDateOf(b);
+    if (!start || !end) return 'bad-slot';
 
     const { status } = await Calendar.requestCalendarPermissionsAsync();
     if (status !== 'granted') return 'denied';
@@ -389,8 +389,8 @@ export async function removeBookingFromCalendar(
     // again for that booking.
     if (!opts.sweep || !b) return;
     const start = startDateOf(b);
-    if (!start) return;
-    const end = new Date(start.getTime() + bookingHours(b) * 3600000);
+    const end   = endDateOf(b);
+    if (!start || !end) return;
 
     const cals = await Calendar.getCalendarsAsync(Calendar.EntityTypes.EVENT);
     const ids = cals.filter(c => c.allowsModifications).map(c => c.id);

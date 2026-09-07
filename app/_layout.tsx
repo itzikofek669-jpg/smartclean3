@@ -252,11 +252,16 @@ export default function RootLayout() {
             //
             // קודם הבדיקה הזו גם *כתבה* את הסימון, ולכן יציאה כאן שרפה את
             // האסימון של ההזמנה בלי להציג עליה שום דבר — והיא לא הייתה מדווחת
-            // לעולם. הסימון נכתב עכשיו רק אחרי שההודעה באמת יצאה.
+            // לעולם. הסימון נכתב עכשיו רק אחרי שההודעה יצאה בפועל, למטה.
             if (warned) return;
             warned = true;
-            await markCalendarWarned(String(b.id), role);
+            // Alert first, then record. The run-level flag above already stops
+            // a second alert this run, so the write has nothing to guard — and
+            // ordering it first reopened, narrowly, the very hole this change
+            // was made to close: a booking marked as reported while nothing
+            // ever reached the screen never reports again.
             Alert.alert('', msg);
+            await markCalendarWarned(String(b.id), role);
           })
           .catch(err => logError('layout:calendarAdd', err));
       }
@@ -353,6 +358,14 @@ ${(err as any)?.message ?? err}`);
       seenCancelled.clear();
       removedCancelled.clear();
       firstSnapshot = true;
+      // `warned` belongs in that list too, and was missing from it. The stored
+      // marks are scoped per uid (see warnKey in lib/calendarSync), but this
+      // in-memory flag lives for the whole process — so after A signed out and
+      // B signed in on the same device, every one of B's bookings hit
+      // `if (warned) return` and B was told nothing at all. An unwritable
+      // calendar is a device-level condition: it fails for both accounts, so
+      // this is the ordinary case, not an edge one.
+      warned = false;
       if (!user) return;
       unsubClient = watch('clientUid', 'client', user.uid);
       unsubCleaner = watch('cleanerId', 'cleaner', user.uid);
