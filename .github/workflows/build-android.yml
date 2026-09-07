@@ -88,6 +88,43 @@ jobs:
         env:
           EXPO_NO_GIT_STATUS: 1
 
+      # חתימה במפתח פרטי, כשהוא קיים.
+      #
+      # בלי זה ה-APK נחתם ב-debug.keystore של תבנית expo — קובץ שנשלח בתוך
+      # חבילת npm ציבורית עם הסיסמה `android`. כלומר כל אחד יכול לבנות APK עם
+      # אותו package name, לחתום באותו מפתח, ואנדרואיד יקבל אותו כעדכון-במקום
+      # מעל האפליקציה האמיתית — בלי הסרה ובלי אזהרה. זו בדיוק דרך ההפצה כאן,
+      # וה-SHA-1 שרשום ב-Firebase ל-Google Sign-In הוא הטביעה הציבורית ההיא.
+      #
+      # הסודות נוצרים ע"י scripts/setup-signing-key.sh, שרץ פעם אחת מקומית.
+      # כשהם לא מוגדרים הבנייה ממשיכה כמו קודם ומדפיסה אזהרה — כדי שהמצב הזמני
+      # יהיה גלוי בלוג ולא יתגלה בחנות.
+      #
+      # ⚠️ המעבר שובר שדרוג-במקום: מי שכבר התקין APK חתום במפתח הישן יצטרך
+      # להסיר ולהתקין מחדש. חד-פעמי ובלתי הפיך.
+      - name: Sign with the private release key when one is configured
+        env:
+          KEYSTORE_B64:  ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          KEYSTORE_PASS: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          KEY_ALIAS:     ${{ secrets.ANDROID_KEY_ALIAS }}
+          KEY_PASS:      ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          set -e
+          if [ -z "$KEYSTORE_B64" ]; then
+            echo "::warning::No ANDROID_KEYSTORE_BASE64 secret. This APK will be signed with the expo template's debug key, which is published on npm - anyone can sign an APK that installs over it. Run scripts/setup-signing-key.sh to fix this."
+            exit 0
+          fi
+          if [ -z "$KEYSTORE_PASS" ] || [ -z "$KEY_ALIAS" ] || [ -z "$KEY_PASS" ]; then
+            echo "::error::ANDROID_KEYSTORE_BASE64 is set but one of ANDROID_KEYSTORE_PASSWORD / ANDROID_KEY_ALIAS / ANDROID_KEY_PASSWORD is missing. All four are required together."
+            exit 1
+          fi
+          echo "$KEYSTORE_B64" | base64 -d > android/app/release.keystore
+          if ! keytool -list -keystore android/app/release.keystore -storepass "$KEYSTORE_PASS" >/dev/null 2>&1; then
+            echo "::error::The keystore secret does not decode into a readable keystore, or the store password is wrong."
+            exit 1
+          fi
+          node scripts/wire-release-signing.js android/app/build.gradle
+
       - name: Build release APK
         run: |
           cd android
@@ -95,6 +132,11 @@ jobs:
           ./gradlew assembleRelease --no-daemon
         env:
           GRADLE_OPTS: "-Dorg.gradle.jvmargs=-Xmx4g"
+          # Read by the release signingConfig wired in above. Empty when no
+          # signing secrets are set, in which case that config was never added.
+          KEYSTORE_PASS: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          KEY_ALIAS:     ${{ secrets.ANDROID_KEY_ALIAS }}
+          KEY_PASS:      ${{ secrets.ANDROID_KEY_PASSWORD }}
 
       # תבנית ה-release של Expo/RN מכוונת לחתימת ה-debug, ו-gradle מוציא
       # app-release.apk חתום. אם התבנית תשתנה ותשאיר קובץ לא חתום — עוצרים.
