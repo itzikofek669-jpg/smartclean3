@@ -99,7 +99,12 @@ jobs:
       # this job needing any credentials while still compiling every line.
       - name: Compile for a real device (arm64, unsigned)
         run: |
-          set -e
+          # pipefail, not just -e. GitHub's default shell is `bash -e {0}` with
+          # NO pipefail, so `xcodebuild ... | tail -5` threw away the compiler's
+          # exit status entirely — a failed build carried on to the next line and
+          # reported "No device .app was produced", having already discarded the
+          # actual error. The simulator step above sets pipefail; this one did not.
+          set -eo pipefail
           cd ios
           xcodebuild \
             -workspace AMClean.xcworkspace \
@@ -112,10 +117,28 @@ jobs:
             build | tail -5
           APP=$(find ../build-ios-device/Build/Products/Release-iphoneos -maxdepth 1 -name "*.app" | head -1)
           test -n "$APP" || { echo "::error::No device .app was produced"; exit 1; }
-          ARCH=$(lipo -info "$APP/$(basename "$APP" .app)" | grep -o 'arm64')
-          test "$ARCH" = "arm64" || { echo "::error::The binary is not arm64, so it cannot run on an iPhone"; exit 1; }
+
+          # LC_BUILD_VERSION platform: 2 is iOS, 7 is the simulator. `lipo -info`
+          # cannot tell them apart — an arm64 SIMULATOR slice prints exactly the
+          # same "Non-fat file: ... arm64" — so the previous check proved nothing
+          # about the thing it was named for. It was also dead code: under `set -e`
+          # a non-matching `grep -o` killed the step one line earlier with no
+          # message, and `arm64 arm64e` would have failed it for no reason.
+          BIN="$APP/$(basename "$APP" .app)"
+          PLATFORM=$(otool -l "$BIN" | awk '/LC_BUILD_VERSION/{f=1} f&&/platform/{print $2; exit}')
+          test "$PLATFORM" = "2" || { echo "::error::Built for platform $PLATFORM, not iOS device (2). This cannot run on an iPhone."; exit 1; }
+
           test -f "$APP/main.jsbundle" || { echo "::error::main.jsbundle is missing — the app would have no JavaScript"; exit 1; }
-          echo "OK — arm64 device build with an embedded JS bundle"
+          echo "OK — iOS device build (platform 2) with an embedded JS bundle"
+
+      # The device build was verified and then discarded — only the simulator app
+      # was uploaded, so nobody could retrieve the one that matters.
+      - name: Upload the device build
+        uses: actions/upload-artifact@v4
+        with:
+          name: AMClean-iOS-device-unsigned
+          path: build-ios-device/Build/Products/Release-iphoneos/*.app
+          if-no-files-found: error
 
       - name: Upload app
         uses: actions/upload-artifact@v4

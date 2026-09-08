@@ -50,3 +50,7 @@ tsc_out.txt
 tsc_err.txt
 
 .tsbuild
+
+# Generated iOS build output — multi-gigabyte derived data.
+/build-ios
+/build-ios-device
