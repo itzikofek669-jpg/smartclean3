@@ -3,7 +3,6 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import url from 'node:url';
-import { codeOnly } from '../scripts/shared-hash.mjs';
 
 // The two products share one Firebase project. Where they claim to agree, a
 // difference is not a style issue — it lets an account blocked on one side in
@@ -48,30 +47,6 @@ test('registration is never followed by a sign-out', crossRepo, () => {
   }
 });
 
-// One copy of the comparison, imported rather than repeated. This file used to
-// carry its own byte-identical duplicate of codeOnly, so a fix to one would
-// have left the other fooled — a drifting copy of the code that decides whether
-// two copies have drifted.
-
-test('both products order and rank identically', crossRepo, () => {
-  // Comparing the email cutoff alone was not enough. `available` was computed
-  // in each product separately and the two disagreed: a cleaner mid-job was
-  // busy in the app and available on the web. It is the first key
-  // compareCleaners sorts on, so the shared ordering diverged with it.
-  //
-  // The whole module is compared now, not one constant, because every export
-  // in it is a promise that the two products show the same people the same way.
-  const app  = codeOnly(read(appFile('lib/displayOrder.ts')));
-  const site = codeOnly(read(siteFile('src/lib/displayOrder.ts')));
-  assert.equal(app, site, 'displayOrder.ts has drifted between the app and the website');
-});
-
-test('the verification rule is the same code, not just the same date', crossRepo, () => {
-  const app  = codeOnly(read(appFile('lib/verifyRule.ts')));
-  const site = codeOnly(read(siteFile('src/lib/verifyRule.ts')));
-  assert.equal(app, site, 'verifyRule.ts has drifted between the app and the website');
-});
-
 test('both products enforce the same Firestore rules', crossRepo, () => {
   // One project, one rules file. Whichever product deploys last wins, so a
   // difference here means the deployed rules depend on deploy order.
@@ -87,74 +62,51 @@ test('both products enforce the same Firestore rules', crossRepo, () => {
 const OPEN  = '/' + '*';
 const CLOSE = '*' + '/';
 
-test('a behaviour change hidden between two string delimiters is still caught', () => {
-  // The regex version deleted everything between these, guard included.
-  const clean  = `const A = '${OPEN}'; const B = '${CLOSE}';`;
-  const smuggled = `const A = '${OPEN}'; if (x !== true) return false; const B = '${CLOSE}';`;
-  assert.notEqual(codeOnly(clean), codeOnly(smuggled),
-    'a guard smuggled between two string literals compared equal');
+// ── The shared files themselves ───────────────────────────────────────────
+// Comment-stripping is gone. Two versions of it were written and a review broke
+// both — a character scanner read the `//` inside `/^https?:\\/\\//` as a comment,
+// and the line-based rewrite that replaced it still swallowed everything to
+// end-of-file when a line inside a template literal began with a block-comment
+// opener. Both times two different files hashed the same, which is the one
+// outcome this guard exists to prevent. The copies carry identical prose now and
+// the comparison is over raw bytes, so there is nothing left to fool.
+
+const SHARED_PAIRS = [
+  ['lib/verifyRule.ts',    'src/lib/verifyRule.ts'],
+  ['lib/displayOrder.ts',  'src/lib/displayOrder.ts'],
+  ['lib/urgentRequest.ts', 'src/lib/urgentRequest.ts'],
+  ['lib/cleanerTraits.ts', 'src/lib/cleanerTraits.ts'],
+  ['lib/bookingSlot.ts',   'src/lib/bookingSlot.ts'],
+  ['lib/bookingActions.ts', 'src/lib/bookingActions.ts'],
+  ['firestore.rules',      'firestore.rules'],
+];
+
+test('every shared file is byte-identical between the products', crossRepo, () => {
+  for (const [appPath, sitePath] of SHARED_PAIRS) {
+    assert.equal(
+      read(appFile(appPath)),
+      read(siteFile(sitePath)),
+      `${appPath} differs from ${sitePath}`,
+    );
+  }
 });
 
-test('a changed constant after a slashed string is still caught', () => {
-  // The regex spared `://` for URLs, so any other `//` in a string ate the
-  // rest of the line — and the constant sitting after it went with it.
-  const five = "const DOCS = '//docs/ranking'; export const DISTANCE_BAND_KM = 5;";
-  const nine = "const DOCS = '//docs/ranking'; export const DISTANCE_BAND_KM = 9;";
-  assert.notEqual(codeOnly(five), codeOnly(nine), 'a changed band width compared equal');
-});
-
-test('a regex containing // is not mistaken for a comment', () => {
-  // The scanner version read the `//` inside this regex as a comment and
-  // deleted the rest of the line, so a changed constant after it compared
-  // equal. There is no way to tell a regex from division without parsing
-  // JavaScript, so the comparison no longer looks inside a line of code.
-  const five = 'const RE = /^https?:\\/\\//; const LIMIT = 5;';
-  const many = 'const RE = /^https?:\\/\\//; const LIMIT = 999;';
-  assert.notEqual(codeOnly(five), codeOnly(many));
-});
-
-test('a regex that looks like a block comment does not eat the file', () => {
-  // `/a/*b/` sent the scanner hunting for a terminator that never came, and
-  // everything from there to end of file vanished from the hash.
-  const a = 'const r = /a/*b/; const Z = 1;\nexport const AFTER = 10;';
-  const b = 'const r = /a/*b/; const Z = 2;\nexport const AFTER = 20;';
-  assert.notEqual(codeOnly(a), codeOnly(b));
-  assert.ok(codeOnly(a).includes('AFTER'), 'the rest of the file survived');
-});
-
-test('a newline that changes what a function returns is not collapsed away', () => {
-  // Whitespace is not always insignificant: one of these returns undefined.
-  const asi  = 'function f(){ return\n{ok:1} }';
-  const same = 'function f(){ return {ok:1} }';
-  assert.notEqual(codeOnly(asi), codeOnly(same));
-});
-
-test('reformatting IS reported, and that is the deliberate trade', () => {
-  // Line structure is preserved now, so rewrapping a signature reads as drift.
-  // That direction is chosen on purpose: a false alarm gets looked at, a false
-  // pass does not — and the false passes above were real.
-  const oneLine = 'export function f(a, b) { return a + b; }';
-  const wrapped = 'export function f(\n  a,\n  b,\n) {\n  return a + b;\n}';
-  assert.notEqual(codeOnly(oneLine), codeOnly(wrapped));
-});
-
-test('comments may differ, code may not', () => {
-  const hebrew  = `${OPEN}* הסבר בעברית ${CLOSE}\nexport const N = 1;`;
-  const english = `${OPEN}* An explanation in English ${CLOSE}\nexport const N = 1;`;
-  assert.equal(codeOnly(hebrew), codeOnly(english), 'prose is allowed to differ');
-  const changed = `${OPEN}* An explanation in English ${CLOSE}\nexport const N = 2;`;
-  assert.notEqual(codeOnly(english), codeOnly(changed), 'the value is not');
-});
-
-test('a URL inside a string survives intact', () => {
-  const a = "const U = 'https://example.com/a'; const K = 1;";
-  const b = "const U = 'https://example.com/b'; const K = 1;";
-  assert.notEqual(codeOnly(a), codeOnly(b), 'a changed URL is a changed string');
-  assert.ok(codeOnly(a).includes('https://example.com/a'), 'the URL was not eaten');
-});
-
-test('an escaped quote does not end the string early', () => {
-  const a = `const S = 'it\\'s'; const N = 1;`;
-  const b = `const S = 'it\\'s'; const N = 2;`;
-  assert.notEqual(codeOnly(a), codeOnly(b));
+test('the manifest covers every file that is supposed to be shared', () => {
+  // A shared file left out of the manifest is one nothing checks. This caught
+  // cleanerTraits.ts, which carried a header saying the two copies must agree
+  // while nothing compared them.
+  // By NAME, not by count. Comparing lengths passed for a manifest holding the
+  // right number of wrong names, or a duplicate — and this list is the third
+  // hardcoded copy of the shared set, alongside SHARED in shared-hash.mjs.
+  const manifest = read(appFile('shared-files.sha256'));
+  const inManifest = manifest.trim().split('\n')
+    .map(l => l.trim().split(/\s+/)[1])
+    .filter(Boolean)
+    .sort();
+  const expected = [...new Set(SHARED_PAIRS.map(([appPath]) =>
+    appPath.replace(/^lib\//, '').replace(/\.ts$/, '').replace('firestore.rules', 'firestoreRules'),
+  ))].sort();
+  assert.deepEqual(inManifest, expected,
+    'the manifest and this file disagree about which files are shared');
+  assert.equal(inManifest.length, new Set(inManifest).size, 'the manifest lists a file twice');
 });

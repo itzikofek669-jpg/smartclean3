@@ -18,11 +18,11 @@
  * was — cards never move under a finger mid-scroll. Reopening the app or
  * reloading the page draws a new seed and a new order.
  *
- * Kept in step with src/lib/displayOrder.ts on the website; the two products show
+ * Byte-identical to the other product's copy; the two products show
  * the same people the same way.
  */
 
-/** Drawn once per app start. Reopening the app is what re-rotates the lists. */
+/** Drawn once when the product starts — an app launch, or a page load. */
 const SESSION_SEED = Math.random().toString(36).slice(2);
 
 /** Cleaners within this many km of each other count as equally near. */

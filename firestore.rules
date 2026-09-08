@@ -124,10 +124,22 @@ service cloud.firestore {
       allow list: if isAdmin()
         || (signedIn() && resource.data.get('role', '') == 'cleaner');
 
-      allow create: if signedIn() && uid() == userId;
+      // `create` was pinned to the caller and nothing else, so a new account
+      // could hand itself a 5.0 rating with 999 reviews, mark itself identity-
+      // and email-verified, and — worst — write `blocked: false`. A banned
+      // account unbanned itself in one write and erased the admin's note about
+      // why. All the isValidRatingUpdate machinery was bypassed simply by
+      // creating the document instead of updating it.
+      allow create: if signedIn() && uid() == userId
+        && !request.resource.data.keys().hasAny([
+          'rating', 'reviewCount', 'reviews', 'reviewsCount',
+          'blocked', 'blockedUntilReview', 'identityVerified', 'adminNote'
+        ]);
 
       allow update: if isAdmin()
-        || (signedIn() && uid() == userId && !touchesOwnRating())
+        || (signedIn() && uid() == userId && !touchesOwnRating()
+            // Moderation state is the admin's, not the subject's.
+            && !changed().hasAny(['blocked', 'blockedUntilReview', 'identityVerified', 'adminNote']))
         || (signedIn() && uid() != userId && isValidRatingUpdate());
 
       allow delete: if isAdmin();
@@ -172,7 +184,14 @@ service cloud.firestore {
           && request.resource.data.dataUrl.matches('data:image/.*');
       }
 
-      allow read: if signedIn();
+      // `get`, not `list`. The document IDs here ARE user uids, so listing this
+      // collection enumerated every account in the product — and `/users/{uid}`
+      // is readable one at a time, so an attacker walked the uid list straight
+      // back to the customer table the users `list` rule refuses to hand over:
+      // email, phone, saved addresses, push token, private adminNote. Closing
+      // the front door mattered less than this side one.
+      allow get: if signedIn();
+      allow list: if isAdmin();
       allow create, update: if signedIn() && uid() == userId && isPhoto();
       allow delete: if signedIn() && (uid() == userId || isAdmin());
     }
@@ -199,7 +218,14 @@ service cloud.firestore {
           && request.resource.data.images.size() <= 12;
       }
 
-      allow read: if signedIn();
+      // `get`, not `list`. The document IDs here ARE user uids, so listing this
+      // collection enumerated every account in the product — and `/users/{uid}`
+      // is readable one at a time, so an attacker walked the uid list straight
+      // back to the customer table the users `list` rule refuses to hand over:
+      // email, phone, saved addresses, push token, private adminNote. Closing
+      // the front door mattered less than this side one.
+      allow get: if signedIn();
+      allow list: if isAdmin();
       allow create, update: if signedIn() && uid() == userId && isGallery();
       allow delete: if signedIn() && (uid() == userId || isAdmin());
     }
@@ -221,7 +247,15 @@ service cloud.firestore {
           && resource.data.get('status', '') == 'pending';
       }
 
-      allow read: if isParty() || isOpenJob() || isAdmin();
+      // A cancelled booking stops being the cleaner's business. `isParty` kept
+      // whoever was on it reading the client's street, floor, flat and phone
+      // forever — and since a cancelled record is settled, no branch can clear
+      // `cleanerId` to undo it. The client and admins keep full access.
+      allow read: if isAdmin()
+        || isTheClient()
+        || (signedIn() && resource.data.get('cleanerId', '') == uid()
+            && resource.data.get('status', '') != 'cancelled')
+        || isOpenJob();
 
       // The creator must own the booking they are creating.
       allow create: if signedIn()
@@ -261,24 +295,162 @@ service cloud.firestore {
       // match. Both are the cleaner's to record — endJob and "payment received"
       // are cleaner actions in both products — so only the cleaner may.
       function bookingSettlementByCleaner() {
-        return !changed().hasAny(['actualTotal', 'actualHours', 'paymentStatus', 'paidAt'])
+        return !changed().hasAny(['actualTotal', 'actualHours', 'paymentStatus', 'paidAt', 'finishedAt'])
           || resource.data.get('cleanerId', '') == uid();
+      }
+      // What may be billed. The cleaner could write any figure at any time on a
+      // record the client can no longer contest — 99999 for a 250 job after it
+      // was closed and paid, or 5000 for a job that was cancelled and never
+      // happened. A cancelled job is never billable, and a finished one is
+      // capped at twice its agreed price, which covers honest overruns.
+      function billingIsPlausible() {
+        return !changed().hasAny(['actualTotal', 'actualHours', 'paymentStatus', 'paidAt'])
+          || (resource.data.get('status', '') != 'cancelled'
+              && request.resource.data.get('actualTotal', 0) >= 0
+              && request.resource.data.get('actualTotal', 0)
+                 <= resource.data.get('total', 0) * 2 + 100);
       }
       // A claim is four fields, in both products (cleanerActions.ts,
       // app/home.tsx). Without an allowlist the same write could rewrite the
       // service address and mark the job paid while claiming it.
+      // Six fields, not four. claimUpdate also writes the busy window it derives
+      // (lib/bookingActions), and a four-field allowlist DENIED every real claim
+      // while the rules test — which sent only the four — passed. The feature was
+      // completely broken and the suite said it was fine.
       function onlyClaimsTheJob() {
-        return changed().hasOnly(['cleanerId', 'cleanerName', 'open', 'status']);
+        return changed().hasOnly([
+          'cleanerId', 'cleanerName', 'open', 'status', 'busyFrom', 'busyUntil'
+        ]);
       }
 
       // Either party may progress the job (accept / cancel / complete), and an
       // unassigned open job may be claimed by any cleaner. Nobody else.
+      // Putting a claimed board job back where it came from.
+      //
+      // Claiming a posted job now leaves it `pending` so the cleaner still has
+      // to approve it, and rejecting it releases it rather than cancelling it —
+      // the job belongs to the client, and one cleaner changing their mind must
+      // not force them to post it again. That write clears `cleanerId`, which
+      // the isParty branch forbids and the claim branch cannot reach (the job is
+      // no longer `open`), so without this the reject button was denied every
+      // time. Narrow on purpose: the holder only, a board job only, and only
+      // back to exactly unclaimed-open-pending.
+      // `origin` decides whether a rejection releases a job to the public board or
+      // cancels it. Nothing may change it after creation: an adversarial probe
+      // stamped `origin: 'open'` onto a DIRECT booking through the isParty
+      // branch and then released it, which stripped the cleaner off it, put a
+      // private booking on the public board, and handed the client's name,
+      // street, floor, flat and PHONE to every signed-in account through
+      // isOpenJob()'s read grant.
+      function bookingOriginUnchanged() {
+        return request.resource.data.get('origin', '') == resource.data.get('origin', '');
+      }
+      // Only the release branch below may put a booking back on the board. The
+      // same probe reopened a finished, PAID job this way — `paymentStatus`,
+      // `actualTotal` and the address all readable by strangers.
+      function bookingBoardStateUnchanged() {
+        return request.resource.data.get('open', false) == resource.data.get('open', false);
+      }
+      // A finished or cancelled booking is a record, not a live job. Only the
+      // review fields may still be written to it — a client was able to rewrite
+      // the address on a settled booking.
+      // Where the cleaner is sent, and who they are meeting. A probe claimed a
+      // board job, rewrote the address, phone, date and time, then released it —
+      // every cleaner who took it afterwards was directed to an address of the
+      // attacker's choosing, and the doctored record was world-readable through
+      // isOpenJob(). Freezing `origin` did not help because none of this touches
+      // it. The client may still correct their own details; the cleaner may not.
+      function bookingClientDataUnchanged() {
+        return request.resource.data.get('address', '') == resource.data.get('address', '')
+          && request.resource.data.get('addrStreet', '') == resource.data.get('addrStreet', '')
+          && request.resource.data.get('addrCity', '') == resource.data.get('addrCity', '')
+          && request.resource.data.get('addrFloor', '') == resource.data.get('addrFloor', '')
+          && request.resource.data.get('addrApt', '') == resource.data.get('addrApt', '')
+          && request.resource.data.get('phone', '') == resource.data.get('phone', '')
+          && request.resource.data.get('clientName', '') == resource.data.get('clientName', '')
+          && request.resource.data.get('bookingDate', '') == resource.data.get('bookingDate', '')
+          && request.resource.data.get('startTime', '') == resource.data.get('startTime', '');
+      }
+      function isTheClient() {
+        return signedIn() && resource.data.get('clientUid', '') == uid();
+      }
+      // A cleaner walking away from a job the client posted must put it BACK,
+      // not destroy it. Otherwise any account claims every job on the board and
+      // cancels them one by one, and the client cannot revive their own.
+      function cleanerIsNotDestroyingABoardJob() {
+        return !(resource.data.get('origin', '') == 'open'
+                 && resource.data.get('status', '') == 'pending'
+                 && !isTheClient()
+                 && request.resource.data.get('status', '') == 'cancelled');
+      }
+
+      function bookingIsSettled() {
+        // Every terminal status, not just two. `expired` and `handled` are
+        // written elsewhere in the product and were leaving an ended job fully
+        // rewritable through the party branch.
+        return resource.data.get('status', '')
+          in ['done', 'cancelled', 'expired', 'handled'];
+      }
+      // What may still be written once the job is over: the reviews, and the
+      // settlement the cleaner records afterwards — markPaid writes
+      // `paymentStatus` on a booking that is already `done`.
+      function onlyAfterTheJobFields() {
+        return changed().hasOnly([
+          'cleanerRating', 'clientRating', 'reviewRequired', 'reviewDeadline', 'autoClosed',
+          'actualTotal', 'actualHours', 'paymentStatus', 'paidAt', 'finishedAt'
+        ]);
+      }
+
+      function releasesBoardJob() {
+        return signedIn()
+          && resource.data.get('cleanerId', '') == uid()
+          && resource.data.get('origin', '') == 'open'
+          // WHERE IT STARTS FROM, not only where it lands. Without these two the
+          // rule described the destination and nothing else, so a review proved
+          // a finished-and-paid job could be flung back onto the public board:
+          // the completed record became an advert, another cleaner would turn up
+          // for work already done, and `paymentStatus: 'paid'` rode along
+          // untouched. Worse, isOpenJob() grants `read` to any signed-in account
+          // for an open pending booking — so the released record leaked the
+          // client's address, floor, flat and name to everyone. A cancelled
+          // booking came back to life the same way.
+          && resource.data.get('status', '') == 'pending'
+          && resource.data.get('open', false) == false
+          && changed().hasOnly([
+            'cleanerId', 'cleanerName', 'open', 'status', 'releasedAt', 'busyFrom', 'busyUntil'
+          ])
+          && request.resource.data.get('cleanerId', '') == ''
+          && request.resource.data.get('open', false) == true
+          && request.resource.data.get('status', '') == 'pending';
+      }
+
+      // Either party may progress the job (accept / cancel / complete), an
+      // unassigned open job may be claimed by any cleaner, and whoever claimed
+      // one off the board may put it back. Nobody else.
       allow update: if isAdmin()
-        || (isParty() && bookingClientUnchanged() && bookingCleanerUnchanged()
-            && bookingMoneyUnchanged() && bookingSettlementByCleaner())
+        // Either party progressing a live job.
+        || (isParty() && !bookingIsSettled()
+            && bookingClientUnchanged() && bookingCleanerUnchanged()
+            && bookingMoneyUnchanged() && bookingSettlementByCleaner()
+            && bookingOriginUnchanged() && bookingBoardStateUnchanged()
+            && (isTheClient() || bookingClientDataUnchanged())
+            && cleanerIsNotDestroyingABoardJob())
+        // Rating and settling a job that is already over.
+        || (isParty() && bookingIsSettled() && onlyAfterTheJobFields()
+            && bookingSettlementByCleaner() && billingIsPlausible())
+        // A cleaner claiming an unheld job off the board. The destination is
+        // pinned: a probe claimed one straight to `done`, and another claimed a
+        // job somebody else was already holding, because neither the resulting
+        // status nor the current cleanerId was checked.
         || (isOpenJob() && bookingClientUnchanged() && bookingMoneyUnchanged()
+            && bookingOriginUnchanged()
+            && resource.data.get('cleanerId', '') == ''
             && onlyClaimsTheJob()
-            && request.resource.data.get('cleanerId', '') == uid());
+            && request.resource.data.get('cleanerId', '') == uid()
+            && request.resource.data.get('status', '') == 'pending'
+            && request.resource.data.get('open', false) == false)
+        // The holder putting a board job back.
+        || (releasesBoardJob() && bookingClientUnchanged() && bookingMoneyUnchanged());
 
       // Bookings are financial records — cancel, never delete.
       allow delete: if false;
@@ -432,8 +604,15 @@ service cloud.firestore {
         // (lib/urgentRelease.ts) — so a late cleaner cancellation was denied and
         // the request stayed `taken` forever, off every board and claimable by
         // nobody. That is the exact bug urgentRelease.ts exists to prevent.
+        //
+        // A holder may only put it BACK, never cancel it. Anyone can become the
+        // holder by claiming, so "claim then cancel" was two legal writes that
+        // emptied the whole board — the very abuse the single-write rule above
+        // refuses. Cancelling belongs to the owner alone. A request whose slot
+        // has passed is reopened rather than cancelled; isUrgentRequestLive
+        // hides it from every board and its owner's sweep clears it.
         || (urgentHolder() && urgentOwnerUnchanged() && onlyClaimFields()
-            && request.resource.data.get('status', '') in ['open', 'cancelled']);
+            && request.resource.data.get('status', '') == 'open');
 
       // `cleanerId` is listed for symmetry with the schema this collection was
       // modelled on, but no urgent request has ever carried it — a claiming

@@ -38,7 +38,14 @@ export async function releaseUrgentRequest(
     ? new Date(`${booking.bookingDate}T${booking.startTime}`)
     : null;
   const slotStillAhead = !!slot && !Number.isNaN(slot.getTime()) && slot.getTime() > Date.now();
-  const reopen = cancelledBy === 'cleaner' && slotStillAhead;
+  // A cleaner may only ever put a request BACK. Cancelling belongs to the
+  // owner: anyone can become the holder by claiming, so letting a holder cancel
+  // meant two legal writes emptied the whole board. A request whose slot has
+  // passed is reopened too — isUrgentRequestLive hides it from every board and
+  // its owner's sweep clears it, which is the same end state without handing
+  // strangers a delete.
+  const reopen = cancelledBy === 'cleaner';
+  void slotStillAhead;
 
   try {
     await updateDoc(
@@ -47,7 +54,8 @@ export async function releaseUrgentRequest(
         ? {
             status: 'open',
             // חלון חדש שנמשך עד המועד עצמו, ולכל הפחות שעה — מספיק זמן למנקה
-            // אחר לראות ולקחת.
+            // אחר לראות ולקחת. אם המועד כבר עבר, החלון יוצא בעבר וההסתרה
+            // והסחיפה של הבעלים מטפלות בשאר.
             expiresAt: new Date(Math.max(slot!.getTime(), Date.now() + 3600000)).toISOString(),
             // נמחקים, לא נדרסים ב-'': בדיקות התפיסה קוראות אותם כדי לדעת אם
             // מישהו כבר מחזיק בבקשה.

@@ -41,6 +41,7 @@ import {
 } from '../lib/jobUtils';
 import { compareCleaners, compareJobs, isAvailableNow, rotationRank } from '../lib/displayOrder';
 import { isUrgentRequestLive } from '../lib/urgentRequest';
+import { claimUpdate, occupiesCleanerTime, pendingSlotMissed, rejectionUpdate } from '../lib/bookingActions';
 import { resolveRole } from '../lib/resolveRole';
 import { MAP_STYLE_LIGHT, MAP_STYLE_DARK } from '../lib/mapStyle';
 import { useTheme } from '../lib/ThemeContext';
@@ -4614,11 +4615,23 @@ export default function HomeScreen() {
           const pendingQ = query(collection(db, 'bookings'), where('cleanerId', '==', uid));
           cleanerPendingUnsubRef.current = onSnapshot(pendingQ, snap => {
             const all = snap.docs.map(d => ({ id: d.id, ...(d.data() as any) }));
+            // ── עבודות שנתפסו ולא אושרו וזמנן עבר ─────────────────────────
+            // אף סוויפ קיים לא נוגע בהן: כולם מסננים ['confirmed','active','onway'].
+            // עד עכשיו זה לא היה חסר, כי תפיסה מהלוח קפצה ישר ל-confirmed. מרגע
+            // שהיא נשארת ממתינה, עבודה כזו יורדת מהלוח, אף מנקה אחרת לא רואה
+            // אותה, ואיש לא סוגר אותה לעולם.
+            all.filter(b => pendingSlotMissed(b, uid))
+              .forEach(b => updateDoc(doc(db, 'bookings', b.id), rejectionUpdate(b))
+                .catch(err => logError('home:missedClaim', err)));
+
             const pendingDocs = all.filter(b => b.status === 'pending');
             const count = pendingDocs.length;
             setCleanerPendingIds(pendingDocs.map(b => b.id));
-            // חלונות תפוסים: הזמנות שאושרו (לא ממתינות/מבוטלות/הושלמו)
-            const live = all.filter(b => !['pending', 'cancelled', 'done'].includes(b.status));
+            // חלונות תפוסים. לא "אושרו" אלא "תופסים את הזמן": עבודה שהמנקה
+            // תפסה מהלוח היא ממתינה עד שתאשר, אבל היא כבר ירדה מהלוח ואיש אחר
+            // לא יכול לקחת אותה — ולכן היא תופסת את השעה בדיוק כמו מאושרת.
+            // בלי זה הלוח המשיך להציע לה עבודות חופפות. ראה lib/bookingActions.
+            const live = all.filter(b => occupiesCleanerTime(b));
             const busy = live
               .map(b => bookingBusyWindow(b))
               .filter((w): w is { date: string; s: number; e: number } => !!w);
@@ -4656,7 +4669,11 @@ export default function HomeScreen() {
               setNewBookingFlash(true);
               setTimeout(() => setNewBookingFlash(false), 6000);
               // פופ-אפ באפליקציה: הזמנה חדשה (ללא תלות בהתראות פוש)
+              // עבודה שאני עצמי בדיוק תפסתי אינה "הזמנה חדשה שהגיעה". היא
+              // נכנסת ל-pending ברגע התפיסה, ולכן הפופ-אפ קפץ מיד אחרי הלחיצה
+              // עם ההזמנה שהמנקה זה עתה לקחה.
               const newest = [...pendingDocs]
+                .filter(b => !claimedByMeRef.current.has(b.id))
                 .sort((a, b) => String(b.createdAt || '').localeCompare(String(a.createdAt || '')))[0];
               if (newest) {
                 setNewBookingId(newest.id);
@@ -4974,6 +4991,8 @@ export default function HomeScreen() {
     } });
   };
   const claimingRef = useRef(false);
+  // עבודות שהמנקה תפסה בריצה הזו — לא להקפיץ עליהן "הזמנה חדשה".
+  const claimedByMeRef = useRef<Set<string>>(new Set());
   const claimJob = async (job: any) => {
     if (claimingRef.current) return;
     if (job._bot) {
@@ -5005,7 +5024,11 @@ export default function HomeScreen() {
           const cur = await tx.get(ref);
           const d: any = cur.data();
           if (!cur.exists() || d?.cleanerId || d?.status !== 'pending') return false;
-          tx.update(ref, { cleanerId: uid, cleanerName: myName, open: false, status: 'confirmed' });
+          // נשאר pending: התפיסה מורידה מהלוח, האישור הוא צעד נפרד.
+          // קודם זה קפץ ישר ל-confirmed, ולכן מסך האישור — עם הכתובת, הצ'אט
+          // ושני הכפתורים — לא נפתח אף פעם למסלול הזה. ראה lib/bookingActions.
+          claimedByMeRef.current.add(job.id);
+          tx.update(ref, claimUpdate(uid, myName, d) as any);   // Firestore's update() wants an index signature
           return true;
         });
       } catch (err) {
@@ -5025,9 +5048,12 @@ export default function HomeScreen() {
       try {
         const clientDoc = await getDoc(doc(db, 'users', job.clientUid));
         const tok = clientDoc.data()?.pushToken;
-        if (tok) sendPushNotification(tok, '✅ ' + ((t as any).jobClaimedTitle ?? 'מנקה אישר את ההזמנה'), `${myName} ${(t as any).jobClaimedBody ?? 'ייקח את הניקיון שלך'}`, { type: 'booking_confirmed' });
+        // "אישר" הפך לשקר: התפיסה מורידה מהלוח ומשאירה את ההזמנה ממתינה
+        // לאישור המנקה, בדיוק כמו בשני המסלולים האחרים. לקוח שקיבל "אושר"
+        // ואז ראה סטטוס ממתין לא היה מבין מה קרה.
+        if (tok) sendPushNotification(tok, '👀 ' + ((t as any).jobTakenTitle ?? 'מנקה לקח את ההזמנה שלך'), `${myName} ${(t as any).jobTakenBody ?? 'בוחן את הפרטים ויאשר בקרוב'}`, { type: 'booking_claimed' });
       } catch (_) {}
-      Alert.alert('✅', (t as any).jobClaimedOk ?? 'תפסת את העבודה! נפתח צ\'אט עם הלקוח');
+      Alert.alert('✅', (t as any).jobClaimedOk ?? 'תפסת את העבודה. היא לא תוצג יותר למנקים אחרים — אשר או דחה אותה בתחתית הצ\'אט.');
       openClientChat(job.clientUid, job.clientName);
     } catch (e) {
       Alert.alert(t.error, (t as any).jobClaimError ?? 'שגיאה בתפיסת העבודה — נסה שוב');

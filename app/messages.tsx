@@ -8,11 +8,15 @@ import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { TAB_BAR_CONTENT_HEIGHT } from '../lib/BottomTabBar';
 import {
-  collection, query, where, onSnapshot, orderBy,
+  collection, query, where, onSnapshot, orderBy, getDocs,
   addDoc, doc, getDoc, setDoc, updateDoc, deleteDoc, arrayUnion, arrayRemove,
 } from 'firebase/firestore';
 import { auth, db } from '../lib/firebase';
 import { setActiveChat } from '../lib/chatPresence';
+import { awaitsMyApproval, rejectionUpdate, rejectionReleasesToBoard, occupiesCleanerTime } from '../lib/bookingActions';
+import { bookingBusyWindow, windowsOverlap } from '../lib/jobUtils';
+import { addBookingToCalendar, removeBookingFromCalendar } from '../lib/calendarSync';
+import { logError } from '../lib/logError';
 // Firebase Storage לא נדרש — תמונות ואודיו נשמרים כ-base64 ב-Firestore
 import * as ImagePicker from 'expo-image-picker';
 import * as ImageManipulator from 'expo-image-manipulator';
@@ -94,6 +98,120 @@ function InlineChatModal({ chatId, otherUid, otherName, visible, onClose }: any)
   const audioRecorder                 = useAudioRecorder(RecordingPresets.LOW_QUALITY);
   const micReadyRef                   = useRef(false);
   const playerRef                     = useRef<any>(null);
+
+  // ── הזמנה שממתינה לאישור שלי מול האדם הזה ────────────────────────────────
+  //
+  // עד עכשיו כפתורי האישור/דחייה היו רק במודל שקופץ מהפרופיל. מי שהגיע לצ'אט
+  // בדרך אחרת — מהודעה, מרשימת השיחות — ראה את השיחה בלי שום דרך להחליט,
+  // וזה נכון לכל שלושת סוגי ההזמנות. ההחלטה עצמה ב-lib/bookingActions.
+  const [pendingBooking, setPendingBooking] = useState<any>(null);
+  const [deciding, setDeciding] = useState(false);
+
+  useEffect(() => {
+    const myUid = auth.currentUser?.uid;
+    if (!visible || !myUid || !otherUid) return;
+    const unsub = onSnapshot(
+      query(collection(db, 'bookings'), where('cleanerId', '==', myUid)),
+      snap => {
+        const mine = snap.docs
+          .map(d => ({ id: d.id, ...(d.data() as any) }))
+          .filter(b => b.clientUid === otherUid && awaitsMyApproval(b, myUid))
+          .sort((a, b) => String(b.createdAt || '').localeCompare(String(a.createdAt || '')));
+        setPendingBooking(mine[0] ?? null);
+      },
+      err => logError('messages:pendingBooking', err),
+    );
+    // Cleared on the way out rather than on the way in: clearing in the effect
+    // body is a synchronous setState during render, and doing it here also
+    // covers switching from one conversation to another, where a stale bar
+    // would otherwise sit there until the next snapshot arrived.
+    return () => { unsub(); setPendingBooking(null); };
+  }, [visible, otherUid]);
+
+  /** Tell the client what just happened. Silence here is how somebody goes to bed not knowing whether they have a cleaner. */
+  const notifyClient = async (b: any, approved: boolean, released = false) => {
+    if (!b?.clientUid) return;
+    const snap = await getDoc(doc(db, 'users', b.clientUid));
+    const tok = snap.data()?.pushToken;
+    if (!tok) return;
+    const when = `${b.bookingDate || ''}${b.startTime ? ' ' + b.startTime : ''}`.trim();
+    const [title, body, data] = approved
+      ? ['✅ ' + ((t as any).pushBookingConfirmedTitle ?? 'ההזמנה שלך אושרה'),
+         ((t as any).pushBookingConfirmedBody ?? 'המנקה אישר את הניקיון') + (when ? ` · ${when}` : ''),
+         { type: 'booking_confirmed', bookingId: b.id }]
+      : released
+        ? ['🔁 ' + ((t as any).pushJobReleasedTitle ?? 'העבודה חזרה ללוח'),
+           ((t as any).pushJobReleasedBody ?? 'המנקה לא יוכל להגיע. העבודה שלך פתוחה שוב למנקים אחרים.') + (when ? ` · ${when}` : ''),
+           { type: 'booking_released', bookingId: b.id }]
+        : ['❌ ' + ((t as any).pushBookingCancelledTitle ?? 'הזמנה בוטלה'),
+           ((t as any).pushBookingCancelledBody ?? 'ההזמנה בוטלה על ידי {who}').replace('{who}', b.cleanerName || 'המנקה') + (when ? ` · ${when}` : ''),
+           { type: 'booking_cancelled', bookingId: b.id, uid: b.clientUid }];
+    await fetch('https://exp.host/--/api/v2/push/send', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ to: tok, title, body, sound: 'default', priority: 'high', _contentAvailable: !approved, data }),
+    });
+  };
+
+  const decide = async (approve: boolean) => {
+    const b = pendingBooking;
+    if (!b || deciding) return;
+
+    // אותה בדיקת חפיפה שיש במסך האישור. בלעדיה אפשר היה לאשר מכאן עבודה
+    // שנייה על אותה שעה בלי שום אזהרה — שני לקוחות, אותה שעה, מנקה אחת.
+    if (approve && b.bookingDate && b.startTime) {
+      const myUid = auth.currentUser?.uid;
+      try {
+        const snap = await getDocs(query(
+          collection(db, 'bookings'),
+          where('cleanerId', '==', myUid),
+          where('bookingDate', '==', b.bookingDate),
+        ));
+        const win = bookingBusyWindow(b);
+        const clash = win && snap.docs.some(d => {
+          const x: any = { id: d.id, ...d.data() };
+          if (x.id === b.id || !occupiesCleanerTime(x)) return false;
+          const xw = bookingBusyWindow(x);
+          return !!xw && windowsOverlap(win, xw);
+        });
+        if (clash) {
+          Alert.alert(t.error, (t as any).overlapConfirmMsg ?? 'כבר יש לך הזמנה מאושרת בשעה זו — לא ניתן לאשר שתי הזמנות חופפות.');
+          return;
+        }
+      } catch (err) {
+        // Fail CLOSED. This used to log and fall through to the approval, so a
+        // cleaner on a weak signal whose query timed out confirmed a second job
+        // on top of an existing one with no warning at all. isCleanerBusy is
+        // documented as failing closed for the same reason.
+        logError('messages:overlapCheck', err);
+        Alert.alert(t.error, (t as any).overlapCheckFailed ?? 'לא ניתן לבדוק חפיפה כרגע. נסה שוב כשיש חיבור.');
+        return;
+      }
+    }
+
+    setDeciding(true);
+    try {
+      if (approve) {
+        await updateDoc(doc(db, 'bookings', b.id), { status: 'confirmed' });
+        // הלקוח חייב לדעת. בלי זה האישור קרה בשקט והלקוח לא ידע אם יש לו מנקה.
+        notifyClient(b, true).catch(err => logError('messages:notifyApprove', err));
+        addBookingToCalendar({ ...b, status: 'confirmed' }, { role: 'cleaner' })
+          .catch(err => logError('messages:calendarAdd', err));
+      } else {
+        // עבודה שהלקוח פרסם ללוח חוזרת ללוח; הזמנה שהופנתה אליי מתבטלת.
+        const released = rejectionReleasesToBoard(b);
+        await updateDoc(doc(db, 'bookings', b.id), rejectionUpdate(b));
+        removeBookingFromCalendar(b.id, b).catch(() => {});
+        notifyClient(b, false, released).catch(err => logError('messages:notifyReject', err));
+      }
+      setPendingBooking(null);
+    } catch (err) {
+      logError('messages:decide', err);
+      Alert.alert(t.error, (t as any).genericError ?? 'שגיאה');
+    } finally {
+      setDeciding(false);
+    }
+  };
 
   // Pre-acquire mic permission + recording audio mode when the chat opens, so
   // the first press-and-hold doesn't lose its start to the permission dialog.
@@ -551,6 +669,50 @@ function InlineChatModal({ chatId, otherUid, otherName, visible, onClose }: any)
             </View>
           )}
         </KeyboardAvoidingView>
+
+        {/* ─── אישור/דחייה של הזמנה ממתינה ─── */}
+        {pendingBooking && (
+          <View style={{ borderTopWidth: 1.5, borderTopColor: '#FED7AA', backgroundColor: '#FFF7ED', paddingHorizontal: 12, paddingTop: 8, paddingBottom: insets.bottom + 8, gap: 8 }}>
+            <T style={{ fontSize: 13, fontWeight: '900', color: '#92400E', textAlign: 'center' }}>
+              📥 {(t as any).pendingApprovalBar ?? 'הזמנה ממתינה לאישורך'}
+              {pendingBooking.bookingDate ? ` · ${pendingBooking.bookingDate}` : ''}
+              {pendingBooking.startTime ? ` ${pendingBooking.startTime}` : ''}
+            </T>
+            <View style={{ flexDirection: 'row', gap: 10 }}>
+              <TouchableOpacity
+                disabled={deciding}
+                accessibilityRole="button"
+                accessibilityLabel={t.approveBookingBtn}
+                style={{ flex: 1, backgroundColor: deciding ? '#9CA3AF' : '#16A34A', borderRadius: 14, paddingVertical: 13, alignItems: 'center' }}
+                onPress={() => decide(true)}
+              >
+                <T style={{ fontSize: 15, fontWeight: '900', color: '#fff' }}>{t.approveBookingBtn}</T>
+              </TouchableOpacity>
+              <TouchableOpacity
+                disabled={deciding}
+                accessibilityRole="button"
+                accessibilityLabel={t.rejectBtn}
+                style={{ flex: 1, backgroundColor: '#FEE2E2', borderRadius: 14, paddingVertical: 13, alignItems: 'center', borderWidth: 1.5, borderColor: '#FCA5A5', opacity: deciding ? 0.6 : 1 }}
+                onPress={() => {
+                  // עבודה מהלוח חוזרת ללוח ולא נמחקת — ההודעה אומרת מה יקרה.
+                  const backToBoard = rejectionReleasesToBoard(pendingBooking);
+                  Alert.alert(
+                    t.cancelConfirmTitle,
+                    backToBoard
+                      ? ((t as any).releaseToBoardMsg ?? 'העבודה תחזור ללוח ומנקים אחרים יוכלו לקחת אותה.')
+                      : t.cancelConfirmMsg,
+                    [
+                      { text: t.cancelKeepBooking, style: 'cancel' },
+                      { text: t.cancelConfirmBtn, style: 'destructive', onPress: () => decide(false) },
+                    ],
+                  );
+                }}
+              >
+                <T style={{ fontSize: 15, fontWeight: '900', color: '#EF4444' }}>{t.rejectBtn}</T>
+              </TouchableOpacity>
+            </View>
+          </View>
+        )}
 
         {/* מציג תמונה במסך מלא */}
         <Modal visible={!!viewerUri} transparent animationType="fade" onRequestClose={() => setViewerUri(null)}>

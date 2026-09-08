@@ -6,6 +6,18 @@
  * that existed and could only run on one laptop: it read the sibling repository
  * through an absolute path, and the repos live under different GitHub accounts.
  *
+ * THE FILES ARE BYTE-IDENTICAL, AND THE HASH IS OF THE BYTES. That is the whole
+ * design, and it is deliberately stupid. Two earlier versions tried to be clever
+ * — strip the comments, so each product could explain itself in its own language
+ * — and a review broke both. The character scanner read the `//` inside
+ * `/^https?:\/\//` as a comment; the line-based rewrite that replaced it still
+ * discarded everything to end-of-file when a line inside a template literal
+ * happened to start with a block-comment opener. Each time, two genuinely
+ * different files hashed the same, which is the one failure this guard exists to
+ * prevent. There is no way to strip comments from JavaScript without parsing it,
+ * and a guard that can be fooled is worse than none because everybody stops
+ * looking. So the prose is the same in both copies now, and nothing is stripped.
+ *
  * WHAT THE FIRST VERSION OF THIS FILE GOT WRONG. It hashed each repo's own
  * copies against each repo's own manifest and claimed that, because the
  * manifest must also match, the other side's CI would fail until it was brought
@@ -38,6 +50,8 @@ const SHARED = [
   { name: 'displayOrder',   app: 'lib/displayOrder.ts',   web: 'src/lib/displayOrder.ts' },
   { name: 'urgentRequest',  app: 'lib/urgentRequest.ts',  web: 'src/lib/urgentRequest.ts' },
   { name: 'cleanerTraits',  app: 'lib/cleanerTraits.ts',  web: 'src/lib/cleanerTraits.ts' },
+  { name: 'bookingSlot',    app: 'lib/bookingSlot.ts',    web: 'src/lib/bookingSlot.ts' },
+  { name: 'bookingActions', app: 'lib/bookingActions.ts', web: 'src/lib/bookingActions.ts' },
   { name: 'firestoreRules', app: 'firestore.rules',       web: 'firestore.rules' },
 ];
 
@@ -46,58 +60,10 @@ const APP_MANIFEST_URL =
   'https://raw.githubusercontent.com/itzikofek669-jpg/smartclean3/main/shared-files.sha256';
 
 /**
- * Drop whole-line comments so the two copies may explain themselves in
- * different languages — the app comments in Hebrew, the website in English —
- * while a line of code may not differ.
- *
- * WHOLE-LINE only, and this is deliberate. The previous version walked the
- * source character by character trying to track strings, template literals and
- * comments, and a review broke it twice over: `/^https?:\/\//` was read as a
- * comment and silently deleted the rest of the line, and `/a/*b/` sent it
- * hunting for a block-comment terminator that never came, discarding the entire
- * remainder of the file. Two different files hashed the same. There is no way
- * to know whether `/` opens a regex or divides without parsing JavaScript, so
- * this does not try: it never looks inside a line of code at all.
- *
- * Line structure is preserved rather than collapsed, because whitespace is not
- * always insignificant — `return\n{ok:1}` and `return {ok:1}` return different
- * things, and the old version hashed them identically.
- *
- * The cost is that a trailing comment after code, or a reformat that rewraps a
- * line, is reported as drift. That is the right direction to be wrong in: a
- * false alarm gets looked at, a false pass does not.
+ * Only run the checks when invoked as a command, so test/shared.test.mjs can
+ * import from here without the module exiting the process underneath it.
  */
-export function codeOnly(src) {
-  const out = [];
-  let inBlock = false;
-  for (const raw of src.split('\n')) {
-    let line = raw.trim();
-    if (inBlock) {
-      const end = line.indexOf('*/');
-      if (end === -1) continue;
-      inBlock = false;
-      line = line.slice(end + 2).trim();
-      if (!line) continue;
-    }
-    if (line.startsWith('//')) continue;
-    if (line.startsWith('/*')) {
-      const end = line.indexOf('*/', 2);
-      if (end === -1) { inBlock = true; continue; }
-      line = (line.slice(0, 0) + line.slice(end + 2)).trim();
-      if (!line) continue;
-    }
-    if (line) out.push(line);
-  }
-  return out.join('\n');
-}
-
-/**
- * Only run the checks when invoked as a command. test/shared.test.mjs imports
- * `codeOnly` from here so there is exactly one copy of it — a second, drifting
- * copy of the thing that decides whether two files agree would be its own joke.
- */
-const RUN_AS_CLI = process.argv[1]
-  && process.argv[1].endsWith('shared-hash.mjs');
+const RUN_AS_CLI = process.argv[1] && process.argv[1].endsWith('shared-hash.mjs');
 
 function hashesHere() {
   const out = {};
@@ -107,7 +73,7 @@ function hashesHere() {
       console.error(`shared-hash: neither ${f.app} nor ${f.web} exists here.`);
       process.exit(1);
     }
-    out[f.name] = createHash('sha256').update(codeOnly(readFileSync(path, 'utf8'))).digest('hex');
+    out[f.name] = createHash('sha256').update(readFileSync(path)).digest('hex');
   }
   return out;
 }
@@ -163,11 +129,13 @@ if (RUN_AS_CLI) {
     const theirs = parse(await res.text());
     const mine = parse(readFileSync(MANIFEST, 'utf8'));
     let diff = 0;
-    for (const name of Object.keys(mine)) {
+    // The UNION of both manifests. Iterating only our own keys meant a file the
+  // app had added and this repo had not was never compared at all.
+  for (const name of new Set([...Object.keys(mine), ...Object.keys(theirs)])) {
       if (mine[name] !== theirs[name]) {
         diff += 1;
         console.error(`  DRIFT ${name} — differs from the mobile app`);
-        console.error(`        here: ${mine[name]}`);
+        console.error(`        here: ${mine[name] ?? '(absent — the app has a shared file this repo does not)'}`);
         console.error(`        app:  ${theirs[name] ?? '(absent)'}`);
       }
     }

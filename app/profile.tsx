@@ -55,6 +55,7 @@ import Constants from 'expo-constants';
 import { addBookingToCalendar, removeBookingFromCalendar, calendarSyncMessage } from '../lib/calendarSync';
 import { logError } from '../lib/logError';
 import { isUrgentRequestLive, isUrgentRequestExpired } from '../lib/urgentRequest';
+import { rejectionUpdate, occupiesCleanerTime, awaitsMyApproval, rejectionReleasesToBoard } from '../lib/bookingActions';
 import { releaseUrgentRequest } from '../lib/urgentRelease';
 
 
@@ -1140,9 +1141,9 @@ export default function ProfileScreen() {
         const reqs = snap.docs
           .map(d => ({ id: d.id, ...d.data() }))
           .filter((r: any) => {
-            // Hiding and deleting are different questions — a request we cannot
-            // date is not shown, but neither is it destroyed. See
-            // lib/urgentRequest.
+            // הסתרה ומחיקה הן שתי שאלות. בקשה שאי אפשר לתארך לא מוצגת לאיש,
+            // ואת שלך אפשר גם לפנות — כי אחרת היא נשארת פתוחה, בלתי נראית,
+            // וחוסמת אותך מלפרסם באותה שעה. ראה lib/urgentRequest.
             if (isUrgentRequestExpired(r, now)) expired.push(r);
             return isUrgentRequestLive(r, now);
           });
@@ -1969,7 +1970,7 @@ export default function ProfileScreen() {
       if (tDate && tTime) {
         const ns = new Date(`${tDate}T${tTime}`);
         const ne = new Date(ns.getTime() + (Number(b.hours) || 1) * 3600000);
-        const overlap = incomingBks.some((x: any) => x.id !== b.id && ['confirmed','active','onway'].includes(x.status) && x.bookingDate === tDate && x.startTime && (() => {
+        const overlap = incomingBks.some((x: any) => x.id !== b.id && occupiesCleanerTime(x) && x.bookingDate === tDate && x.startTime && (() => {
           const [h, m] = String(x.startTime).split(':').map(Number);
           const xs = new Date(ns); xs.setHours(h || 0, m || 0, 0, 0);
           const xe = new Date(xs.getTime() + (Number(x.hours) || 1) * 3600000);
@@ -2532,22 +2533,37 @@ export default function ProfileScreen() {
           </TouchableOpacity>
         )}
 
-        {/* Cleaner action buttons */}
-        {forCleaner && b.status === 'pending' && (
+        {/* ─── הזמנה שממתינה להחלטה שלי — קודם מאשרים ─── */}
+        {forCleaner && awaitsMyApproval(b, uid) && (
+          <TouchableOpacity
+            style={{ backgroundColor: '#16A34A', borderRadius: 14, paddingVertical: 13, alignItems: 'center', marginTop: 8 }}
+            onPress={() => setPendingConfirmBooking(b)}
+          >
+            <T style={{ fontSize: 15, fontWeight: '900', color: '#fff' }}>{t.approveBookingBtn}</T>
+          </TouchableOpacity>
+        )}
+
+        {/* Cleaner action buttons — רק אחרי אישור.
+            "בדרך" ו"התחל ניקיון" כתבו onway/active ישירות מ-pending, כלומר
+            עבודה יכלה לרוץ עד סופה בלי לעבור confirmed אף פעם — וסנכרון היומן
+            וההודעה ללקוח תלויים שניהם ב-confirmed. קודם זה לא קרה כי תפיסה
+            מהלוח קפצה ישר ל-confirmed; מרגע שהיא נשארת ממתינה, זה הפך למסלול
+            אמיתי שמסתיים בלי יומן ובלי שהלקוח ידע שאושר. */}
+        {forCleaner && (b.status === 'confirmed' || b.status === 'onway') && (
           <View style={{ gap: 8, marginTop: 8 }}>
-            <TouchableOpacity style={s.onWayBtn} onPress={() => handleOnWay(b)}>
-              <T style={s.onWayBtnText}>{t.onWayBtn}</T>
-            </TouchableOpacity>
+            {b.status === 'confirmed' && (
+              <TouchableOpacity style={s.onWayBtn} onPress={() => handleOnWay(b)}>
+                <T style={s.onWayBtnText}>{t.onWayBtn}</T>
+              </TouchableOpacity>
+            )}
             <TouchableOpacity style={s.startBtn} onPress={() => handleStartCleaning(b)}>
               <T style={s.startBtnText}>✨ {t.startCleaningBtn}</T>
             </TouchableOpacity>
           </View>
         )}
-        {forCleaner && b.status === 'onway' && (
-          <TouchableOpacity style={s.startBtn} onPress={() => handleStartCleaning(b)}>
-            <T style={s.startBtnText}>✨ {t.startCleaningBtn}</T>
-          </TouchableOpacity>
-        )}
+        {/* (The standalone "start cleaning" button for `onway` lived here. The
+            block above now covers confirmed and onway together, so this was
+            rendering the same green button twice, stacked.) */}
         {forCleaner && isActive && (
           <TouchableOpacity
             style={s.endBtn}
@@ -2958,7 +2974,12 @@ export default function ProfileScreen() {
                     onPress={() => {
                       // דחוף שעדיין לא נתפס — סגירה מיידית בלי אישור כפול (אין מה לבטל)
                       if (pendingConfirmBooking?.urgentUnclaimed) { setPendingConfirmBooking(null); return; }
-                      Alert.alert(t.cancelConfirmTitle, t.cancelConfirmMsg, [
+                      Alert.alert(
+                        t.cancelConfirmTitle,
+                        rejectionReleasesToBoard(pendingConfirmBooking)
+                          ? ((t as any).releaseToBoardMsg ?? 'העבודה תחזור ללוח ומנקים אחרים יוכלו לקחת אותה.')
+                          : t.cancelConfirmMsg,
+                        [
                         { text: t.cancelKeepBooking, style: 'cancel' },
                         { text: t.cancelConfirmBtn, style: 'destructive', onPress: async () => {
                           try {
@@ -2966,19 +2987,33 @@ export default function ProfileScreen() {
                             // דחוף שעדיין לא נתפס — פשוט סוגרים; הבקשה נשארת פתוחה למנקים אחרים
                             if (pcb?.urgentUnclaimed) { setPendingConfirmBooking(null); return; }
                             SHOWN_PENDING.add(pcb.id); // לא להקפיץ שוב את אותה הזמנה
-                            await updateDoc(doc(db, 'bookings', pcb.id), { status: 'cancelled', cancelledBy: 'cleaner', cancelledAt: new Date().toISOString() });
+                            // עבודה שהלקוח פרסם ללוח חוזרת ללוח ולא נמחקת —
+                            // אותה החלטה כמו בצ'אט ובאתר. ראה lib/bookingActions.
+                            await updateDoc(doc(db, 'bookings', pcb.id), rejectionUpdate(pcb));
                             // המנקה דחה — הבקשה הדחופה חוזרת ללוח של השאר
                             await releaseUrgentRequest(pcb, 'cleaner');
                             setIncomingBks(prev => prev.filter(x => x.id !== pcb.id));
                             removeBookingFromCalendar(pcb.id, pcb).catch(() => {});
-                            // פוש ללקוח על הדחייה
+                            // פוש ללקוח על הדחייה — אבל לא "בוטלה" כשהעבודה
+                            // רק חזרה ללוח. הלקוח היה מקבל "ההזמנה בוטלה"
+                            // ורואה ברשימה שלו "ממתין", בלי שום הסבר.
+                            const released = rejectionReleasesToBoard(pcb);
                             try {
                               if (pcb.clientUid) {
                                 const cs = await getDoc(doc(db, 'users', pcb.clientUid));
                                 const tok = cs.data()?.pushToken;
                                 if (tok) {
                                   const dl = `${pcb.bookingDate || ''}${pcb.startTime ? ' ' + pcb.startTime : ''}`.trim();
-                                  await sendPushNotification(tok, (t as any).pushBookingCancelledTitle ?? '❌ הזמנה בוטלה', ((t as any).pushBookingCancelledBody ?? 'ההזמנה בוטלה על ידי {who}').replace('{who}', pcb.cleanerName || 'המנקה') + (dl ? ` · ${dl}` : ''), { type: 'booking_cancelled', bookingId: pcb.id, uid: pcb.clientUid }, { contentAvailable: true });
+                                  if (released) {
+                                    await sendPushNotification(
+                                      tok,
+                                      (t as any).pushJobReleasedTitle ?? '🔁 העבודה חזרה ללוח',
+                                      ((t as any).pushJobReleasedBody ?? 'המנקה לא יוכל להגיע. העבודה שלך פתוחה שוב למנקים אחרים.') + (dl ? ` · ${dl}` : ''),
+                                      { type: 'booking_released', bookingId: pcb.id },
+                                    );
+                                  } else {
+                                    await sendPushNotification(tok, (t as any).pushBookingCancelledTitle ?? '❌ הזמנה בוטלה', ((t as any).pushBookingCancelledBody ?? 'ההזמנה בוטלה על ידי {who}').replace('{who}', pcb.cleanerName || 'המנקה') + (dl ? ` · ${dl}` : ''), { type: 'booking_cancelled', bookingId: pcb.id, uid: pcb.clientUid }, { contentAvailable: true });
+                                  }
                                 }
                               }
                             } catch (err) { logError('profile:write', err); }

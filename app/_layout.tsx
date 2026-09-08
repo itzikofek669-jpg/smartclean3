@@ -134,7 +134,14 @@ export default function RootLayout() {
     if (data.type === 'new_booking') {
       // open the cleaner's bookings tab and the confirm modal for THIS booking
       router.push({ pathname: '/profile', params: { tab: data.tab || 'bookings', confirmBookingId: data.bookingId || '' } });
-    } else if (data.type === 'booking_confirmed') {
+    } else if (data.type === 'booking_confirmed' || data.type === 'booking_released') {
+      // `booking_released` is what a client is sent when the cleaner who took
+      // their board job hands it back. It had no case here, so tapping the
+      // notification went nowhere at all.
+      router.push('/profile');
+    } else if (data.type === 'booking_claimed') {
+      // A cleaner took the client's posted job. Same destination as a
+      // confirmation — their bookings list, where it now shows as pending.
       router.push('/profile');
     } else if (data.type === 'urgent' || data.urgent === true) {
       // הקשה על פוש דחוף = "אני לוקח/ת" → לפרופיל → קבלה אוטומטית + מסך אישור/צ'אט (overlay מכסה את ההבזק)

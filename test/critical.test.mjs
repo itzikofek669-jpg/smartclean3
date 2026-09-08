@@ -6,6 +6,7 @@ import { isAvailableNow } from '../.tsbuild/displayOrder.mjs';
 import { startDateOf, endDateOf, bookingHours, DEFAULT_BOOKING_HOURS } from '../.tsbuild/bookingSlot.mjs';
 import { readCalendarRemoval, extractPushData } from '../.tsbuild/calendarPush.mjs';
 import { isUrgentRequestLive, isUrgentRequestExpired, expiryOf } from '../.tsbuild/urgentRequest.mjs';
+import { claimUpdate, rejectionUpdate, rejectionReleasesToBoard, awaitsMyApproval, occupiesCleanerTime, busyWindowOf, pendingSlotMissed } from '../.tsbuild/bookingActions.mjs';
 
 // Every case here is a bug that reached a real user. They are regression tests,
 // not coverage: each one failed in production before it was written.
@@ -302,4 +303,242 @@ test('expiryOf returns null rather than NaN', () => {
   assert.equal(expiryOf(req('not a date')), null);
   assert.equal(expiryOf(req(undefined)), null);
   assert.equal(expiryOf(req('2026-09-07T12:00:00Z')), Date.parse('2026-09-07T12:00:00Z'));
+});
+
+// ── Claiming, approving, rejecting ─────────────────────────────────────────
+// A job posted to the board used to go straight from claimed to confirmed, so
+// the approval screen — the one with the client's address, the chat and the two
+// buttons — never appeared for it at all.
+
+const posted   = (x = {}) => ({ origin: 'open', status: 'pending', open: true, clientUid: 'c1', cleanerId: '', ...x });
+const directed = (x = {}) => ({ origin: undefined, status: 'pending', open: false, clientUid: 'c1', cleanerId: 'k1', ...x });
+
+test('claiming an open job leaves it waiting for approval', () => {
+  const u = claimUpdate('k1', 'Cleaner');
+  assert.equal(u.status, 'pending', 'used to be confirmed, which skipped the approval');
+  assert.equal(u.open, false, 'and off the board so nobody else claims it');
+  assert.equal(u.cleanerId, 'k1');
+});
+
+test('rejecting a posted job puts it back on the board, it does not kill it', () => {
+  // The job belongs to the client. Cancelling it because one cleaner changed
+  // their mind would make them post it again.
+  const u = rejectionUpdate(posted({ open: false, cleanerId: 'k1' }));
+  assert.equal(u.open, true);
+  assert.equal(u.status, 'pending');
+  assert.equal(u.cleanerId, '', 'cleared so another cleaner can take it');
+  assert.equal(u.cleanerName, '');
+  assert.equal(u.status === 'cancelled', false);
+});
+
+test('rejecting a booking addressed to me cancels it', () => {
+  // Nowhere to go back to: the client chose this cleaner.
+  const u = rejectionUpdate(directed());
+  assert.equal(u.status, 'cancelled');
+  assert.equal(u.cancelledBy, 'cleaner');
+  assert.ok(u.cancelledAt);
+});
+
+test('the two rejections are told apart by origin, not by guesswork', () => {
+  assert.equal(rejectionReleasesToBoard(posted()), true);
+  assert.equal(rejectionReleasesToBoard(directed()), false);
+  assert.equal(rejectionReleasesToBoard({ origin: 'urgent' }), false);
+  assert.equal(rejectionReleasesToBoard({}), false);
+  assert.equal(rejectionReleasesToBoard(null), false);
+});
+
+test('the approve bar shows only for a booking that is really mine and really waiting', () => {
+  assert.equal(awaitsMyApproval(directed({ cleanerId: 'k1' }), 'k1'), true);
+});
+
+test('it never shows for a job still open to everyone', () => {
+  // Claimable by anyone — an approve button here would be a lie.
+  assert.equal(awaitsMyApproval(posted({ open: true, cleanerId: 'k1' }), 'k1'), false);
+});
+
+test('it never shows for somebody else booking, or once decided', () => {
+  assert.equal(awaitsMyApproval(directed({ cleanerId: 'k2' }), 'k1'), false, 'another cleaner');
+  assert.equal(awaitsMyApproval(directed({ status: 'confirmed' }), 'k1'), false, 'already approved');
+  assert.equal(awaitsMyApproval(directed({ status: 'cancelled' }), 'k1'), false, 'already cancelled');
+  assert.equal(awaitsMyApproval(directed({ status: 'done' }), 'k1'), false, 'finished');
+});
+
+test('a missing uid or booking shows nothing rather than throwing', () => {
+  assert.equal(awaitsMyApproval(directed(), ''), false);
+  assert.equal(awaitsMyApproval(null, 'k1'), false);
+  assert.equal(awaitsMyApproval(undefined, 'k1'), false);
+});
+
+test('a job the cleaner claimed holds their time even before they approve it', () => {
+  // It is off the board and nobody else can take it. Leaving it out let the
+  // board keep offering overlapping work and let a second job be approved for
+  // the same hour with no warning.
+  assert.equal(occupiesCleanerTime({ status: 'pending', origin: 'open', open: false, cleanerId: 'k1' }), true);
+});
+
+test('a confirmed, active or on-the-way job holds their time', () => {
+  for (const status of ['confirmed', 'active', 'onway']) {
+    assert.equal(occupiesCleanerTime({ status, cleanerId: 'k1' }), true, status);
+  }
+});
+
+test('a request the client sent and the cleaner has not accepted does not', () => {
+  // Otherwise anyone could freeze a cleaner's calendar by sending bookings
+  // they never answer. A DIRECT booking is the client's request, not the
+  // cleaner's commitment.
+  assert.equal(occupiesCleanerTime({ status: 'pending', origin: 'direct', open: false, cleanerId: 'k1' }), false);
+});
+
+test('an urgent job the cleaner claimed holds their time too', () => {
+  // Same argument as a board job: it is off the board, it carries this
+  // cleaner's name, and nobody else can take it. Leaving urgent out left that
+  // whole route double-bookable.
+  assert.equal(occupiesCleanerTime({ status: 'pending', origin: 'urgent', open: false, cleanerId: 'k1' }), true);
+});
+
+test('the busy window lands on the booking, not merely at the right length', () => {
+  // A mutant that pinned every window to 1 January 2000 — ignoring the date and
+  // time entirely — passed the whole suite, because nothing asserted WHERE the
+  // window sits. That blind spot is what let a re-implemented parser roll
+  // `2026-13-05` into January 2027 and block an hour four months away.
+  const w = busyWindowOf({ bookingDate: '2026-09-20', startTime: '14:30', hours: 2 });
+  const from = new Date(w.from);
+  assert.equal(from.getFullYear(), 2026);
+  assert.equal(from.getMonth(), 8, 'September');
+  assert.equal(from.getDate(), 20);
+  assert.equal(from.getHours(), 14);
+  assert.equal(from.getMinutes(), 30);
+});
+
+test('a date that only looks valid is refused, not rolled over', () => {
+  // Every one of these matches the shape regex. new Date() rolls them silently.
+  for (const bookingDate of ['2026-13-05', '2026-00-15', '0026-01-15', '2026-02-30']) {
+    assert.equal(busyWindowOf({ bookingDate, startTime: '10:00' }), null, bookingDate);
+  }
+  assert.equal(busyWindowOf({ bookingDate: '2026-09-20', startTime: '24:00' }), null, '24:00');
+});
+
+test('the two date readers agree about what is unreadable', () => {
+  // They used to disagree: Date.parse took `2026-02-30` as 2 March and `24:00`
+  // as next midnight, so one function saw a real instant where the other saw
+  // nonsense — and a job with a bad date wrote no window AND refused to go back
+  // on the board.
+  const at = new Date('2026-09-20T12:00:00Z');
+  for (const bookingDate of ['2026-02-30', '2026-13-05', '0026-01-15']) {
+    const b = { origin: 'open', status: 'pending', bookingDate, startTime: '10:00' };
+    assert.equal(busyWindowOf(b), null, `window: ${bookingDate}`);
+    // Unreadable means "not passed", so the job can still be put back.
+    assert.equal(rejectionReleasesToBoard(b, at), true, `release: ${bookingDate}`);
+  }
+});
+
+test('a job still on the board holds nobody time', () => {
+  assert.equal(occupiesCleanerTime({ status: 'pending', origin: 'open', open: true, cleanerId: '' }), false);
+});
+
+test('a finished or cancelled job holds no time', () => {
+  assert.equal(occupiesCleanerTime({ status: 'done', cleanerId: 'k1' }), false);
+  assert.equal(occupiesCleanerTime({ status: 'cancelled', origin: 'open', open: false, cleanerId: 'k1' }), false);
+  assert.equal(occupiesCleanerTime(null), false);
+});
+
+test('a job whose time has passed is cancelled, not put back on the board', () => {
+  // Nothing filters past dates off the board, so yesterday's cleaning would
+  // sit there for good.
+  const past = { origin: 'open', status: 'pending', bookingDate: '2026-09-01', startTime: '10:00' };
+  const at = new Date('2026-09-08T12:00:00Z');
+  assert.equal(rejectionReleasesToBoard(past, at), false);
+  assert.equal(rejectionUpdate(past, at).status, 'cancelled');
+});
+
+test('a job still ahead of us goes back on the board', () => {
+  const ahead = { origin: 'open', status: 'pending', bookingDate: '2026-09-20', startTime: '10:00' };
+  const at = new Date('2026-09-08T12:00:00Z');
+  assert.equal(rejectionReleasesToBoard(ahead, at), true);
+  assert.equal(rejectionUpdate(ahead, at).open, true);
+});
+
+test('a settled job is never released, whatever its origin', () => {
+  // The rules refuse this outright; the client must not even try.
+  for (const status of ['done', 'cancelled', 'active', 'onway', 'confirmed']) {
+    assert.equal(rejectionReleasesToBoard({ origin: 'open', status }), false, status);
+  }
+});
+
+test('a job with no readable time is still releasable', () => {
+  // Failing closed here would strand it; the date is our bug, not the client's.
+  assert.equal(rejectionReleasesToBoard({ origin: 'open', status: 'pending' }), true);
+});
+
+test('a claim writes the window it occupies, so clients see the cleaner as busy', () => {
+  // Board jobs carry no busyFrom/busyUntil, and those are the only fields
+  // published to busySlots — so a cleaner holding one still showed a green
+  // "available now" dot to every client.
+  const u = claimUpdate('k1', 'Cleaner', { bookingDate: '2026-09-20', startTime: '10:00', hours: 3 });
+  assert.ok(u.busyFrom && u.busyUntil, 'a window was written');
+  assert.equal(new Date(u.until ?? u.busyUntil).getTime() - new Date(u.busyFrom).getTime(), 3 * 3600000);
+});
+
+test('a claim on an undateable booking writes no window rather than a guessed one', () => {
+  // A guessed window would block hours the cleaner never agreed to.
+  const u = claimUpdate('k1', 'Cleaner', { bookingDate: '', startTime: '' });
+  assert.equal(u.busyFrom, undefined);
+  assert.equal(u.status, 'pending', 'the rest of the claim still happens');
+});
+
+test('a booking with no stated length is assumed to run two hours', () => {
+  const w = busyWindowOf({ bookingDate: '2026-09-20', startTime: '09:00' });
+  assert.equal(new Date(w.until).getTime() - new Date(w.from).getTime(), 2 * 3600000);
+});
+
+test('a job I claimed and never answered, whose time has gone, is closable', () => {
+  const at = new Date('2026-09-20T15:00:00Z');
+  const missed = { status: 'pending', open: false, origin: 'open', cleanerId: 'k1', bookingDate: '2026-09-20', startTime: '09:00' };
+  assert.equal(pendingSlotMissed(missed, 'k1', at), true);
+  assert.equal(rejectionUpdate(missed, at).status, 'cancelled', 'past its slot it is cancelled, not re-boarded');
+});
+
+test('a job still ahead, or somebody else, is left alone by the sweep', () => {
+  const at = new Date('2026-09-20T15:00:00Z');
+  const claimed = (x = {}) => ({ status: 'pending', origin: 'open', open: false, cleanerId: 'k1', bookingDate: '2026-09-20', startTime: '09:00', ...x });
+  assert.equal(pendingSlotMissed(claimed({ bookingDate: '2026-09-25' }), 'k1', at), false, 'still ahead');
+  assert.equal(pendingSlotMissed(claimed({ cleanerId: 'k2' }), 'k1', at), false, 'somebody else holds it');
+  assert.equal(pendingSlotMissed(claimed({ status: 'confirmed' }), 'k1', at), false, 'already approved');
+});
+
+test('the sweep never touches a request the client sent and I ignored', () => {
+  // It used to. Opening the app cancelled every ignored direct request going
+  // back months, and each of those clients got a full-screen "your cleaner
+  // cancelled" dialog, months late.
+  const at = new Date('2026-09-20T15:00:00Z');
+  const ignored = { status: 'pending', origin: 'direct', open: false, cleanerId: 'k1', bookingDate: '2026-09-19', startTime: '09:00' };
+  assert.equal(pendingSlotMissed(ignored, 'k1', at), false);
+});
+
+test('the sweep does not reach back into history', () => {
+  const at = new Date('2026-09-20T15:00:00Z');
+  const ancient = { status: 'pending', origin: 'open', open: false, cleanerId: 'k1', bookingDate: '2026-01-05', startTime: '09:00' };
+  const recent  = { status: 'pending', origin: 'open', open: false, cleanerId: 'k1', bookingDate: '2026-09-19', startTime: '09:00' };
+  assert.equal(pendingSlotMissed(ancient, 'k1', at), false, 'eight months ago is history');
+  assert.equal(pendingSlotMissed(recent, 'k1', at), true, 'yesterday is a missed job');
+});
+
+test('a job claimed before `origin` existed still holds the hour', () => {
+  // Legacy documents carry no origin. Treating them as unclaimed left the hour
+  // free and, on reject, destroyed the client's advert instead of re-boarding it.
+  assert.equal(occupiesCleanerTime({ status: 'pending', open: false, cleanerId: 'k1' }), true);
+  assert.equal(occupiesCleanerTime({ status: 'pending', origin: 'direct', open: false, cleanerId: 'k1' }), false);
+});
+
+test('the sweep never cancels work that was already approved', () => {
+  // occupiesCleanerTime is true for confirmed/active/onway too, so without an
+  // explicit pending check the sweep cancelled jobs that had very likely
+  // happened — days after the fact.
+  const at = new Date('2026-09-20T15:00:00Z');
+  for (const status of ['confirmed', 'active', 'onway', 'done']) {
+    assert.equal(pendingSlotMissed(
+      { status, origin: 'open', open: false, cleanerId: 'k1', bookingDate: '2026-09-20', startTime: '09:00' },
+      'k1', at,
+    ), false, status);
+  }
 });

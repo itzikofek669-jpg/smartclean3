@@ -8,7 +8,7 @@
  * happened to be using. The labels live in translations.ts under
  * `langNames` / `dayNames`; this file only defines the codes and their order.
  *
- * Mirrored in A-M-Clean-web/src/lib/cleanerTraits.ts. The two must agree: they write
+ * Byte-identical to the other product's copy. The two must agree: they write
  * to the same Firestore documents.
  */
 

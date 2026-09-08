@@ -61,10 +61,11 @@ export function isUrgentRequestLive(
  * that made things worse, not safer. Nothing displays such a request — every
  * list filters on isUrgentRequestLive, including its owner's own dashboard —
  * so the "it stays hidden until a person looks at it" escape hatch did not
- * exist. Meanwhile hasClashingRequest queries by client and date with no status
- * filter, so an invisible, undeletable, still-open request permanently blocked
- * its own owner from posting anything at that date and time, with nothing on
- * screen to explain why and no control that could clear it.
+ * exist. Meanwhile hasClashingRequest treats anything not cancelled, expired or
+ * done as a clash — and a legacy document sits at `status: 'open'` — so an
+ * invisible, undeletable request permanently blocked its own owner from posting
+ * anything at that date and time, with nothing on screen to explain why and no
+ * control that could clear it.
  *
  * Sweeping it is safe because only the owner ever does: both products filter
  * their sweep to `clientUid == me`, which is also the only case the Firestore
