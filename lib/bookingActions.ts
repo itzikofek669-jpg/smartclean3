@@ -234,3 +234,25 @@ export function occupiesCleanerTime(b: ClaimableBooking | null | undefined): boo
     && b.open !== true
     && !!b.cleanerId;
 }
+
+/**
+ * Is this board job still worth offering?
+ *
+ * Neither board filtered on time, which was survivable while claiming a job
+ * confirmed it outright. It stopped being survivable when claiming started
+ * leaving the job pending and a sweep started closing lapsed claims: a cleaner
+ * tapped yesterday's 09:00 job, was told "you took it — approve at the bottom
+ * of the chat", and the sweep cancelled it on the very next snapshot. The
+ * approve bar vanished in front of them and the client was told their cleaner
+ * had cancelled, for a job that was never live.
+ */
+export function isBoardJobOfferable(
+  b: ClaimableBooking | null | undefined,
+  now: Date = new Date(),
+): boolean {
+  if (!b) return false;
+  // An unreadable date is not a reason to hide work from the board; it is our
+  // bug, and the claim simply writes no busy window for it.
+  const start = startDateOf(b);
+  return start === null || start.getTime() > now.getTime();
+}

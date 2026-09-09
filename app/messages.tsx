@@ -14,6 +14,7 @@ import {
 import { auth, db } from '../lib/firebase';
 import { setActiveChat } from '../lib/chatPresence';
 import { awaitsMyApproval, rejectionUpdate, rejectionReleasesToBoard, occupiesCleanerTime } from '../lib/bookingActions';
+import { releaseUrgentRequest } from '../lib/urgentRelease';
 import { bookingBusyWindow, windowsOverlap } from '../lib/jobUtils';
 import { addBookingToCalendar, removeBookingFromCalendar } from '../lib/calendarSync';
 import { logError } from '../lib/logError';
@@ -201,6 +202,11 @@ function InlineChatModal({ chatId, otherUid, otherName, visible, onClose }: any)
         // עבודה שהלקוח פרסם ללוח חוזרת ללוח; הזמנה שהופנתה אליי מתבטלת.
         const released = rejectionReleasesToBoard(b);
         await updateDoc(doc(db, 'bookings', b.id), rejectionUpdate(b));
+        // The urgent request this booking came from has to go back on the
+        // board too, or it stays locked on 'taken' — off every board and
+        // claimable by nobody. The other two reject paths already did this;
+        // only the chat bar did not.
+        await releaseUrgentRequest(b, 'cleaner').catch(err => logError('messages:releaseUrgent', err));
         removeBookingFromCalendar(b.id, b).catch(() => {});
         notifyClient(b, false, released).catch(err => logError('messages:notifyReject', err));
       }

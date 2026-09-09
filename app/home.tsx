@@ -41,7 +41,7 @@ import {
 } from '../lib/jobUtils';
 import { compareCleaners, compareJobs, isAvailableNow, rotationRank } from '../lib/displayOrder';
 import { isUrgentRequestLive } from '../lib/urgentRequest';
-import { claimUpdate, occupiesCleanerTime, pendingSlotMissed, rejectionUpdate } from '../lib/bookingActions';
+import { claimUpdate, occupiesCleanerTime, pendingSlotMissed, rejectionUpdate, isBoardJobOfferable } from '../lib/bookingActions';
 import { resolveRole } from '../lib/resolveRole';
 import { MAP_STYLE_LIGHT, MAP_STYLE_DARK } from '../lib/mapStyle';
 import { useTheme } from '../lib/ThemeContext';
@@ -4806,7 +4806,9 @@ export default function HomeScreen() {
       query(collection(db, 'bookings'), where('open', '==', true), where('status', '==', 'pending')),
       snap => setOpenBookings(
         snap.docs.map(d => ({ id: d.id, ...(d.data() as any) }))
-          .filter(b => !b.cleanerId && b.clientUid !== uid)   // לא לתפוס אם אני בעצמי הזמנתי
+          // גם לא עבודות שהמועד שלהן כבר עבר: תפיסה כזו מבוטלת מיד ע"י
+          // הסוויפ, והמנקה רואה את סרגל האישור נעלם בלי הסבר.
+          .filter(b => !b.cleanerId && b.clientUid !== uid && isBoardJobOfferable(b))
           .sort((a, b) => String(b.createdAt || '').localeCompare(String(a.createdAt || '')))
       ),
       () => {},

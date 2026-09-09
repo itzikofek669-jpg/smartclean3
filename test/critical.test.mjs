@@ -6,7 +6,7 @@ import { isAvailableNow } from '../.tsbuild/displayOrder.mjs';
 import { startDateOf, endDateOf, bookingHours, DEFAULT_BOOKING_HOURS } from '../.tsbuild/bookingSlot.mjs';
 import { readCalendarRemoval, extractPushData } from '../.tsbuild/calendarPush.mjs';
 import { isUrgentRequestLive, isUrgentRequestExpired, expiryOf } from '../.tsbuild/urgentRequest.mjs';
-import { claimUpdate, rejectionUpdate, rejectionReleasesToBoard, awaitsMyApproval, occupiesCleanerTime, busyWindowOf, pendingSlotMissed } from '../.tsbuild/bookingActions.mjs';
+import { claimUpdate, rejectionUpdate, rejectionReleasesToBoard, awaitsMyApproval, occupiesCleanerTime, busyWindowOf, pendingSlotMissed, isBoardJobOfferable } from '../.tsbuild/bookingActions.mjs';
 
 // Every case here is a bug that reached a real user. They are regression tests,
 // not coverage: each one failed in production before it was written.
@@ -541,4 +541,22 @@ test('the sweep never cancels work that was already approved', () => {
       'k1', at,
     ), false, status);
   }
+});
+
+test('a job whose time has passed is not offered on the board', () => {
+  // Claiming one is cancelled straight back by the sweep, so the cleaner sees
+  // the approve bar vanish with no explanation and the client is told their
+  // cleaner cancelled — for a job that was never live.
+  const at = new Date('2026-09-20T15:00:00Z');
+  assert.equal(isBoardJobOfferable({ bookingDate: '2026-09-19', startTime: '09:00' }, at), false);
+  assert.equal(isBoardJobOfferable({ bookingDate: '2026-09-25', startTime: '09:00' }, at), true);
+});
+
+test('a job with an unreadable date is still offered', () => {
+  // Hiding it would punish the client for our bad field; the claim just writes
+  // no busy window for it.
+  const at = new Date('2026-09-20T15:00:00Z');
+  assert.equal(isBoardJobOfferable({ bookingDate: 'nonsense', startTime: '09:00' }, at), true);
+  assert.equal(isBoardJobOfferable({}, at), true);
+  assert.equal(isBoardJobOfferable(null, at), false, 'but nothing is not a job');
 });
