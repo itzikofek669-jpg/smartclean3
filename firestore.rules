@@ -48,6 +48,22 @@ service cloud.firestore {
     // A rating write from a reviewer: only the aggregate fields, only plausible
     // values, and the counter may only move forward. Without the value checks a
     // signed-in stranger could zero out any cleaner's reputation.
+    // The review count this document already carries, whichever of the three
+    // spellings it is stored under.
+    //
+    // Reading only `reviewCount` made every bound below evaluate at n = 0 on any
+    // profile that stores the count as `reviewsCount` or `reviews` — and the web
+    // demo generator writes exactly that shape. With n = 0 the whole average
+    // guard collapses to `0 <= new <= 5.01`, so one write set any such cleaner
+    // to 0 stars or 5 while leaving the displayed count untouched. It is the
+    // same attack the comments below say was closed, surviving under a
+    // different field name.
+    function priorReviewCount() {
+      return resource.data.get('reviewCount',
+             resource.data.get('reviewsCount',
+             resource.data.get('reviews', 0)));
+    }
+
     function isValidRatingUpdate() {
       return changed().hasOnly(['rating', 'reviewCount', 'reviews', 'reviewsCount'])
         && request.resource.data.rating is number
@@ -60,7 +76,7 @@ service cloud.firestore {
         // stranger could erase a reputation in one request. The test that was
         // supposed to catch this passed only because it happened to send
         // reviewCount: 0, which tripped the `> 0` check instead.
-        && request.resource.data.reviewCount == resource.data.get('reviewCount', 0) + 1
+        && request.resource.data.reviewCount == priorReviewCount() + 1
         // And the average may only move as far as ONE review can move it.
         //
         // Fixing the counter alone left the exploit working with one digit
@@ -71,10 +87,10 @@ service cloud.firestore {
         // which is the whole of what a single honest review can do. Written as
         // multiplication rather than division to keep it exact, with a small
         // tolerance for the float rounding a client's own arithmetic produces.
-        && request.resource.data.rating * (resource.data.get('reviewCount', 0) + 1)
-             >= resource.data.get('rating', 0) * resource.data.get('reviewCount', 0) - 0.01
-        && request.resource.data.rating * (resource.data.get('reviewCount', 0) + 1)
-             <= resource.data.get('rating', 0) * resource.data.get('reviewCount', 0) + 5 + 0.01
+        && request.resource.data.rating * (priorReviewCount() + 1)
+             >= resource.data.get('rating', 0) * priorReviewCount() - 0.01
+        && request.resource.data.rating * (priorReviewCount() + 1)
+             <= resource.data.get('rating', 0) * priorReviewCount() + 5 + 0.01
         // The other two spellings are written alongside and were allowed by the
         // hasOnly list with no validation at all, so a stranger could park an
         // arbitrary object of any size on someone else's document.
@@ -138,8 +154,12 @@ service cloud.firestore {
 
       allow update: if isAdmin()
         || (signedIn() && uid() == userId && !touchesOwnRating()
-            // Moderation state is the admin's, not the subject's.
-            && !changed().hasAny(['blocked', 'blockedUntilReview', 'identityVerified', 'adminNote']))
+            // Moderation state is the admin's, not the subject's. The role field is
+            // here because it is not moderation but it is just as much theirs:
+            // a client account wrote itself role 'cleaner' and appeared in
+            // cleaner discovery, and role 'admin' passed the website's route
+            // guard, which reads profile.role straight through.
+            && !changed().hasAny(['blocked', 'blockedUntilReview', 'identityVerified', 'adminNote', 'role']))
         || (signedIn() && uid() != userId && isValidRatingUpdate());
 
       allow delete: if isAdmin();
@@ -148,8 +168,17 @@ service cloud.firestore {
       // afterwards (admins moderate by deleting the whole user).
       match /reviews/{reviewId} {
         allow read: if signedIn();
+        // Not about yourself. Nothing checked this, so a cleaner wrote her own
+        // five-star reviews — twenty in a loop in one probe. The numeric average
+        // is safe (the aggregate branch refuses a self-write), but the visible
+        // review list was fully forgeable.
+        //
+        // The text cap is here because nothing bounded it: a 400 KB review was
+        // accepted, and every reader downloads it.
         allow create: if signedIn()
+          && userId != uid()
           && request.resource.data.authorId == uid()
+          && request.resource.data.get('text', '').size() <= 2000
           && request.resource.data.stars is number
           && request.resource.data.stars >= 1
           && request.resource.data.stars <= 5;
@@ -378,10 +407,15 @@ service cloud.firestore {
       // not destroy it. Otherwise any account claims every job on the board and
       // cancels them one by one, and the client cannot revive their own.
       function cleanerIsNotDestroyingABoardJob() {
+        // Every terminal status, not just 'cancelled'. The guard named one word,
+        // so the same job was killed with { status: 'expired' } instead — and
+        // the client's attempt to revive it was then refused. bookingIsSettled()
+        // already treats all three as terminal; this has to agree with it.
         return !(resource.data.get('origin', '') == 'open'
                  && resource.data.get('status', '') == 'pending'
                  && !isTheClient()
-                 && request.resource.data.get('status', '') == 'cancelled');
+                 && request.resource.data.get('status', '')
+                    in ['cancelled', 'expired', 'handled']);
       }
 
       function bookingIsSettled() {
@@ -434,6 +468,12 @@ service cloud.firestore {
             && bookingMoneyUnchanged() && bookingSettlementByCleaner()
             && bookingOriginUnchanged() && bookingBoardStateUnchanged()
             && (isTheClient() || bookingClientDataUnchanged())
+            // The closing write is on THIS branch, not the settled one:
+            // bookingIsSettled() reads the state BEFORE the write, so a cleaner
+            // moving a live job to 'done' was never checked against the cap. A
+            // probe billed 99999 on a 300 job in one write, and the identical
+            // figure sent after the job was already done is refused.
+            && billingIsPlausible()
             && cleanerIsNotDestroyingABoardJob())
         // Rating and settling a job that is already over.
         || (isParty() && bookingIsSettled() && onlyAfterTheJobFields()
@@ -514,7 +554,12 @@ service cloud.firestore {
         allow create: if inChatId()
           && request.resource.data.get('fromUid', '') == uid();
         allow update: if false;                 // messages are immutable
-        allow delete: if inChatId() || isAdmin();
+        // Your own message, not your counterparty's. Messages are immutable
+        // above, so the intent is that a sent message is a record — but delete
+        // was open to either participant, which destroys the evidence in
+        // exactly the disputes /reports exists to settle.
+        allow delete: if isAdmin()
+          || (inChatId() && resource.data.get('fromUid', '') == uid());
       }
     }
 
