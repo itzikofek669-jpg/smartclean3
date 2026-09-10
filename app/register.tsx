@@ -26,6 +26,7 @@ import { TERMS_BY_LANG } from '../lib/terms';
 import ServiceInfoBtn from '../lib/ServiceInfoBtn';
 import { MaterialIcons } from '@expo/vector-icons';
 import { logError } from '../lib/logError';
+import { claimPhone } from '../lib/accountChecks';
 import { sendVerificationEmail } from '../lib/emailVerification';
 
 const NAV_BAR_HEIGHT = Platform.OS === 'android'
@@ -750,6 +751,13 @@ export default function RegisterScreen() {
       // להיחלץ מזה בעצמו.
       try {
         await setDoc(doc(db, 'users', cred.user.uid), data);
+        // תופס את המספר באינדקס — best-effort, ולעולם לא חוסם הרשמה.
+        //
+        // הכלל הוא שההרשמה לא נבדקת על ייחודיות: בדיקה כזו שברה אותה פעמיים.
+        // אבל בלי לכתוב לאינדקס כאן, מספרים של נרשמים חדשים לא היו מיוצגים בו
+        // כלל, ומישהו אחר היה יכול לתפוס אותם בעריכת פרופיל. כתיבה שנכשלת
+        // נבלעת בשקט — היא אף פעם לא הסיבה שהרשמה נופלת.
+        claimPhone(normalizePhone(phone), cred.user.uid).catch(() => {});
       } catch (profileErr) {
         try {
           const { deleteUser } = await import('firebase/auth');

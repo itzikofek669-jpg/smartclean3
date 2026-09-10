@@ -54,8 +54,9 @@ import * as Notifications from 'expo-notifications';
 import Constants from 'expo-constants';
 import { addBookingToCalendar, removeBookingFromCalendar, calendarSyncMessage } from '../lib/calendarSync';
 import { logError } from '../lib/logError';
+import { useNow } from '../lib/useNow';
 import { firstError, validateName, validatePhone, validatePrice, validateAge, validateDistance, normalizePhone } from '../lib/validate';
-import { isPhoneTaken } from '../lib/accountChecks';
+import { claimPhone, releasePhone } from '../lib/accountChecks';
 import { isUrgentRequestLive, isUrgentRequestExpired } from '../lib/urgentRequest';
 import { rejectionUpdate, occupiesCleanerTime, awaitsMyApproval, rejectionReleasesToBoard, busyFieldsOf } from '../lib/bookingActions';
 import { bookingOrigin } from '../lib/bookingOrigin';
@@ -386,8 +387,21 @@ async function sendPushNotification(
 
 const LOCALE_MAP: Record<string, string> = { he: 'he-IL', en: 'en-GB', ru: 'ru-RU', ar: 'ar-SA', fr: 'fr-FR', hi: 'hi-IN' };
 
+/**
+ * A booking date is a wall-clock day, not an instant.
+ *
+ * `new Date('2026-11-15')` parses a bare date as UTC midnight, so in any
+ * negative-offset timezone it renders as the 14th — the day before the job. It
+ * costs nothing in Israel and is wrong the moment anyone opens the app from the
+ * Americas, which is the same class of bug as the busy windows.
+ */
+function dateOnly(value: string): Date {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(value || '').trim());
+  return m ? new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3])) : new Date(value);
+}
+
 function formatDate(iso: string, lang = 'he') {
-  const d = new Date(iso);
+  const d = dateOnly(iso);
   return d.toLocaleDateString(LOCALE_MAP[lang] || 'he-IL', { day: '2-digit', month: '2-digit', year: 'numeric' });
 }
 
@@ -500,6 +514,8 @@ export default function ProfileScreen() {
   // null = עוד לא ידוע. היה useState(true), כלומר "יש טוקן" נוחש לפני
   // שהמסמך הגיע — ואם הקריאה נכשלה הכפתור נשאר ירוק וכתוב עליו "כבה"
   // למשתמש שאין לו טוקן בכלל. אותו דפוס בדיוק כמו role שנוחש כ-client.
+  // שעון מתקתק, לא Date.now() בתוך רנדור. ראה lib/useNow.
+  const nowMs = useNow();
   const [hasPushToken,     setHasPushToken]     = useState<boolean | null>(null);
   const [pushToggleLoading, setPushToggleLoading] = useState(false);
   const [calGranted, setCalGranted] = useState(false);
@@ -988,10 +1004,19 @@ export default function ProfileScreen() {
       // ייחודיות טלפון — רק כאן, לעולם לא בהרשמה. isPhoneTaken היה קיים
       // ב-lib/accountChecks.ts בלי אף קורא באפליקציה; האתר קורא לו מ-
       // EditProfileModal מאז שנכתב.
+      // claimPhone ולא isPhoneTaken: השאילתה שהאחרון מריץ עלולה להחזיר מסמך של
+      // לקוח, ולכן היא נדחית ע"י החוקים והוא נכשל-פתוח בכל קריאה — קוד מת
+      // שנראה כמו בקרה. phoneIndex הוא מסמך אחד לכל מספר, שנוצר ולא נדרס, אז
+      // מי שתפס ראשון מחזיק והשני נדחה ע"י מסד הנתונים עצמו.
       const phone = normalizePhone(editPhone);
-      if (phone && await isPhoneTaken(phone, uid)) {
-        setEditSaving(false);
-        return Alert.alert(t.error, (t as any).vErrPhoneTaken ?? 'מספר הטלפון הזה כבר רשום לחשבון אחר.');
+      const prevPhone = normalizePhone(userPhone || '');
+      if (phone && phone !== prevPhone) {
+        if (!(await claimPhone(phone, uid))) {
+          setEditSaving(false);
+          return Alert.alert(t.error, (t as any).vErrPhoneTaken ?? 'מספר הטלפון הזה כבר רשום לחשבון אחר.');
+        }
+        // המספר הישן חוזר לזמינות רק אחרי שהחדש נתפס בהצלחה.
+        await releasePhone(prevPhone, uid);
       }
       const spNum: Record<string,number> = {};
       Object.entries(editServicePricing).forEach(([k,v]) => { if (v) spNum[k] = Number(v); });
@@ -1953,7 +1978,7 @@ export default function ProfileScreen() {
   // הזמנה שתאריכה עבר נחשבת כהושלמה (גם אם התשלום לא אושר) — למעט מבוטלות
   const isPastBooking = (b: any) => {
     if (!b.bookingDate) return false;
-    const d = new Date(b.bookingDate); d.setHours(0, 0, 0, 0);
+    const d = dateOnly(b.bookingDate); d.setHours(0, 0, 0, 0);
     const today = new Date(); today.setHours(0, 0, 0, 0);
     return d < today;
   };
@@ -2495,7 +2520,7 @@ export default function ProfileScreen() {
           {(b.bookingDate || b.startTime) && (
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
               <T style={{ fontSize: 13, color: C.textDark, fontWeight: '700' }}>
-                📅 {b.bookingDate ? new Date(b.bookingDate).toLocaleDateString(LOCALE_MAP[lang] || 'he-IL', { weekday: 'short', day: '2-digit', month: '2-digit', year: '2-digit' }) : ''}
+                📅 {b.bookingDate ? dateOnly(b.bookingDate).toLocaleDateString(LOCALE_MAP[lang] || 'he-IL', { weekday: 'short', day: '2-digit', month: '2-digit', year: '2-digit' }) : ''}
                 {b.startTime ? `  🕐 ${b.startTime}` : ''}
               </T>
             </View>
@@ -2739,7 +2764,7 @@ export default function ProfileScreen() {
         {/* Review deadline countdown */}
         {isDone && !forCleaner && b.reviewRequired && !b.cleanerRating && b.reviewDeadline && (
           <T style={{ color: '#EF4444', fontSize: 12, textAlign: 'right', marginTop: 4 }}>
-            ⏰ {t.reviewDeadlineDays}: {Math.max(0, Math.ceil((new Date(b.reviewDeadline).getTime() - Date.now()) / 86400000))} ימים
+            ⏰ {t.reviewDeadlineDays}: {Math.max(0, Math.ceil((new Date(b.reviewDeadline).getTime() - nowMs) / 86400000))} ימים
           </T>
         )}
 
@@ -3467,7 +3492,7 @@ export default function ProfileScreen() {
                 <>
                   <T style={[s.sectionTitle, { color: '#4C1D95', textAlign: 'center' }]}>⚡ {t.urgentTabLabel} ({urgentRequests.length})</T>
                   {urgentRequests.map((req: any) => {
-                    const expiresIn = Math.max(0, Math.ceil((new Date(req.expiresAt).getTime() - Date.now()) / 60000));
+                    const expiresIn = Math.max(0, Math.ceil((new Date(req.expiresAt).getTime() - nowMs) / 60000));
                     const receivedAt = req.createdAt
                       ? new Date(req.createdAt).toLocaleTimeString(LOCALE_MAP[lang] || 'he-IL', { hour: '2-digit', minute: '2-digit' })
                       : '';

@@ -471,7 +471,32 @@ service cloud.firestore {
           && request.resource.data.get('phone', '') == resource.data.get('phone', '')
           && request.resource.data.get('clientName', '') == resource.data.get('clientName', '')
           && request.resource.data.get('bookingDate', '') == resource.data.get('bookingDate', '')
-          && request.resource.data.get('startTime', '') == resource.data.get('startTime', '');
+          && request.resource.data.get('startTime', '') == resource.data.get('startTime', '')
+          // What was agreed, not just where. A probe on a live booking rewrote
+          // hours to 12, replaced the service, wiped the client's notes, changed
+          // the payment method and renamed the cleaner on the record — the live
+          // branch is a blocklist, so everything it does not name is writable.
+          && request.resource.data.get('hours', 0) == resource.data.get('hours', 0)
+          && request.resource.data.get('serviceType', '') == resource.data.get('serviceType', '')
+          && request.resource.data.get('serviceTypes', []) == resource.data.get('serviceTypes', [])
+          && request.resource.data.get('notes', '') == resource.data.get('notes', '')
+          && request.resource.data.get('payment', '') == resource.data.get('payment', '')
+          && request.resource.data.get('isPrivateHouse', false) == resource.data.get('isPrivateHouse', false)
+          && request.resource.data.get('cleanerName', '') == resource.data.get('cleanerName', '')
+          // The review prompt and the score are the client's. A cleaner turned
+          // reviewRequired off on her own job and the prompt never appeared.
+          && request.resource.data.get('reviewRequired', true) == resource.data.get('reviewRequired', true)
+          && request.resource.data.get('cleanerRating', 0) == resource.data.get('cleanerRating', 0);
+      }
+
+      // A score on the booking itself, written by the client at review time.
+      // Unbounded, a probe wrote 999 — it feeds nothing today, but it is the
+      // number a future payout or ranking would read.
+      function bookingRatingInRange() {
+        return !changed().hasAny(['cleanerRating'])
+          || (request.resource.data.cleanerRating is number
+              && request.resource.data.cleanerRating >= 1
+              && request.resource.data.cleanerRating <= 5);
       }
       function isTheClient() {
         return signedIn() && resource.data.get('clientUid', '') == uid();
@@ -547,10 +572,12 @@ service cloud.firestore {
             // probe billed 99999 on a 300 job in one write, and the identical
             // figure sent after the job was already done is refused.
             && billingIsPlausible()
+            && bookingRatingInRange()
             && cleanerIsNotDestroyingABoardJob())
         // Rating and settling a job that is already over.
         || (isParty() && bookingIsSettled() && onlyAfterTheJobFields()
-            && bookingSettlementByCleaner() && billingIsPlausible())
+            && bookingSettlementByCleaner() && billingIsPlausible()
+            && bookingRatingInRange())
         // A cleaner claiming an unheld job off the board. The destination is
         // pinned: a probe claimed one straight to `done`, and another claimed a
         // job somebody else was already holding, because neither the resulting
@@ -751,6 +778,25 @@ service cloud.firestore {
     // ── Reports (bug reports / reporting a user) ─────────────────────────────
     // Write-only for users: a reported party must not be able to read, edit or
     // quietly delete the report filed against them.
+    // One document per phone number, holding the uid that owns it.
+    //
+    // Firestore has no unique index, so every "already taken" in this product
+    // was a query — and the query that answered it (users where phone == x) can
+    // return a client document, so the users list rule refuses it and the check
+    // failed open on every call. It was dead code presenting as a control.
+    //
+    // A document keyed BY the number needs no listing at all: `create` succeeds
+    // only when nothing is there, `update` is refused outright, so the first
+    // writer keeps it and the second is denied by the database. Delete is the
+    // owner's, so changing your number gives the old one back.
+    match /phoneIndex/{phoneNumber} {
+      allow get: if signedIn();
+      allow list: if isAdmin();
+      allow create: if signedIn() && request.resource.data.get('uid', '') == uid();
+      allow update: if false;
+      allow delete: if isAdmin() || (signedIn() && resource.data.get('uid', '') == uid());
+    }
+
     // Staff notes about a user. Their own collection because the rules cannot
     // hide one FIELD of a document: users grants `get` to any signed-in account,
     // so a note kept there was readable by the person it was about — and the CRM

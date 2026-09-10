@@ -66,5 +66,15 @@ export function bookingHours(b: BookingSlot): number {
 export function endDateOf(b: BookingSlot): Date | null {
   const start = startDateOf(b);
   if (!start) return null;
-  return new Date(start.getTime() + bookingHours(b) * 3600000);
+  // Wall-clock hours, not absolute milliseconds.
+  //
+  // A two-hour job starting 01:00 on the night the clocks go back was written
+  // as 01:00–02:00 rather than 01:00–03:00, because that stretch of wall clock
+  // really does contain three hours of elapsed time. The window came out one
+  // hour short and the last hour was bookable by somebody else. One hour a
+  // year, Israel included. setHours moves the calendar field and lets the
+  // runtime resolve the offset for the resulting instant.
+  const end = new Date(start.getTime());
+  end.setHours(end.getHours() + bookingHours(b));
+  return end;
 }

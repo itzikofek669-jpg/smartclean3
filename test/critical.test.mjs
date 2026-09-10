@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
 const bookingActionsUrl = new URL('../.tsbuild/bookingActions.mjs', import.meta.url).href;
+const bookingSlotUrl = new URL('../.tsbuild/bookingSlot.mjs', import.meta.url).href;
 import { resolveRole } from '../.tsbuild/resolveRole.mjs';
 import { mustVerifyEmail, VERIFY_REQUIRED_FROM } from '../.tsbuild/verifyRule.mjs';
 import { isAvailableNow } from '../.tsbuild/displayOrder.mjs';
@@ -675,4 +676,24 @@ test('a busy window written in one timezone is read the same in another', () => 
     { date: israel.date, s: israel.s, e: israel.e },
     { date: '2026-09-20', s: 14 * 60 + 30, e: 16 * 60 + 30 },
   );
+});
+
+test('a job spanning the clock change keeps its wall-clock length', () => {
+  // Israel's clocks go back on the night of 24–25 October 2026. A two-hour job
+  // starting 01:00 that night covers three hours of elapsed time, so adding
+  // absolute milliseconds ended it at 02:00 instead of 03:00 — the window was
+  // one wall-clock hour short and the last hour was bookable by somebody else.
+  // One hour a year, Israel included.
+  //
+  // A child process because TZ is read once, at process start, and CI runs UTC.
+  const end = execFileSync(process.execPath, [
+    '-e',
+    `import('${bookingSlotUrl}').then(m => {
+       const d = m.endDateOf({ bookingDate: '2026-10-25', startTime: '01:00', hours: 2 });
+       process.stdout.write(JSON.stringify({ h: d.getHours(), day: d.getDate() }));
+     })`,
+  ], { env: { ...process.env, TZ: 'Asia/Jerusalem' } }).toString();
+
+  assert.deepEqual(JSON.parse(end), { h: 3, day: 25 },
+    'two hours from 01:00 is 03:00 on the clock, whatever the offset did in between');
 });

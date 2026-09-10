@@ -8,6 +8,7 @@ import {
   KeyboardAvoidingView, ActivityIndicator, BackHandler, Keyboard,
 } from 'react-native';
 import { useAnimatedValue, useAnimatedValues } from '../lib/useAnimatedValue';
+import { useNow } from '../lib/useNow';
 
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -3835,6 +3836,8 @@ export default function HomeScreen() {
   // בזמן רנדור הוא בדיוק מה שכללי הקומפיילר תופסים — צרכן ממומו לא מתבטל
   // ע"י שינוי ref, ולכן QuickRebookModal יכול היה להחזיק רשימה ישנה.
   // מאזין הבקשה הדחופה, כדי שאפשר יהיה לנתק אותו גם בעזיבת המסך.
+  // שעון מתקתק, לא Date.now() בתוך רנדור. ראה lib/useNow.
+  const nowMs = useNow();
   const urgentUnsubRef = useRef<null | (() => void)>(null);
   useEffect(() => () => { urgentUnsubRef.current?.(); urgentUnsubRef.current = null; }, []);
 
@@ -6212,7 +6215,7 @@ export default function HomeScreen() {
                   {pendingReviewBooking.cleanerName}
                 </T>
                 {pendingReviewBooking.reviewDeadline && (() => {
-                  const days = Math.max(0, Math.ceil((new Date(pendingReviewBooking.reviewDeadline).getTime() - Date.now()) / 86400000));
+                  const days = Math.max(0, Math.ceil((new Date(pendingReviewBooking.reviewDeadline).getTime() - nowMs) / 86400000));
                   return <T style={{ fontSize: 12, color: days <= 1 ? '#EF4444' : C.textSub, textAlign: 'center', marginTop: 4 }}>⏳ {days} {t.reviewDeadlineDays}</T>;
                 })()}
               </View>
