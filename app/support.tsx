@@ -4,9 +4,12 @@ import {
   TouchableOpacity, TextInput, FlatList, KeyboardAvoidingView,
   Platform, Animated, Keyboard, Linking, BackHandler, Dimensions,
 } from 'react-native';
+import { useAnimatedValue } from '../lib/useAnimatedValue';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { collection, query, where, orderBy, limit, getDocs, onSnapshot, doc, getDoc } from 'firebase/firestore';
 import { db, auth } from '../lib/firebase';
+import { resolveRole } from '../lib/resolveRole';
+import { logError } from '../lib/logError';
 import { useRouter } from 'expo-router';
 import { useLanguage, T } from '../lib/LanguageContext';
 import { TAB_BAR_CONTENT_HEIGHT } from '../lib/BottomTabBar';
@@ -922,9 +925,9 @@ function getCleanerResponse(msg: string, userName: string, allBookings: any[]): 
 
 // ─── Typing indicator ─────────────────────────────────────────────────────────
 function TypingDots({ s }: { s: ReturnType<typeof createS> }) {
-  const dot1 = useRef(new Animated.Value(0)).current;
-  const dot2 = useRef(new Animated.Value(0)).current;
-  const dot3 = useRef(new Animated.Value(0)).current;
+  const dot1 = useAnimatedValue(0);
+  const dot2 = useAnimatedValue(0);
+  const dot3 = useAnimatedValue(0);
 
   useEffect(() => {
     const anim = (dot: Animated.Value, delay: number) =>
@@ -1008,16 +1011,25 @@ export default function SupportScreen() {
 
     (async () => {
       // ── קריאת פרטי משתמש כולל תפקיד ────────────────────────────────────
+      // resolveRole, ולא ניחוש. הקוד כאן אתחל role ל-'client' וקרא את המסמך
+      // בתוך try עם catch ריק — כלומר מסמך חסר או קריאה שנכשלה השאירו מנקה
+      // מסומנת כלקוחה. שש שורות אחר כך זה בוחר את שדה השאילתה, וההערה שם
+      // מתעדת בדיוק מה זה עולה: אפס הזמנות לכל מנקה ששאלה על העבודות שלה.
       let userName = 'אורח';
-      let role: 'client' | 'cleaner' = 'client';
+      let role: 'client' | 'cleaner' | null = null;
       try {
         const uSnap = await getDoc(doc(db, 'users', uid));
-        if (uSnap.exists()) {
-          const data = uSnap.data();
-          userName = data.name || 'אורח';
-          role = data.role === 'cleaner' ? 'cleaner' : 'client';
-        }
-      } catch (_) {}
+        const data = uSnap.exists() ? uSnap.data() : null;
+        userName = data?.name || 'אורח';
+        role = resolveRole({ exists: uSnap.exists(), data });
+      } catch (err) {
+        logError('support:readUser', err);
+      }
+      if (!role) {
+        // בלי תפקיד אין למי לענות. עדיף להגיד את זה מאשר לענות כלקוח.
+        pushBotMessage('הפרופיל עדיין נטען. נסה שוב בעוד רגע.');
+        return;
+      }
 
       // ── הזמנות לפי תפקיד ────────────────────────────────────────────────
       let allBookings: any[] = [];

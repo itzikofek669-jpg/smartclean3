@@ -7,6 +7,7 @@ import {
   Alert, Dimensions, Animated, Platform, Linking, Switch,
   KeyboardAvoidingView, ActivityIndicator, BackHandler, Keyboard,
 } from 'react-native';
+import { useAnimatedValue, useAnimatedValues } from '../lib/useAnimatedValue';
 
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -645,7 +646,7 @@ function DrawerMenu({ visible, onClose, onProfile, onLogout, onMessages, onRepor
   // כיוון אנימציה: יוצא מחוץ למסך ואז נכנס ל-0
   const offscreen  = flipSide ? -PANEL_W : PANEL_W;
 
-  const slideAnim = useRef(new Animated.Value(offscreen)).current;
+  const slideAnim = useAnimatedValue(offscreen);
 
   useEffect(() => {
     const off = flipSide ? -PANEL_W : PANEL_W;
@@ -1222,8 +1223,8 @@ function CleanerProfile({ cleaner, visible, onClose, onBook, onChat, initialShow
 
 // ─── Toast ────────────────────────────────────────────────────────────────────
 function Toast({ msg, visible, type = 'success' }: { msg: string; visible: boolean; type?: 'success' | 'error' | 'info' }) {
-  const opacity = useRef(new Animated.Value(0)).current;
-  const translateY = useRef(new Animated.Value(20)).current;
+  const opacity = useAnimatedValue(0);
+  const translateY = useAnimatedValue(20);
   const insets = useSafeAreaInsets();
 
   useEffect(() => {
@@ -1263,7 +1264,7 @@ function Toast({ msg, visible, type = 'success' }: { msg: string; visible: boole
 // ─── Animated Star Picker ─────────────────────────────────────────────────────
 function AnimatedStarPicker({ value, onChange }: { value: number; onChange: (v: number) => void }) {
   const C = useAppColors();
-  const scales = useRef([...Array(5)].map(() => new Animated.Value(1))).current;
+  const scales = useAnimatedValues(5, 1);
   const handlePress = (i: number) => {
     onChange(i + 1);
     Animated.sequence([
@@ -3765,8 +3766,11 @@ export default function HomeScreen() {
     } catch (_) {}
   }, []);
   // התמקדות במפה לפי שם עיר (חיפוש/סינון) — מחפש קואורדינטות ב-CITY_COORDS, בתרגום, או אצל מנקה
-  const focusCityRef = useRef<(name: string) => void>(() => {});
-  focusCityRef.current = (cityName: string) => {
+  // useCallback + effect, not an assignment during render. Writing to a ref
+  // while rendering is the case the React Compiler rules exist to catch, and
+  // app.json turns the compiler on — a memoised consumer cannot be invalidated
+  // by a ref mutation, so callers could hold a stale closure.
+  const focusCity = React.useCallback((cityName: string) => {
     const name = String(cityName || '').trim();
     if (name.length < 2 || !mapRef.current) return;
     const low = name.toLowerCase();
@@ -3790,7 +3794,9 @@ export default function HomeScreen() {
     if (coords) {
       mapRef.current.animateToRegion({ latitude: coords.lat, longitude: coords.lng, latitudeDelta: 0.18, longitudeDelta: 0.18 }, 650);
     }
-  };
+  }, [t]);
+  const focusCityRef = useRef<(name: string) => void>(() => {});
+  useEffect(() => { focusCityRef.current = focusCity; }, [focusCity]);
   const [region,     setRegion]     = useState('all');
   const [search,     setSearch]     = useState('');
   const [searchSugg, setSearchSugg] = useState<{label:string; icon:string}[]>([]);
@@ -3814,8 +3820,16 @@ export default function HomeScreen() {
   // דרך rotationRank ולא sort(() => Math.random() - 0.5): הקומפרטור ההוא מחזיר
   // תשובה שונה לאותו זוג באותו מעבר, מה שאסור לקומפרטור, והתוצאה שלו אינה
   // התפלגות אחידה.
-  const staticCleanerOrderRef = useRef<any[]>(
-    [...CLEANERS].sort((a, b) => rotationRank(String(a.id)) - rotationRank(String(b.id))),
+  // useMemo ולא useRef: הערך נגזר פעם אחת מקבוע ולא משתנה לעולם, ו-ref שנקרא
+  // בזמן רנדור הוא בדיוק מה שכללי הקומפיילר תופסים — צרכן ממומו לא מתבטל
+  // ע"י שינוי ref, ולכן QuickRebookModal יכול היה להחזיק רשימה ישנה.
+  // מאזין הבקשה הדחופה, כדי שאפשר יהיה לנתק אותו גם בעזיבת המסך.
+  const urgentUnsubRef = useRef<null | (() => void)>(null);
+  useEffect(() => () => { urgentUnsubRef.current?.(); urgentUnsubRef.current = null; }, []);
+
+  const staticCleanerOrder = React.useMemo(
+    () => [...CLEANERS].sort((a, b) => rotationRank(String(a.id)) - rotationRank(String(b.id))),
+    [],
   );
 
   // Advanced filter
@@ -4189,24 +4203,33 @@ export default function HomeScreen() {
 
       setUrgentWaiting(true);
       setUrgentOpen(false); // סגור מודל מיד — חזור למסך הראשי
-      const releaseTimer = setTimeout(() => {}, 0); // dummy
-
-      // האזן לשינוי סטטוס — כשמנקה מקבל
-      const unsub = onSnapshot(doc(db,'urgentRequests', reqRef.id), snap => {
-        const d = snap.data();
-        if (d?.status === 'taken') {
-          setUrgentFoundName(d.takenByName || '');
-          setUrgentWaiting(false);
-          clearTimeout(releaseTimer);
-          unsub();
-          Alert.alert('🎉 ' + t.urgentFoundMsg, d.takenByName || '');
-        } else if (d?.status === 'expired' || d?.status === 'cancelled') {
-          setUrgentWaiting(false);
-          setUrgentRequestId(null);
-          clearTimeout(releaseTimer);
-          unsub();
-        }
-      });
+      // המאזין נשמר ב-ref ומנותק גם בעזיבת המסך, לא רק כשהבקשה נסגרת.
+      // קודם הוא נוצר כאן ושוחרר רק על taken/expired/cancelled — לקוח שפרסם
+      // בקשה ויצא לפני שמנקה ענתה השאיר מאזין חי, שקרא setState על עץ שכבר
+      // אינו מורכב ופתח Alert מעל מסך אחר. אחרי התנתקות השאילתה גם נדחית
+      // ע"י החוקים, ובלי onError הדחייה הזאת בלתי נראית.
+      urgentUnsubRef.current?.();
+      const unsub = onSnapshot(
+        doc(db,'urgentRequests', reqRef.id),
+        snap => {
+          const d = snap.data();
+          if (d?.status === 'taken') {
+            setUrgentFoundName(d.takenByName || '');
+            setUrgentWaiting(false);
+            urgentUnsubRef.current?.(); urgentUnsubRef.current = null;
+            Alert.alert('🎉 ' + t.urgentFoundMsg, d.takenByName || '');
+          } else if (d?.status === 'expired' || d?.status === 'cancelled') {
+            setUrgentWaiting(false);
+            setUrgentRequestId(null);
+            urgentUnsubRef.current?.(); urgentUnsubRef.current = null;
+          }
+        },
+        err => {
+          logError('home:urgentWatch', err);
+          urgentUnsubRef.current = null;
+        },
+      );
+      urgentUnsubRef.current = unsub;
     } catch (_) {}
     setUrgentSending(false);
   };
@@ -5401,6 +5424,22 @@ export default function HomeScreen() {
     ]);
   };
 
+  // התפקיד עוד לא ידוע — לא מציגים כלום.
+  //
+  // resolveRole מבדיל בין null ל-'client' בדיוק כדי לא לנחש, ומי שקורא לו כאן
+  // מכבד את זה. אבל הרנדר נכתב כולו כ-`myRole !== 'cleaner'`, כלומר null נפל
+  // לצד הלקוח: מנקה שפתחה את האפליקציה קיבלה את מסך הלקוח — רשימת המנקים,
+  // כותרת ההזמנה, מצב ריק של לקוח — עד שהמסמך הגיע, ואם הוא לא הגיע (פתיחה
+  // בלי רשת) גם אחרי. משם היא יכלה להיכנס לזרימת הזמנה של לקוח.
+  if (myRole === null) {
+    return (
+      <SafeAreaViewCtx style={[s.wrap, { alignItems: 'center', justifyContent: 'center' }]} edges={['left', 'right']}>
+        <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
+        <ActivityIndicator size="large" color="#10B981" />
+      </SafeAreaViewCtx>
+    );
+  }
+
   return (
     <SafeAreaViewCtx style={s.wrap} edges={['left', 'right']}>
       <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
@@ -5853,7 +5892,7 @@ export default function HomeScreen() {
         visible={quickRebookOpen}
         onClose={() => setQuickRebookOpen(false)}
         myBookings={myBookings}
-        allCleaners={[...staticCleanerOrderRef.current, ...realCleaners]}
+        allCleaners={[...staticCleanerOrder, ...realCleaners]}
         onBook={(cleaner, prevB) => { setQuickRebookOpen(false); setPrebookData(prevB || null); setBooking(cleaner); }}
       />
 

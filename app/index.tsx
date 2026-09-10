@@ -72,19 +72,10 @@ const LANGS: { code: Lang; flag: string; label: string; nativeName: string }[] =
   { code: 'uk', flag: '🇺🇦', label: 'UK', nativeName: 'Українська' },
 ];
 
-// ─── יוצר פרופיל ב-Firestore למשתמש חדש שנכנס ברשת חברתית ─────────────────
-async function ensureUserProfile(uid: string, name: string, email: string) {
-  const ref = doc(db, 'users', uid);
-  const snap = await getDoc(ref);
-  if (!snap.exists()) {
-    await setDoc(ref, {
-      name, email,
-      role: 'client',
-      createdAt: new Date().toISOString(),
-      socialLogin: true,
-    });
-  }
-}
+// ensureUserProfile נמחק. הוא לא נקרא מאף מקום — התחברות חברתית לא מחווטת,
+// הכפתורים שלה לא מרונדרים — והוא כתב role: 'client' בלי תנאי, כלומר שימר
+// בדיוק את הבאג ש-resolveRole קיים כדי למנוע, בקובץ ההתחברות. מי שיחווט
+// התחברות חברתית יכתוב את יצירת הפרופיל דרך זרימת ההרשמה.
 
 export default function LoginScreen() {
   const router = useRouter();
@@ -101,16 +92,21 @@ export default function LoginScreen() {
 
   const currentLang = LANGS.find(l => l.code === lang) || LANGS[0];
 
-  // טעינת פרטים שמורים (זכור אותי)
+  // טעינת האימייל השמור (זכור אותי)
+  //
+  // האימייל בלבד. קודם נשמרה גם הסיסמה כטקסט גלוי ב-SecureStore והוזרקה חזרה
+  // לשדה — שיש לידו כפתור עין שמסיר את ההסתרה. מי שהרים טלפון לא נעול קרא
+  // אותה. וזה לא קנה כלום: firebase.ts מאתחל את Auth עם
+  // getReactNativePersistence, אז הסשן שורד הפעלה מחדש בלי שום סיסמה שמורה.
   useEffect(() => {
     (async () => {
       const savedEmail = await SecureStore.getItemAsync('remember_email');
-      const savedPass  = await SecureStore.getItemAsync('remember_pass');
-      if (savedEmail && savedPass) {
+      if (savedEmail) {
         setEmail(savedEmail);
-        setPassword(savedPass);
         setRememberMe(true);
       }
+      // ניקוי חד-פעמי של סיסמאות שנשמרו בגרסאות קודמות.
+      await SecureStore.deleteItemAsync('remember_pass').catch(() => {});
     })();
   }, []);
 
@@ -124,11 +120,11 @@ export default function LoginScreen() {
       // EmailVerifyGate חוסם את המסכים מתוך סשן חי שיכול לשלוח את המייל שוב.
       if (rememberMe) {
         await SecureStore.setItemAsync('remember_email', email.trim());
-        await SecureStore.setItemAsync('remember_pass',  password);
       } else {
         await SecureStore.deleteItemAsync('remember_email');
-        await SecureStore.deleteItemAsync('remember_pass');
       }
+      // אף פעם לא הסיסמה. הסשן נשמר ע"י Firebase עצמו.
+      await SecureStore.deleteItemAsync('remember_pass').catch(() => {});
     } catch (e: any) {
       const msg =
         e.code === 'auth/user-not-found'      ? 'משתמש לא קיים — בדוק אם ההרשמה הושלמה' :

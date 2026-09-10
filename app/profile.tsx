@@ -54,6 +54,8 @@ import * as Notifications from 'expo-notifications';
 import Constants from 'expo-constants';
 import { addBookingToCalendar, removeBookingFromCalendar, calendarSyncMessage } from '../lib/calendarSync';
 import { logError } from '../lib/logError';
+import { firstError, validateName, validatePhone, validatePrice, validateAge, validateDistance, normalizePhone } from '../lib/validate';
+import { isPhoneTaken } from '../lib/accountChecks';
 import { isUrgentRequestLive, isUrgentRequestExpired } from '../lib/urgentRequest';
 import { rejectionUpdate, occupiesCleanerTime, awaitsMyApproval, rejectionReleasesToBoard, busyFieldsOf } from '../lib/bookingActions';
 import { bookingOrigin } from '../lib/bookingOrigin';
@@ -495,7 +497,10 @@ export default function ProfileScreen() {
   const [idVerified,   setIdVerified]   = useState(false);
   const [prefLang,     setPrefLang]     = useState('he');
   const [userPhone,    setUserPhone]    = useState('');
-  const [hasPushToken,     setHasPushToken]     = useState(true); // האם יש pushToken — לאזהרת ניקוי דחוף
+  // null = עוד לא ידוע. היה useState(true), כלומר "יש טוקן" נוחש לפני
+  // שהמסמך הגיע — ואם הקריאה נכשלה הכפתור נשאר ירוק וכתוב עליו "כבה"
+  // למשתמש שאין לו טוקן בכלל. אותו דפוס בדיוק כמו role שנוחש כ-client.
+  const [hasPushToken,     setHasPushToken]     = useState<boolean | null>(null);
   const [pushToggleLoading, setPushToggleLoading] = useState(false);
   const [calGranted, setCalGranted] = useState(false);
   const [calToggleLoading, setCalToggleLoading] = useState(false);
@@ -962,9 +967,29 @@ export default function ProfileScreen() {
   };
 
   const saveEditProfile = async () => {
-    if (!editName.trim()) return Alert.alert(t.error, t.editErrNameRequired);
+    // אותה ולידציה שההרשמה מריצה. המסך הזה בדק רק ששם לא ריק, ולכן היה דלת
+    // אחורית לכל מה ש-validate.ts קיים בשביל לחסום: טלפון ריק, מחיר 0 או
+    // 999999, גיל 3, רדיוס 10000 ק"מ. וזה המסך שמנקות משתמשות בו שוב ושוב,
+    // בעוד ההרשמה נוגעת בהן פעם אחת.
+    const err = firstError(
+      validateName(editName),
+      validatePhone(editPhone),
+      isCleaner ? validatePrice(editServicePricing['ניקיון רגיל'] || Object.values(editServicePricing).find(v => v) || '') : null,
+      isCleaner ? validateAge(editAge) : null,
+      isCleaner ? validateDistance(editMaxDistance) : null,
+    );
+    if (err) return Alert.alert(t.error, err);
+
     setEditSaving(true);
     try {
+      // ייחודיות טלפון — רק כאן, לעולם לא בהרשמה. isPhoneTaken היה קיים
+      // ב-lib/accountChecks.ts בלי אף קורא באפליקציה; האתר קורא לו מ-
+      // EditProfileModal מאז שנכתב.
+      const phone = normalizePhone(editPhone);
+      if (phone && await isPhoneTaken(phone, uid)) {
+        setEditSaving(false);
+        return Alert.alert(t.error, (t as any).vErrPhoneTaken ?? 'מספר הטלפון הזה כבר רשום לחשבון אחר.');
+      }
       const spNum: Record<string,number> = {};
       Object.entries(editServicePricing).forEach(([k,v]) => { if (v) spNum[k] = Number(v); });
 
@@ -997,7 +1022,9 @@ export default function ProfileScreen() {
         floor:         editFloor.trim(),
         apt:           editApt.trim(),
         isPrivate:     editAddrPrivate,
-        phone:         editPhone.trim(),
+        // normalizePhone: ההרשמה שומרת מנורמל וכאן נשמר הגלם, אז '050-123-4567'
+        // הפסיק להתאים לבדיקת הכפילות של האתר ולחיפוש של האדמין.
+        phone:         phone,
         bio:           editBio.trim(),
         price:         Number(editServicePricing['ניקיון רגיל']) || Number(Object.values(editServicePricing).find(v => v)) || 0,
         types:         editTypes,
@@ -1061,7 +1088,9 @@ export default function ProfileScreen() {
           setUserName(d.name        || '');
           setUserEmail(d.email      || '');
           setUserRole(d.role        || '');
-          setHasPushToken(!!d.pushToken);
+          // כיבוי מפורש גובר על קיום הטוקן: pushOptOut הוא מה ש-registerPushToken
+          // מכבד, אז זה מה שהכפתור חייב להציג.
+          setHasPushToken(d.pushOptOut === true ? false : !!d.pushToken);
           // Legacy documents still carry the photo inline; current ones keep it
           // in `userPhotos/{uid}`, so fall through to a fetch when there's
           // nothing inline. Without the fallback the profile screen shows an
@@ -2169,7 +2198,12 @@ export default function ProfileScreen() {
     try {
       if (hasPushToken) {
         // ── כיבוי ─────────────────────────────────────────────────────────────
-        await updateDoc(doc(db, 'users', uid), { pushToken: '' });
+        // pushOptOut ולא רק מחיקת הטוקן: הכיבוי נגע רק ב-Firestore, בעוד
+        // registerPushToken בודק את הרשאת ה-OS — שעדיין granted — ומושך טוקן
+        // חדש וכותב אותו בחזרה בכל עלייה של האפליקציה ובכל שינוי אימות.
+        // ההתראות חזרו, והכפתור המשיך להציג "כבוי". לא הייתה שום דרך לכבות
+        // התראות מתוך האפליקציה.
+        await updateDoc(doc(db, 'users', uid), { pushToken: '', pushOptOut: true });
         setHasPushToken(false);
       } else {
         // ── הפעלה ─────────────────────────────────────────────────────────────
@@ -2221,7 +2255,9 @@ export default function ProfileScreen() {
         }
 
         if (token) {
-          await updateDoc(doc(db, 'users', uid), { pushToken: token });
+          // pushOptOut נמחק כאן, אחרת registerPushToken ימשיך לצאת מוקדם
+          // והטוקן שנכתב עכשיו לא יתחדש אף פעם.
+          await updateDoc(doc(db, 'users', uid), { pushToken: token, pushOptOut: false });
           setHasPushToken(true);
         } else {
           Alert.alert('שגיאה', 'לא ניתן לקבל טוקן להתראות.');
@@ -3371,7 +3407,8 @@ export default function ProfileScreen() {
               phone. Clients need it at least as much as cleaners do. */}
           <View style={s.section}>
 
-              {/* התראות והודעות פוש */}
+              {/* התראות והודעות פוש — מוסתר עד שידוע, ולא מנחש */}
+              {hasPushToken !== null && (
               <View style={{ backgroundColor: hasPushToken ? '#ECFDF5' : '#FEF2F2', borderRadius: 16, borderWidth: 1.5, borderColor: hasPushToken ? '#6EE7B7' : '#FCA5A5', padding: 14, marginBottom: 16 }}>
                 <View style={{ flexDirection: 'row-reverse', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
                   <T style={{ fontSize: 15, fontWeight: '800', color: C.textDark }}>{t.notifSectionTitle}</T>
@@ -3415,6 +3452,7 @@ export default function ProfileScreen() {
                   </TouchableOpacity>
                 )}
               </View>
+              )}
           </View>
 
           {/* ── CLEANER: דף אחד ─────────────────────────────────────────────── */}

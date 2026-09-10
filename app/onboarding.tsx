@@ -3,6 +3,7 @@ import {
   View, StyleSheet, Dimensions, FlatList,
   TouchableOpacity, SafeAreaView, StatusBar, Animated,
 } from 'react-native';
+import { useAnimatedValue } from '../lib/useAnimatedValue';
 import { useRouter } from 'expo-router';
 import * as SecureStore from 'expo-secure-store';
 import { useLanguage, T, useAppColors } from '../lib/LanguageContext';
@@ -42,7 +43,7 @@ export default function OnboardingScreen() {
   const appC = useAppColors();
   const [current, setCurrent] = useState(0);
   const listRef = useRef<FlatList>(null);
-  const fadeAnim = useRef(new Animated.Value(1)).current;
+  const fadeAnim = useAnimatedValue(1);
 
   const finish = async () => {
     await SecureStore.setItemAsync('onboarding_done', '1');

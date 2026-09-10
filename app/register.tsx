@@ -4,6 +4,7 @@ import {
   StatusBar, KeyboardAvoidingView, Platform, Dimensions,
   Alert, ScrollView, Modal, ActivityIndicator, Animated,
  Image as RNImage } from 'react-native';
+import { useAnimatedValue } from '../lib/useAnimatedValue';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Image } from 'expo-image';
 
@@ -337,8 +338,8 @@ function RegisterFreeBanner({ label1, sub1, label2, sub2, color1, color2, bg1, b
   label1: string; sub1: string; label2: string; sub2: string;
   color1: string; color2: string; bg1: string; bg2: string; border1: string; border2: string;
 }) {
-  const p1 = useRef(new Animated.Value(1)).current;
-  const p2 = useRef(new Animated.Value(1)).current;
+  const p1 = useAnimatedValue(1);
+  const p2 = useAnimatedValue(1);
   useEffect(() => {
     const anim = (val: Animated.Value, delay: number) =>
       Animated.loop(Animated.sequence([

@@ -1,11 +1,10 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { Platform, View, StyleSheet, Alert, LogBox } from 'react-native';
 import { Stack, useRouter, useSegments } from 'expo-router';
-import { onAuthStateChanged, signInWithEmailAndPassword, signOut } from 'firebase/auth';
-import * as SecureStore from 'expo-secure-store';
+import { onAuthStateChanged, signOut } from 'firebase/auth';
 import * as Notifications from 'expo-notifications';
 import Constants from 'expo-constants';
-import { doc, updateDoc, collection, query, where, onSnapshot } from 'firebase/firestore';
+import { doc, getDoc, updateDoc, collection, query, where, onSnapshot } from 'firebase/firestore';
 import { auth, db } from '../lib/firebase';
 import { getActiveChat } from '../lib/chatPresence';
 import { logError } from '../lib/logError';
@@ -77,13 +76,35 @@ async function registerPushToken(uid: string) {
   // Remote push tokens don't work in Expo Go (SDK 53+) — skip to avoid the error.
   if (Constants.appOwnership === 'expo') return;
   try {
+    // The user's own decision comes first, before the OS permission is even
+    // consulted. Turning notifications off in the profile screen only cleared
+    // `pushToken`, and this function — which runs on launch and on every auth
+    // change — saw the OS permission still granted, fetched a fresh token and
+    // wrote it straight back. Push resumed, and because the toggle reads its
+    // state once on mount it still showed "off". There was no way to turn
+    // notifications off from inside the app at all.
+    const meSnap = await getDoc(doc(db, 'users', uid)).catch(() => null);
+    if (meSnap?.exists() && meSnap.data()?.pushOptOut === true) {
+      // The calendar task is independent of whether this device wants push
+      // ALERTS: it consumes silent data messages. Registering it here means a
+      // user who declined notifications still gets a cancelled booking removed
+      // from their calendar in the background.
+      await registerCalendarPushTask().catch(() => {});
+      return;
+    }
     const { status: existing } = await Notifications.getPermissionsAsync();
     let finalStatus = existing;
     if (existing !== 'granted') {
       const { status } = await Notifications.requestPermissionsAsync();
       finalStatus = status;
     }
-    if (finalStatus !== 'granted') return;
+    if (finalStatus !== 'granted') {
+      // Same reasoning: no token to receive alerts with, but the background
+      // task still has work to do. It used to sit behind this return, so
+      // anyone who declined the prompt never got background calendar removal.
+      await registerCalendarPushTask().catch(() => {});
+      return;
+    }
 
     const projectId =
       Constants.expoConfig?.extra?.eas?.projectId ??
@@ -155,56 +176,61 @@ export default function RootLayout() {
   // cleaner list is built. See lib/demoMode.
   useEffect(() => { loadDemoMode(); loadDiagnostics(); }, []);
 
-  // ── Auth routing ──────────────────────────────────────────────────────────
+  // ── Auth subscription ─────────────────────────────────────────────────────
+  // Mounted once. It used to depend on [segments], and useSegments() returns a
+  // new object identity on every route change — so every tap between tabs tore
+  // down and rebuilt this subscription, Firebase immediately re-invoked the
+  // observer with the current user, and registerPushToken ran again: a native
+  // token fetch and a users/{uid} write per navigation. On the free plan that
+  // was the app's dominant source of writes, and it scaled with navigation
+  // rather than with anyone doing anything.
+  const [authUser, setAuthUser] = useState<import('firebase/auth').User | null>(null);
+  const pushRegisteredFor = useRef<string | null>(null);
+
   useEffect(() => {
-    let cancelled = false;
-    let unsubAuth: (() => void) | undefined;
-
-    (async () => {
-      try {
-        const savedEmail = await SecureStore.getItemAsync('remember_email');
-        const savedPass  = await SecureStore.getItemAsync('remember_pass');
-        if (savedEmail && savedPass && !auth.currentUser) {
-          await signInWithEmailAndPassword(auth, savedEmail, savedPass);
-        }
-      } catch (_) {
-        await SecureStore.deleteItemAsync('remember_email').catch(() => {});
-        await SecureStore.deleteItemAsync('remember_pass').catch(() => {});
-      }
-
-      // אין כאן יותר ניתוק של חשבון שלא אומת. ניתוק בפתיחת האפליקציה הוא בדיוק
-      // מה שנעל בחוץ מי שנרשם והמייל לא הגיע אליו — הוא איבד את הסשן ולא נותרה
-      // לו שום דרך לבקש אותו שוב. EmailVerifyGate חוסם את המסכים במקום, מתוך
-      // סשן חי שיכול לשלוח מייל חוזר ולהמשיך פנימה ברגע שהכתובת מאומתת.
-
-      unsubAuth = onAuthStateChanged(auth, user => {
-        if (cancelled) return;
-        readyRef.current = true;
-        setReady(true);
-        const seg0 = segments[0] as string | undefined;
-        const inAuth = seg0 === undefined || seg0 === 'index' || seg0 === 'register';
-        // חייב להיות זהה ל-isAdmin() ב-firestore.rules ולרשימות בווב ובפונקציות.
-        const ADMIN_EMAILS = ['cleantouchapp@gmail.com', 'itzikofek669@gmail.com'];
-        if (!user && !inAuth) router.replace('/');
-        else if (user && inAuth) {
-          if (user.email && ADMIN_EMAILS.includes(user.email.toLowerCase())) {
-            router.replace('/admin');
-          } else {
-            router.replace('/home');
-          }
-        }
-        if (user) {
+    // אין כאן יותר ניתוק של חשבון שלא אומת. ניתוק בפתיחת האפליקציה הוא בדיוק
+    // מה שנעל בחוץ מי שנרשם והמייל לא הגיע אליו — הוא איבד את הסשן ולא נותרה
+    // לו שום דרך לבקש אותו שוב. EmailVerifyGate חוסם את המסכים במקום, מתוך
+    // סשן חי שיכול לשלוח מייל חוזר ולהמשיך פנימה ברגע שהכתובת מאומתת.
+    //
+    // וגם אין כאן יותר התחברות אוטומטית מסיסמה שמורה: firebase.ts כבר מאתחל
+    // את Auth עם getReactNativePersistence, אז הסשן שורד הפעלה מחדש בכוחות
+    // עצמו. הסיסמה שנשמרה לשם כך לא קנתה כלום ונשמרה כטקסט גלוי.
+    const unsubAuth = onAuthStateChanged(auth, user => {
+      readyRef.current = true;
+      setReady(true);
+      setAuthUser(user);
+      if (user) {
+        // פעם אחת לכל חשבון, לא בכל הרשמה מחדש של המאזין.
+        if (pushRegisteredFor.current !== user.uid) {
+          pushRegisteredFor.current = user.uid;
           registerPushToken(user.uid);
           primeCalendarPermission();
         }
-      });
-    })();
+      } else {
+        pushRegisteredFor.current = null;
+      }
+    });
+    return unsubAuth;
+  }, []);
 
-    return () => {
-      cancelled = true;
-      if (unsubAuth) unsubAuth();
-    };
-  }, [segments]);
+  // ── Auth routing ──────────────────────────────────────────────────────────
+  // Only the redirect depends on the route, and a redirect is cheap.
+  useEffect(() => {
+    if (!readyRef.current) return;
+    const seg0 = segments[0] as string | undefined;
+    const inAuth = seg0 === undefined || seg0 === 'index' || seg0 === 'register';
+    // חייב להיות זהה ל-isAdmin() ב-firestore.rules ולרשימות בווב ובפונקציות.
+    const ADMIN_EMAILS = ['cleantouchapp@gmail.com', 'itzikofek669@gmail.com'];
+    if (!authUser && !inAuth) router.replace('/');
+    else if (authUser && inAuth) {
+      if (authUser.email && ADMIN_EMAILS.includes(authUser.email.toLowerCase())) {
+        router.replace('/admin');
+      } else {
+        router.replace('/home');
+      }
+    }
+  }, [authUser, segments]);
 
   // ── סנכרון יומן — גלובלי, בכל מסך ──────────────────────────────────────────
   //
