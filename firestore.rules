@@ -68,14 +68,37 @@ service cloud.firestore {
     // to 0 stars or 5 while leaving the displayed count untouched. It is the
     // same attack the comments below say was closed, surviving under a
     // different field name.
+    // The booking a rating write cites: it must exist, be finished, and be the
+    // job these two people actually did together.
+    function requestNamesAFinishedJob(cleanerUid) {
+      return request.resource.data.get('ratedBooking', '') is string
+        && request.resource.data.get('ratedBooking', '') != ''
+        && exists(/databases/$(database)/documents/bookings/$(request.resource.data.ratedBooking))
+        && get(/databases/$(database)/documents/bookings/$(request.resource.data.ratedBooking)).data.get('status', '') == 'done'
+        && get(/databases/$(database)/documents/bookings/$(request.resource.data.ratedBooking)).data.get('clientUid', '') == uid()
+        && get(/databases/$(database)/documents/bookings/$(request.resource.data.ratedBooking)).data.get('cleanerId', '') == cleanerUid;
+    }
+
     function priorReviewCount() {
       return resource.data.get('reviewCount',
              resource.data.get('reviewsCount',
              resource.data.get('reviews', 0)));
     }
 
-    function isValidRatingUpdate() {
-      return changed().hasOnly(['rating', 'reviewCount', 'reviews', 'reviewsCount'])
+    function isValidRatingUpdate(subjectUid) {
+      return changed().hasOnly(['rating', 'reviewCount', 'reviews', 'reviewsCount', 'ratedBooking'])
+        // Every rating movement must name a real, finished job between these two
+        // people, and a different one each time.
+        //
+        // The per-write bound below is sound — 4.8 with 50 reviews can only move
+        // to 4.7057 in one step — but nothing bounded the NUMBER of writes. One
+        // ordinary account, no review documents at all: 25 writes took a 4.8 to
+        // exactly 3.2 (which is the incident that was reported), and 200 writes
+        // took it to 0.96 over a claimed 250 reviews. Upward too. Rate limiting
+        // is not expressible here and does not need to be — a rating change that
+        // must cite a distinct completed booking cannot be repeated.
+        && requestNamesAFinishedJob(subjectUid)
+        && request.resource.data.ratedBooking != resource.data.get('ratedBooking', '')
         && request.resource.data.rating is number
         && request.resource.data.rating >= 0
         && request.resource.data.rating <= 5
@@ -170,7 +193,7 @@ service cloud.firestore {
             // cleaner discovery, and role 'admin' passed the website's route
             // guard, which reads profile.role straight through.
             && !changed().hasAny(['blocked', 'blockedUntilReview', 'identityVerified', 'adminNote', 'role']))
-        || (signedIn() && uid() != userId && isValidRatingUpdate());
+        || (signedIn() && uid() != userId && isValidRatingUpdate(userId));
 
       allow delete: if isAdmin();
 
@@ -728,6 +751,14 @@ service cloud.firestore {
     // ── Reports (bug reports / reporting a user) ─────────────────────────────
     // Write-only for users: a reported party must not be able to read, edit or
     // quietly delete the report filed against them.
+    // Staff notes about a user. Their own collection because the rules cannot
+    // hide one FIELD of a document: users grants `get` to any signed-in account,
+    // so a note kept there was readable by the person it was about — and the CRM
+    // presents these beside blocked and at-risk segmentation.
+    match /adminNotes/{userId} {
+      allow read, write: if isAdmin();
+    }
+
     match /reports/{reportId} {
       allow read: if isAdmin();
       // `reportedBy` had no validation, so a report could be filed under

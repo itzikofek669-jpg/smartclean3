@@ -40,7 +40,11 @@ jobs:
           cache: 'npm'
 
       - name: Install dependencies
-        run: npm install
+        # `npm ci`, not `npm install` — the same reason the Android workflow
+        # gives: install re-resolves transitives and rewrites the lockfile, so
+        # this job compiled a dependency tree no test job had ever run against.
+        # On this project a dependency change has broken a build before.
+        run: npm ci
 
       - name: Prebuild iOS (generate native project)
         run: npx expo prebuild --platform ios --no-install

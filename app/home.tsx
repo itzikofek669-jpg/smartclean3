@@ -5066,6 +5066,10 @@ export default function HomeScreen() {
           const cur = await tx.get(ref);
           const d: any = cur.data();
           if (!cur.exists() || d?.cleanerId || d?.status !== 'pending') return false;
+          // וגם: שהעבודה עוד לפנינו. הלוח מסנן עבודות שזמנן עבר, אבל זה תצלום
+          // רגעי — כרטיס שנפתח ב-08:55 עדיין ניתן ללחיצה ב-09:01, והתפיסה
+          // הצליחה. אותו נימוק בדיוק שכתוב מעל בדיקת החפיפה, שלא הוחל על הזמן.
+          if (!isBoardJobOfferable(d)) return false;
           // נשאר pending: התפיסה מורידה מהלוח, האישור הוא צעד נפרד.
           // קודם זה קפץ ישר ל-confirmed, ולכן מסך האישור — עם הכתובת, הצ'אט
           // ושני הכפתורים — לא נפתח אף פעם למסלול הזה. ראה lib/bookingActions.
@@ -5376,6 +5380,10 @@ export default function HomeScreen() {
           // ו-reviews הוא השם הישן. כתיבת כולן היא מה שמחזיק את שתי הפלטפורמות
           // מסונכרנות. הרשימה חייבת להתאים ל-isValidRatingUpdate ב-firestore.rules.
           tx.update(cleanerRef, {
+            // ההזמנה שהדירוג הזה שייך לה. החוקים דורשים אותה: החסם לכתיבה
+            // בודדת מנע מכתיבה אחת להזיז את הממוצע, אבל שום דבר לא מנע 25
+            // כתיבות — וכך 4.8 הפך ל-3.2 בלי אף מסמך ביקורת מאחוריו.
+            ratedBooking: pendingReviewBooking.id,
             rating: newRating,
             reviewCount: newCount,
             reviews: newCount,
