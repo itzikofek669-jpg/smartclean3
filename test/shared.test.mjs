@@ -78,6 +78,10 @@ const SHARED_PAIRS = [
   ['lib/cleanerTraits.ts', 'src/lib/cleanerTraits.ts'],
   ['lib/bookingSlot.ts',   'src/lib/bookingSlot.ts'],
   ['lib/bookingActions.ts', 'src/lib/bookingActions.ts'],
+  // Added after an audit found it duplicated and unguarded: occupiesCleanerTime
+  // and bookingOrigin answered the same question opposite ways, and only one of
+  // them was in this list.
+  ['lib/bookingOrigin.ts', 'src/lib/bookingOrigin.ts'],
   ['firestore.rules',      'firestore.rules'],
 ];
 
@@ -109,4 +113,19 @@ test('the manifest covers every file that is supposed to be shared', () => {
   assert.deepEqual(inManifest, expected,
     'the manifest and this file disagree about which files are shared');
   assert.equal(inManifest.length, new Set(inManifest).size, 'the manifest lists a file twice');
+});
+
+test('both products derive a busy window with the same default length', crossRepo, () => {
+  // The bug: the claim path wrote the window through bookingSlot, whose default
+  // is two hours, and both overlap checks defaulted to one. A booking with no
+  // stated length was written 10:00–12:00 and read 10:00–11:00, so a second
+  // booking at 11:00 was approved and genuinely collided. Not a shared file, so
+  // nothing compared the two copies — this is the cheapest thing that does.
+  for (const [label, src] of [
+    ['app',  read(appFile('lib/jobUtils.ts'))],
+    ['site', read(siteFile('src/lib/bookings.ts'))],
+  ]) {
+    assert.match(src, /const hours = bookingHours\(j\);/, `${label} derives its own default length`);
+    assert.doesNotMatch(src, /Number\(j\?\.hours\) > 0 \? Number\(j\.hours\) : 1/, `${label} still defaults to one hour`);
+  }
 });

@@ -52,6 +52,7 @@ const SHARED = [
   { name: 'cleanerTraits',  app: 'lib/cleanerTraits.ts',  web: 'src/lib/cleanerTraits.ts' },
   { name: 'bookingSlot',    app: 'lib/bookingSlot.ts',    web: 'src/lib/bookingSlot.ts' },
   { name: 'bookingActions', app: 'lib/bookingActions.ts', web: 'src/lib/bookingActions.ts' },
+  { name: 'bookingOrigin',  app: 'lib/bookingOrigin.ts',  web: 'src/lib/bookingOrigin.ts' },
   { name: 'firestoreRules', app: 'firestore.rules',       web: 'firestore.rules' },
 ];
 

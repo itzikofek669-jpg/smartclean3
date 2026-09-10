@@ -16,6 +16,7 @@
     "lib/bookingSlot.ts",
     "lib/calendarPush.ts",
     "lib/urgentRequest.ts",
-    "lib/bookingActions.ts"
+    "lib/bookingActions.ts",
+    "lib/bookingOrigin.ts"
   ]
 }

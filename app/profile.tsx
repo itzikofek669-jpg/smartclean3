@@ -56,6 +56,7 @@ import { addBookingToCalendar, removeBookingFromCalendar, calendarSyncMessage } 
 import { logError } from '../lib/logError';
 import { isUrgentRequestLive, isUrgentRequestExpired } from '../lib/urgentRequest';
 import { rejectionUpdate, occupiesCleanerTime, awaitsMyApproval, rejectionReleasesToBoard, busyFieldsOf } from '../lib/bookingActions';
+import { bookingOrigin } from '../lib/bookingOrigin';
 import { bookingBusyWindow, windowsOverlap } from '../lib/jobUtils';
 import { releaseUrgentRequest } from '../lib/urgentRelease';
 
@@ -1794,6 +1795,11 @@ export default function ProfileScreen() {
             busyFrom: (() => { const [h=8,m=0] = (b.startTime||'08:00').split(':').map(Number); const d=new Date(nextDate); d.setHours(h,m,0,0); return d.toISOString(); })(),
             busyUntil: (() => { const [h=8,m=0] = (b.startTime||'08:00').split(':').map(Number); const d=new Date(nextDate); d.setHours(h+(b.hours||2),m,0,0); return d.toISOString(); })(),
             recurring: b.recurring,
+            // החזרה יורשת את מקור ההזמנה המקורית. בלי זה נוצר מסמך בלי origin,
+            // ו-occupiesCleanerTime קרא אותו כעבודה שהמנקה תפסה: השעה ננעלה
+            // ליומן שלה, והסוויפ ביטל אותה בשם המנקה. האתר עושה את זה מאז
+            // cleanerActions.ts; האפליקציה לא עודכנה.
+            origin: bookingOrigin(b),
             serviceType: b.serviceType || '',
             pricePerHour: b.pricePerHour || (b.hours > 0 ? b.total / b.hours : 0),
             source: 'auto_recurring',
@@ -2333,8 +2339,22 @@ export default function ProfileScreen() {
         text: t.cancelConfirmBtn,
         style: 'destructive',
         onPress: async () => {
+          // בלי תפקיד ידוע אין מה לכתוב. userRole מאותחל ל-'' ונטען מהמסמך,
+          // ו-`userRole || 'client'` חתם ביטול של מנקה בשם הלקוח בחלון שלפני
+          // שהפרופיל הגיע. הלקוח אז לא מקבל את הדיאלוג "המנקה ביטלה" ולא את
+          // ההצעה לפרסם מחדש, כי שניהם תלויים ב-cancelledBy === 'cleaner'.
+          if (userRole !== 'cleaner' && userRole !== 'client') {
+            Alert.alert(t.error, (t as any).roleNotLoadedYet ?? 'הפרופיל עדיין נטען. נסה שוב בעוד רגע.');
+            return;
+          }
           try {
-            await updateDoc(doc(db, 'bookings', b.id), { status: 'cancelled', cancelledBy: userRole || 'client', cancelledAt: new Date().toISOString() });
+            // מנקה שמוותרת על עבודה מהלוח מחזירה אותה ללקוח ולא הורסת אותה —
+            // וזו החלטה אחת משותפת, לא כתיבה מאולתרת. הכתיבה הישירה שהייתה כאן
+            // גם נדחתה ע"י החוקים על עבודת לוח, והציגה שגיאת הרשאות גולמית.
+            const write = userRole === 'cleaner'
+              ? rejectionUpdate(b)
+              : { status: 'cancelled', cancelledBy: 'client', cancelledAt: new Date().toISOString() };
+            await updateDoc(doc(db, 'bookings', b.id), write);
             // אל תשאיר את הבקשה הדחופה שממנה נולדה ההזמנה נעולה על 'taken'
             await releaseUrgentRequest(b, userRole === 'cleaner' ? 'cleaner' : 'client');
             setBookings(prev => prev.filter(x => x.id !== b.id));
@@ -2356,10 +2376,17 @@ export default function ProfileScreen() {
                 if (token) {
                   const byName = userRole === 'cleaner' ? (b.cleanerName || 'המנקה') : (b.clientName || 'הלקוח');
                   const dateLabel = `${b.bookingDate || ''}${b.startTime ? ' ' + b.startTime : ''}`.trim();
+                  // עבודה שחזרה ללוח היא לא ביטול, והלקוח צריך לדעת שהיא עדיין
+                  // פתוחה. אותם מסרים שהצ'אט כבר משתמש בהם.
+                  const released = (write as any).open === true;
                   await sendPushNotification(
                     token,
-                    (t as any).pushBookingCancelledTitle ?? '❌ הזמנה בוטלה',
-                    ((t as any).pushBookingCancelledBody ?? 'ההזמנה בוטלה על ידי {who}').replace('{who}', byName) + (dateLabel ? ` · ${dateLabel}` : ''),
+                    released
+                      ? ((t as any).pushJobReleasedTitle ?? '🔁 העבודה חזרה ללוח')
+                      : ((t as any).pushBookingCancelledTitle ?? '❌ הזמנה בוטלה'),
+                    released
+                      ? ((t as any).pushJobReleasedBody ?? 'המנקה לא יוכל להגיע. העבודה שלך פתוחה שוב למנקים אחרים.') + (dateLabel ? ` · ${dateLabel}` : '')
+                      : ((t as any).pushBookingCancelledBody ?? 'ההזמנה בוטלה על ידי {who}').replace('{who}', byName) + (dateLabel ? ` · ${dateLabel}` : ''),
                     // `uid` names whose calendar entry to remove: the stored
                     // event ids are keyed per user, and the background task
                     // runs before auth has been restored so it cannot ask.

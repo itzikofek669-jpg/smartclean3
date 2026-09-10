@@ -32,12 +32,9 @@ export async function releaseUrgentRequest(
   // expiresAt נקבע לשעתיים מרגע *היצירה*. בקשה שנוצרה ב-09:00 למחר ב-10:00 פגה
   // כבר ב-11:00 היום, ולכן החזרתה ל-open מחר בבוקר החזירה כרטיס פג — וכל לוח
   // מסנן אותו החוצה מיד. השחרור עבד על הנייר ולא הופיע אצל אף מנקה.
-  //
-  // ואם המועד שביקש הלקוח כבר עבר, אין מה להחזיר: הבקשה נסגרת.
   const slot = booking?.bookingDate && booking?.startTime
     ? new Date(`${booking.bookingDate}T${booking.startTime}`)
     : null;
-  const slotStillAhead = !!slot && !Number.isNaN(slot.getTime()) && slot.getTime() > Date.now();
   // A cleaner may only ever put a request BACK. Cancelling belongs to the
   // owner: anyone can become the holder by claiming, so letting a holder cancel
   // meant two legal writes emptied the whole board. A request whose slot has
@@ -45,7 +42,6 @@ export async function releaseUrgentRequest(
   // its owner's sweep clears it, which is the same end state without handing
   // strangers a delete.
   const reopen = cancelledBy === 'cleaner';
-  void slotStillAhead;
 
   try {
     await updateDoc(
@@ -56,7 +52,11 @@ export async function releaseUrgentRequest(
             // חלון חדש שנמשך עד המועד עצמו, ולכל הפחות שעה — מספיק זמן למנקה
             // אחר לראות ולקחת. אם המועד כבר עבר, החלון יוצא בעבר וההסתרה
             // והסחיפה של הבעלים מטפלות בשאר.
-            expiresAt: new Date(Math.max(slot!.getTime(), Date.now() + 3600000)).toISOString(),
+            // slot may be null — a request whose booking carries no readable date.
+            // It used to be dereferenced with slot!, which threw, was caught by
+            // the wrapper, and left the request locked on 'taken': off every
+            // board, claimable by nobody. Exactly what this module prevents.
+            expiresAt: new Date(Math.max(slot ? slot.getTime() : 0, Date.now() + 3600000)).toISOString(),
             // נמחקים, לא נדרסים ב-'': בדיקות התפיסה קוראות אותם כדי לדעת אם
             // מישהו כבר מחזיק בבקשה.
             takenByUid: deleteField(),

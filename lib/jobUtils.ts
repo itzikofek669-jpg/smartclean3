@@ -1,3 +1,4 @@
+import { bookingHours } from './bookingSlot';
 /**
  * Pure helpers shared by the app's screens — geography, job time windows and
  * small text utilities.
@@ -239,7 +240,12 @@ function bookingBusyWindow(j: any): { date: string; s: number; e: number } | nul
   if (!date || !/^\d{1,2}:\d{2}$/.test(time)) return null;
   const [h, m] = time.split(':').map(Number);
   const s = h * 60 + m;
-  const hours = Number(j?.hours) > 0 ? Number(j.hours) : 1;
+  // bookingHours, not a local `|| 1`. The claim path writes the busy window
+  // through bookingSlot, whose default is two hours; every overlap check
+  // defaulted to one. A booking with no stated length was written as 10:00–12:00
+  // and read as 10:00–11:00, so a second booking at 11:00 was approved with no
+  // warning and genuinely collided. Same divergence in both products.
+  const hours = bookingHours(j);
   return { date, s, e: s + hours * 60 };
 }
 

@@ -443,13 +443,20 @@ test('a finished or cancelled job holds no time', () => {
   assert.equal(occupiesCleanerTime(null), false);
 });
 
-test('a job whose time has passed is cancelled, not put back on the board', () => {
-  // Nothing filters past dates off the board, so yesterday's cleaning would
-  // sit there for good.
+test('a job whose time has passed still goes back to the client', () => {
+  // It used to cancel, on the reasoning that yesterday's cleaning would sit on
+  // the board for good. isBoardJobOfferable filters it now (see below), and the
+  // rules never allowed the cancel anyway: cleanerIsNotDestroyingABoardJob
+  // refuses a claimed board job being cancelled by anyone but the client, so
+  // every write this produced was permission-denied and swallowed. The job
+  // stayed claimed, off the board, holding the hour.
   const past = { origin: 'open', status: 'pending', bookingDate: '2026-09-01', startTime: '10:00' };
   const at = new Date('2026-09-08T12:00:00Z');
-  assert.equal(rejectionReleasesToBoard(past, at), false);
-  assert.equal(rejectionUpdate(past, at).status, 'cancelled');
+  assert.equal(rejectionReleasesToBoard(past, at), true);
+  assert.equal(rejectionUpdate(past, at).open, true);
+  assert.equal(rejectionUpdate(past, at).cleanerId, '');
+  // And it carries no busy window back with it.
+  assert.equal(rejectionUpdate(past, at).busyFrom, '');
 });
 
 test('a job still ahead of us goes back on the board', () => {
@@ -496,7 +503,16 @@ test('a job I claimed and never answered, whose time has gone, is closable', () 
   const at = new Date('2026-09-20T15:00:00Z');
   const missed = { status: 'pending', open: false, origin: 'open', cleanerId: 'k1', bookingDate: '2026-09-20', startTime: '09:00' };
   assert.equal(pendingSlotMissed(missed, 'k1', at), true);
-  assert.equal(rejectionUpdate(missed, at).status, 'cancelled', 'past its slot it is cancelled, not re-boarded');
+  // Released, not cancelled — the rules refuse the cancel, so the sweep's write
+  // was denied on exactly the documents the sweep exists for, and the failure
+  // was hidden by its catch. Released, it leaves the cleaner's calendar and
+  // isBoardJobOfferable keeps it off every board.
+  const write = rejectionUpdate(missed, at);
+  assert.equal(write.open, true, 'back to the client, not destroyed');
+  assert.equal(write.status, 'pending');
+  // And it cannot come straight back round the sweep: released, it no longer
+  // occupies anyone's time, which is what pendingSlotMissed requires.
+  assert.equal(pendingSlotMissed({ ...missed, ...write }, 'k1', at), false);
 });
 
 test('a job still ahead, or somebody else, is left alone by the sweep', () => {
@@ -524,11 +540,26 @@ test('the sweep does not reach back into history', () => {
   assert.equal(pendingSlotMissed(recent, 'k1', at), true, 'yesterday is a missed job');
 });
 
-test('a job claimed before `origin` existed still holds the hour', () => {
-  // Legacy documents carry no origin. Treating them as unclaimed left the hour
-  // free and, on reject, destroyed the client's advert instead of re-boarding it.
-  assert.equal(occupiesCleanerTime({ status: 'pending', open: false, cleanerId: 'k1' }), true);
-  assert.equal(occupiesCleanerTime({ status: 'pending', origin: 'direct', open: false, cleanerId: 'k1' }), false);
+test('a booking with no origin is the client\'s request, not the cleaner\'s claim', () => {
+  // This used to assert the opposite, and locked in a contradiction:
+  // occupiesCleanerTime read the raw field, so no origin meant "claimed", while
+  // bookingOrigin in the same repo answers 'direct' for the same document.
+  //
+  // The live writer of such documents is the app's recurring booking. Reading
+  // it as a claim published an unanswered client request into busySlots —
+  // freezing an hour the cleaner never agreed to — and let the sweep cancel it
+  // with cancelledBy: 'cleaner', which is the "your cleaner cancelled, months
+  // late" dialog pendingSlotMissed was written to stop.
+  const at = new Date('2026-09-20T15:00:00Z');
+  const noOrigin = { status: 'pending', open: false, cleanerId: 'k1', bookingDate: '2026-09-20', startTime: '09:00' };
+  assert.equal(occupiesCleanerTime(noOrigin), false);
+  assert.equal(pendingSlotMissed(noOrigin, 'k1', at), false, 'the sweep leaves the client their request');
+  // A claim off the board still holds its hour, and so does an urgent one.
+  assert.equal(occupiesCleanerTime({ ...noOrigin, origin: 'open' }), true);
+  assert.equal(occupiesCleanerTime({ ...noOrigin, origin: 'urgent' }), true);
+  assert.equal(occupiesCleanerTime({ ...noOrigin, origin: 'direct' }), false);
+  // A legacy document still on the board reads as an advert, as it always did.
+  assert.equal(occupiesCleanerTime({ status: 'pending', open: true, cleanerId: '' }), false);
 });
 
 test('the sweep never cancels work that was already approved', () => {

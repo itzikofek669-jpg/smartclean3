@@ -1,4 +1,5 @@
 import { startDateOf, endDateOf, bookingHours } from './bookingSlot';
+import { bookingOrigin } from './bookingOrigin';
 
 /**
  * What claiming, approving and rejecting a booking actually write.
@@ -177,20 +178,26 @@ export function rejectionUpdate(b: ClaimableBooking, now: Date = new Date()) {
 /**
  * Does rejecting this booking put it back on the board rather than end it?
  *
- * Only a board job, only while it is still awaiting this decision, and only if
- * the slot has not already passed. The last two matter:
+ * A board job, still awaiting this decision. Both halves matter: releasing a
+ * job that is done, cancelled or under way would turn a settled record back
+ * into a live advert, and the Firestore rules refuse that outright.
  *
- *   • Releasing a job that is done, cancelled or under way would turn a settled
- *     record back into a live advert. The Firestore rules refuse that outright;
- *     this keeps the client from ever sending the write.
- *   • Releasing a job whose time is behind us puts yesterday's cleaning back on
- *     every cleaner's board, where nothing filters it out and it sits for good.
- *     Past its slot, walking away is a cancellation.
+ * The slot having passed used to end it instead, on the reasoning that
+ * yesterday's cleaning would sit on every cleaner's board forever because
+ * nothing filtered it out. Two things make that wrong now. isBoardJobOfferable
+ * does filter it, in both products, and has a test saying so. And the rules
+ * never permitted the alternative: cleanerIsNotDestroyingABoardJob refuses a
+ * cancellation of a claimed board job by anyone but the client, so every write
+ * this branch produced was permission-denied — swallowed by the sweep's catch,
+ * and shown as a bare "insufficient permissions" everywhere else. The job stayed
+ * claimed, off the board, holding the cleaner's hour, exactly as before.
+ *
+ * So it goes back to the client either way. The client owns the request; a
+ * cleaner walking away, late or not, does not get to end it.
  */
-export function rejectionReleasesToBoard(b: ClaimableBooking, now: Date = new Date()): boolean {
-  if (b?.origin !== 'open') return false;
-  if (b?.status !== 'pending') return false;
-  return !slotHasPassed(b, now);
+export function rejectionReleasesToBoard(b: ClaimableBooking | null | undefined, _now: Date = new Date()): boolean {
+  if (bookingOrigin(b) !== 'open') return false;
+  return b?.status === 'pending';
 }
 
 /**
@@ -246,11 +253,27 @@ export function occupiesCleanerTime(b: ClaimableBooking | null | undefined): boo
   // this cleaner's name on them and nobody else can take either — the argument
   // is identical, and leaving urgent out left that route double-bookable.
   // `open === true` means still on the board — anybody's to take, nobody's
-  // commitment. A document written before `origin` existed carries no origin at
-  // all; treating it as unclaimed left its hour unblocked, so a job that is off
-  // the board with a cleaner's name on it counts regardless of origin.
+  // commitment.
+  //
+  // `bookingOrigin`, not `b.origin`. Read as a raw field, a document with no
+  // origin at all answered `undefined !== 'direct'` — "the cleaner claimed
+  // this" — while bookingOrigin, in the same repo, answers 'direct' for the
+  // same document. The two disagreed, and the app's recurring writer produces
+  // exactly that document.
+  //
+  // Both halves of the rule inverted on it: an unanswered request a client sent
+  // was published into busySlots, freezing an hour the cleaner never agreed to,
+  // and the missed-claim sweep cancelled it and told the client their cleaner
+  // had cancelled — which is the regression pendingSlotMissed was written to
+  // stop. Meanwhile the board jobs the sweep exists for are refused by the
+  // rules. One question, one answer.
+  //
+  // The cost: a booking written before `origin` existed, claimed off the board,
+  // now reads as 'direct' and stops holding its hour. Those are historical
+  // documents whose slots are long past, and the alternative — the raw field —
+  // freezes live calendars and cancels live requests today.
   return b.status === 'pending'
-    && b.origin !== 'direct'
+    && bookingOrigin(b) !== 'direct'
     && b.open !== true
     && !!b.cleanerId;
 }
