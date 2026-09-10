@@ -55,6 +55,7 @@ import Constants from 'expo-constants';
 import { addBookingToCalendar, removeBookingFromCalendar, calendarSyncMessage } from '../lib/calendarSync';
 import { logError } from '../lib/logError';
 import { useNow } from '../lib/useNow';
+import { withBookingDetails, migrateOpenJobDetails } from '../lib/bookingDetails';
 import { firstError, validateName, validatePhone, validatePrice, validateAge, validateDistance, normalizePhone } from '../lib/validate';
 import { claimPhone, releasePhone } from '../lib/accountChecks';
 import { isUrgentRequestLive, isUrgentRequestExpired } from '../lib/urgentRequest';
@@ -1171,8 +1172,15 @@ export default function ProfileScreen() {
         const docs = snap.docs.map(d => ({ id: d.id, ...d.data() }));
         docs.sort((a: any, b: any) => (b.createdAt || '').localeCompare(a.createdAt || ''));
         setBookings(docs);
-
-
+        // הכתובת המדויקת וההערות יושבות במסמך משנה פרטי — ראה lib/bookingDetails.
+        // המיזוג נעשה כאן, במקום שבו ההזמנות נטענות, כדי שכל מסך תצוגה ימשיך
+        // לקרוא b.address בדיוק כמו קודם.
+        withBookingDetails(docs as any)
+          .then(rows => setBookings(rows as any))
+          .catch(err => logError('profile:clientDetails', err));
+        // עבודות שפורסמו לפני הפיצול עדיין נושאות את הכתובת על מסמך הלוח. רק
+        // הלקוח שמחזיק בהן יכול להעביר אותן, אז המסך שלו עושה את זה בשקט.
+        docs.forEach((b: any) => { void migrateOpenJobDetails(b); });
       },
       (err) => logError('profile:clientBookings', err),
     );
@@ -1184,8 +1192,10 @@ export default function ProfileScreen() {
         const docs = snap.docs.map(d => ({ id: d.id, ...d.data() }));
         docs.sort((a: any, b: any) => (b.createdAt || '').localeCompare(a.createdAt || ''));
         setIncomingBks(docs);
-
-
+        // אותו מיזוג בצד המנקה: ברגע שהעבודה שלה, הכתובת נטענת אליה.
+        withBookingDetails(docs as any)
+          .then(rows => setIncomingBks(rows as any))
+          .catch(err => logError('profile:cleanerDetails', err));
       },
       (err) => logError('profile:cleanerBookings', err),
     );

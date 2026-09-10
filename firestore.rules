@@ -595,6 +595,34 @@ service cloud.firestore {
 
       // Bookings are financial records — cancel, never delete.
       allow delete: if false;
+
+      // Where the client actually lives, and what they wrote about the job.
+      //
+      // A job on the open board has to be readable by cleaners who have not
+      // taken it yet — that is what a board is — and rules cannot hide one
+      // FIELD of a document. So the parent carries what a cleaner needs to
+      // decide (city, service, when, how long, what it pays) and the street,
+      // floor, flat, entry notes and phone live here, readable only once you
+      // are actually a party to the job.
+      //
+      // Before this, one ordinary client account could list every open job and
+      // read a live feed of names, street addresses, floor and flat numbers,
+      // and the window during which each of those homes would be occupied by a
+      // stranger doing the cleaning.
+      match /private/{detailId} {
+        function parent() {
+          return get(/databases/$(database)/documents/bookings/$(bookingId)).data;
+        }
+        allow read: if isAdmin()
+          || (signedIn() && (parent().get('clientUid', '') == uid()
+                             || parent().get('cleanerId', '') == uid()));
+        // The client's own words about their own home. A cleaner may never
+        // write here: it is the same data bookingClientDataUnchanged freezes on
+        // the parent, and moving it must not hand it back.
+        allow create, update: if isAdmin()
+          || (signedIn() && parent().get('clientUid', '') == uid());
+        allow delete: if isAdmin();
+      }
     }
 
     // ── Chats ────────────────────────────────────────────────────────────────

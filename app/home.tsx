@@ -9,6 +9,7 @@ import {
 } from 'react-native';
 import { useAnimatedValue, useAnimatedValues } from '../lib/useAnimatedValue';
 import { useNow } from '../lib/useNow';
+import { writeBookingDetails, withBookingDetails, migrateOpenJobDetails } from '../lib/bookingDetails';
 
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -1734,20 +1735,23 @@ function PostJobModal({ visible, onClose, onPosted }: { visible: boolean; onClos
       }
       let clientName = auth.currentUser?.displayName || '';
       try { const d = await getDoc(doc(db, 'users', uid)); if (d.exists() && d.data()?.name) clientName = d.data()!.name; } catch (_) {}
-      await addDoc(collection(db, 'bookings'), {
+      // עבודה על הלוח קריאה לכל מחובר — זה מה שלוח הוא — וחוקי Firestore לא
+      // יכולים להסתיר שדה בודד. לכן הכתובת המדויקת וההערות של הלקוח יורדות
+      // ל-bookings/{id}/private, וכאן נשאר רק מה שמנקה צריכה כדי להחליט.
+      const jobRef = await addDoc(collection(db, 'bookings'), {
         open: true, cleanerId: '', clientUid: uid, clientName,
         origin: 'open',
         serviceTypes: types, serviceType: types.join(' + '),
         hours, isPrivateHouse: isPrivate,
-        addrCity: city.trim(), address: city.trim(),
+        addrCity: city.trim(),
         pricePerHour: budget ? Number(budget) : null,
         total: budget ? Number(budget) * hours : null,
-        notes: notes.trim(),
         photos,
         payment: 'cash', paymentStatus: 'awaiting_cash', status: 'pending',
         bookingDate: dateStr, startTime: `${String(hour).padStart(2, '0')}:00`,
         recurring: 'once', recurringDates: [], createdAt: new Date().toISOString(),
       });
+      await writeBookingDetails(jobRef.id, { address: city.trim(), notes: notes.trim() });
       upsertAddress(city.trim()).catch(() => {});   // שמור את הכתובת למילוי אוטומטי בפעם הבאה
       onPosted?.();
       onClose();
@@ -4296,21 +4300,29 @@ export default function HomeScreen() {
       const types: string[] = Array.isArray(b?.serviceTypes) && b.serviceTypes.length
         ? b.serviceTypes
         : (b?.serviceType ? String(b.serviceType).split(' + ') : []);
-      await addDoc(collection(db, 'bookings'), {
+      // אותו פיצול כמו בפרסום רגיל: הרחוב, הקומה, הדירה וההערות לא יושבים על
+      // מסמך שכל מחובר יכול לקרוא. ראה lib/bookingDetails.
+      const repostRef = await addDoc(collection(db, 'bookings'), {
         open: true, cleanerId: '', cleanerName: '',
         clientUid: uid, clientName: b?.clientName || '',
         serviceTypes: types, serviceType: types.join(' + '),
         bookingDate: dateStr, startTime, hours: b?.hours || 2,
         isPrivateHouse: !!b?.addrPrivate,
-        addrCity: b?.addrCity || '', address: b?.address || '',
-        addrStreet: b?.addrStreet || '', addrFloor: b?.addrFloor || '', addrApt: b?.addrApt || '',
+        addrCity: b?.addrCity || String(b?.address || '').split(',').map((x: string) => x.trim()).filter(Boolean).pop() || '',
         payment: b?.payment || 'cash', paymentStatus: `awaiting_${b?.payment || 'cash'}`,
         total: b?.total || 0, pricePerHour: b?.pricePerHour || 0,
-        notes: b?.notes || '',
         origin: 'open',
         status: 'pending', createdAt: new Date().toISOString(),
         recurring: 'once', recurringDates: [],
         repostedFrom: b?.id || '',
+      });
+      await writeBookingDetails(repostRef.id, {
+        address: b?.address || '',
+        addrStreet: b?.addrStreet || '',
+        addrFloor: b?.addrFloor || '',
+        addrApt: b?.addrApt || '',
+        notes: b?.notes || '',
+        phone: b?.phone || '',
       });
       setCancelledPopup(null);
       Alert.alert('✅', (t as any).repostOkMsg ?? 'ההזמנה פורסמה מחדש — מנקים באזור שלך יראו אותה');
