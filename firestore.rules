@@ -551,8 +551,13 @@ service cloud.firestore {
         // membership must come from the chat ID here — there is nothing in the
         // query for a participants-based rule to match against.
         allow read: if inChatId() || isAdmin();
+        // The text cap is the only bound there was: nothing stopped a message
+        // of a megabyte, which the recipient's listener downloads every time
+        // they open the thread. sendImageMessage caps its payload; text had
+        // nothing. 4000 characters is far more than any real message.
         allow create: if inChatId()
-          && request.resource.data.get('fromUid', '') == uid();
+          && request.resource.data.get('fromUid', '') == uid()
+          && request.resource.data.get('text', '').size() <= 4000;
         allow update: if false;                 // messages are immutable
         // Your own message, not your counterparty's. Messages are immutable
         // above, so the intent is that a sent message is a record — but delete
@@ -679,7 +684,9 @@ service cloud.firestore {
       // harassing another. The collection is invisible to non-admins either
       // way, so this costs nothing and closes the frame-up.
       allow create: if signedIn()
-        && request.resource.data.get('reportedBy', '') == uid();
+        && request.resource.data.get('reportedBy', '') == uid()
+        && request.resource.data.get('description', '').size() <= 4000
+        && request.resource.data.get('target', '').size() <= 200;
       allow update, delete: if isAdmin();
     }
 
