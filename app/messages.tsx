@@ -283,6 +283,9 @@ function InlineChatModal({ chatId, otherUid, otherName, visible, onClose }: any)
           lastSenderUid: myUid,
           participantNames: { [myUid]: myName, [otherUid]: otherName },
           unreadBy: arrayUnion(otherUid),
+          // הודעה חדשה מחזירה את השרשור לשני הצדדים. מי שהסתיר שיחה וקיבל
+          // תשובה אמור לראות אותה שוב — זו המשמעות של להסתיר, בניגוד למחוק.
+          deletedFor: [],
         }, { merge: true });
         const otherDoc = await getDoc(doc(db, 'users', otherUid));
         const pushToken = otherDoc.data()?.pushToken;
@@ -347,6 +350,8 @@ function InlineChatModal({ chatId, otherUid, otherName, visible, onClose }: any)
         lastSenderUid: myUid,
         participantNames: { [myUid]: myName, [otherUid]: otherName },
         unreadBy: arrayUnion(otherUid),
+        // הודעה חדשה מחזירה את השרשור לשני הצדדים. ראה sendTextMessage.
+        deletedFor: [],
       }, { merge: true });
       try {
         const otherDoc = await getDoc(doc(db, 'users', otherUid));
@@ -404,6 +409,9 @@ function InlineChatModal({ chatId, otherUid, otherName, visible, onClose }: any)
           lastSenderUid: myUid,
           participantNames: { [myUid]: myName, [otherUid]: otherName },
           unreadBy: arrayUnion(otherUid),
+          // הודעה חדשה מחזירה את השרשור לשני הצדדים. מי שהסתיר שיחה וקיבל
+          // תשובה אמור לראות אותה שוב — זו המשמעות של להסתיר, בניגוד למחוק.
+          deletedFor: [],
         }, { merge: true });
       } catch (err: any) {
         Alert.alert(t.error, err?.message || t.audioSendError);
@@ -452,8 +460,17 @@ function InlineChatModal({ chatId, otherUid, otherName, visible, onClose }: any)
     } catch (_) { Alert.alert(t.error, t.audioPlayError); }
   };
 
+  // רק הודעות שאני כתבתי ניתנות לבחירה למחיקה.
+  //
+  // חוק המחיקה ב-firestore.rules התהדק ל-fromUid == uid(): הודעה שנשלחה היא
+  // רשומה, ודיווחים נשפטים בדיוק מול השרשור הזה, אז אסור שצד אחד ימחק את
+  // ההודעות של השני. בלי הסינון כאן ה-UI היה מציע פעולה שהשרת דוחה.
+  const isMine = (msgId: string) =>
+    messages.find(m => m.id === msgId)?.fromUid === myUid;
+
   // לחיצה ארוכה — כניסה למצב בחירה
   const handleLongPress = (msgId: string) => {
+    if (!isMine(msgId)) return;
     setMsgSelecting(true);
     setSelectedMsgs(new Set([msgId]));
   };
@@ -461,6 +478,7 @@ function InlineChatModal({ chatId, otherUid, otherName, visible, onClose }: any)
   // לחיצה רגילה במצב בחירה — טוגל
   const handleTap = (msgId: string) => {
     if (!msgSelecting) return;
+    if (!isMine(msgId)) return;
     setSelectedMsgs(prev => {
       const next = new Set(prev);
       next.has(msgId) ? next.delete(msgId) : next.add(msgId);
@@ -777,7 +795,11 @@ export default function MessagesScreen() {
     );
     const nameCache: Record<string, string> = {};
     const unsub = onSnapshot(q, async snap => {
-      const convs = snap.docs.map(d => {
+      const convs = snap.docs.filter(d => {
+        // מה שהמשתמש הזה הסתיר. הסינון לכל קורא בנפרד — מסמך השיחה משותף.
+        const hidden = (d.data()?.deletedFor || []) as string[];
+        return !hidden.includes(uid);
+      }).map(d => {
         const data = d.data();
         // self-chat (participants are all the same uid) → fall back to own uid
         const otherUid  = (data.participants || []).find((p: string) => p !== uid) || uid;
@@ -859,10 +881,16 @@ export default function MessagesScreen() {
           onPress: async () => {
             setConvDeleting(true);
             try {
+              // מסתירים, לא מוחקים. Firestore לא מדורג, אז מחיקת מסמך השיחה
+              // השאירה כל הודעה חיה תחתיו — וחוק הקריאה נגזר ממזהה השיחה, לא
+              // מהמסמך — ומכיוון שהמזהה דטרמיניסטי, ההודעה הבאה שנשלחה החזירה
+              // את כל ההיסטוריה. ומסמך השיחה משותף, אז המחיקה העלימה אותה גם
+              // אצל הצד השני. אותו פתרון כמו באתר.
               await Promise.all(
-                [...selectedConvs].map(id => deleteDoc(doc(db, 'chats', id)))
+                [...selectedConvs].map(id =>
+                  updateDoc(doc(db, 'chats', id), { deletedFor: arrayUnion(uid) }))
               );
-            } catch (_) {}
+            } catch (err) { logError('messages:hideConversations', err); }
             setConvDeleting(false);
             cancelConvSelection();
           },
