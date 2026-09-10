@@ -42,7 +42,7 @@ import {
 } from '../lib/jobUtils';
 import { compareCleaners, compareJobs, isAvailableNow, rotationRank } from '../lib/displayOrder';
 import { isUrgentRequestLive } from '../lib/urgentRequest';
-import { claimUpdate, occupiesCleanerTime, pendingSlotMissed, rejectionUpdate, isBoardJobOfferable } from '../lib/bookingActions';
+import { claimUpdate, occupiesCleanerTime, pendingSlotMissed, rejectionUpdate, isBoardJobOfferable, busySlotOf, bookingWallWindow } from '../lib/bookingActions';
 import { resolveRole } from '../lib/resolveRole';
 import { MAP_STYLE_LIGHT, MAP_STYLE_DARK } from '../lib/mapStyle';
 import { useTheme } from '../lib/ThemeContext';
@@ -540,12 +540,23 @@ async function isCleanerBusy(
   if (!snap.exists()) return false;
 
   const data: any = snap.data() || {};
-  const slots: { from?: string; until?: string }[] = [
+  const slots: any[] = [
     ...(Array.isArray(data.busySlots) ? data.busySlots : []),
     ...(Array.isArray(data.pendingSlots) ? data.pendingSlots : []),
   ];
 
   return slots.some(s => {
+    // The timezone-free shape when the writer had it. Comparing minutes against
+    // minutes is the whole fix: `from`/`until` are instants built from the
+    // WRITER's local clock and compared here against the READER's, so a cleaner
+    // in Israel and a client abroad got windows that never overlapped and this
+    // returned false for an hour that was taken.
+    if (typeof s?.date === 'string' && typeof s?.s === 'number' && typeof s?.e === 'number') {
+      return windowsOverlap(want, { date: s.date, s: s.s, e: s.e });
+    }
+    // Written by a client that predates that shape. Same comparison as before,
+    // taint and all — but it is what that document means, and refusing to read
+    // it would report every such cleaner as free.
     if (!s?.from || !s?.until) return false;
     const from = new Date(s.from).getTime();
     const until = new Date(s.until).getTime();
@@ -4673,10 +4684,16 @@ export default function HomeScreen() {
             //
             // אלה גם המקור היחיד לזמינות שלקוח יכול לקרוא, מרגע שההזמנות קריאות
             // רק לשני הצדדים שלהן — ראה isCleanerBusy בראש הקובץ.
+            //
+            // busySlotOf: השעות נשמרות גם כתאריך+דקות (חסר אזור זמן) וגם
+            // כרגעי ISO, לגרסה אחת. הרגעים נבנים מהשעון המקומי של הכותב
+            // ומושווים מול השעון המקומי של הקורא, ולכן מנקה בישראל ולקוח
+            // בבריטניה מקבלים חלונות שלא חופפים — והבדיקה מדווחת שהמנקה פנויה.
             const toSlots = (rows: any[]) => rows
-              .filter(b => b.busyFrom && b.busyUntil)
-              .map(b => ({ from: String(b.busyFrom), until: String(b.busyUntil) }))
-              .sort((a, b) => a.from.localeCompare(b.from));
+              .map(b => busySlotOf(b))
+              .filter((s): s is NonNullable<typeof s> => !!s)
+              .sort((a, b) => (a.date + String(a.s).padStart(4, '0'))
+                .localeCompare(b.date + String(b.s).padStart(4, '0')));
             const slots = toSlots(live);
             const pendingSlots = toSlots(pendingDocs);
             const sameList = (a: { from: string; until: string }[], b: { from: string; until: string }[]) =>

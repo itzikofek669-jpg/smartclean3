@@ -1,6 +1,8 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
+import { execFileSync } from 'node:child_process';
+const bookingActionsUrl = new URL('../.tsbuild/bookingActions.mjs', import.meta.url).href;
 import { resolveRole } from '../.tsbuild/resolveRole.mjs';
 import { mustVerifyEmail, VERIFY_REQUIRED_FROM } from '../.tsbuild/verifyRule.mjs';
 import { isAvailableNow } from '../.tsbuild/displayOrder.mjs';
@@ -633,4 +635,44 @@ test('an unreadable booking yields no busy fields rather than a guessed window',
   assert.deepEqual(busyFieldsOf({ bookingDate: 'nonsense', startTime: '09:00' }), {});
   // And a claim of one carries no window rather than blocking an invented hour.
   assert.equal(claimUpdate('c1', 'Dana', { bookingDate: 'nonsense', startTime: '09:00' }).busyFrom, undefined);
+});
+
+test('a busy window written in one timezone is read the same in another', () => {
+  // The blind spot: every existing window check derives and reads in ONE
+  // process, so the writer's timezone always equals the reader's and the
+  // tainted instant cancels out. It passes under any TZ.
+  //
+  // The real shape is a cleaner in Israel and a client abroad. busyWindowOf
+  // builds the instant from the WRITER's local clock and isCleanerBusy compares
+  // it against a window built from the READER's — so once the offsets differ by
+  // as much as the job is long, the two windows stop overlapping entirely and
+  // the check reports the cleaner free. Two clients, one hour, no warning.
+  //
+  // Child processes because TZ is read once, at process start.
+  const derive = (tz) => JSON.parse(execFileSync(process.execPath, [
+    '-e',
+    `import('${bookingActionsUrl}').then(m => {
+       process.stdout.write(JSON.stringify(
+         m.busySlotOf({ bookingDate: '2026-09-20', startTime: '14:30', hours: 2 })));
+     })`,
+  ], { env: { ...process.env, TZ: tz } }).toString());
+
+  const israel = derive('Asia/Jerusalem');
+  const london = derive('Europe/London');
+
+  // The instants still disagree — that is what they are, and old documents in
+  // production carry them, so readers still understand them for one release.
+  assert.notEqual(israel.from, london.from,
+    'if these ever match, the ISO half has been fixed and this test should say so');
+
+  // The published shape is what matters, and it does not move.
+  assert.deepEqual(
+    { date: israel.date, s: israel.s, e: israel.e },
+    { date: london.date, s: london.s, e: london.e },
+    'a busy window must name the same hours whoever writes it and whoever reads it',
+  );
+  assert.deepEqual(
+    { date: israel.date, s: israel.s, e: israel.e },
+    { date: '2026-09-20', s: 14 * 60 + 30, e: 16 * 60 + 30 },
+  );
 });

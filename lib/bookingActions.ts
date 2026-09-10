@@ -299,3 +299,52 @@ export function isBoardJobOfferable(
   const start = startDateOf(b);
   return start === null || start.getTime() > now.getTime();
 }
+
+/**
+ * A busy slot as published on the cleaner's user document.
+ *
+ * Carries BOTH shapes on purpose, for one release.
+ *
+ * `from`/`until` are ISO instants built from whoever wrote them, in THEIR local
+ * timezone, and compared by whoever reads them, in THEIRS. Same offset on both
+ * sides — every Israeli client and every Israeli cleaner — and the taint
+ * cancels out. Different offsets and the two windows drift apart by exactly the
+ * difference, so once it reaches the length of the job they stop overlapping at
+ * all and isCleanerBusy reports a busy cleaner as free. Two clients, one hour,
+ * no warning to either.
+ *
+ * `date`/`s`/`e` — a wall-clock date and minutes from midnight — carry no
+ * timezone to get wrong, and are the same fields bookingBusyWindow and
+ * windowsOverlap already speak. Readers prefer them and fall back to the
+ * instants, so a document written by an older client is still understood. The
+ * instants stop being written once app adoption is high enough; until then
+ * dropping them would make an old client see a busy cleaner as free, which is
+ * the very failure being fixed.
+ */
+export function busySlotOf(b: ClaimableBooking | null | undefined):
+  { date: string; s: number; e: number; from: string; until: string } | null {
+  const win = busyWindowOf(b);
+  const wall = bookingWallWindow(b);
+  if (!win || !wall) return null;
+  return { ...wall, from: win.from, until: win.until };
+}
+
+/**
+ * The window a booking occupies as wall-clock minutes, with no timezone in it.
+ *
+ * The same derivation both products already had locally under two different
+ * names and two different defaults for a missing length.
+ */
+export function bookingWallWindow(b: ClaimableBooking | null | undefined):
+  { date: string; s: number; e: number } | null {
+  const date = String(b?.bookingDate || (b as any)?.dateStr || '').trim();
+  const time = String(b?.startTime || '').trim();
+  if (!date || !/^\d{1,2}:\d{2}$/.test(time)) return null;
+  // startDateOf refuses a date that only looks valid (2026-13-05, 2026-02-30),
+  // and this must refuse exactly the same ones or the two disagree about which
+  // bookings have a window at all.
+  if (!b || !startDateOf(b)) return null;
+  const [h, m] = time.split(':').map(Number);
+  const s = h * 60 + m;
+  return { date, s, e: s + bookingHours(b) * 60 };
+}
