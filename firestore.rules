@@ -33,6 +33,16 @@ service cloud.firestore {
     // has no email claim, and reading a missing property raises an evaluation
     // error. The clause still denies, but it denies noisily — the emulator logs
     // an exception on every such request, which buries real failures.
+    // The caller's stored role. Nothing checked it on either claim branch, so a
+    // client account claimed jobs off the open board and claimed open urgent
+    // requests — and simply holding one takes it off every cleaner's board.
+    // Costs one document read per claim, which is rare; discovery and reads do
+    // not pay it.
+    function callerIsCleaner() {
+      return exists(/databases/$(database)/documents/users/$(uid()))
+        && get(/databases/$(database)/documents/users/$(uid())).data.get('role', '') == 'cleaner';
+    }
+
     function isAdmin() {
       return signedIn() && request.auth.token.get('email', '') in [
         'cleantouchapp@gmail.com',
@@ -286,9 +296,49 @@ service cloud.firestore {
             && resource.data.get('status', '') != 'cancelled')
         || isOpenJob();
 
-      // The creator must own the booking they are creating.
+      // The creator must own the booking they are creating — and a booking is
+      // only ever born pending.
+      //
+      // Only `clientUid` was checked, so a client fabricated a finished, paid,
+      // 99999 booking naming a cleaner who never worked for them: it lands in
+      // that cleaner's dashboard feed and in the CRM's revenue figure. A
+      // negative total was accepted too. Every legitimate creator in both
+      // products writes `pending` (bookings.ts, app/home.tsx, the urgent claim),
+      // and the settlement fields belong to the closing write, which has its
+      // own branch and its own cap.
       allow create: if signedIn()
-        && request.resource.data.get('clientUid', '') == uid();
+        && request.resource.data.get('clientUid', '') == uid()
+        && request.resource.data.get('status', '') in ['pending', 'confirmed']
+        && request.resource.data.get('total', 0) >= 0
+        && !request.resource.data.keys().hasAny([
+          'actualTotal', 'actualHours', 'paidAt', 'finishedAt', 'cleanerRating'
+        ])
+
+      // A cleaner creating the booking that an urgent claim produces.
+      //
+      // The clause above requires clientUid == uid(), and this write comes from
+      // the CLEANER's session inside the claim transaction — so the urgent route
+      // was denied outright, on both products, with the app showing a generic
+      // error and the website a failed claim. Nothing caught it because the
+      // suite had no positive case for it, the same gap that let the users
+      // create rule refuse every cleaner registration.
+      //
+      // The urgent request itself is the authority: it must exist, still be
+      // open, and name the same client. Rules see the pre-transaction state, so
+      // the request is still 'open' here even though the same transaction is
+      // about to mark it taken.
+      || (signedIn()
+          && request.resource.data.get('cleanerId', '') == uid()
+          && request.resource.data.get('origin', '') == 'urgent'
+          && request.resource.data.get('status', '') in ['pending', 'confirmed']
+          && request.resource.data.get('total', 0) >= 0
+          && !request.resource.data.keys().hasAny([
+            'actualTotal', 'actualHours', 'paidAt', 'finishedAt', 'cleanerRating'
+          ])
+          && request.resource.data.keys().hasAll(['urgentRequestId'])
+          && exists(/databases/$(database)/documents/urgentRequests/$(request.resource.data.urgentRequestId))
+          && get(/databases/$(database)/documents/urgentRequests/$(request.resource.data.urgentRequestId)).data.get('status', '') == 'open'
+          && get(/databases/$(database)/documents/urgentRequests/$(request.resource.data.urgentRequestId)).data.get('clientUid', '') == request.resource.data.get('clientUid', ''));
 
       // Who may write was already scoped here; WHAT they may write was not, and
       // that is the whole of the gap. A claimer could take an open job and set
@@ -482,7 +532,8 @@ service cloud.firestore {
         // pinned: a probe claimed one straight to `done`, and another claimed a
         // job somebody else was already holding, because neither the resulting
         // status nor the current cleanerId was checked.
-        || (isOpenJob() && bookingClientUnchanged() && bookingMoneyUnchanged()
+        || (isOpenJob() && callerIsCleaner()
+            && bookingClientUnchanged() && bookingMoneyUnchanged()
             && bookingOriginUnchanged()
             && resource.data.get('cleanerId', '') == ''
             && onlyClaimsTheJob()
@@ -640,7 +691,7 @@ service cloud.firestore {
         || (urgentOwner() && urgentOwnerUnchanged())
         // A cleaner claims a request that is genuinely open, touching only the
         // claim fields, and may only claim it for themselves.
-        || (signedIn() && urgentOwnerUnchanged() && onlyClaimFields()
+        || (signedIn() && callerIsCleaner() && urgentOwnerUnchanged() && onlyClaimFields()
             && resource.data.get('status', '') == 'open'
             && request.resource.data.get('status', '') == 'taken'
             // Both spellings, or the claim is lying under one of them: writing
