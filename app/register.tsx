@@ -706,8 +706,10 @@ export default function RegisterScreen() {
         data.types         = types;
         data.payment       = payment;
         data.available     = true;
-        data.rating        = 0;
-        data.reviews       = 0;
+        // בלי rating/reviews — חוק היצירה של users דוחה כל מסמך שמכיל את שדות
+        // המוניטין, ולכן כתיבתם כאפס לא אתחלה פרופיל אלא הפכה כל הרשמת מנקה
+        // ל-permission-denied. ה-catch מחק את החשבון והציג שגיאה גנרית.
+        // מסלול הביקורות יוצר אותם; שדה חסר ממילא נקרא כ-0.
         data.preferredLang = prefLang;
         // התמונה נשמרת במסמך נפרד אחרי יצירת החשבון (ראה למטה), לא במסמך הזה —
         // אחרת רשימת המנקים מורידה את התמונות של כולם רק כדי לצייר שמות.

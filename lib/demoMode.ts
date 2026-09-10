@@ -19,18 +19,17 @@ import { logError } from './logError';
 const KEY = 'amclean_demo_cleaners';
 
 /**
- * TEMPORARY — demo data on unless this device has explicitly turned it off.
+ * Demo data is OFF unless this device has explicitly turned it on.
  *
- * On for the duration of testing so nobody has to walk into the admin screen
- * on every install just to see the demo cleaners and the demo job board.
- *
- * TO REVERT: set this to false. That restores opt-in without touching
- * anything else — the stored preference is still read, and a device that
- * chose either way keeps its choice. Search DEMO_DEFAULT_ON; the web has
- * the same switch in src/lib/botCleaners.ts and both must be turned back
- * together.
+ * It was flipped on for a testing round and left that way, which put 200
+ * invented cleaners with invented ratings in front of paying customers on
+ * both products. That is fabricated advertising, so the default is back to
+ * opt-in. Turning it on for a test session touches nothing else — the stored
+ * preference is still read, and a device that chose either way keeps its
+ * choice. Search DEMO_DEFAULT_ON; the web has the same switch in
+ * src/lib/botCleaners.ts and the two must move together.
  */
-const DEMO_DEFAULT_ON = true;
+const DEMO_DEFAULT_ON = false;
 
 // Read synchronously by the cleaner list, so it is cached in memory and primed
 // once at startup rather than awaited on every render.

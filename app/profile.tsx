@@ -12,7 +12,7 @@ import { useRouter, useLocalSearchParams } from 'expo-router';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
   doc, getDoc, setDoc, updateDoc, addDoc, deleteDoc, deleteField,
-  collection, query, where, orderBy, arrayRemove, arrayUnion, onSnapshot, runTransaction,
+  collection, query, where, getDocs, orderBy, arrayRemove, arrayUnion, onSnapshot, runTransaction,
 } from 'firebase/firestore';
 import { auth, db } from '../lib/firebase';
 import {
@@ -55,7 +55,8 @@ import Constants from 'expo-constants';
 import { addBookingToCalendar, removeBookingFromCalendar, calendarSyncMessage } from '../lib/calendarSync';
 import { logError } from '../lib/logError';
 import { isUrgentRequestLive, isUrgentRequestExpired } from '../lib/urgentRequest';
-import { rejectionUpdate, occupiesCleanerTime, awaitsMyApproval, rejectionReleasesToBoard } from '../lib/bookingActions';
+import { rejectionUpdate, occupiesCleanerTime, awaitsMyApproval, rejectionReleasesToBoard, busyFieldsOf } from '../lib/bookingActions';
+import { bookingBusyWindow, windowsOverlap } from '../lib/jobUtils';
 import { releaseUrgentRequest } from '../lib/urgentRelease';
 
 
@@ -1958,26 +1959,44 @@ export default function ProfileScreen() {
 
   // ─── Status display ───────────────────────────────────────────────────────────
   const handleConfirmBooking = async (b: any) => {
-    // הזמנה דחופה שעדיין לא נתפסה — תפיסה אטומית מתבצעת עכשיו, באישור בפועל
-    if (b?.urgentUnclaimed && b?.urgentReq) {
-      return claimAndConfirmUrgent(b.urgentReq);
-    }
     // ── מניעת חפיפה: אסור לאשר שתי הזמנות לאותו תאריך+שעה ──
+    // רץ לפני כל מסלול, כולל הדחוף. קודם המסלול הדחוף יצא מהפונקציה בשורה
+    // הראשונה ולא נבדק כלל: מנקה עם עבודה מאושרת ב-10:00–13:00 אישרה בקשה
+    // דחופה ל-11:00, נכתב confirmed, ושני לקוחות קיבלו את אותה שעה. באתר
+    // המסלול הזה כן נחסם (cleanerActions.ts), באפליקציה לא.
+    //
+    // הבדיקה שואלת את השרת ולא את המערך המקומי: incomingBks לא נטען בכלל
+    // כשמגיעים לכאן מקישור עמוק, וגם מאזין שנכשל משאיר אותו ריק — ואז כל
+    // בדיקה עוברת בשקט. ואם השאילתה נכשלת, נכשלים סגור.
     {
       const changed = showPendingTimeChange && (pendingNewDate || pendingNewTime);
       const tDate = changed ? `${pendingPickerDate.getFullYear()}-${String(pendingPickerDate.getMonth()+1).padStart(2,'0')}-${String(pendingPickerDate.getDate()).padStart(2,'0')}` : b.bookingDate;
       const tTime = changed ? `${String(pendingPickerDate.getHours()).padStart(2,'0')}:${String(pendingPickerDate.getMinutes()).padStart(2,'0')}` : b.startTime;
       if (tDate && tTime) {
-        const ns = new Date(`${tDate}T${tTime}`);
-        const ne = new Date(ns.getTime() + (Number(b.hours) || 1) * 3600000);
-        const overlap = incomingBks.some((x: any) => x.id !== b.id && occupiesCleanerTime(x) && x.bookingDate === tDate && x.startTime && (() => {
-          const [h, m] = String(x.startTime).split(':').map(Number);
-          const xs = new Date(ns); xs.setHours(h || 0, m || 0, 0, 0);
-          const xe = new Date(xs.getTime() + (Number(x.hours) || 1) * 3600000);
-          return ns < xe && ne > xs;
-        })());
-        if (overlap) { Alert.alert(t.error, (t as any).overlapConfirmMsg ?? 'כבר יש לך הזמנה מאושרת בשעה זו — לא ניתן לאשר שתי הזמנות חופפות.'); return; }
+        try {
+          const snap = await getDocs(query(
+            collection(db, 'bookings'),
+            where('cleanerId', '==', uid),
+            where('bookingDate', '==', tDate),
+          ));
+          const win = bookingBusyWindow({ bookingDate: tDate, startTime: tTime, hours: b.hours });
+          const clash = win && snap.docs.some((d) => {
+            const x: any = { id: d.id, ...d.data() };
+            if (x.id === b.id || !occupiesCleanerTime(x)) return false;
+            const xw = bookingBusyWindow(x);
+            return !!xw && windowsOverlap(win, xw);
+          });
+          if (clash) { Alert.alert(t.error, (t as any).overlapConfirmMsg ?? 'כבר יש לך הזמנה מאושרת בשעה זו — לא ניתן לאשר שתי הזמנות חופפות.'); return; }
+        } catch (err) {
+          logError('profile:overlapCheck', err);
+          Alert.alert(t.error, (t as any).overlapCheckFailed ?? 'לא ניתן לבדוק חפיפה כרגע. נסה שוב כשיש חיבור.');
+          return;
+        }
       }
+    }
+    // הזמנה דחופה שעדיין לא נתפסה — תפיסה אטומית מתבצעת עכשיו, באישור בפועל
+    if (b?.urgentUnclaimed && b?.urgentReq) {
+      return claimAndConfirmUrgent(b.urgentReq);
     }
     // נעילה — אישור (כולל פוש/הודעה) ירוץ פעם אחת בלבד לכל הזמנה
     if (CONFIRM_SENT.has(b.id)) { setPendingConfirmBooking(null); return; }
@@ -2266,6 +2285,11 @@ export default function ProfileScreen() {
             recurring: 'once', serviceType: req.serviceType || '',
             pricePerHour: Math.round(req.total / req.hours),
             source: 'urgent', urgentRequestId: req.id,
+            // השעות שהעבודה תופסת. בלעדיהן toSlots מפיל את ההזמנה — הוא מסנן
+            // על busyFrom && busyUntil — ולכן busySlots נשאר ריק, המנקה הציגה
+            // נקודה ירוקה "זמינה עכשיו" לאורך כל העבודה, ו-isCleanerBusy נתן
+            // ללקוח שני להזמין את אותה שעה. מסלול הלוח קיבל את זה, הדחוף לא.
+            ...busyFieldsOf({ bookingDate: req.dateStr, startTime: req.startTime, hours: req.hours }),
           });
         });
       } catch (txErr: any) {

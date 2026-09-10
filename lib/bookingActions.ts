@@ -55,8 +55,7 @@ export function claimUpdate(cleanerId: string, cleanerName: string, b?: Claimabl
   // board job still showed a green "available now" dot to every client in both
   // products, and isAvailableNow ranked them as free. The window is knowable at
   // claim time; write it then.
-  const win = busyWindowOf(b);
-  if (win) { base.busyFrom = win.from; base.busyUntil = win.until; }
+  Object.assign(base, busyFieldsOf(b));
   return base;
 }
 
@@ -79,6 +78,27 @@ export function busyWindowOf(b: ClaimableBooking | null | undefined): { from: st
   const until = endDateOf(b);
   if (!from || !until) return null;
   return { from: from.toISOString(), until: until.toISOString() };
+}
+
+/**
+ * The same window as busyWindowOf, under the field names a booking document
+ * actually stores.
+ *
+ * busyWindowOf returns `{ from, until }` because that is the shape busySlots
+ * holds. Spreading it straight into a booking write — which the website's
+ * urgent claim did, under a comment describing this very bug as fixed — writes
+ * `from` and `until`, which nothing reads: toSlots filters on
+ * `busyFrom && busyUntil`, so the booking was dropped from busySlots exactly as
+ * before. The cleaner kept her green "available now" dot through the whole job
+ * and isCleanerBusy let a second client book the same hour.
+ *
+ * Spread this into a booking write. Never spread busyWindowOf.
+ */
+export function busyFieldsOf(
+  b: ClaimableBooking | null | undefined,
+): { busyFrom: string; busyUntil: string } | Record<string, never> {
+  const win = busyWindowOf(b);
+  return win ? { busyFrom: win.from, busyUntil: win.until } : {};
 }
 
 /**

@@ -1,12 +1,13 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import { resolveRole } from '../.tsbuild/resolveRole.mjs';
 import { mustVerifyEmail, VERIFY_REQUIRED_FROM } from '../.tsbuild/verifyRule.mjs';
 import { isAvailableNow } from '../.tsbuild/displayOrder.mjs';
 import { startDateOf, endDateOf, bookingHours, DEFAULT_BOOKING_HOURS } from '../.tsbuild/bookingSlot.mjs';
 import { readCalendarRemoval, extractPushData } from '../.tsbuild/calendarPush.mjs';
 import { isUrgentRequestLive, isUrgentRequestExpired, expiryOf } from '../.tsbuild/urgentRequest.mjs';
-import { claimUpdate, rejectionUpdate, rejectionReleasesToBoard, awaitsMyApproval, occupiesCleanerTime, busyWindowOf, pendingSlotMissed, isBoardJobOfferable } from '../.tsbuild/bookingActions.mjs';
+import { claimUpdate, rejectionUpdate, rejectionReleasesToBoard, awaitsMyApproval, occupiesCleanerTime, busyWindowOf, busyFieldsOf, pendingSlotMissed, isBoardJobOfferable } from '../.tsbuild/bookingActions.mjs';
 
 // Every case here is a bug that reached a real user. They are regression tests,
 // not coverage: each one failed in production before it was written.
@@ -559,4 +560,46 @@ test('a job with an unreadable date is still offered', () => {
   assert.equal(isBoardJobOfferable({ bookingDate: 'nonsense', startTime: '09:00' }, at), true);
   assert.equal(isBoardJobOfferable({}, at), true);
   assert.equal(isBoardJobOfferable(null, at), false, 'but nothing is not a job');
+});
+
+test('demo cleaners are opt-in, not on by default', () => {
+  // The bug: DEMO_DEFAULT_ON was flipped on for a testing round and left on,
+  // shipping 200 invented cleaners with invented ratings to real customers on
+  // both products. It is a source assertion because the flag is a module
+  // constant read at startup — nothing else can observe it having been flipped.
+  const src = readFileSync(new URL('../lib/demoMode.ts', import.meta.url), 'utf8');
+  assert.match(src, /const DEMO_DEFAULT_ON = false;/);
+});
+
+test('a registration payload carries no reputation fields', () => {
+  // The bug: the cleaner branch wrote rating: 0 and reviews: 0, and the users
+  // create rule refuses any document whose keys include them. Every cleaner
+  // signup was permission-denied, the catch deleted the auth account, and the
+  // person saw a generic "try again" that never stopped being wrong.
+  const src = readFileSync(new URL('../app/register.tsx', import.meta.url), 'utf8');
+  for (const field of ['rating', 'reviews', 'reviewCount', 'reviewsCount',
+                       'blocked', 'blockedUntilReview', 'identityVerified', 'adminNote']) {
+    assert.doesNotMatch(src, new RegExp(`data\\.${field}\\s*=`),
+      `register.tsx writes ${field}, which the users create rule forbids`);
+  }
+});
+
+test('the busy window is written under the names a booking actually stores', () => {
+  // The bug: the website spread busyWindowOf() straight into the urgent claim,
+  // which writes `from`/`until`. toSlots filters on busyFrom && busyUntil, so
+  // the booking never reached busySlots — the cleaner kept a green "available
+  // now" dot through the whole job and a second client could book the hour.
+  // The app's urgent claim wrote no window at all. One helper now, both spread.
+  const b = { bookingDate: '2026-09-20', startTime: '14:30', hours: 2 };
+  const fields = busyFieldsOf(b);
+  assert.deepEqual(Object.keys(fields).sort(), ['busyFrom', 'busyUntil']);
+  assert.equal(fields.busyFrom, busyWindowOf(b).from);
+  assert.equal(fields.busyUntil, busyWindowOf(b).until);
+});
+
+test('an unreadable booking yields no busy fields rather than a guessed window', () => {
+  assert.deepEqual(busyFieldsOf(null), {});
+  assert.deepEqual(busyFieldsOf({ bookingDate: 'nonsense', startTime: '09:00' }), {});
+  // And a claim of one carries no window rather than blocking an invented hour.
+  assert.equal(claimUpdate('c1', 'Dana', { bookingDate: 'nonsense', startTime: '09:00' }).busyFrom, undefined);
 });
