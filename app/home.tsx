@@ -42,7 +42,7 @@ import {
 } from '../lib/jobUtils';
 import { compareCleaners, compareJobs, isAvailableNow, rotationRank } from '../lib/displayOrder';
 import { isUrgentRequestLive } from '../lib/urgentRequest';
-import { claimUpdate, occupiesCleanerTime, pendingSlotMissed, rejectionUpdate, isBoardJobOfferable, busySlotOf, bookingWallWindow } from '../lib/bookingActions';
+import { claimUpdate, occupiesCleanerTime, pendingSlotMissed, rejectionUpdate, isBoardJobOfferable, busySlotOf } from '../lib/bookingActions';
 import { resolveRole } from '../lib/resolveRole';
 import { MAP_STYLE_LIGHT, MAP_STYLE_DARK } from '../lib/mapStyle';
 import { useTheme } from '../lib/ThemeContext';
@@ -4224,20 +4224,25 @@ export default function HomeScreen() {
         doc(db,'urgentRequests', reqRef.id),
         snap => {
           const d = snap.data();
+          // `unsub`, not whatever the ref holds now: if the client posted a
+          // second request in between, the ref points at THAT listener and
+          // this one would tear down the wrong one and leak itself.
           if (d?.status === 'taken') {
             setUrgentFoundName(d.takenByName || '');
             setUrgentWaiting(false);
-            urgentUnsubRef.current?.(); urgentUnsubRef.current = null;
+            unsub();
+            if (urgentUnsubRef.current === unsub) urgentUnsubRef.current = null;
             Alert.alert('🎉 ' + t.urgentFoundMsg, d.takenByName || '');
           } else if (d?.status === 'expired' || d?.status === 'cancelled') {
             setUrgentWaiting(false);
             setUrgentRequestId(null);
-            urgentUnsubRef.current?.(); urgentUnsubRef.current = null;
+            unsub();
+            if (urgentUnsubRef.current === unsub) urgentUnsubRef.current = null;
           }
         },
         err => {
           logError('home:urgentWatch', err);
-          urgentUnsubRef.current = null;
+          if (urgentUnsubRef.current === unsub) urgentUnsubRef.current = null;
         },
       );
       urgentUnsubRef.current = unsub;

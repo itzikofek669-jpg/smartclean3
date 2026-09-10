@@ -974,7 +974,10 @@ export default function ProfileScreen() {
     const err = firstError(
       validateName(editName),
       validatePhone(editPhone),
-      isCleaner ? validatePrice(editServicePricing['ניקיון רגיל'] || Object.values(editServicePricing).find(v => v) || '') : null,
+      // required=false: מנקה ששמור לה מחיר 0 (ההרשמה נופלת ל-0) הייתה נחסמת
+      // כאן מלשמור את הפרופיל בכלל — גם כשהיא רק מתקנת טלפון. מחיר שהוקלד
+      // עדיין נבדק מול הטווח; מחיר שלא קיים לא חוסם שמירה של שדה אחר.
+      isCleaner ? validatePrice(editServicePricing['ניקיון רגיל'] || Object.values(editServicePricing).find(v => v) || '', false) : null,
       isCleaner ? validateAge(editAge) : null,
       isCleaner ? validateDistance(editMaxDistance) : null,
     );

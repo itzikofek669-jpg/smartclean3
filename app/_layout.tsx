@@ -216,8 +216,15 @@ export default function RootLayout() {
 
   // ── Auth routing ──────────────────────────────────────────────────────────
   // Only the redirect depends on the route, and a redirect is cheap.
+  //
+  // `ready` and not readyRef: a signed-out launch calls setAuthUser(null) on a
+  // state that is already null, so React does not re-render and this effect's
+  // deps never change. Its only run was the one on mount, which bailed out
+  // because auth had not answered yet — and a signed-out user deep-linked to a
+  // protected screen was left sitting on it. setReady(true) is the render that
+  // has to bring us back here.
   useEffect(() => {
-    if (!readyRef.current) return;
+    if (!ready) return;
     const seg0 = segments[0] as string | undefined;
     const inAuth = seg0 === undefined || seg0 === 'index' || seg0 === 'register';
     // חייב להיות זהה ל-isAdmin() ב-firestore.rules ולרשימות בווב ובפונקציות.
@@ -230,7 +237,7 @@ export default function RootLayout() {
         router.replace('/home');
       }
     }
-  }, [authUser, segments]);
+  }, [ready, authUser, segments]);
 
   // ── סנכרון יומן — גלובלי, בכל מסך ──────────────────────────────────────────
   //
