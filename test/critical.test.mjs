@@ -697,3 +697,17 @@ test('a job spanning the clock change keeps its wall-clock length', () => {
   assert.deepEqual(JSON.parse(end), { h: 3, day: 25 },
     'two hours from 01:00 is 03:00 on the clock, whatever the offset did in between');
 });
+
+test('the light map is Google\'s own map, not a restyle of it', async () => {
+  // The bug: a grey "silver" style washed the roads and labels out until the
+  // home-screen map showed no streets and no city names. The style still has to
+  // exist (it keeps the phone's night mode off), but it may change nothing.
+  const { MAP_STYLE_LIGHT } = await import(new URL('../.tsbuild/mapStyle.mjs', import.meta.url).href);
+  assert.ok(MAP_STYLE_LIGHT.length > 0, 'an empty style would let the dark style stick after leaving dark mode');
+  for (const rule of MAP_STYLE_LIGHT) {
+    for (const styler of rule.stylers) {
+      assert.deepEqual(Object.keys(styler), ['visibility'], `${JSON.stringify(rule)} restyles the map`);
+      assert.equal(styler.visibility, 'on', `${JSON.stringify(rule)} hides part of the map`);
+    }
+  }
+});

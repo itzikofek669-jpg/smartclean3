@@ -12,20 +12,20 @@
  * follows whichever of these two the app is actually in.
  */
 
-/** Google's light baseline, kept close to the default so nothing else shifts. */
+/**
+ * Google's own map, unchanged — the same one the website draws.
+ *
+ * This used to be the grey "silver" style. It washed the roads out to white and
+ * pale grey and turned every label grey on grey, so at the zoom the home screen
+ * opens on, the roads, route numbers and city names all but disappeared.
+ *
+ * It must not be empty, and must not be dropped: the style being present is what
+ * keeps the night mode off, and a style is only ever replaced, never cleared, so
+ * leaving dark mode needs something to replace the dark style with. The one rule
+ * sets what is already the default, so the map looks exactly as Google draws it.
+ */
 export const MAP_STYLE_LIGHT = [
-  { elementType: 'geometry', stylers: [{ color: '#f5f5f5' }] },
-  { elementType: 'labels.text.fill', stylers: [{ color: '#616161' }] },
-  { elementType: 'labels.text.stroke', stylers: [{ color: '#f5f5f5' }] },
-  { featureType: 'administrative.land_parcel', elementType: 'labels', stylers: [{ visibility: 'off' }] },
-  { featureType: 'poi', elementType: 'labels.text.fill', stylers: [{ color: '#757575' }] },
-  { featureType: 'poi.park', elementType: 'geometry', stylers: [{ color: '#e5f0e0' }] },
-  { featureType: 'road', elementType: 'geometry', stylers: [{ color: '#ffffff' }] },
-  { featureType: 'road.arterial', elementType: 'labels.text.fill', stylers: [{ color: '#757575' }] },
-  { featureType: 'road.highway', elementType: 'geometry', stylers: [{ color: '#dadada' }] },
-  { featureType: 'transit.line', elementType: 'geometry', stylers: [{ color: '#e5e5e5' }] },
-  { featureType: 'water', elementType: 'geometry', stylers: [{ color: '#c9e7ff' }] },
-  { featureType: 'water', elementType: 'labels.text.fill', stylers: [{ color: '#9e9e9e' }] },
+  { featureType: 'water', elementType: 'geometry', stylers: [{ visibility: 'on' }] },
 ];
 
 /** For when the app itself is in dark mode, so the two agree either way. */
