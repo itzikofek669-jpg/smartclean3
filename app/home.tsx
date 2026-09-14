@@ -9,7 +9,7 @@ import {
 } from 'react-native';
 import { useAnimatedValue, useAnimatedValues } from '../lib/useAnimatedValue';
 import { useNow } from '../lib/useNow';
-import { writeBookingDetails, withBookingDetails, migrateOpenJobDetails } from '../lib/bookingDetails';
+import { writeBookingDetails, withBookingDetails, migrateOpenJobDetails, fetchBookingDetails } from '../lib/bookingDetails';
 
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -1743,7 +1743,9 @@ function PostJobModal({ visible, onClose, onPosted }: { visible: boolean; onClos
         origin: 'open',
         serviceTypes: types, serviceType: types.join(' + '),
         hours, isPrivateHouse: isPrivate,
-        addrCity: city.trim(),
+        // העיר בלבד. השדה הזה יושב על מסמך הלוח הציבורי, והקלט ממולא מראש
+        // מכתובת שמורה מלאה — רחוב, קומה, דירה. cityNameOf מוצא עיר מוכרת.
+        addrCity: cityNameOf({ city: city.trim() }),
         pricePerHour: budget ? Number(budget) : null,
         total: budget ? Number(budget) * hours : null,
         photos,
@@ -2589,7 +2591,7 @@ function BookingModal({ cleaner, visible, onClose, onBookingCreated, prebookData
         participants: [clientUid, bookedDetails.cleanerUid].sort(),
         lastMessage: msg,
         lastMessageAt: new Date().toISOString(),
-        unreadBy: arrayUnion(bookedDetails.cleanerUid),
+        unreadBy: arrayUnion(bookedDetails.cleanerUid), deletedFor: [],
       }, { merge: true });
       setTimeout(() => inlineChatScroll.current?.scrollToEnd({ animated: true }), 200);
       try {
@@ -2625,7 +2627,7 @@ function BookingModal({ cleaner, visible, onClose, onBookingCreated, prebookData
     setInlineChatOpen(true);
     try {
       await addDoc(collection(db, 'chats', chatId, 'messages'), { type: 'image', imageBase64: `data:image/jpeg;base64,${base64Data}`, from: 'client', fromUid: clientUid, createdAt: new Date().toISOString() });
-      await setDoc(doc(db, 'chats', chatId), { participants: [clientUid, otherUid].sort(), lastMessage: t.chatImageMsg, lastMessageAt: new Date().toISOString(), lastSenderUid: clientUid, unreadBy: arrayUnion(otherUid) }, { merge: true });
+      await setDoc(doc(db, 'chats', chatId), { participants: [clientUid, otherUid].sort(), lastMessage: t.chatImageMsg, lastMessageAt: new Date().toISOString(), lastSenderUid: clientUid, unreadBy: arrayUnion(otherUid), deletedFor: [] }, { merge: true });
       setTimeout(() => inlineChatScroll.current?.scrollToEnd({ animated: true }), 200);
     } catch (err: any) { Alert.alert(t.imageSendError, err?.message || t.error); }
   };
@@ -2660,7 +2662,7 @@ function BookingModal({ cleaner, visible, onClose, onBookingCreated, prebookData
       const chatId = [clientUid, otherUid].sort().join('_');
       setInlineChatOpen(true);
       await addDoc(collection(db, 'chats', chatId, 'messages'), { type: 'audio', audioBase64, from: 'client', fromUid: clientUid, createdAt: new Date().toISOString() });
-      await setDoc(doc(db, 'chats', chatId), { participants: [clientUid, otherUid].sort(), lastMessage: t.chatVoiceMsg, lastMessageAt: new Date().toISOString(), lastSenderUid: clientUid, unreadBy: arrayUnion(otherUid) }, { merge: true });
+      await setDoc(doc(db, 'chats', chatId), { participants: [clientUid, otherUid].sort(), lastMessage: t.chatVoiceMsg, lastMessageAt: new Date().toISOString(), lastSenderUid: clientUid, unreadBy: arrayUnion(otherUid), deletedFor: [] }, { merge: true });
       setTimeout(() => inlineChatScroll.current?.scrollToEnd({ animated: true }), 200);
     } catch (_) { Alert.alert(t.error, t.audioSendError); }
   };
@@ -3234,7 +3236,7 @@ function ChatModal({ cleaner, visible, onClose }: any) {
           lastMessageAt: new Date().toISOString(),
           lastSenderUid: clientUid,
           participantNames: { [clientUid]: 'לקוח', [otherUid]: cleaner.name },
-          unreadBy: arrayUnion(otherUid),
+          unreadBy: arrayUnion(otherUid), deletedFor: [],
         }, { merge: true });
       } catch (err) { logError('home:write', err); }
       // שם לקוח + פוש למנקה (אופציונלי)
@@ -3288,7 +3290,7 @@ function ChatModal({ cleaner, visible, onClose }: any) {
         lastMessage: t.chatVoiceMsg,
         lastMessageAt: new Date().toISOString(),
         lastSenderUid: clientUid,
-        unreadBy: arrayUnion(otherUid),
+        unreadBy: arrayUnion(otherUid), deletedFor: [],
       }, { merge: true });
     } catch (_) { Alert.alert(t.error, t.audioSendError); }
   };
@@ -3328,7 +3330,7 @@ function ChatModal({ cleaner, visible, onClose }: any) {
         lastMessage: t.chatImageMsg,
         lastMessageAt: new Date().toISOString(),
         lastSenderUid: clientUid,
-        unreadBy: arrayUnion(otherUid),
+        unreadBy: arrayUnion(otherUid), deletedFor: [],
       }, { merge: true });
     } catch (err: any) {
       Alert.alert(t.imageSendError, err?.message || t.error);
@@ -4280,6 +4282,9 @@ export default function HomeScreen() {
    * ורוצה שמישהו ייקח את זה, לא לחפש מחדש.
    */
   const repostCancelledBooking = async (b: any) => {
+    // הפופאפ מוזן מ-snapshot גולמי שלא עבר מיזוג, אז אין בו כתובת. פרסום מחדש
+    // כמו שהוא כתב פרטים ריקים, ומי שתפסה את העבודה החדשה קיבלה בלי רחוב.
+    if (b && !b.address && b.id) b = { ...b, ...(await fetchBookingDetails(b.id)) };
     if (reposting) return;
     setReposting(true);
     try {
@@ -4718,8 +4723,13 @@ export default function HomeScreen() {
             const pendingSlots = toSlots(pendingDocs);
             const sameList = (a: { from: string; until: string }[], b: { from: string; until: string }[]) =>
               a.length === b.length && a.every((p, i) => p.from === b[i].from && p.until === b[i].until);
-            const prevRef = lastBusySlotsRef.current ?? { busy: [], pending: [] };
-            if (!sameList(prevRef.busy, slots) || !sameList(prevRef.pending, pendingSlots)) {
+            // Always publish on the first snapshot of a session. Falling back to
+            // empty lists meant a cleaner with no live bookings compared empty to
+            // empty and wrote nothing — so a slot the other side cancelled while
+            // her app was closed stayed on her document, and clients were told
+            // she was busy for an hour that was free.
+            const prevRef = lastBusySlotsRef.current;
+            if (prevRef === null || !sameList(prevRef.busy, slots) || !sameList(prevRef.pending, pendingSlots)) {
               lastBusySlotsRef.current = { busy: slots, pending: pendingSlots };
               // setDoc/merge ולא arrayRemove: התאמת-אובייקט מדויקת של arrayRemove
               // נכשלת בשקט אם משהו בשדות שונה, ואז השעה נשארת תפוסה לנצח.
@@ -5333,7 +5343,11 @@ export default function HomeScreen() {
     if (!uid) return;
     const q = query(collection(db, 'chats'), where('participants', 'array-contains', uid));
     const unsub = onSnapshot(q, snap => {
-      const count = snap.docs.filter(d => (d.data().unreadBy || []).includes(uid)).length;
+      // שיחה שהמשתמש הסתיר לא נספרת — אי אפשר לפתוח אותה כדי לסמן כנקראה.
+      const count = snap.docs.filter(d => {
+        const x = d.data();
+        return (x.unreadBy || []).includes(uid) && !(x.deletedFor || []).includes(uid);
+      }).length;
       setUnreadCount(count);
     });
     return () => unsub();
@@ -5383,7 +5397,9 @@ export default function HomeScreen() {
         cleanerReviewText: mandatoryComment.trim(),
         reviewRequired: false,
         reviewedAt: new Date().toISOString(),
-        status: 'done',
+        // בלי status: ההזמנה כבר done. השדות שנכתבים כאן הם עכשיו ברשימת
+        // המותרים של הזמנה סגורה; קודם כל הכתיבה נדחתה, הדירוג והביקורת לא
+        // נשמרו, ומסך הנעילה של ביקורת שפג תוקפה חזר בכל פתיחה.
       });
       // עדכון ציון + מספר ביקורות של המנקה — טרנזקציה אטומית (נגד אובדן עדכון בתחרות)
       const cleanerRef = doc(db, 'users', pendingReviewBooking.cleanerId);
@@ -5393,7 +5409,8 @@ export default function HomeScreen() {
           if (!snap.exists()) return;
           const d = snap.data();
           const oldRating = d.rating || 0;
-          const oldCount  = d.reviewCount || d.reviews || 0;
+          // אותו סדר כמו priorReviewCount בחוקים — אחרת המונה שונה והדירוג נדחה.
+          const oldCount  = Number(d.reviewCount ?? d.reviewsCount ?? d.reviews ?? 0) || 0;
           const newCount  = oldCount + 1;
           const newRating = Math.round(((oldRating * oldCount) + mandatoryStars) / newCount * 10) / 10;
           // כל ארבע האיותים: המובייל קורא reviewCount, הווב קורא reviewsCount,

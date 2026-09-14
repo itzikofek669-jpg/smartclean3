@@ -1,4 +1,4 @@
-import { collection, getDocs, limit, query, where, doc, getDoc, setDoc, deleteDoc } from 'firebase/firestore';
+import { collection, getDocs, limit, query, where, doc, getDoc, deleteDoc, runTransaction } from 'firebase/firestore';
 import { db } from './firebase';
 
 /**
@@ -72,18 +72,23 @@ export async function isPhoneTaken(phone: string, exceptUid?: string): Promise<b
 export async function claimPhone(phone: string, uid: string): Promise<boolean> {
   const v = String(phone || '').trim();
   if (!v || !uid) return true;                 // nothing to claim
+  // A transaction, not setDoc-then-getDoc. A plain write is queued when the
+  // device is offline and its promise never settles — the save sat on
+  // "saving" forever — and the fallback read saw OTHER pending local writes:
+  // two taps queued two claims, the server refused the first, and the read
+  // behind it still carried the second, unsent claim on top, answered "it's
+  // mine", and the profile took a number another account already held. A
+  // transaction reads from the server, never queues, and sees no local writes.
   try {
-    await setDoc(doc(db, 'phoneIndex', v), { uid, claimedAt: new Date().toISOString() });
-    return true;
+    return await runTransaction(db, async (tx) => {
+      const ref = doc(db, 'phoneIndex', v);
+      const snap = await tx.get(ref);
+      if (snap.exists()) return snap.data()?.uid === uid;
+      tx.set(ref, { uid, claimedAt: new Date().toISOString() });
+      return true;
+    });
   } catch {
-    // Refused, which is what a taken number looks like. Read it back to tell
-    // "somebody else has it" from "it was already mine".
-    try {
-      const snap = await getDoc(doc(db, 'phoneIndex', v));
-      return snap.exists() && snap.data()?.uid === uid;
-    } catch {
-      return false;
-    }
+    return false;
   }
 }
 

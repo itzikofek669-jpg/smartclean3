@@ -1,6 +1,7 @@
 import { doc, getDoc, setDoc, updateDoc, deleteField } from 'firebase/firestore';
 import { db } from './firebase';
 import { logError } from './logError';
+import { cityNameOf } from './jobUtils';
 
 /**
  * The part of a booking that says where the client actually lives.
@@ -25,6 +26,9 @@ export interface BookingDetails {
   phone?: string;
 }
 
+// One attempt per booking per app session, whatever the outcome.
+const attempted = new Set<string>();
+
 const DETAIL_KEYS: (keyof BookingDetails)[] =
   ['address', 'addrStreet', 'addrFloor', 'addrApt', 'notes', 'phone'];
 
@@ -45,6 +49,7 @@ export function splitBookingDetails<T extends Record<string, unknown>>(
 
 export async function writeBookingDetails(bookingId: string, details: BookingDetails): Promise<void> {
   await setDoc(doc(db, 'bookings', bookingId, 'private', 'details'), details, { merge: true });
+  cache.set(bookingId, { ...(cache.get(bookingId) ?? {}), ...details });
 }
 
 // One read per booking is the cost of the split, so nothing is fetched twice in
@@ -57,7 +62,13 @@ export async function fetchBookingDetails(bookingId: string): Promise<BookingDet
   if (hit) return hit;
   try {
     const snap = await getDoc(doc(db, 'bookings', bookingId, 'private', 'details'));
-    const d = (snap.exists() ? snap.data() : {}) as BookingDetails;
+    if (!snap.exists()) {
+      // Not cached. A client's own snapshot fires on the local post before the
+      // details are written, and caching that miss hid the address until the
+      // app restarted.
+      return {};
+    }
+    const d = snap.data() as BookingDetails;
     cache.set(bookingId, d);
     return d;
   } catch (err) {
@@ -111,8 +122,15 @@ export async function migrateOpenJobDetails(b: {
   addrApt?: string;
   notes?: string;
   phone?: string;
+  status?: string;
+  addrCity?: string;
 }): Promise<boolean> {
-  if (b.open !== true) return false;
+  // Still on the board: open AND pending. A cancelled unclaimed board job keeps
+  // open: true and is settled, so the parent update is refused there — every
+  // snapshot wrote the private copy and then failed, forever.
+  if (b.open !== true || b.status !== 'pending') return false;
+  if (attempted.has(b.id)) return false;
+  attempted.add(b.id);
   const carries = DETAIL_KEYS.some((k) => {
     const v = b[k as keyof typeof b];
     return typeof v === 'string' && v !== '';
@@ -130,6 +148,8 @@ export async function migrateOpenJobDetails(b: {
     // Only once the copy is safely written. The reverse order would leave a job
     // with no address at all if the second write failed.
     await updateDoc(doc(db, 'bookings', b.id), {
+      // addrCity held a full saved address on jobs posted from a pre-filled form.
+      addrCity: cityNameOf({ city: b.addrCity ?? b.address ?? '' }),
       address: deleteField(),
       addrStreet: deleteField(),
       addrFloor: deleteField(),

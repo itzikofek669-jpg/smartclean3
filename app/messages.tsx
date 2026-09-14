@@ -18,6 +18,7 @@ import { releaseUrgentRequest } from '../lib/urgentRelease';
 import { bookingBusyWindow, windowsOverlap } from '../lib/jobUtils';
 import { addBookingToCalendar, removeBookingFromCalendar } from '../lib/calendarSync';
 import { logError } from '../lib/logError';
+import { fetchBookingDetails } from '../lib/bookingDetails';
 // Firebase Storage לא נדרש — תמונות ואודיו נשמרים כ-base64 ב-Firestore
 import * as ImagePicker from 'expo-image-picker';
 import * as ImageManipulator from 'expo-image-manipulator';
@@ -118,7 +119,16 @@ function InlineChatModal({ chatId, otherUid, otherName, visible, onClose }: any)
           .map(d => ({ id: d.id, ...(d.data() as any) }))
           .filter(b => b.clientUid === otherUid && awaitsMyApproval(b, myUid))
           .sort((a, b) => String(b.createdAt || '').localeCompare(String(a.createdAt || '')));
-        setPendingBooking(mine[0] ?? null);
+        const first = mine[0] ?? null;
+        setPendingBooking(first);
+        // The bar the claim message sends the cleaner to had no address, and
+        // approving from it added a calendar event without one. Fold the
+        // private half in, but only onto the same booking still showing.
+        if (first && !first.address) {
+          fetchBookingDetails(first.id)
+            .then(d => setPendingBooking((cur: any) => (cur?.id === first.id ? { ...cur, ...d } : cur)))
+            .catch(err => logError('messages:pendingDetails', err));
+        }
       },
       err => logError('messages:pendingBooking', err),
     );
@@ -888,7 +898,9 @@ export default function MessagesScreen() {
               // אצל הצד השני. אותו פתרון כמו באתר.
               await Promise.all(
                 [...selectedConvs].map(id =>
-                  updateDoc(doc(db, 'chats', id), { deletedFor: arrayUnion(uid) }))
+                  // unreadBy גם: שיחה מוסתרת עם הודעות שלא נקראו השאירה badge
+                  // תקוע, כי אי אפשר לפתוח אותה כדי לסמן כנקרא.
+                  updateDoc(doc(db, 'chats', id), { deletedFor: arrayUnion(uid), unreadBy: arrayRemove(uid) }))
               );
             } catch (err) { logError('messages:hideConversations', err); }
             setConvDeleting(false);

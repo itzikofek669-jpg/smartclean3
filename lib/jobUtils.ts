@@ -251,7 +251,16 @@ function bookingBusyWindow(j: any): { date: string; s: number; e: number } | nul
 
 export // Do two busy windows overlap (same day + intersecting minute ranges)?
 function windowsOverlap(a: { date: string; s: number; e: number }, b: { date: string; s: number; e: number }): boolean {
-  return a.date === b.date && a.s < b.e && a.e > b.s;
+  // ציר זמן רציף של דקות, לא "אותו תאריך". עבודה 23:00–01:00 נשמרת כ-
+  // { date: D, s: 1380, e: 1500 } ותופסת גם את השעה הראשונה של D+1; השוואת
+  // תאריכים בלבד נתנה להזמנה שנייה ב-00:00 של D+1 לעבור.
+  const day = (d: string) => {
+    const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(d);
+    return m ? Date.UTC(Number(m[1]), Number(m[2]) - 1, Number(m[3])) / 86400000 : NaN;
+  };
+  const da = day(a.date), db = day(b.date);
+  if (Number.isNaN(da) || Number.isNaN(db)) return a.date === b.date && a.s < b.e && a.e > b.s;
+  return da * 1440 + a.s < db * 1440 + b.e && da * 1440 + a.e > db * 1440 + b.s;
 }
 
 // ── Text ─────────────────────────────────────────────────────────────────────

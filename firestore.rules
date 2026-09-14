@@ -120,10 +120,17 @@ service cloud.firestore {
         // which is the whole of what a single honest review can do. Written as
         // multiplication rather than division to keep it exact, with a small
         // tolerance for the float rounding a client's own arithmetic produces.
+        // Both products store the average rounded to one decimal, which moves
+        // new*(n+1) by up to 0.05*(n+1). A tolerance of 0.01 refused honest
+        // reviews: 4.5 over two reviews plus a 5 stores 4.7, and 4.7*3 = 14.1
+        // is past a ceiling of 14.01. Most five-star reviews that rounded up
+        // were denied, and the review document was already written by then.
         && request.resource.data.rating * (priorReviewCount() + 1)
-             >= resource.data.get('rating', 0) * priorReviewCount() - 0.01
+             >= resource.data.get('rating', 0) * priorReviewCount()
+                - 0.05 * (priorReviewCount() + 1) - 0.01
         && request.resource.data.rating * (priorReviewCount() + 1)
-             <= resource.data.get('rating', 0) * priorReviewCount() + 5 + 0.01
+             <= resource.data.get('rating', 0) * priorReviewCount() + 5
+                + 0.05 * (priorReviewCount() + 1) + 0.01
         // The other two spellings are written alongside and were allowed by the
         // hasOnly list with no validation at all, so a stranger could park an
         // arbitrary object of any size on someone else's document.
@@ -180,6 +187,9 @@ service cloud.firestore {
       // why. All the isValidRatingUpdate machinery was bypassed simply by
       // creating the document instead of updating it.
       allow create: if signedIn() && uid() == userId
+        // The update rule locks role; create did not, so a brand-new account
+        // wrote itself role 'admin' in its very first write.
+        && request.resource.data.get('role', 'client') in ['client', 'cleaner']
         && !request.resource.data.keys().hasAny([
           'rating', 'reviewCount', 'reviews', 'reviewsCount',
           'blocked', 'blockedUntilReview', 'identityVerified', 'adminNote'
@@ -331,8 +341,16 @@ service cloud.firestore {
       // own branch and its own cap.
       allow create: if signedIn()
         && request.resource.data.get('clientUid', '') == uid()
-        && request.resource.data.get('status', '') in ['pending', 'confirmed']
-        && request.resource.data.get('total', 0) >= 0
+        // pending only. A client-created booking may not arrive already
+        // approved — approval is the cleaner's act, and a booking a client could
+        // create as confirmed and then mark done was a rating citation minted
+        // against any cleaner they named.
+        && request.resource.data.get('status', '') == 'pending'
+        // null is what both post forms write when no budget is given, and
+        // get() returns the stored null, not the default — so `null >= 0` was a
+        // type error and every budget-less post was denied.
+        && (request.resource.data.get('total', 0) == null
+            || request.resource.data.get('total', 0) >= 0)
         && !request.resource.data.keys().hasAny([
           'actualTotal', 'actualHours', 'paidAt', 'finishedAt', 'cleanerRating'
         ])
@@ -350,18 +368,48 @@ service cloud.firestore {
       // open, and name the same client. Rules see the pre-transaction state, so
       // the request is still 'open' here even though the same transaction is
       // about to mark it taken.
-      || (signedIn()
+      || (signedIn() && callerIsCleaner()
           && request.resource.data.get('cleanerId', '') == uid()
           && request.resource.data.get('origin', '') == 'urgent'
           && request.resource.data.get('status', '') in ['pending', 'confirmed']
-          && request.resource.data.get('total', 0) >= 0
+          && (request.resource.data.get('total', 0) == null
+              || request.resource.data.get('total', 0) >= 0)
           && !request.resource.data.keys().hasAny([
             'actualTotal', 'actualHours', 'paidAt', 'finishedAt', 'cleanerRating'
           ])
           && request.resource.data.keys().hasAll(['urgentRequestId'])
           && exists(/databases/$(database)/documents/urgentRequests/$(request.resource.data.urgentRequestId))
           && get(/databases/$(database)/documents/urgentRequests/$(request.resource.data.urgentRequestId)).data.get('status', '') == 'open'
-          && get(/databases/$(database)/documents/urgentRequests/$(request.resource.data.urgentRequestId)).data.get('clientUid', '') == request.resource.data.get('clientUid', ''));
+          // And by the end of this same transaction she holds it. Checking only
+          // that the request was open let any account fabricate bookings
+          // against a real open request without ever claiming it — as many as
+          // it liked, each with a chosen total, in the client's dashboard for
+          // good, since bookings cannot be deleted. getAfter sees the claim the
+          // transaction is making; a standalone create sees none.
+          && getAfter(/databases/$(database)/documents/urgentRequests/$(request.resource.data.urgentRequestId)).data.get('takenByUid', '') == uid()
+          && get(/databases/$(database)/documents/urgentRequests/$(request.resource.data.urgentRequestId)).data.get('clientUid', '') == request.resource.data.get('clientUid', ''))
+
+      // A cleaner creating the next visit of a recurring job she has just
+      // finished. Both products do this from the cleaner's session with the
+      // client's uid on it, and neither create branch above allowed that — so
+      // every recurring booking silently stopped after its first visit, and on
+      // the website the cleaner saw an error for a job that had ended fine.
+      // The finished parent is the authority: hers, done, same client, and
+      // actually recurring.
+      || (signedIn() && callerIsCleaner()
+          && request.resource.data.get('cleanerId', '') == uid()
+          && request.resource.data.get('status', '') == 'pending'
+          && (request.resource.data.get('total', 0) == null
+              || request.resource.data.get('total', 0) >= 0)
+          && !request.resource.data.keys().hasAny([
+            'actualTotal', 'actualHours', 'paidAt', 'finishedAt', 'cleanerRating'
+          ])
+          && request.resource.data.keys().hasAll(['parentBookingId'])
+          && exists(/databases/$(database)/documents/bookings/$(request.resource.data.parentBookingId))
+          && get(/databases/$(database)/documents/bookings/$(request.resource.data.parentBookingId)).data.get('cleanerId', '') == uid()
+          && get(/databases/$(database)/documents/bookings/$(request.resource.data.parentBookingId)).data.get('clientUid', '') == request.resource.data.get('clientUid', '')
+          && get(/databases/$(database)/documents/bookings/$(request.resource.data.parentBookingId)).data.get('status', '') == 'done'
+          && get(/databases/$(database)/documents/bookings/$(request.resource.data.parentBookingId)).data.get('recurring', 'once') != 'once');
 
       // Who may write was already scoped here; WHAT they may write was not, and
       // that is the whole of the gap. A claimer could take an open job and set
@@ -409,8 +457,13 @@ service cloud.firestore {
         return !changed().hasAny(['actualTotal', 'actualHours', 'paymentStatus', 'paidAt'])
           || (resource.data.get('status', '') != 'cancelled'
               && request.resource.data.get('actualTotal', 0) >= 0
-              && request.resource.data.get('actualTotal', 0)
-                 <= resource.data.get('total', 0) * 2 + 100);
+              // A job posted with no budget stores total: null, and null * 2
+              // is an error — such a job could never be closed or marked paid.
+              && ((resource.data.get('total', 0) == null
+                   && request.resource.data.get('actualTotal', 0) <= 100)
+                  || (resource.data.get('total', 0) != null
+                      && request.resource.data.get('actualTotal', 0)
+                         <= resource.data.get('total', 0) * 2 + 100)));
       }
       // A claim is four fields, in both products (cleanerActions.ts,
       // app/home.tsx). Without an allowlist the same write could rewrite the
@@ -529,8 +582,34 @@ service cloud.firestore {
       function onlyAfterTheJobFields() {
         return changed().hasOnly([
           'cleanerRating', 'clientRating', 'reviewRequired', 'reviewDeadline', 'autoClosed',
-          'actualTotal', 'actualHours', 'paymentStatus', 'paidAt', 'finishedAt'
+          'actualTotal', 'actualHours', 'paymentStatus', 'paidAt', 'finishedAt',
+          // The mandatory review writes these onto a job that is already done.
+          // Without them the write was denied, the rating and the review behind
+          // it were never saved, reviewRequired stayed true, and a client with
+          // an overdue review was locked on a screen whose only exit was that
+          // review.
+          'cleanerReviewText', 'reviewedAt'
         ]);
+      }
+      function reviewTextIsBounded() {
+        return !changed().hasAny(['cleanerReviewText'])
+          || request.resource.data.cleanerReviewText.size() <= 2000;
+      }
+
+      // What a client may do to the status of their own live booking: cancel
+      // it, or close one a cleaner has actually taken on. Nothing else.
+      //
+      // Nothing checked this, and with ratedBooking it was the whole of a
+      // reputation attack: create a booking naming any cleaner, move it to done
+      // yourself, cite it, repeat with the next. The only client-driven advance
+      // either product makes is the auto-close of a confirmed, active or
+      // on-the-way job whose time has passed — which is exactly what remains.
+      function clientStatusChangeIsAllowed() {
+        return !isTheClient()
+          || !changed().hasAny(['status'])
+          || request.resource.data.get('status', '') == 'cancelled'
+          || (request.resource.data.get('status', '') == 'done'
+              && resource.data.get('status', '') in ['confirmed', 'active', 'onway']);
       }
 
       function releasesBoardJob() {
@@ -573,11 +652,12 @@ service cloud.firestore {
             // figure sent after the job was already done is refused.
             && billingIsPlausible()
             && bookingRatingInRange()
+            && clientStatusChangeIsAllowed()
             && cleanerIsNotDestroyingABoardJob())
         // Rating and settling a job that is already over.
         || (isParty() && bookingIsSettled() && onlyAfterTheJobFields()
             && bookingSettlementByCleaner() && billingIsPlausible()
-            && bookingRatingInRange())
+            && bookingRatingInRange() && reviewTextIsBounded())
         // A cleaner claiming an unheld job off the board. The destination is
         // pinned: a probe claimed one straight to `done`, and another claimed a
         // job somebody else was already holding, because neither the resulting
@@ -613,9 +693,14 @@ service cloud.firestore {
         function parent() {
           return get(/databases/$(database)/documents/bookings/$(bookingId)).data;
         }
+        // The cleaner's side mirrors the booking itself, which stops being her
+        // business once it is cancelled. Without the same guard here, the
+        // street, flat and phone stayed readable to her indefinitely — the very
+        // fields this subcollection exists to protect.
         allow read: if isAdmin()
-          || (signedIn() && (parent().get('clientUid', '') == uid()
-                             || parent().get('cleanerId', '') == uid()));
+          || (signedIn() && parent().get('clientUid', '') == uid())
+          || (signedIn() && parent().get('cleanerId', '') == uid()
+              && parent().get('status', '') != 'cancelled');
         // The client's own words about their own home. A cleaner may never
         // write here: it is the same data bookingClientDataUnchanged freezes on
         // the parent, and moving it must not hand it back.
@@ -672,7 +757,19 @@ service cloud.firestore {
       // errored, so "delete conversation" started failing for everyone. Both
       // products swallow that rejection, so the thread vanished from the list
       // and came back on reload.
-      allow create, update: if isAdmin() || (inChatId() && participantsMatchId());
+      // deletedFor may only gain the caller's own uid. Unchecked, one party
+      // hid the conversation from the OTHER — and the thread is what a report
+      // is adjudicated against. Removing entries stays open: a new message
+      // clears the list, which is what brings a hidden thread back.
+      function hidesOnlyForSelf() {
+        return !('deletedFor' in request.resource.data)
+          || request.resource.data.deletedFor.toSet()
+               .difference(resource.data.get('deletedFor', []).toSet())
+               .hasOnly([uid()]);
+      }
+      allow create: if isAdmin() || (inChatId() && participantsMatchId());
+      allow update: if isAdmin()
+        || (inChatId() && participantsMatchId() && hidesOnlyForSelf());
       allow delete: if isAdmin() || inChatId();
 
       match /messages/{messageId} {

@@ -517,6 +517,9 @@ export default function ProfileScreen() {
   // למשתמש שאין לו טוקן בכלל. אותו דפוס בדיוק כמו role שנוחש כ-client.
   // שעון מתקתק, לא Date.now() בתוך רנדור. ראה lib/useNow.
   const nowMs = useNow();
+  // מגן סדר למיזוג האסינכרוני של הכתובות: בלעדיו מיזוג איטי של snapshot ישן
+  // נחת אחרי חדש יותר והחזיר סטטוס ישן לרשימה.
+  const detailsSeqRef = useRef({ client: 0, cleaner: 0 });
   const [hasPushToken,     setHasPushToken]     = useState<boolean | null>(null);
   const [pushToggleLoading, setPushToggleLoading] = useState(false);
   const [calGranted, setCalGranted] = useState(false);
@@ -1016,8 +1019,6 @@ export default function ProfileScreen() {
           setEditSaving(false);
           return Alert.alert(t.error, (t as any).vErrPhoneTaken ?? 'מספר הטלפון הזה כבר רשום לחשבון אחר.');
         }
-        // המספר הישן חוזר לזמינות רק אחרי שהחדש נתפס בהצלחה.
-        await releasePhone(prevPhone, uid);
       }
       const spNum: Record<string,number> = {};
       Object.entries(editServicePricing).forEach(([k,v]) => { if (v) spNum[k] = Number(v); });
@@ -1078,6 +1079,9 @@ export default function ProfileScreen() {
         bankBranch:       editBankBranch.trim(),
         bankAccount:      editBankAccount.trim(),
       });
+      // המספר הישן חוזר רק עכשיו, כשהפרופיל באמת נושא את החדש. שחרור לפני
+      // השמירה השאיר, כששמירה נכשלה, פרופיל על מספר שכבר לא מוחזק — פנוי לכל אחד.
+      if (phone && phone !== prevPhone) await releasePhone(prevPhone, uid);
       // לקוח: עדכן/הוסף את הכתובת הראשית ב"הכתובות שלי" כדי שתופיע מיד
       if (!isCleaner && clientFullAddr) {
         await upsertAddress(clientFullAddr);
@@ -1175,8 +1179,9 @@ export default function ProfileScreen() {
         // הכתובת המדויקת וההערות יושבות במסמך משנה פרטי — ראה lib/bookingDetails.
         // המיזוג נעשה כאן, במקום שבו ההזמנות נטענות, כדי שכל מסך תצוגה ימשיך
         // לקרוא b.address בדיוק כמו קודם.
+        const myClientSeq = ++detailsSeqRef.current.client;
         withBookingDetails(docs as any)
-          .then(rows => setBookings(rows as any))
+          .then(rows => { if (myClientSeq === detailsSeqRef.current.client) setBookings(rows as any); })
           .catch(err => logError('profile:clientDetails', err));
         // עבודות שפורסמו לפני הפיצול עדיין נושאות את הכתובת על מסמך הלוח. רק
         // הלקוח שמחזיק בהן יכול להעביר אותן, אז המסך שלו עושה את זה בשקט.
@@ -1193,8 +1198,9 @@ export default function ProfileScreen() {
         docs.sort((a: any, b: any) => (b.createdAt || '').localeCompare(a.createdAt || ''));
         setIncomingBks(docs);
         // אותו מיזוג בצד המנקה: ברגע שהעבודה שלה, הכתובת נטענת אליה.
+        const myCleanerSeq = ++detailsSeqRef.current.cleaner;
         withBookingDetails(docs as any)
-          .then(rows => setIncomingBks(rows as any))
+          .then(rows => { if (myCleanerSeq === detailsSeqRef.current.cleaner) setIncomingBks(rows as any); })
           .catch(err => logError('profile:cleanerDetails', err));
       },
       (err) => logError('profile:cleanerBookings', err),
@@ -1625,7 +1631,7 @@ export default function ProfileScreen() {
         lastMessageAt: new Date().toISOString(),
         lastSenderUid: uid,
         participantNames: { [uid]: userName, [chatClientUid]: chatClientName },
-        unreadBy: arrayUnion(chatClientUid),
+        unreadBy: arrayUnion(chatClientUid), deletedFor: [],
       }, { merge: true });
       // push notification ללקוח
       try {
@@ -1677,7 +1683,7 @@ export default function ProfileScreen() {
         lastMessageAt: new Date().toISOString(),
         lastSenderUid: uid,
         participantNames: { [uid]: userName, [chatClientUid]: chatClientName },
-        unreadBy: arrayUnion(chatClientUid),
+        unreadBy: arrayUnion(chatClientUid), deletedFor: [],
       }, { merge: true });
     } catch (err: any) {
       Alert.alert(t.imageSendError, err?.message || t.error);
@@ -1730,7 +1736,7 @@ export default function ProfileScreen() {
         lastMessage: t.chatVoiceMsg,
         lastMessageAt: new Date().toISOString(),
         lastSenderUid: uid,
-        unreadBy: arrayUnion(chatClientUid),
+        unreadBy: arrayUnion(chatClientUid), deletedFor: [],
       }, { merge: true });
     } catch (_) { Alert.alert(t.error, t.audioSendError); }
   };
@@ -1824,6 +1830,10 @@ export default function ProfileScreen() {
         const pricePerHour = b.hours > 0 ? b.total / b.hours : 0;
         actualTotal       = Math.round(pricePerHour * diffHours);
       }
+      // בתוך התקרה ש-billingIsPlausible אוכף — פעמיים המחיר המוסכם ועוד 100.
+      // חיוב לפי זמן שעבר נתן למנקה ששכחה ללחוץ "סיום" לחרוג ממנה, ואז הכתיבה
+      // שסוגרת את העבודה נדחתה לתמיד. השעות נשארות אמיתיות; החיוב נעצר בתקרה.
+      actualTotal = Math.min(Number(actualTotal) || 0, (Number(b.total) || 0) * 2 + 100);
 
       await updateDoc(doc(db, 'bookings', b.id), {
         status: 'done', finishedAt: now, actualHours, actualTotal,
@@ -1945,20 +1955,24 @@ export default function ProfileScreen() {
           const snap = await tx.get(cleanerRef);
           if (!snap.exists()) return;
           const d = snap.data();
-          const oldCount = d.reviewCount || d.reviews || 0;
+          // אותו סדר איותים כמו priorReviewCount בחוקים. סדר אחר, או התעלמות
+          // מ-reviewsCount, נותן מונה אחר מזה שהחוק מחשב — וכל דירוג נדחה.
+          const oldCount = Number(d.reviewCount ?? d.reviewsCount ?? d.reviews ?? 0) || 0;
           const oldRating = d.rating || 0;
           const newCount = oldCount + 1;
           const newRating = Math.round(((oldRating * oldCount) + stars) / newCount * 10) / 10;
-          // כל האיותים: המובייל קורא reviewCount, הווב קורא reviewsCount.
-          // הרשימה חייבת להתאים ל-isValidRatingUpdate ב-firestore.rules.
           tx.update(cleanerRef, {
+            // ההזמנה שהדירוג שייך לה. החוקים דורשים אותה בכל עדכון דירוג, והמסך
+            // הזה לא נשלח איתה — הטרנזקציה נדחתה, ה-catch הריק הסתיר את זה,
+            // ו-cleanerRating כבר נכתב להזמנה אז אי אפשר היה לדרג שוב.
+            ratedBooking: rateTarget.id,
             rating: newRating,
             reviewCount: newCount,
             reviews: newCount,
             reviewsCount: newCount,
           });
         });
-      } catch (_) {}
+      } catch (err) { logError('profile:submitRating', err); }
       setBookings(prev => prev.map(b =>
         b.id === rateTarget.id ? { ...b, cleanerRating: stars } : b
       ));
@@ -2353,7 +2367,10 @@ export default function ProfileScreen() {
         await runTransaction(db, async (tx) => {
           const fresh = await tx.get(reqRef);
           if (!fresh.exists() || fresh.data()?.status !== 'open') throw new Error('TAKEN');
-          tx.update(reqRef, { status: 'taken', takenByUid: uid, takenByName: cleanerName, takenAt: new Date().toISOString() });
+          // takenBy וגם takenByUid. החוק דורש את שניהם מאז 704cb3f, והאפליקציה
+          // כתבה רק את השני — כל קבלה של בקשה דחופה נדחתה והטרנזקציה כולה
+          // בוטלה. האתר כותב את שניהם, ולכן שם זה עבד.
+          tx.update(reqRef, { status: 'taken', takenBy: uid, takenByUid: uid, takenByName: cleanerName, takenAt: new Date().toISOString() });
           tx.set(bookingRef, {
             cleanerId: uid, cleanerName,
             clientUid: req.clientUid, clientName: req.clientName,

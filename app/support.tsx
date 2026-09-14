@@ -45,7 +45,10 @@ interface Message {
 
 interface BotContext {
   userName: string;
-  role: 'client' | 'cleaner';
+  // null = not known yet. It defaulted to 'client', so a cleaner whose profile
+  // read failed was answered as a client with no bookings — the exact bug the
+  // resolveRole change was meant to stop, left alive in the default state.
+  role: 'client' | 'cleaner' | null;
   activeBooking: any | null;
   allBookings: any[];
   lastTopic?: string;   // זיכרון הקשר — נושא השיחה האחרון
@@ -990,7 +993,9 @@ export default function SupportScreen() {
   const [typing,    setTyping]    = useState(false);
   const [context,   setContext]   = useState<BotContext>({
     userName:      'אורח',
-    role:          'client',
+    // אורח — אין תפקיד לחכות לו, והוא נענה כמו קודם. מחושב כאן ולא ב-effect:
+    // setState סינכרוני בתוך effect הוא בדיוק מה שכללי הקומפיילר אוסרים.
+    role:          auth.currentUser ? null : 'client',
     activeBooking:  null,
     allBookings:   [],
   });
@@ -1147,6 +1152,11 @@ export default function SupportScreen() {
     setTimeout(() => {
       setTyping(false);
       const ctx = contextRef.current;
+      if (!ctx.role) {
+        // עדיין לא ידוע אם זו מנקה או לקוח. עונים את זה, לא מנחשים.
+        pushBotMessage('הפרופיל עדיין נטען. נסה שוב בעוד רגע.');
+        return;
+      }
       const response = getBotResponse(trimmed, ctx);
       // שמור את נושא השיחה לזיכרון הקשר (לשאלות המשך)
       if (contextRef.current) contextRef.current.lastTopic = response.topic;

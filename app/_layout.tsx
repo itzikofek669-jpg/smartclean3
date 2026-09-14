@@ -4,12 +4,13 @@ import { Stack, useRouter, useSegments } from 'expo-router';
 import { onAuthStateChanged, signOut } from 'firebase/auth';
 import * as Notifications from 'expo-notifications';
 import Constants from 'expo-constants';
-import { doc, getDoc, updateDoc, collection, query, where, onSnapshot } from 'firebase/firestore';
+import { doc, getDoc, updateDoc, collection, query, where, onSnapshot, runTransaction } from 'firebase/firestore';
 import { auth, db } from '../lib/firebase';
 import { getActiveChat } from '../lib/chatPresence';
 import { logError } from '../lib/logError';
 import { loadDemoMode } from '../lib/demoMode';
 import { loadDiagnostics, diagnosticsEnabled, record } from '../lib/diagnostics';
+import { fetchBookingDetails } from '../lib/bookingDetails';
 import { primeCalendarPermission, addBookingToCalendar, removeBookingFromCalendar, calendarSyncMessage, hasWarnedCalendar, markCalendarWarned } from '../lib/calendarSync';
 // Imported for its side effect as well as the helper: the background task is
 // defined at module scope there, and a cold start triggered by a push must find
@@ -72,7 +73,7 @@ if (Platform.OS === 'android') {
 }
 
 // ── רישום push token ושמירה ב-Firestore ──────────────────────────────────────
-async function registerPushToken(uid: string) {
+async function registerPushToken(uid: string, waitedForProfile = false) {
   // Remote push tokens don't work in Expo Go (SDK 53+) — skip to avoid the error.
   if (Constants.appOwnership === 'expo') return;
   try {
@@ -84,6 +85,22 @@ async function registerPushToken(uid: string) {
     // state once on mount it still showed "off". There was no way to turn
     // notifications off from inside the app at all.
     const meSnap = await getDoc(doc(db, 'users', uid)).catch(() => null);
+
+    // A brand-new account: auth fires the moment the account exists, but
+    // registration writes the profile document only after the avatar upload.
+    // The token write below is an update, so it failed "not found" — logged,
+    // never retried, because this now runs once per account rather than on
+    // every navigation. New cleners with photos were the most exposed, and they
+    // are the ones who need urgent-job pushes. Wait for the document once.
+    if (meSnap && !meSnap.exists() && !waitedForProfile) {
+      await new Promise<void>((resolve) => {
+        let done = false;
+        const finish = () => { if (!done) { done = true; off(); clearTimeout(timer); resolve(); } };
+        const off = onSnapshot(doc(db, 'users', uid), (s) => { if (s.exists()) finish(); }, finish);
+        const timer = setTimeout(finish, 120_000);
+      });
+      return registerPushToken(uid, true);
+    }
     if (meSnap?.exists() && meSnap.data()?.pushOptOut === true) {
       // The calendar task is independent of whether this device wants push
       // ALERTS: it consumes silent data messages. Registering it here means a
@@ -117,7 +134,17 @@ async function registerPushToken(uid: string) {
     const token = tokenData?.data;
     if (!token) { record('push:noToken', { projectId }); return; }
 
-    await updateDoc(doc(db, 'users', uid), { pushToken: token });
+    // Written in a transaction that re-reads the opt-out. The flag was read
+    // above, then getExpoPushTokenAsync took its time — and "notifications off"
+    // from another device landing in that gap left { pushOptOut: true,
+    // pushToken: <live token> }. Every sender reads only pushToken, so pushes
+    // kept coming while the toggle said off.
+    await runTransaction(db, async (tx) => {
+      const ref = doc(db, 'users', uid);
+      const cur = await tx.get(ref);
+      if (!cur.exists() || cur.data()?.pushOptOut === true) return;
+      tx.update(ref, { pushToken: token });
+    });
     record('push:registered', { token: token.slice(0, 24) + '…' });
 
     // Only once a token exists: the background task has nothing to receive
@@ -275,7 +302,12 @@ export default function RootLayout() {
 
     const sync = (b: any, role: 'client' | 'cleaner') => {
       if (b?.status === 'confirmed') {
-        addBookingToCalendar(b, { role })
+        // The private half first. This listener reads raw bookings, which since
+        // the address split carry no street; and addBookingToCalendar dedupes
+        // per booking, so an event created without a location is the one that
+        // stays — on both the client's and the cleaner's device.
+        (b.address ? Promise.resolve(b) : fetchBookingDetails(b.id).then(d => ({ ...b, ...d })))
+          .then(full => addBookingToCalendar(full, { role }))
           .then(async res => {
             // Every outcome, not just the two that used to be logged. The
             // silent ones — already-synced above all — are exactly the
