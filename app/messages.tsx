@@ -709,9 +709,45 @@ function InlineChatModal({ chatId, otherUid, otherName, visible, onClose }: any)
           <View style={{ borderTopWidth: 1.5, borderTopColor: '#FED7AA', backgroundColor: '#FFF7ED', paddingHorizontal: 12, paddingTop: 8, paddingBottom: insets.bottom + 8, gap: 8 }}>
             <T style={{ fontSize: 13, fontWeight: '900', color: '#92400E', textAlign: 'center' }}>
               📥 {(t as any).pendingApprovalBar ?? 'הזמנה ממתינה לאישורך'}
-              {pendingBooking.bookingDate ? ` · ${pendingBooking.bookingDate}` : ''}
-              {pendingBooking.startTime ? ` ${pendingBooking.startTime}` : ''}
             </T>
+            {/* The whole job, in the chat, above the two buttons. This bar used to
+                show a date and nothing else — the cleaner had to leave the chat to
+                see where, how long, for how much, and what the client wrote, which
+                is the entire basis for approving or rejecting. Same fields as the
+                approval modal on the profile screen. */}
+            {(() => {
+              const b = pendingBooking;
+              const svc = (Array.isArray(b.serviceTypes) && b.serviceTypes.length
+                ? b.serviceTypes
+                : (b.serviceType ? String(b.serviceType).split(' + ') : []))
+                .map((st: string) => (t as any).types?.[st] || st).join(', ');
+              const pay = b.payment === 'bit' ? t.payBit
+                : b.payment === 'cash' ? t.payCash
+                : b.payment === 'paybox' ? t.payPaybox
+                : b.payment === 'bank' ? t.payBank
+                : b.payment === 'card' ? (t as any).payCard
+                : b.payment;
+              const PAY_ICON: Record<string, string> = { bit: '📱', cash: '💵', paybox: '🅿️', bank: '🏦' };
+              return (
+                <View style={{ backgroundColor: '#fff', borderRadius: 12, borderWidth: 1, borderColor: '#FED7AA', padding: 10, gap: 3 }}>
+                  <View style={{ flexDirection: 'row-reverse', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <T style={{ fontSize: 14, fontWeight: '900', color: '#1C1917' }}>👤 {b.clientName || '—'}</T>
+                    <T style={{ fontSize: 15, fontWeight: '900', color: '#1D4ED8' }}>₪{b.total ?? '—'}</T>
+                  </View>
+                  {!!svc && <T style={{ fontSize: 13, color: '#1C1917', textAlign: 'right' }}>🧽 {svc}</T>}
+                  <T style={{ fontSize: 13, color: '#44403C', textAlign: 'right' }}>
+                    📅 {b.bookingDate || '—'}  🕐 {b.startTime || '--:--'}  ⏱️ {b.hours ?? '—'} {t.hoursUnit}
+                  </T>
+                  <T style={{ fontSize: 13, color: '#1C1917', textAlign: 'right' }} numberOfLines={2}>
+                    📍 {b.address || b.addrCity || '—'}
+                  </T>
+                  {!!pay && <T style={{ fontSize: 13, color: '#44403C', textAlign: 'right' }}>{PAY_ICON[b.payment] || '💳'} {pay}</T>}
+                  {!!b.notes && (
+                    <T style={{ fontSize: 13, color: '#44403C', textAlign: 'right' }} numberOfLines={3}>📝 {b.notes}</T>
+                  )}
+                </View>
+              );
+            })()}
             <View style={{ flexDirection: 'row', gap: 10 }}>
               <TouchableOpacity
                 disabled={deciding}
