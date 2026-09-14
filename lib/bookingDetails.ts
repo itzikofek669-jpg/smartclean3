@@ -1,7 +1,8 @@
 import { doc, getDoc, setDoc, updateDoc, deleteField } from 'firebase/firestore';
 import { db } from './firebase';
 import { logError } from './logError';
-import { cityNameOf } from './jobUtils';
+import { CITY_COORDS } from './jobUtils';
+import { cityFromAddress } from './cityFromAddress';
 
 /**
  * The part of a booking that says where the client actually lives.
@@ -149,7 +150,7 @@ export async function migrateOpenJobDetails(b: {
     // with no address at all if the second write failed.
     await updateDoc(doc(db, 'bookings', b.id), {
       // addrCity held a full saved address on jobs posted from a pre-filled form.
-      addrCity: cityNameOf({ city: b.addrCity ?? b.address ?? '' }),
+      addrCity: cityFromAddress(b.addrCity || '', CITY_COORDS) || cityFromAddress(b.address || '', CITY_COORDS),
       address: deleteField(),
       addrStreet: deleteField(),
       addrFloor: deleteField(),

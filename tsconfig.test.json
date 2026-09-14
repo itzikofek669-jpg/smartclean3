@@ -18,6 +18,7 @@
     "lib/urgentRequest.ts",
     "lib/bookingActions.ts",
     "lib/bookingOrigin.ts",
-    "lib/mapStyle.ts"
+    "lib/mapStyle.ts",
+    "lib/cityFromAddress.ts"
   ]
 }

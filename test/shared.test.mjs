@@ -74,6 +74,7 @@ const CLOSE = '*' + '/';
 const SHARED_PAIRS = [
   ['lib/verifyRule.ts',    'src/lib/verifyRule.ts'],
   ['lib/displayOrder.ts',  'src/lib/displayOrder.ts'],
+  ['lib/cityFromAddress.ts', 'src/lib/cityFromAddress.ts'],
   ['lib/urgentRequest.ts', 'src/lib/urgentRequest.ts'],
   ['lib/cleanerTraits.ts', 'src/lib/cleanerTraits.ts'],
   ['lib/bookingSlot.ts',   'src/lib/bookingSlot.ts'],

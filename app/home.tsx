@@ -32,6 +32,7 @@ import { useAvatar } from '../lib/useAvatar';
 import { fetchPortfolio } from '../lib/portfolio';
 import { demoCleanersEnabled } from '../lib/demoMode';
 import { canRepost } from '../lib/bookingOrigin';
+import { cityFromAddress } from '../lib/cityFromAddress';
 import {
   LANGUAGE_FLAGS, groupConsecutiveDays, normalizeLanguages, workDaysFromAvailability,
 } from '../lib/cleanerTraits';
@@ -1744,8 +1745,9 @@ function PostJobModal({ visible, onClose, onPosted }: { visible: boolean; onClos
         serviceTypes: types, serviceType: types.join(' + '),
         hours, isPrivateHouse: isPrivate,
         // העיר בלבד. השדה הזה יושב על מסמך הלוח הציבורי, והקלט ממולא מראש
-        // מכתובת שמורה מלאה — רחוב, קומה, דירה. cityNameOf מוצא עיר מוכרת.
-        addrCity: cityNameOf({ city: city.trim() }),
+        // מכתובת שמורה מלאה — רחוב, עיר, קומה, דירה. ראה lib/cityFromAddress:
+        // "שדרות ירושלים 5, חריש" פורסם בירושלים, והמנקות בחריש לא ראו אותו.
+        addrCity: cityFromAddress(city, CITY_COORDS),
         pricePerHour: budget ? Number(budget) : null,
         total: budget ? Number(budget) * hours : null,
         photos,
@@ -4313,7 +4315,9 @@ export default function HomeScreen() {
         serviceTypes: types, serviceType: types.join(' + '),
         bookingDate: dateStr, startTime, hours: b?.hours || 2,
         isPrivateHouse: !!b?.addrPrivate,
-        addrCity: b?.addrCity || String(b?.address || '').split(',').map((x: string) => x.trim()).filter(Boolean).pop() || '',
+        // כמו באתר (lib/postJob): העיר מהשדה, ואם אין — מהכתובת. החלק האחרון של
+        // כתובת מלאה הוא מספר הדירה, והוא נכתב כאן למסמך ציבורי בתור "עיר".
+        addrCity: cityFromAddress(b?.addrCity || '', CITY_COORDS) || cityFromAddress(b?.address || '', CITY_COORDS),
         payment: b?.payment || 'cash', paymentStatus: `awaiting_${b?.payment || 'cash'}`,
         total: b?.total || 0, pricePerHour: b?.pricePerHour || 0,
         origin: 'open',
@@ -5196,9 +5200,41 @@ export default function HomeScreen() {
     //
     // The order never mattered — every document is handled independently — so
     // dropping it is the fix, not adding an index to maintain.
+    // A cancellation that happened while the app was closed never got its
+    // popup: the first snapshot marks everything already there as seen. The
+    // client came back to a cancelled job with no word about it and no way to
+    // repost it, because this popup is the app's only repost button. Now it is
+    // shown once per device, newest first, while the slot is still ahead.
+    const SEEN_CANCELLED_KEY = `seen_cancelled_${uid}`;
+    const readSeenCancelled = async (): Promise<string[]> => {
+      try { const raw = await SecureStore.getItemAsync(SEEN_CANCELLED_KEY); return raw ? JSON.parse(raw) : []; }
+      catch { return []; }
+    };
+    const rememberCancelled = (id: string) => {
+      readSeenCancelled()
+        .then(ids => (ids.includes(id) ? undefined
+          : SecureStore.setItemAsync(SEEN_CANCELLED_KEY, JSON.stringify([...ids, id].slice(-200)))))
+        .catch(() => {});
+    };
+    const announceMissedCancellation = (rows: any[]) => {
+      readSeenCancelled().then(seen => {
+        const now = Date.now();
+        const next = rows
+          .filter(b => !seen.includes(b.id))
+          .filter(b => {
+            const when = new Date(`${b.bookingDate || ''}T${b.startTime || ''}`).getTime();
+            return !isNaN(when) && when > now;
+          })
+          .sort((a, b) => String(b.cancelledAt || '').localeCompare(String(a.cancelledAt || '')))[0];
+        if (!next) return;
+        setCancelledPopup(next);
+        rememberCancelled(next.id);
+      }).catch(() => {});
+    };
     const q = query(collection(db, 'bookings'), where('clientUid', '==', uid));
     let initialLoad = true;
     const unsub = onSnapshot(q, snap => {
+      const missed: any[] = [];
       snap.docs.forEach(d => {
         const data = d.data();
         // Calendar sync is NOT done here any more — it lives in _layout.tsx, so
@@ -5209,7 +5245,10 @@ export default function HomeScreen() {
         // אחרת כל אישור/ביטול ישן היה קופץ מחדש בכל פתיחת מסך.
         if (initialLoad) {
           if (data.status === 'confirmed') seenConfirmedRef.current.add(d.id);
-          if (data.status === 'cancelled') seenCancelledRef.current.add(d.id);
+          if (data.status === 'cancelled') {
+            seenCancelledRef.current.add(d.id);
+            if (data.cancelledBy === 'cleaner') missed.push({ id: d.id, ...data });
+          }
           return;
         }
         // זיהוי מעבר חדש ל-confirmed
@@ -5225,8 +5264,10 @@ export default function HomeScreen() {
             && !seenCancelledRef.current.has(d.id)) {
           seenCancelledRef.current.add(d.id);
           setCancelledPopup({ id: d.id, ...data });
+          rememberCancelled(d.id);
         }
       });
+      if (initialLoad && missed.length) announceMissedCancellation(missed);
       initialLoad = false;
     }, err => {
       // Was `() => {}`. That empty handler is what let a missing index hide:

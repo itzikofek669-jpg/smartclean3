@@ -7,6 +7,7 @@ const bookingSlotUrl = new URL('../.tsbuild/bookingSlot.mjs', import.meta.url).h
 import { resolveRole } from '../.tsbuild/resolveRole.mjs';
 import { mustVerifyEmail, VERIFY_REQUIRED_FROM } from '../.tsbuild/verifyRule.mjs';
 import { isAvailableNow, compareJobs } from '../.tsbuild/displayOrder.mjs';
+import { cityFromAddress } from '../.tsbuild/cityFromAddress.mjs';
 import { startDateOf, endDateOf, bookingHours, DEFAULT_BOOKING_HOURS } from '../.tsbuild/bookingSlot.mjs';
 import { readCalendarRemoval, extractPushData } from '../.tsbuild/calendarPush.mjs';
 import { isUrgentRequestLive, isUrgentRequestExpired, expiryOf } from '../.tsbuild/urgentRequest.mjs';
@@ -724,4 +725,23 @@ test('a real job is never ranked below a demo card', () => {
   assert.deepEqual(sorted.slice(0, 2).map((j) => j.id), ['b_near', 'b_far'],
     'real jobs first, and nearer before farther among them');
   assert.ok(sorted.slice(2).every((j) => j.demo), 'every demo card after the real work');
+});
+
+test('a board job is placed in its own city, not one its street is named after', () => {
+  // The bug: the longest city name anywhere in a saved address won, so a job on
+  // שדרות ירושלים in חריש was posted in ירושלים, 77 km off — out of range for
+  // every cleaner in חריש and missing from a search for it. With no known city
+  // the public field got the flat number (the app) or the street (the web).
+  const known = { 'חריש': {}, 'ירושלים': {}, 'תל אביב': {}, 'נתניה': {} };
+  const cases = [
+    ['שדרות ירושלים 5, חריש, קומה 2, דירה 3', 'חריש'],
+    ['רחוב תל אביב 12, נתניה', 'נתניה'],
+    ['הרצל 10, חריש', 'חריש'],
+    ['חריש', 'חריש'],
+    ['העיר חריש', 'חריש'],
+    ['הגפן 3, מושב גן יאשיה, בית פרטי', 'מושב גן יאשיה'],
+    ['הגפן 3, קומה 1, דירה 4', ''],
+    ['', ''],
+  ];
+  for (const [address, city] of cases) assert.equal(cityFromAddress(address, known), city, address);
 });

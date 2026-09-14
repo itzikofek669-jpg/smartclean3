@@ -1,4 +1,5 @@
 import { bookingHours } from './bookingSlot';
+import { cityFromAddress } from './cityFromAddress';
 /**
  * Pure helpers shared by the app's screens — geography, job time windows and
  * small text utilities.
@@ -189,10 +190,11 @@ export function getJobCoords(j: any): { lat: number; lng: number } | null {
   if (typeof j?.lat === 'number' && typeof j?.lng === 'number' && !isNaN(j.lat) && !isNaN(j.lng)) {
     return { lat: j.lat, lng: j.lng };
   }
-  const hay = `${j?.addrCity || ''} ${j?.city || ''} ${j?.address || ''}`.trim();
-  if (!hay) return null;
-  for (const key of CITY_KEYS_BY_LEN) {
-    if (hay.includes(key)) return CITY_COORDS[key];
+  // העיר נקראת כמו שהיא נכתבת — ראה lib/cityFromAddress. כל שם עיר שהופיע
+  // בשלושת השדות יחד הספיק, כך שעבודה ברחוב שנקרא על שם עיר אחרת נמדדה משם.
+  for (const field of [j?.addrCity, j?.city, j?.address]) {
+    const city = cityFromAddress(String(field || ''), CITY_COORDS);
+    if (city && CITY_COORDS[city]) return CITY_COORDS[city];
   }
   return null;
 }
