@@ -6,7 +6,7 @@ const bookingActionsUrl = new URL('../.tsbuild/bookingActions.mjs', import.meta.
 const bookingSlotUrl = new URL('../.tsbuild/bookingSlot.mjs', import.meta.url).href;
 import { resolveRole } from '../.tsbuild/resolveRole.mjs';
 import { mustVerifyEmail, VERIFY_REQUIRED_FROM } from '../.tsbuild/verifyRule.mjs';
-import { isAvailableNow } from '../.tsbuild/displayOrder.mjs';
+import { isAvailableNow, compareJobs } from '../.tsbuild/displayOrder.mjs';
 import { startDateOf, endDateOf, bookingHours, DEFAULT_BOOKING_HOURS } from '../.tsbuild/bookingSlot.mjs';
 import { readCalendarRemoval, extractPushData } from '../.tsbuild/calendarPush.mjs';
 import { isUrgentRequestLive, isUrgentRequestExpired, expiryOf } from '../.tsbuild/urgentRequest.mjs';
@@ -710,4 +710,18 @@ test('the light map is Google\'s own map, not a restyle of it', async () => {
       assert.equal(styler.visibility, 'on', `${JSON.stringify(rule)} hides part of the map`);
     }
   }
+});
+
+test('a real job is never ranked below a demo card', () => {
+  // The bug: both boards pad a quiet area with invented jobs, 26 on the web and
+  // 6 in the app even with demo mode off, and ranked them against real posts on
+  // distance and rotation alone. A job a client had just reposted landed among
+  // them, and the cleaner looking for it scrolled past cards that do not exist.
+  const demos = Array.from({ length: 26 }, (_, i) => ({ id: `bot_${i}`, distKm: i % 5, demo: true }));
+  const far = { id: 'b_far', distKm: 29 };
+  const near = { id: 'b_near', distKm: 2 };
+  const sorted = [...demos, far, near].sort(compareJobs);
+  assert.deepEqual(sorted.slice(0, 2).map((j) => j.id), ['b_near', 'b_far'],
+    'real jobs first, and nearer before farther among them');
+  assert.ok(sorted.slice(2).every((j) => j.demo), 'every demo card after the real work');
 });

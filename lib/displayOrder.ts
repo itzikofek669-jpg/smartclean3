@@ -73,6 +73,8 @@ export interface OrderableCleaner {
 export interface OrderableJob {
   id: string;
   distKm?: number | null;
+  /** An invented job the board adds so a quiet area still shows its shape. */
+  demo?: boolean;
 }
 
 /**
@@ -93,7 +95,13 @@ export function compareCleaners(a: OrderableCleaner, b: OrderableCleaner): numbe
 }
 
 /**
- * Distance band, then rotation.
+ * Real work first, then distance band, then rotation.
+ *
+ * Real before demo, whatever the distance. Both boards pad a quiet area with
+ * invented jobs — 26 on the web and 6 in the app, even with demo mode off — and
+ * used to rank them against real posts on distance and rotation alone. A job a
+ * client had just posted landed somewhere among them, and a cleaner looking for
+ * it scrolled past cards that do not exist without ever reaching it.
  *
  * Newest-first used to break the tie, which meant a job that went unclaimed for
  * a day sank under every later post and stayed there. Every job in the band is
@@ -101,6 +109,8 @@ export function compareCleaners(a: OrderableCleaner, b: OrderableCleaner): numbe
  * to gain by ranking them against each other on age.
  */
 export function compareJobs(a: OrderableJob, b: OrderableJob): number {
+  const byReal = Number(!!a.demo) - Number(!!b.demo);
+  if (byReal) return byReal;
   const byDistance = distanceBand(a.distKm) - distanceBand(b.distKm);
   if (byDistance) return byDistance;
   return rotationRank(a.id) - rotationRank(b.id);

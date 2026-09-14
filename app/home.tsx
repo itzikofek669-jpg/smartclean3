@@ -5041,9 +5041,10 @@ export default function HomeScreen() {
     // רצועת מרחק ואז רוטציה — ראה lib/displayOrder. מיון לפי מרחק מדויק ואז
     // לפי זמן השאיר את אותן עבודות בראש הלוח של כל מנקה כל היום, ועבודה שלא
     // נתפסה שקעה עוד ועוד עם כל פרסום חדש.
+    // ועבודה אמיתית תמיד מעל כרטיסי הדמה, בלי קשר למרחק — ראה compareJobs.
     return jobs.sort((a, b) => compareJobs(
-      { id: String(a._id), distKm: a._distKm },
-      { id: String(b._id), distKm: b._distKm },
+      { id: String(a._id), distKm: a._distKm, demo: !!a._bot },
+      { id: String(b._id), distKm: b._distKm, demo: !!b._bot },
     ));
   }, [openUrgent, openBookings, botJobs, hiddenJobIds, myCleanerCoords, myMaxKm, cleanerBusy, search, t]);
 
