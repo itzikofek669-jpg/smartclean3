@@ -88,7 +88,6 @@ function InlineChatModal({ chatId, otherUid, otherName, visible, onClose }: any)
   const { t, flipSide } = useLanguage();
   const C = useAppColors();
   const cs = createCS(C);
-  const insets = useSafeAreaInsets();
   const [messages, setMessages]       = useState<any[]>([]);
   const [text, setText]               = useState('');
   const [selectedMsgs, setSelectedMsgs] = useState<Set<string>>(new Set());
@@ -706,7 +705,10 @@ function InlineChatModal({ chatId, otherUid, otherName, visible, onClose }: any)
 
         {/* ─── אישור/דחייה של הזמנה ממתינה ─── */}
         {pendingBooking && (
-          <View style={{ borderTopWidth: 1.5, borderTopColor: '#FED7AA', backgroundColor: '#FFF7ED', paddingHorizontal: 12, paddingTop: 8, paddingBottom: insets.bottom + 8, gap: 8 }}>
+          // No insets.bottom here: the screen's SafeAreaView already keeps clear
+          // of the phone's navigation bar, and adding it again left a band of
+          // empty space under the buttons.
+          <View style={{ borderTopWidth: 1.5, borderTopColor: '#FED7AA', backgroundColor: '#FFF7ED', paddingHorizontal: 12, paddingTop: 6, paddingBottom: 6, gap: 6 }}>
             <T style={{ fontSize: 13, fontWeight: '900', color: '#92400E', textAlign: 'center' }}>
               📥 {(t as any).pendingApprovalBar ?? 'הזמנה ממתינה לאישורך'}
             </T>
@@ -729,21 +731,20 @@ function InlineChatModal({ chatId, otherUid, otherName, visible, onClose }: any)
                 : b.payment;
               const PAY_ICON: Record<string, string> = { bit: '📱', cash: '💵', paybox: '🅿️', bank: '🏦' };
               return (
-                <View style={{ backgroundColor: '#fff', borderRadius: 12, borderWidth: 1, borderColor: '#FED7AA', padding: 10, gap: 3 }}>
+                <View style={{ backgroundColor: '#fff', borderRadius: 12, borderWidth: 1, borderColor: '#FED7AA', paddingHorizontal: 10, paddingVertical: 6, gap: 1 }}>
                   <View style={{ flexDirection: 'row-reverse', justifyContent: 'space-between', alignItems: 'center' }}>
                     <T style={{ fontSize: 14, fontWeight: '900', color: '#1C1917' }}>👤 {b.clientName || '—'}</T>
                     <T style={{ fontSize: 15, fontWeight: '900', color: '#1D4ED8' }}>₪{b.total ?? '—'}</T>
                   </View>
                   {!!svc && <T style={{ fontSize: 13, color: '#1C1917', textAlign: 'right' }}>🧽 {svc}</T>}
                   <T style={{ fontSize: 13, color: '#44403C', textAlign: 'right' }}>
-                    📅 {b.bookingDate || '—'}  🕐 {b.startTime || '--:--'}  ⏱️ {b.hours ?? '—'} {t.hoursUnit}
+                    📅 {b.bookingDate || '—'}  🕐 {b.startTime || '--:--'}  ⏱️ {b.hours ?? '—'} {t.hoursUnit}{pay ? `  ${PAY_ICON[b.payment] || '💳'} ${pay}` : ''}
                   </T>
                   <T style={{ fontSize: 13, color: '#1C1917', textAlign: 'right' }} numberOfLines={2}>
                     📍 {b.address || b.addrCity || '—'}
                   </T>
-                  {!!pay && <T style={{ fontSize: 13, color: '#44403C', textAlign: 'right' }}>{PAY_ICON[b.payment] || '💳'} {pay}</T>}
                   {!!b.notes && (
-                    <T style={{ fontSize: 13, color: '#44403C', textAlign: 'right' }} numberOfLines={3}>📝 {b.notes}</T>
+                    <T style={{ fontSize: 13, color: '#44403C', textAlign: 'right' }} numberOfLines={2}>📝 {b.notes}</T>
                   )}
                 </View>
               );
@@ -753,16 +754,16 @@ function InlineChatModal({ chatId, otherUid, otherName, visible, onClose }: any)
                 disabled={deciding}
                 accessibilityRole="button"
                 accessibilityLabel={t.approveBookingBtn}
-                style={{ flex: 1, backgroundColor: deciding ? '#9CA3AF' : '#16A34A', borderRadius: 14, paddingVertical: 13, alignItems: 'center' }}
+                style={{ flex: 1, backgroundColor: deciding ? '#9CA3AF' : '#16A34A', borderRadius: 12, paddingVertical: 9, alignItems: 'center' }}
                 onPress={() => decide(true)}
               >
-                <T style={{ fontSize: 15, fontWeight: '900', color: '#fff' }}>{t.approveBookingBtn}</T>
+                <T style={{ fontSize: 14, fontWeight: '900', color: '#fff' }}>{t.approveBookingBtn}</T>
               </TouchableOpacity>
               <TouchableOpacity
                 disabled={deciding}
                 accessibilityRole="button"
                 accessibilityLabel={t.rejectBtn}
-                style={{ flex: 1, backgroundColor: '#FEE2E2', borderRadius: 14, paddingVertical: 13, alignItems: 'center', borderWidth: 1.5, borderColor: '#FCA5A5', opacity: deciding ? 0.6 : 1 }}
+                style={{ flex: 1, backgroundColor: '#FEE2E2', borderRadius: 12, paddingVertical: 9, alignItems: 'center', borderWidth: 1.5, borderColor: '#FCA5A5', opacity: deciding ? 0.6 : 1 }}
                 onPress={() => {
                   // עבודה מהלוח חוזרת ללוח ולא נמחקת — ההודעה אומרת מה יקרה.
                   const backToBoard = rejectionReleasesToBoard(pendingBooking);
@@ -778,7 +779,7 @@ function InlineChatModal({ chatId, otherUid, otherName, visible, onClose }: any)
                   );
                 }}
               >
-                <T style={{ fontSize: 15, fontWeight: '900', color: '#EF4444' }}>{t.rejectBtn}</T>
+                <T style={{ fontSize: 14, fontWeight: '900', color: '#EF4444' }}>{t.rejectBtn}</T>
               </TouchableOpacity>
             </View>
           </View>

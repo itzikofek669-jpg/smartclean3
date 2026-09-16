@@ -4243,7 +4243,13 @@ export default function HomeScreen() {
             setUrgentWaiting(false);
             unsub();
             if (urgentUnsubRef.current === unsub) urgentUnsubRef.current = null;
-            Alert.alert('🎉 ' + t.urgentFoundMsg, d.takenByName || '');
+            // No Alert here. A cleaner taking the request in this app confirms the
+            // booking in the same transaction, so the client got the "booking
+            // confirmed" popup and then a second "cleaner found!" popup on top of
+            // it, after the job was already approved. Taken on the website, the
+            // booking is still pending, and "found" was premature. The confirmed
+            // popup is the one announcement; the card above shows the name while
+            // this screen is open.
           } else if (d?.status === 'expired' || d?.status === 'cancelled') {
             setUrgentWaiting(false);
             setUrgentRequestId(null);
