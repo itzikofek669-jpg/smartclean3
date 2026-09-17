@@ -519,10 +519,9 @@ function InlineChatModal({ chatId, otherUid, otherName, visible, onClose }: any)
               // עדכן lastMessage אם נמחקה האחרונה
               const remaining = messages.filter(m => !selectedMsgs.has(m.id));
               const last = remaining[remaining.length - 1];
-              await updateDoc(doc(db, 'chats', chatId), {
-                lastMessage: last?.text || '',
-                lastMessageAt: last?.createdAt || '',
-              });
+              // התצוגה המקדימה בלבד. החזרת lastMessageAt אחורה נקראה אצל הצד השני
+              // כחותמת שהשתנתה בשיחה לא נקראה — התראת "הודעה חדשה" על מחיקה.
+              await updateDoc(doc(db, 'chats', chatId), { lastMessage: last?.text || '' });
             } catch (_) {}
             setDeleting(false);
             cancelSelection();
@@ -841,7 +840,11 @@ export default function MessagesScreen() {
       where('participants', 'array-contains', uid),
     );
     const nameCache: Record<string, string> = {};
+    // Name lookups are awaited, so an older snapshot could finish after a newer
+    // one and put yesterday's last messages back on screen.
+    let seq = 0;
     const unsub = onSnapshot(q, async snap => {
+      const my = ++seq;
       const convs = snap.docs.filter(d => {
         // מה שהמשתמש הזה הסתיר. הסינון לכל קורא בנפרד — מסמך השיחה משותף.
         const hidden = (d.data()?.deletedFor || []) as string[];
@@ -872,6 +875,7 @@ export default function MessagesScreen() {
         } catch (_) {}
       }));
       convs.forEach(c => { if (!c.otherName) c.otherName = '?'; });
+      if (my !== seq) return;
       setConversations(convs);
       setLoading(false);
     }, () => setLoading(false));

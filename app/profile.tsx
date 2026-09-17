@@ -2165,8 +2165,10 @@ export default function ProfileScreen() {
         const pushBody  = dateChanged
           ? `${userName} אישר עם שינוי זמן: ${dateLabel} ב-${timeLabel}`
           : `${userName} אישר את ההזמנה שלך — ${dateLabel} ב-${timeLabel}`;
-        // בהזמנה דחופה הלקוח כבר קיבל פוש "נמצא מנקה" בקבלה — לא שולחים פוש אישור כפול
-        if (token && b.source !== 'urgent') {
+        // לא שולחים פוש אישור כפול רק כשהלקיחה והאישור הם אותה פעולה כאן
+        // (claimAndConfirmUrgent שולח "נמצא מנקה"). בקשה דחופה שנלקחה באתר ממתינה
+        // לאישור, ובלי הפוש הזה הלקוח לא שמע דבר כשהמנקה אישרה.
+        if (token && !b.urgentUnclaimed) {
           await fetch('https://exp.host/--/api/v2/push/send', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
