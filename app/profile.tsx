@@ -60,8 +60,9 @@ import { firstError, validateName, validatePhone, validatePrice, validateAge, va
 import { claimPhone, releasePhone } from '../lib/accountChecks';
 import { isUrgentRequestLive, isUrgentRequestExpired } from '../lib/urgentRequest';
 import { rejectionUpdate, occupiesCleanerTime, awaitsMyApproval, rejectionReleasesToBoard, busyFieldsOf } from '../lib/bookingActions';
+import { cityFromAddress } from '../lib/cityFromAddress';
 import { bookingOrigin } from '../lib/bookingOrigin';
-import { bookingBusyWindow, windowsOverlap } from '../lib/jobUtils';
+import { bookingBusyWindow, windowsOverlap, CITY_COORDS } from '../lib/jobUtils';
 import { releaseUrgentRequest } from '../lib/urgentRelease';
 
 
@@ -1036,8 +1037,10 @@ export default function ProfileScreen() {
           const res = await Location.geocodeAsync(editCleanerAddress.trim());
           if (res && res[0]) { geoExtra.lat = res[0].latitude; geoExtra.lng = res[0].longitude; }
         } catch (_) {}
-        const parts = editCleanerAddress.trim().split(',');
-        geoExtra.city = (parts.length > 1 ? parts[parts.length - 1] : parts[0]).trim();
+        // The city, read the way every job is — the last comma part was often the
+        // flat number or the street, and discovery places a cleaner by this field.
+        const cityGuess = cityFromAddress(editCleanerAddress.trim(), CITY_COORDS);
+        if (cityGuess) geoExtra.city = cityGuess;
       }
 
       // לקוח: הרכבת כתובת מלאה (כמו בתצוגה המקדימה) — לשמירה והצגה

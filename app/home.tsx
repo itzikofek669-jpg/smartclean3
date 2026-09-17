@@ -32,7 +32,7 @@ import { resolvePhoto } from '../lib/photos';
 import { useAvatar } from '../lib/useAvatar';
 import { fetchPortfolio } from '../lib/portfolio';
 import { demoCleanersEnabled } from '../lib/demoMode';
-import { canRepost } from '../lib/bookingOrigin';
+import { canRepost, bookingOrigin } from '../lib/bookingOrigin';
 import { cityFromAddress } from '../lib/cityFromAddress';
 import {
   LANGUAGE_FLAGS, groupConsecutiveDays, normalizeLanguages, workDaysFromAvailability,
@@ -4282,6 +4282,22 @@ export default function HomeScreen() {
 
   // ── פופאפ ביטול ע"י המנקה (ללקוח) + פרסום מחדש ────────────────────────────
   const [cancelledPopup, setCancelledPopup] = useState<any>(null);
+  // Seen once dismissed, not once shown. Marking it when it appeared lost it for
+  // good if the app closed over it or a second cancellation replaced it — and
+  // this popup is the app's only repost button.
+  const markCancelledSeen = (id?: string) => {
+    const me = auth.currentUser?.uid;
+    if (!me || !id) return;
+    const key = `seen_cancelled_${me}`;
+    SecureStore.getItemAsync(key)
+      .then(raw => {
+        let ids: string[] = [];
+        try { ids = raw ? JSON.parse(raw) : []; } catch { ids = []; }
+        return ids.includes(id) ? undefined : SecureStore.setItemAsync(key, JSON.stringify([...ids, id].slice(-200)));
+      })
+      .catch(() => {});
+  };
+  const closeCancelledPopup = () => { markCancelledSeen(cancelledPopup?.id); setCancelledPopup(null); };
   const [reposting, setReposting] = useState(false);
   const seenCancelledRef = useRef<Set<string>>(new Set());
 
@@ -4303,6 +4319,7 @@ export default function HomeScreen() {
       // אם השעה כבר עברה אין טעם לפרסם — הלקוח יבחר מועד חדש בעצמו
       const when = dateStr && startTime ? new Date(`${dateStr}T${startTime}`) : null;
       if (!when || isNaN(when.getTime()) || when.getTime() <= Date.now()) {
+        markCancelledSeen(b?.id);
         setCancelledPopup(null);
         setPostJobOpen(true);   // פותח את "ניקיון בזמן שלך" לבחירת מועד חדש
         return;
@@ -4321,12 +4338,16 @@ export default function HomeScreen() {
         clientUid: uid, clientName: b?.clientName || '',
         serviceTypes: types, serviceType: types.join(' + '),
         bookingDate: dateStr, startTime, hours: b?.hours || 2,
-        isPrivateHouse: !!b?.addrPrivate,
-        // כמו באתר (lib/postJob): העיר מהשדה, ואם אין — מהכתובת. החלק האחרון של
-        // כתובת מלאה הוא מספר הדירה, והוא נכתב כאן למסמך ציבורי בתור "עיר".
-        addrCity: cityFromAddress(b?.addrCity || '', CITY_COORDS) || cityFromAddress(b?.address || '', CITY_COORDS),
+        // The job as it was. Board jobs store isPrivateHouse, not addrPrivate, so a
+        // private house came back as a flat; a job with no budget came back as ₪0;
+        // and its photos were dropped.
+        isPrivateHouse: !!(b?.isPrivateHouse ?? b?.addrPrivate),
+        // העיר מתוך הכתובת קודם, כמו באתר (lib/postJob): עבודה שפורסמה לפני התיקון
+        // שמרה עיר שגויה ("ירושלים" לרחוב שדרות ירושלים), ופרסום חוזר העתיק אותה.
+        addrCity: cityFromAddress(b?.address || '', CITY_COORDS) || cityFromAddress(b?.addrCity || '', CITY_COORDS),
         payment: b?.payment || 'cash', paymentStatus: `awaiting_${b?.payment || 'cash'}`,
-        total: b?.total || 0, pricePerHour: b?.pricePerHour || 0,
+        total: b?.total ?? null, pricePerHour: b?.pricePerHour ?? null,
+        photos: Array.isArray(b?.photos) ? b.photos : [],
         origin: 'open',
         status: 'pending', createdAt: new Date().toISOString(),
         recurring: 'once', recurringDates: [],
@@ -4340,6 +4361,7 @@ export default function HomeScreen() {
         notes: b?.notes || '',
         phone: b?.phone || '',
       });
+      markCancelledSeen(b?.id);
       setCancelledPopup(null);
       Alert.alert('✅', (t as any).repostOkMsg ?? 'ההזמנה פורסמה מחדש — מנקים באזור שלך יראו אותה');
     } catch (_) {
@@ -4762,8 +4784,11 @@ export default function HomeScreen() {
               // עבודה שאני עצמי בדיוק תפסתי אינה "הזמנה חדשה שהגיעה". היא
               // נכנסת ל-pending ברגע התפיסה, ולכן הפופ-אפ קפץ מיד אחרי הלחיצה
               // עם ההזמנה שהמנקה זה עתה לקחה.
+              // Only what a client sent her. A claim she made on the website, or the
+              // next visit of a recurring job her own "finish" created, is not news.
               const newest = [...pendingDocs]
-                .filter(b => !claimedByMeRef.current.has(b.id))
+                .filter(b => !claimedByMeRef.current.has(b.id)
+                  && bookingOrigin(b) === 'direct' && b.source !== 'auto_recurring')
                 .sort((a, b) => String(b.createdAt || '').localeCompare(String(a.createdAt || '')))[0];
               if (newest) {
                 setNewBookingId(newest.id);
@@ -5226,12 +5251,6 @@ export default function HomeScreen() {
       try { const raw = await SecureStore.getItemAsync(SEEN_CANCELLED_KEY); return raw ? JSON.parse(raw) : []; }
       catch { return []; }
     };
-    const rememberCancelled = (id: string) => {
-      readSeenCancelled()
-        .then(ids => (ids.includes(id) ? undefined
-          : SecureStore.setItemAsync(SEEN_CANCELLED_KEY, JSON.stringify([...ids, id].slice(-200)))))
-        .catch(() => {});
-    };
     const announceMissedCancellation = (rows: any[]) => {
       readSeenCancelled().then(seen => {
         const now = Date.now();
@@ -5243,14 +5262,16 @@ export default function HomeScreen() {
           })
           .sort((a, b) => String(b.cancelledAt || '').localeCompare(String(a.cancelledAt || '')))[0];
         if (!next) return;
-        setCancelledPopup(next);
-        rememberCancelled(next.id);
+        setCancelledPopup((cur: any) => cur ?? next);
       }).catch(() => {});
     };
     const q = query(collection(db, 'bookings'), where('clientUid', '==', uid));
     let initialLoad = true;
     const unsub = onSnapshot(q, snap => {
       const missed: any[] = [];
+      // Bookings the client already reposted, from here or the website, need no
+      // offer to repost them.
+      const reposted = new Set(snap.docs.map(x => (x.data() as any)?.repostedFrom).filter(Boolean));
       snap.docs.forEach(d => {
         const data = d.data();
         // Calendar sync is NOT done here any more — it lives in _layout.tsx, so
@@ -5263,7 +5284,7 @@ export default function HomeScreen() {
           if (data.status === 'confirmed') seenConfirmedRef.current.add(d.id);
           if (data.status === 'cancelled') {
             seenCancelledRef.current.add(d.id);
-            if (data.cancelledBy === 'cleaner') missed.push({ id: d.id, ...data });
+            if (data.cancelledBy === 'cleaner' && !reposted.has(d.id)) missed.push({ id: d.id, ...data });
           }
           return;
         }
@@ -5277,10 +5298,9 @@ export default function HomeScreen() {
         // ביטול ביוזמת המנקה — הלקוח נשאר בלי מנקה, אז מציגים לו את מלוא פרטי
         // ההזמנה שבוטלה ומציעים לפרסם אותה מחדש.
         if (data.status === 'cancelled' && data.cancelledBy === 'cleaner'
-            && !seenCancelledRef.current.has(d.id)) {
+            && !seenCancelledRef.current.has(d.id) && !reposted.has(d.id)) {
           seenCancelledRef.current.add(d.id);
-          setCancelledPopup({ id: d.id, ...data });
-          rememberCancelled(d.id);
+          setCancelledPopup((cur: any) => cur ?? { id: d.id, ...data });
         }
       });
       if (initialLoad && missed.length) announceMissedCancellation(missed);
@@ -5908,7 +5928,8 @@ export default function HomeScreen() {
                 const timeStr = j.startTime || '';
                 const propType = j.isPrivateHouse ? ((t as any).privateHouseLabel ?? 'בית פרטי') : ((t as any).aptBuildingLabel ?? 'דירה');
                 const rawArea = j.addrCity || j.city || j.address || '';
-                const area = CITY_KEYS_BY_LEN.find(k => rawArea.includes(k)) || rawArea;   // עיר מזוהה בלבד
+                // העיר בלבד, באותה קריאה שממנה נמדד המרחק (lib/cityFromAddress).
+                const area = cityFromAddress(rawArea, CITY_COORDS);
                 const price = j.total ?? j.maxPrice ?? j.pricePerHour ?? null;
                 const isUrgent = j._kind === 'urgent';
                 return (
@@ -6394,7 +6415,7 @@ export default function HomeScreen() {
       </Modal>
 
       {/* ── פופאפ: המנקה ביטל הזמנה מאושרת ─────────────────────────────────── */}
-      <Modal visible={!!cancelledPopup} transparent animationType="slide" onRequestClose={() => setCancelledPopup(null)}>
+      <Modal visible={!!cancelledPopup} transparent animationType="slide" onRequestClose={closeCancelledPopup}>
         <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.55)', justifyContent: 'flex-end' }}>
           <View style={{ backgroundColor: C.white, borderTopLeftRadius: 28, borderTopRightRadius: 28, padding: 28, paddingBottom: 40, alignItems: 'center', gap: 14 }}>
             <View style={{ width: 80, height: 80, borderRadius: 40, backgroundColor: '#FEE2E2', alignItems: 'center', justifyContent: 'center', borderWidth: 3, borderColor: '#DC2626' }}>
@@ -6472,7 +6493,7 @@ export default function HomeScreen() {
             )}
             <TouchableOpacity
               style={{ paddingVertical: 10, width: '100%', alignItems: 'center' }}
-              onPress={() => setCancelledPopup(null)}
+              onPress={closeCancelledPopup}
             >
               <Text style={{ fontSize: 14, color: '#9CA3AF', fontWeight: '600' }}>{t.closeBtn || 'סגור'}</Text>
             </TouchableOpacity>
