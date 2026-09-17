@@ -5267,6 +5267,8 @@ export default function HomeScreen() {
     };
     const q = query(collection(db, 'bookings'), where('clientUid', '==', uid));
     let initialLoad = true;
+    // Which bookings a cleaner was holding, so a hand-back can be told apart.
+    const lastHeld = new Map<string, boolean>();
     const unsub = onSnapshot(q, snap => {
       const missed: any[] = [];
       // Bookings the client already reposted, from here or the website, need no
@@ -5274,6 +5276,8 @@ export default function HomeScreen() {
       const reposted = new Set(snap.docs.map(x => (x.data() as any)?.repostedFrom).filter(Boolean));
       snap.docs.forEach(d => {
         const data = d.data();
+        const wasHeld = lastHeld.get(d.id) === true;
+        lastHeld.set(d.id, !!data.cleanerId && data.open !== true);
         // Calendar sync is NOT done here any more — it lives in _layout.tsx, so
         // it runs on every screen instead of only while this one is mounted.
         // This listener is now purely about the popups below.
@@ -5287,6 +5291,14 @@ export default function HomeScreen() {
             if (data.cancelledBy === 'cleaner' && !reposted.has(d.id)) missed.push({ id: d.id, ...data });
           }
           return;
+        }
+        // המנקה החזירה את העבודה ללוח. זה לא ביטול — העבודה פתוחה שוב — ולקוח
+        // שמנקה מהאתר שחררה לו עבודה לא שמע על כך דבר (שחרור מהאפליקציה שולח פוש).
+        if (wasHeld && data.status === 'pending' && data.open === true && !data.cleanerId) {
+          Alert.alert(
+            '🔁 ' + ((t as any).pushJobReleasedTitle ?? 'העבודה חזרה ללוח'),
+            (t as any).pushJobReleasedBody ?? 'המנקה לא יוכל להגיע. העבודה שלך פתוחה שוב למנקים אחרים.',
+          );
         }
         // זיהוי מעבר חדש ל-confirmed
         if (data.status === 'confirmed' && !seenConfirmedRef.current.has(d.id)) {
@@ -5312,6 +5324,10 @@ export default function HomeScreen() {
       logError('home:clientBookings', err);
     });
     return () => unsub();
+    // `t` is read only for the hand-back alert's wording. Listing it would tear the
+    // bookings listener down and rebuild it on every language change, replaying
+    // the first-snapshot logic for nothing.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Load real cleaners from Firestore — בזמן אמת (מנקה חדש מופיע מיד)
