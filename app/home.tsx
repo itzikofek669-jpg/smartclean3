@@ -4653,6 +4653,9 @@ export default function HomeScreen() {
             try {
               await auth.currentUser?.reload();
               if (auth.currentUser?.emailVerified) {
+                // The token too: the rules accept emailVerified: true only from a
+                // token that says so, and reload() leaves the old one in use.
+                await auth.currentUser?.getIdToken(true);
                 await setDoc(doc(db, 'users', uid), { emailVerified: true }, { merge: true });
               }
             } catch (err) { logError('home:flagVerified', err); }
@@ -5445,35 +5448,48 @@ export default function HomeScreen() {
     if (!uid) return;
     setMandatorySubmitting(true);
     try {
-      // Save rating + comment to booking
-      await updateDoc(doc(db, 'bookings', pendingReviewBooking.id), {
+      // One transaction: the job's score and comment, the review and the cleaner's
+      // average land together. They were three writes, each swallowing its own
+      // failure, and the score went first — the thing that marks a job rated —
+      // so a refused average could never be retried. The review's id is the
+      // booking's: one review per job.
+      let reviewerName = auth.currentUser?.displayName || '';
+      if (!reviewerName) { try { const us = await getDoc(doc(db, 'users', uid)); reviewerName = us.data()?.name || 'לקוח'; } catch (_) { reviewerName = 'לקוח'; } }
+      const bookingRef = doc(db, 'bookings', pendingReviewBooking.id);
+      const reviewRef  = doc(db, 'users', pendingReviewBooking.cleanerId, 'reviews', pendingReviewBooking.id);
+      const cleanerRef = doc(db, 'users', pendingReviewBooking.cleanerId);
+      const bookingFields = {
         cleanerRating: mandatoryStars,
         cleanerReviewText: mandatoryComment.trim(),
         reviewRequired: false,
         reviewedAt: new Date().toISOString(),
-        // בלי status: ההזמנה כבר done. השדות שנכתבים כאן הם עכשיו ברשימת
-        // המותרים של הזמנה סגורה; קודם כל הכתיבה נדחתה, הדירוג והביקורת לא
-        // נשמרו, ומסך הנעילה של ביקורת שפג תוקפה חזר בכל פתיחה.
-      });
-      // עדכון ציון + מספר ביקורות של המנקה — טרנזקציה אטומית (נגד אובדן עדכון בתחרות)
-      const cleanerRef = doc(db, 'users', pendingReviewBooking.cleanerId);
+      };
+      const reviewFields = {
+        // authorId is REQUIRED by firestore.rules. `stars` is what this app
+        // renders, `rating` what the web renders — both keep it legible anywhere.
+        authorId: uid,
+        stars: mandatoryStars,
+        rating: mandatoryStars,
+        text: mandatoryComment.trim(),
+        authorName: reviewerName,
+        clientName: reviewerName,
+        createdAt: new Date().toISOString(),
+      };
       try {
         await runTransaction(db, async (tx) => {
           const snap = await tx.get(cleanerRef);
+          tx.update(bookingRef, bookingFields);
+          tx.set(reviewRef, reviewFields);
           if (!snap.exists()) return;
           const d = snap.data();
-          const oldRating = d.rating || 0;
           // אותו סדר כמו priorReviewCount בחוקים — אחרת המונה שונה והדירוג נדחה.
+          const oldRating = d.rating || 0;
           const oldCount  = Number(d.reviewCount ?? d.reviewsCount ?? d.reviews ?? 0) || 0;
           const newCount  = oldCount + 1;
           const newRating = Math.round(((oldRating * oldCount) + mandatoryStars) / newCount * 10) / 10;
-          // כל ארבע האיותים: המובייל קורא reviewCount, הווב קורא reviewsCount,
-          // ו-reviews הוא השם הישן. כתיבת כולן היא מה שמחזיק את שתי הפלטפורמות
-          // מסונכרנות. הרשימה חייבת להתאים ל-isValidRatingUpdate ב-firestore.rules.
           tx.update(cleanerRef, {
-            // ההזמנה שהדירוג הזה שייך לה. החוקים דורשים אותה: החסם לכתיבה
-            // בודדת מנע מכתיבה אחת להזיז את הממוצע, אבל שום דבר לא מנע 25
-            // כתיבות — וכך 4.8 הפך ל-3.2 בלי אף מסמך ביקורת מאחוריו.
+            // ההזמנה שהדירוג שייך לה. החוקים מתירים דירוג אחד לכל עבודה, ובודקים
+            // את הציון שעל ההזמנה כדי לדעת.
             ratedBooking: pendingReviewBooking.id,
             rating: newRating,
             reviewCount: newCount,
@@ -5481,25 +5497,13 @@ export default function HomeScreen() {
             reviewsCount: newCount,
           });
         });
-      } catch (_) {}
-      // הוסף לתת-אוסף הביקורות (תמיד נשמר — גם אם עדכון הציון נכשל)
-      try {
-        let reviewerName = auth.currentUser?.displayName || '';
-        if (!reviewerName) { try { const us = await getDoc(doc(db, 'users', auth.currentUser?.uid || '')); reviewerName = us.data()?.name || 'לקוח'; } catch (_) { reviewerName = 'לקוח'; } }
-        await addDoc(collection(db, 'users', pendingReviewBooking.cleanerId, 'reviews'), {
-          // authorId is REQUIRED by firestore.rules — a review has to be
-          // attributable to the account that left it. `stars` is the field this
-          // app renders; `rating` is the field the web app renders; writing both
-          // keeps one review legible on either platform. Same for the name.
-          authorId: uid,
-          stars: mandatoryStars,
-          rating: mandatoryStars,
-          text: mandatoryComment.trim(),
-          authorName: reviewerName,
-          clientName: reviewerName,
-          createdAt: new Date().toISOString(),
-        });
-      } catch (err) { logError('home:write', err); }
+      } catch (err) {
+        logError('home:mandatoryReview', err);
+        // Never leave the client locked on this screen because the average was
+        // refused: the job's score and the review still stand on their own.
+        await updateDoc(bookingRef, bookingFields);
+        try { await setDoc(reviewRef, reviewFields); } catch (e) { logError('home:mandatoryReview:review', e); }
+      }
       // Check if any more pending reviews
       const remaining = myBookings.filter((b: any) =>
         b.id !== pendingReviewBooking.id && b.status === 'done' && b.reviewRequired === true && !b.cleanerRating

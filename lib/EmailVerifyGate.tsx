@@ -61,7 +61,10 @@ export default function EmailVerifyGate() {
       // foreground transition meant an account verified months ago re-wrote the
       // same value each time the app was opened.
       if (!still && wasBlocked) {
-        setDoc(doc(db, 'users', u.uid), { emailVerified: true }, { merge: true })
+        // A fresh token first: the rules accept emailVerified: true only from a
+        // token that says so, and the one in use predates the click.
+        u.getIdToken(true)
+          .then(() => setDoc(doc(db, 'users', u.uid), { emailVerified: true }, { merge: true }))
           .catch(err => logError('EmailVerifyGate/flagVerified', err));
       }
       // Deliberately silent when still unverified: this runs every few seconds,

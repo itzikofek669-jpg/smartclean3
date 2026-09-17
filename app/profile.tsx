@@ -1855,7 +1855,9 @@ export default function ProfileScreen() {
           const currentDate = new Date(b.bookingDate || now);
           const nextDate = new Date(currentDate.getTime() + daysToAdd * 24 * 60 * 60 * 1000);
           const nextDateStr = nextDate.toISOString().split('T')[0];
-          await addDoc(collection(db, 'bookings'), {
+          // A fixed id — one next visit per finished visit. Ending the same job
+          // twice made two; the rules key the create on this id.
+          await setDoc(doc(db, 'bookings', `${b.id}-next`), {
             cleanerId: uid,
             cleanerName: userName,
             clientUid: b.clientUid,
@@ -1869,7 +1871,8 @@ export default function ProfileScreen() {
             addrFloor: b.addrFloor || '',
             addrApt: b.addrApt || '',
             addrPrivate: b.addrPrivate || false,
-            total: b.total,
+            // The parent's own total, null included — the rules compare the two.
+            total: b.total ?? null,
             status: 'pending',
             createdAt: new Date().toISOString(),
             bookingDate: nextDateStr,
@@ -1953,11 +1956,15 @@ export default function ProfileScreen() {
     if (!rateTarget) return;
     setRateModal(false);
     try {
-      await updateDoc(doc(db, 'bookings', rateTarget.id), { cleanerRating: stars });
+      const bookingRef = doc(db, 'bookings', rateTarget.id);
       const cleanerRef = doc(db, 'users', rateTarget.cleanerId);
       try {
+        // The job's score and the cleaner's average together. The score went
+        // first on its own, and it is what marks a job rated — so a refused
+        // average could never be retried.
         await runTransaction(db, async (tx) => {
           const snap = await tx.get(cleanerRef);
+          tx.update(bookingRef, { cleanerRating: stars });
           if (!snap.exists()) return;
           const d = snap.data();
           // אותו סדר איותים כמו priorReviewCount בחוקים. סדר אחר, או התעלמות
@@ -1977,7 +1984,11 @@ export default function ProfileScreen() {
             reviewsCount: newCount,
           });
         });
-      } catch (err) { logError('profile:submitRating', err); }
+      } catch (err) {
+        logError('profile:submitRating', err);
+        // The score still stands on the job, as it did before this was one write.
+        await updateDoc(bookingRef, { cleanerRating: stars });
+      }
       setBookings(prev => prev.map(b =>
         b.id === rateTarget.id ? { ...b, cleanerRating: stars } : b
       ));
