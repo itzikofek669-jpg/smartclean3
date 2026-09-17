@@ -45,7 +45,7 @@ import {
 } from '../lib/jobUtils';
 import { compareCleaners, compareJobs, isAvailableNow, rotationRank } from '../lib/displayOrder';
 import { isUrgentRequestLive } from '../lib/urgentRequest';
-import { claimUpdate, occupiesCleanerTime, pendingSlotMissed, rejectionUpdate, isBoardJobOfferable, busySlotOf } from '../lib/bookingActions';
+import { claimUpdate, occupiesCleanerTime, pendingSlotMissed, pendingSlotExpired, expiryUpdate, rejectionUpdate, isBoardJobOfferable, busySlotOf } from '../lib/bookingActions';
 import { resolveRole } from '../lib/resolveRole';
 import { MAP_STYLE_LIGHT, MAP_STYLE_DARK } from '../lib/mapStyle';
 import { useTheme } from '../lib/ThemeContext';
@@ -4692,6 +4692,12 @@ export default function HomeScreen() {
             all.filter(b => pendingSlotMissed(b, uid))
               .forEach(b => updateDoc(doc(db, 'bookings', b.id), rejectionUpdate(b))
                 .catch(err => logError('home:missedClaim', err)));
+            // בקשה שנשלחה אליה ישירות, או הביקור הבא של עבודה חוזרת, שלא נענתה
+            // ומועדה עבר — פגה בשקט. שום סוויפ לא סגר אותה: היא הוצעה לאישור
+            // ימים אחרי המועד, ונספרה אצל הלקוח כהזמנה חיה בשעה הזו.
+            all.filter(b => pendingSlotExpired(b, uid))
+              .forEach(b => updateDoc(doc(db, 'bookings', b.id), expiryUpdate())
+                .catch(err => logError('home:expirePending', err)));
 
             const pendingDocs = all.filter(b => b.status === 'pending');
             const count = pendingDocs.length;

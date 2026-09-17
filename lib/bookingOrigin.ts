@@ -55,5 +55,9 @@ export function bookingOrigin(b: BookingLike | null | undefined): BookingOrigin 
  * themselves instead.
  */
 export function canRepost(b: BookingLike | null | undefined): boolean {
-  return bookingOrigin(b) !== 'direct';
+  // A board job only. An urgent booking's request goes back out to cleaners by
+  // itself when the cleaner walks away (releaseUrgentRequest), so reposting it
+  // always collided with that request: the client pressed "post again" and was
+  // told they had already booked that hour.
+  return bookingOrigin(b) === 'open';
 }

@@ -8,10 +8,11 @@ import { resolveRole } from '../.tsbuild/resolveRole.mjs';
 import { mustVerifyEmail, VERIFY_REQUIRED_FROM } from '../.tsbuild/verifyRule.mjs';
 import { isAvailableNow, compareJobs } from '../.tsbuild/displayOrder.mjs';
 import { cityFromAddress } from '../.tsbuild/cityFromAddress.mjs';
+import { canRepost } from '../.tsbuild/bookingOrigin.mjs';
 import { startDateOf, endDateOf, bookingHours, DEFAULT_BOOKING_HOURS } from '../.tsbuild/bookingSlot.mjs';
 import { readCalendarRemoval, extractPushData } from '../.tsbuild/calendarPush.mjs';
 import { isUrgentRequestLive, isUrgentRequestExpired, expiryOf } from '../.tsbuild/urgentRequest.mjs';
-import { claimUpdate, rejectionUpdate, rejectionReleasesToBoard, awaitsMyApproval, occupiesCleanerTime, busyWindowOf, busyFieldsOf, pendingSlotMissed, isBoardJobOfferable } from '../.tsbuild/bookingActions.mjs';
+import { claimUpdate, rejectionUpdate, rejectionReleasesToBoard, awaitsMyApproval, occupiesCleanerTime, busyWindowOf, busyFieldsOf, pendingSlotMissed, isBoardJobOfferable, pendingSlotExpired, expiryUpdate } from '../.tsbuild/bookingActions.mjs';
 
 // Every case here is a bug that reached a real user. They are regression tests,
 // not coverage: each one failed in production before it was written.
@@ -742,6 +743,60 @@ test('a board job is placed in its own city, not one its street is named after',
     ['הגפן 3, מושב גן יאשיה, בית פרטי', 'מושב גן יאשיה'],
     ['הגפן 3, קומה 1, דירה 4', ''],
     ['', ''],
+  ];
+  for (const [address, city] of cases) assert.equal(cityFromAddress(address, known), city, address);
+});
+
+test('a booking whose hour has passed is no longer offered for approval', () => {
+  // A real screen on 16.9 offered to approve a booking for 14.9 22:00, and
+  // approving it would have closed a cleaning that never happened as done.
+  const at = new Date('2026-09-16T12:00:00');
+  assert.equal(awaitsMyApproval(directed({ bookingDate: '2026-09-14', startTime: '22:00' }), 'k1', at), false);
+  assert.equal(awaitsMyApproval(directed({ bookingDate: '2026-09-20', startTime: '10:00' }), 'k1', at), true);
+  assert.equal(awaitsMyApproval(directed(), 'k1', at), true, 'an unreadable slot is not a reason to hide it');
+});
+
+test('an unanswered direct booking whose hour passed expires; a claim is left to its own sweep', () => {
+  const at = new Date('2026-09-16T12:00:00');
+  const past = directed({ origin: 'direct', bookingDate: '2026-09-14', startTime: '22:00' });
+  assert.equal(pendingSlotExpired(past, 'k1', at), true);
+  assert.equal(pendingSlotExpired({ ...past, cleanerId: 'k2' }, 'k1', at), false, 'somebody else');
+  assert.equal(pendingSlotExpired({ ...past, status: 'confirmed' }, 'k1', at), false, 'answered');
+  assert.equal(pendingSlotExpired({ ...past, bookingDate: '2026-09-20' }, 'k1', at), false, 'still ahead');
+  const claim = posted({ open: false, cleanerId: 'k1', bookingDate: '2026-09-14', startTime: '22:00' });
+  assert.equal(pendingSlotExpired(claim, 'k1', at), false, 'a board claim belongs to pendingSlotMissed');
+  assert.equal(expiryUpdate(at).status, 'expired');
+});
+
+test('a two-and-a-half-hour job lasts two and a half hours', () => {
+  const b = { bookingDate: '2026-10-01', startTime: '10:00', hours: 2.5 };
+  assert.equal(endDateOf(b).getTime() - startDateOf(b).getTime(), 150 * 60000);
+});
+
+test('an urgent request whose slot has passed is not live, whatever its expiry says', () => {
+  // Handed back after its slot, it got a fresh hour and was claimable on both boards.
+  const r = { expiresAt: '2099-01-01T00:00:00Z', dateStr: '2026-09-16', startTime: '06:00' };
+  assert.equal(isUrgentRequestLive(r, new Date('2026-09-16T09:40:00')), false);
+  assert.equal(isUrgentRequestLive({ ...r, startTime: '23:00' }, new Date('2026-09-16T09:40:00')), true);
+});
+
+test('repost is offered for a board job, not for an urgent one that went back out by itself', () => {
+  assert.equal(canRepost({ origin: 'open' }), true);
+  assert.equal(canRepost({ origin: 'urgent' }), false);
+  assert.equal(canRepost({ origin: 'direct' }), false);
+});
+
+test('a city is not read out of a street name, a floor, or the wrong end of an address', () => {
+  const known = { 'חריש': {}, 'ירושלים': {}, 'חיפה': {}, 'תל אביב': {}, 'ת"א': {}, 'קריית שמונה': {} };
+  const cases = [
+    ['שדרות ירושלים 5 חריש', 'חריש'],
+    ['חריש שדרות ירושלים 5', 'חריש'],
+    ['רחוב חיפה 10 חריש', 'חריש'],
+    ['הגפן 3, קומה קרקע, דירה 2', ''],
+    ['כפר חב"ד, שדרות ירושלים', ''],
+    ['ת״א', 'ת"א'],
+    ['תל-אביב', 'תל אביב'],
+    ['קרית שמונה', 'קריית שמונה'],
   ];
   for (const [address, city] of cases) assert.equal(cityFromAddress(address, known), city, address);
 });

@@ -221,11 +221,47 @@ function slotHasPassed(b: ClaimableBooking, now: Date): boolean {
  * still pending, and no longer on the board — a job still open is one anybody
  * can claim, and showing an approve button for it would be a lie.
  */
-export function awaitsMyApproval(b: ClaimableBooking, myUid: string): boolean {
+export function awaitsMyApproval(
+  b: ClaimableBooking,
+  myUid: string,
+  now: Date = new Date(),
+): boolean {
   if (!b || !myUid) return false;
   if (b.status !== 'pending') return false;
   if (b.open === true) return false;
-  return b.cleanerId === myUid;
+  if (b.cleanerId !== myUid) return false;
+  // Not once the hour has gone. Every screen offered to approve a booking days
+  // after its slot, and approving it did real harm: the client's app closes a
+  // confirmed job whose end has passed as done, and sends the client to a
+  // mandatory review of a cleaning that never happened.
+  return !slotHasPassed(b, now);
+}
+
+/**
+ * A booking sent to this cleaner that she never answered, whose hour has gone.
+ *
+ * The other half of pendingSlotMissed, which covers only what a cleaner took —
+ * a board or urgent claim. A booking a client addressed to her directly, or the
+ * next visit of a recurring job, stayed pending for ever: offered for approval
+ * on every screen, and counted by the client's clash check as a live booking at
+ * that hour. It ends as `expired`, quietly — nobody cancelled it, so nobody is
+ * told they were cancelled on.
+ */
+export function pendingSlotExpired(
+  b: ClaimableBooking,
+  myUid: string,
+  now: Date = new Date(),
+): boolean {
+  if (!b || !myUid) return false;
+  if (b.status !== 'pending' || b.open === true || b.cleanerId !== myUid) return false;
+  // What she claimed has its own sweep, which releases or cancels it.
+  if (occupiesCleanerTime(b)) return false;
+  return slotHasPassed(b, now);
+}
+
+/** The write that retires such a booking. */
+export function expiryUpdate(now: Date = new Date()) {
+  return { status: 'expired', expiredAt: now.toISOString() };
 }
 
 /** Statuses where the cleaner has said yes and is expected somewhere. */

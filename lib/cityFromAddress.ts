@@ -15,40 +15,92 @@
  *     (the web form) — "דירה 3", or the street itself, on a public document.
  *
  * So a part that IS a known city wins, searched from the end, where the city
- * sits. Then a known city inside a later part with no digits in it — house,
- * floor and flat numbers carry digits, town names do not, and the first part is
- * the street. With no known city at all, a town the table does not list is
- * still better than nothing, provided it cannot be the street or the flat: the
- * last digit-free part after the first.
+ * sits. Then a known city inside a later part that is not a street, a floor or
+ * a flat. A city name straight after a street word is the street ("שדרות
+ * ירושלים"), and in text with no commas the city that ends last is taken — the
+ * city is written after the street far more often than before it. With no known
+ * city at all, a town the table does not list is still better than nothing,
+ * provided it cannot be the street or the flat.
+ *
+ * Spelling is compared loosely — ״ and ", hyphens and spaces, קרית and קריית —
+ * because "ת״א", "תל-אביב" and "קרית שמונה" are how people type them.
  *
  * Byte-identical in both products. The city table is passed in because each
  * product keeps its own copy of it.
  */
-export function cityFromAddress(raw: string, known: Record<string, unknown>): string {
-  const text = String(raw || '').trim();
-  if (!text) return '';
-  const isKnown = (s: string) => Object.prototype.hasOwnProperty.call(known, s);
-  if (isKnown(text)) return text;
 
-  const byLength = Object.keys(known).sort((a, b) => b.length - a.length);
-  const inside = (s: string) => byLength.find((k) => s.includes(k)) ?? '';
-  const hasDigit = (s: string) => /\d/.test(s);
-  const parts = text.split(',').map((p) => p.trim()).filter(Boolean);
+const STREET_WORDS = ['רחוב', "רח'", 'שדרות', "שד'", 'דרך', 'סמטת', 'כיכר', 'שביל', 'משעול'];
+const NOT_A_PLACE = /^(קומה|דירה|כניסה|בית פרטי)(\s|$)/;
 
-  // Nothing to tell the street from the city by. Take a known city inside it,
-  // or the text itself when it has no number and so cannot be a street address.
-  if (parts.length === 1) return inside(text) || (hasDigit(text) ? '' : text);
+function norm(s: string): string {
+  return s
+    .replace(/[״”“]/g, '"')
+    .replace(/[׳’‘]/g, "'")
+    .replace(/[-־–]/g, ' ')
+    .replace(/קריית/g, 'קרית')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
 
-  for (let i = parts.length - 1; i >= 0; i -= 1) {
-    if (isKnown(parts[i])) return parts[i];
+const tables = new WeakMap<object, { k: string; n: string }[]>();
+
+function keysOf(known: Record<string, unknown>): { k: string; n: string }[] {
+  let keys = tables.get(known);
+  if (!keys) {
+    keys = Object.keys(known)
+      .map((k) => ({ k, n: norm(k) }))
+      .sort((a, b) => b.n.length - a.n.length);
+    tables.set(known, keys);
   }
+  return keys;
+}
+
+export function cityFromAddress(raw: string, known: Record<string, unknown>): string {
+  const text = norm(String(raw || ''));
+  if (!text) return '';
+  const keys = keysOf(known);
+  const exact = (s: string) => keys.find((x) => x.n === s)?.k ?? '';
+  const hasDigit = (s: string) => /\d/.test(s);
+  const streetLike = (s: string) => STREET_WORDS.some((w) => s === w || s.startsWith(w + ' '));
+  const edge = (c: string | undefined) => c === undefined || /[\s,.]/.test(c);
+
+  // A known city inside some text: whole words only, never straight after a
+  // street word, and the one that ends last.
+  const inside = (s: string) => {
+    let best: { k: string; end: number; len: number } | null = null;
+    for (const { k, n } of keys) {
+      for (let at = s.indexOf(n); at >= 0; at = s.indexOf(n, at + 1)) {
+        if (!edge(s[at - 1]) || !edge(s[at + n.length])) continue;
+        const before = s.slice(0, at).trim();
+        if (STREET_WORDS.some((w) => before === w || before.endsWith(' ' + w))) continue;
+        const end = at + n.length;
+        if (!best || end > best.end || (end === best.end && n.length > best.len)) {
+          best = { k, end, len: n.length };
+        }
+      }
+    }
+    return best ? best.k : '';
+  };
+
+  const whole = exact(text);
+  if (whole) return whole;
+
+  const parts = text.split(',').map((p) => p.trim()).filter(Boolean);
+  if (parts.length === 1) {
+    return inside(text) || (hasDigit(text) || streetLike(text) || NOT_A_PLACE.test(text) ? '' : text);
+  }
+  for (let i = parts.length - 1; i >= 0; i -= 1) {
+    const hit = exact(parts[i]);
+    if (hit) return hit;
+  }
+  const placeLike = (p: string) => !hasDigit(p) && !streetLike(p) && !NOT_A_PLACE.test(p);
   for (let i = parts.length - 1; i >= 1; i -= 1) {
-    if (hasDigit(parts[i])) continue;
+    if (!placeLike(parts[i])) continue;
     const hit = inside(parts[i]);
     if (hit) return hit;
   }
   for (let i = parts.length - 1; i >= 1; i -= 1) {
-    if (!hasDigit(parts[i]) && parts[i] !== 'בית פרטי') return parts[i];
+    if (placeLike(parts[i])) return parts[i];
   }
   return '';
 }

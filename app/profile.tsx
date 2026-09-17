@@ -468,6 +468,11 @@ function RateModal({ booking, visible, isCleaner, onClose, onSubmit }: any) {
 
 
 // ─── Main Screen ──────────────────────────────────────────────────────────────
+/** Has this date and time (local, YYYY-MM-DD and HH:MM) already gone by? */
+function slotIsPast(date: string, time: string): boolean {
+  return new Date(`${date}T${time}`).getTime() <= Date.now();
+}
+
 export default function ProfileScreen() {
   const router = useRouter();
   const { tab, requestId, section, acceptReqId, confirmBookingId } = useLocalSearchParams<{ tab?: string; requestId?: string; section?: string; acceptReqId?: string; confirmBookingId?: string }>();
@@ -2059,6 +2064,13 @@ export default function ProfileScreen() {
       const changed = showPendingTimeChange && (pendingNewDate || pendingNewTime);
       const tDate = changed ? `${pendingPickerDate.getFullYear()}-${String(pendingPickerDate.getMonth()+1).padStart(2,'0')}-${String(pendingPickerDate.getDate()).padStart(2,'0')}` : b.bookingDate;
       const tTime = changed ? `${String(pendingPickerDate.getHours()).padStart(2,'0')}:${String(pendingPickerDate.getMinutes()).padStart(2,'0')}` : b.startTime;
+      // Not an hour that has already gone, unless a new one is being proposed.
+      // Opened from a push days later this approved a slot long past, and the
+      // client's app then closed the job as done and asked for a review.
+      if (tDate && tTime && slotIsPast(tDate, tTime)) {
+        Alert.alert('', t.pastTimeError);
+        return;
+      }
       if (tDate && tTime) {
         try {
           const snap = await getDocs(query(
@@ -2180,6 +2192,7 @@ export default function ProfileScreen() {
     if (status === 'onway')     return t.onwayStatus;
     if (status === 'done')      return t.doneStatus;
     if (status === 'cancelled') return t.cancelledStatus;
+    if (status === 'expired')   return (t as any).statusExpired ?? '⌛ פג תוקף';
     return status;
   };
 
@@ -2188,7 +2201,7 @@ export default function ProfileScreen() {
     if (status === 'onway')     return [s.detailPill, s.statusPillOnWay];
     if (status === 'confirmed') return [s.detailPill, s.statusPillConfirmed];
     if (status === 'done')      return [s.detailPill, s.statusPill];
-    if (status === 'cancelled') return [s.detailPill, s.statusPillCancelled];
+    if (status === 'cancelled' || status === 'expired') return [s.detailPill, s.statusPillCancelled];
     return [s.detailPill, s.statusPillPending];
   };
 
@@ -2197,7 +2210,7 @@ export default function ProfileScreen() {
     if (status === 'onway')     return s.statusPillTextOnWay;
     if (status === 'confirmed') return s.statusPillTextConfirmed;
     if (status === 'done')      return s.statusPillText;
-    if (status === 'cancelled') return s.statusPillTextCancelled;
+    if (status === 'cancelled' || status === 'expired') return s.statusPillTextCancelled;
     return s.statusPillTextPending;
   };
 

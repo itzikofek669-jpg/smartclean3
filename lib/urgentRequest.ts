@@ -26,6 +26,18 @@
 export interface ExpirableRequest {
   /** ISO 8601. Written by both products since urgent requests existed. */
   expiresAt?: string | null;
+  /** The slot the client asked for, local time: YYYY-MM-DD and HH:MM. */
+  dateStr?: string | null;
+  startTime?: string | null;
+}
+
+/** When the requested slot starts, or null when it cannot be read. */
+export function slotOf(r: ExpirableRequest | null | undefined): number | null {
+  const d = typeof r?.dateStr === 'string' ? r.dateStr : '';
+  const s = typeof r?.startTime === 'string' ? r.startTime : '';
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(d) || !/^\d{2}:\d{2}$/.test(s)) return null;
+  const t = new Date(`${d}T${s}`).getTime();
+  return Number.isNaN(t) ? null : t;
 }
 
 /** Milliseconds since the epoch, or null when the value is not a real instant. */
@@ -47,7 +59,13 @@ export function isUrgentRequestLive(
   now: Date = new Date(),
 ): boolean {
   const t = expiryOf(r);
-  return t !== null && t > now.getTime();
+  if (t === null || t <= now.getTime()) return false;
+  // Nor once the hour it asks for has gone. A request a cleaner hands back gets a
+  // fresh window of at least an hour, so one released after its slot read as
+  // live for that hour — on both boards and claimable — and the pending booking
+  // the claim made was swept straight back as "your cleaner cancelled".
+  const start = slotOf(r);
+  return start === null || start > now.getTime();
 }
 
 /**

@@ -74,7 +74,11 @@ export function endDateOf(b: BookingSlot): Date | null {
   // hour short and the last hour was bookable by somebody else. One hour a
   // year, Israel included. setHours moves the calendar field and lets the
   // runtime resolve the offset for the resulting instant.
+  //
+  // In minutes, because setHours truncates: a 2.5-hour job ended at 12:00 rather
+  // than 12:30 and a half-hour one had no length at all — short calendar events
+  // and short busy windows. setMinutes resolves the wall clock the same way.
   const end = new Date(start.getTime());
-  end.setHours(end.getHours() + bookingHours(b));
+  end.setMinutes(end.getMinutes() + Math.round(bookingHours(b) * 60));
   return end;
 }
