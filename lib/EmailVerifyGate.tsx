@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useState } from 'react';
+import { signOutOfDevice } from './signOutDevice';
 import { AppState, Linking, Platform, StyleSheet, TouchableOpacity, View } from 'react-native';
-import { onAuthStateChanged, signOut, type User } from 'firebase/auth';
+import { onAuthStateChanged, type User } from 'firebase/auth';
 import * as SecureStore from 'expo-secure-store';
 import { doc, setDoc } from 'firebase/firestore';
 import { auth, db } from './firebase';
@@ -121,7 +122,7 @@ export default function EmailVerifyGate() {
       await SecureStore.deleteItemAsync('remember_email');
       await SecureStore.deleteItemAsync('remember_pass');
     } catch (_) {}
-    await signOut(auth).catch(() => {});
+    await signOutOfDevice().catch(() => {});
   };
 
   const resend = async () => {

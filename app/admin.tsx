@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
+import { signOutOfDevice } from '../lib/signOutDevice';
 import {
   View, ScrollView, TouchableOpacity, TextInput,
   Alert, StyleSheet, StatusBar, ActivityIndicator,
@@ -8,7 +9,7 @@ import {
   collection, onSnapshot, query, orderBy, limit,
   updateDoc, doc, getDoc, addDoc, deleteDoc,
 } from 'firebase/firestore';
-import { signOut } from 'firebase/auth';
+
 import * as SecureStore from 'expo-secure-store';
 import { db, auth } from '../lib/firebase';
 import { useRouter } from 'expo-router';
@@ -296,7 +297,7 @@ export default function AdminScreen() {
       { text: 'יציאה', style: 'destructive', onPress: async () => {
         await SecureStore.deleteItemAsync('remember_email').catch(() => {});
         await SecureStore.deleteItemAsync('remember_pass').catch(() => {});
-        await signOut(auth);
+        await signOutOfDevice();
         router.replace('/');
       }},
     ]);

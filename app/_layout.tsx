@@ -300,7 +300,7 @@ export default function RootLayout() {
     // Bookings whose calendar entry we have already taken out on this run.
     const removedCancelled = new Set<string>();
 
-    const sync = (b: any, role: 'client' | 'cleaner') => {
+    const sync = (b: any, role: 'client' | 'cleaner', initial = false) => {
       if (b?.status === 'confirmed') {
         // The private half first. This listener reads raw bookings, which since
         // the address split carry no street; and addBookingToCalendar dedupes
@@ -365,7 +365,13 @@ export default function RootLayout() {
           // separates "the removal ran and failed" from "this device never
           // heard about it" — and those need completely different fixes.
           record(`cancel:${role}`, { id: b.id, date: b.bookingDate });
-          removeBookingFromCalendar(b.id, b, { sweep: true })
+          // The sweep only for a cancellation seen happening. This set lives in
+          // memory, so on every launch the whole history of cancelled bookings
+          // arrived as new and each re-swept its old slot — deleting the event of
+          // a later booking for the same minute, which then reported itself as
+          // already synced and was never added back. A booking already cancelled
+          // when the listener starts only loses its own event.
+          removeBookingFromCalendar(b.id, b, { sweep: !initial })
             .catch(err => logError('layout:calendarRemove', err));
         }
       }
@@ -405,8 +411,10 @@ export default function RootLayout() {
       );
     };
 
-    const watch = (field: 'clientUid' | 'cleanerId', role: 'client' | 'cleaner', uid: string) =>
-      onSnapshot(
+    const watch = (field: 'clientUid' | 'cleanerId', role: 'client' | 'cleaner', uid: string) => {
+      // This listener's own first answer is history, not news.
+      let initial = true;
+      return onSnapshot(
         // No orderBy: pairing a where with an orderBy on another field needs a
         // composite index this project does not have, and the query would fail
         // outright. Order is irrelevant here anyway.
@@ -414,11 +422,12 @@ export default function RootLayout() {
         snap => {
           snap.docs.forEach(d => {
             const b = { id: d.id, ...(d.data() as any) };
-            sync(b, role);
+            sync(b, role, initial);
             // Only on the cleaner's own listener — on the client's, they are
             // the one who cancelled.
             if (role === 'cleaner') noticeForCleaner(b);
           });
+          initial = false;
           if (role === 'cleaner') firstSnapshot = false;
         },
         err => {
@@ -430,6 +439,7 @@ ${(err as any)?.message ?? err}`);
           }
         },
       );
+    };
 
     const unsubAuth = onAuthStateChanged(auth, user => {
       unsubClient?.(); unsubClient = undefined;

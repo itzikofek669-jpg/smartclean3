@@ -6,7 +6,7 @@ import {
 } from 'react-native';
 import { useAnimatedValue } from '../lib/useAnimatedValue';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { collection, query, where, orderBy, limit, getDocs, onSnapshot, doc, getDoc } from 'firebase/firestore';
+import { collection, query, where, getDocs, onSnapshot, doc, getDoc } from 'firebase/firestore';
 import { db, auth } from '../lib/firebase';
 import { resolveRole } from '../lib/resolveRole';
 import { logError } from '../lib/logError';
@@ -237,7 +237,7 @@ function getClientResponse(msg: string, userName: string, activeBooking: any, al
   // ── שלח מייל לתמיכה ──────────────────────────────────────────────────────
   if (matchAny(msg, ['שלח מייל', 'שאלה שלא נענתה', 'שלח לתמיכה', 'מייל לתמיכה', 'שאלה שלא נענתה — שלח מייל'])) {
     return {
-      text: `כמובן 📧\nנפתח את אפליקציית המייל שלך כדי שתוכל לפנות ישירות לצוות שלנו.\n\n✉️ support@A&M Clean.co.il\n\nנחזור אליך תוך 24 שעות.`,
+      text: `כמובן 📧\nנפתח את אפליקציית המייל שלך כדי שתוכל לפנות ישירות לצוות שלנו.\n\n✉️ support@amclean.co.il\n\nנחזור אליך תוך 24 שעות.`,
       quickReplies: ['חזור לתפריט'],
       action: 'sendEmail',
     };
@@ -357,7 +357,7 @@ function getClientResponse(msg: string, userName: string, activeBooking: any, al
   // ── ביטוח ─────────────────────────────────────────────────────────────────
   if (matchAny(msg, ['ביטוח', 'נזק', 'אחריות', 'שבר', 'פגע', 'תביעה', 'הגנה'])) {
     return {
-      text: '🛡️ ביטוח A&M Clean:\n\nכל הזמנה מבוטחת דרך השותף שלנו.\nלתביעה או בירור ביטוחי פנה אלינו ישירות:\n📧 support@A&M Clean.co.il',
+      text: '🛡️ ביטוח A&M Clean:\n\nכל הזמנה מבוטחת דרך השותף שלנו.\nלתביעה או בירור ביטוחי פנה אלינו ישירות:\n📧 support@amclean.co.il',
       quickReplies: ['צור קשר', 'חזור לתפריט'],
     };
   }
@@ -417,7 +417,7 @@ function getClientResponse(msg: string, userName: string, activeBooking: any, al
   // ── מחיקת חשבון ──────────────────────────────────────────────────────────
   if (matchAny(msg, ['למחוק חשבון', 'מחיקת חשבון', 'לסגור חשבון', 'להתנתק לצמיתות'])) {
     return {
-      text: '🗑️ מחיקת חשבון:\n\nלמחיקת החשבון שלך צור קשר ישיר:\n📧 support@A&M Clean.co.il\n\nנחזור אליך תוך 24 שעות.',
+      text: '🗑️ מחיקת חשבון:\n\nלמחיקת החשבון שלך צור קשר ישיר:\n📧 support@amclean.co.il\n\nנחזור אליך תוך 24 שעות.',
       quickReplies: ['חזור לתפריט'],
     };
   }
@@ -435,7 +435,7 @@ function getClientResponse(msg: string, userName: string, activeBooking: any, al
   // ── תמיכה / נציג ─────────────────────────────────────────────────────────
   if (matchAny(msg, ['לדבר עם אדם', 'נציג', 'שירות לקוחות', 'צור קשר', 'להתקשר', 'אדם אמיתי', 'תמיכה אנושית'])) {
     return {
-      text: '📞 צוות התמיכה של A&M Clean:\n\n📧 support@A&M Clean.co.il\n📱 WhatsApp: 050-000-0000\n\nשעות מענה:\nא׳–ה׳: 09:00–18:00',
+      text: '📞 צוות התמיכה של A&M Clean:\n\n📧 support@amclean.co.il\n📱 WhatsApp: 050-000-0000\n\nשעות מענה:\nא׳–ה׳: 09:00–18:00',
       quickReplies: ['חזור לתפריט'],
     };
   }
@@ -451,7 +451,7 @@ function getClientResponse(msg: string, userName: string, activeBooking: any, al
   // ── תלונה / בעיה ─────────────────────────────────────────────────────────
   if (matchAny(msg, ['תלונה', 'בעיה', 'לא מרוצה', 'גרוע', 'גרועה', 'להתלונן', 'פגם', 'נזק'])) {
     return {
-      text: '😔 מצטערים לשמוע!\n\nלדיווח על בעיה:\n1️⃣ כנס לפרופיל שלך\n2️⃣ לחץ "🚨 דיווח"\n3️⃣ מלא את הפרטים\n\nאו צור קשר ישיר:\n📧 support@A&M Clean.co.il',
+      text: '😔 מצטערים לשמוע!\n\nלדיווח על בעיה:\n1️⃣ כנס לפרופיל שלך\n2️⃣ לחץ "🚨 דיווח"\n3️⃣ מלא את הפרטים\n\nאו צור קשר ישיר:\n📧 support@amclean.co.il',
       quickReplies: ['הפרופיל שלי', 'חזור לתפריט'],
       navigateTo: '/profile',
     };
@@ -516,7 +516,7 @@ function getClientResponse(msg: string, userName: string, activeBooking: any, al
   // ── ביקורת ממנקה ─────────────────────────────────────────────────────────
   if (matchAny(msg, ['מנקה גרוע', 'לא מרוצה מהניקוי', 'ניקוי גרוע', 'עבודה לא טובה', 'מנקה לא מקצועי'])) {
     return {
-      text: '😔 מצטערים על החוויה!\n\nמה לעשות:\n1️⃣ דרג את המנקה 1–2 כוכבים עם ביאור\n2️⃣ כנס לפרופיל → "🚨 דיווח"\n3️⃣ תאר את הבעיה\n\nנבדוק את המנקה ונחזור אליך תוך 24 שעות.\n📧 support@A&M Clean.co.il',
+      text: '😔 מצטערים על החוויה!\n\nמה לעשות:\n1️⃣ דרג את המנקה 1–2 כוכבים עם ביאור\n2️⃣ כנס לפרופיל → "🚨 דיווח"\n3️⃣ תאר את הבעיה\n\nנבדוק את המנקה ונחזור אליך תוך 24 שעות.\n📧 support@amclean.co.il',
       quickReplies: ['שאלה שלא נענתה — שלח מייל', 'חזור לתפריט'],
     };
   }
@@ -548,7 +548,7 @@ function getClientResponse(msg: string, userName: string, activeBooking: any, al
   // ── החלפת מנקה ────────────────────────────────────────────────────────────
   if (matchAny(msg, ['להחליף מנקה', 'מנקה אחר', 'לא רוצה את המנקה', 'מנקה אחרת', 'להחליף'])) {
     return {
-      text: '🔄 להחליף מנקה:\n\nאם עדיין לא אושרה — בטל את ההזמנה (חינם עד 24 שעות לפני) והזמן מנקה אחר.\n\nאם כבר אושרה ויש בעיה — דווח לנו ונעזור למצוא חלופה:\n📧 support@A&M Clean.co.il',
+      text: '🔄 להחליף מנקה:\n\nאם עדיין לא אושרה — בטל את ההזמנה (חינם עד 24 שעות לפני) והזמן מנקה אחר.\n\nאם כבר אושרה ויש בעיה — דווח לנו ונעזור למצוא חלופה:\n📧 support@amclean.co.il',
       quickReplies: ['רוצה לבטל', 'איך להזמין?', 'חזור לתפריט'],
     };
   }
@@ -564,7 +564,7 @@ function getClientResponse(msg: string, userName: string, activeBooking: any, al
   // ── תקלה / האפליקציה לא עובדת ─────────────────────────────────────────────
   if (matchAny(msg, ['לא עובד', 'תקלה', 'באג', 'נתקע', 'קורס', 'בעיה טכנית', 'מסך לבן', 'לא נטען', 'crash', 'שגיאה'])) {
     return {
-      text: '🛠️ בעיה טכנית? נסה:\n\n1️⃣ סגור ופתח מחדש את האפליקציה\n2️⃣ ודא חיבור אינטרנט תקין\n3️⃣ עדכן לגרסה האחרונה בחנות\n4️⃣ הפעל מחדש את הטלפון\n\nאם לא נפתר — דווח לנו עם צילום מסך:\n📧 support@A&M Clean.co.il',
+      text: '🛠️ בעיה טכנית? נסה:\n\n1️⃣ סגור ופתח מחדש את האפליקציה\n2️⃣ ודא חיבור אינטרנט תקין\n3️⃣ עדכן לגרסה האחרונה בחנות\n4️⃣ הפעל מחדש את הטלפון\n\nאם לא נפתר — דווח לנו עם צילום מסך:\n📧 support@amclean.co.il',
       quickReplies: ['שאלה שלא נענתה — שלח מייל', 'חזור לתפריט'],
     };
   }
@@ -793,7 +793,7 @@ function getCleanerResponse(msg: string, userName: string, allBookings: any[]): 
   // ── תמיכה אנושית ─────────────────────────────────────────────────────────
   if (matchAny(msg, ['לדבר עם אדם','נציג','שירות לקוחות','צור קשר','אדם אמיתי','תמיכה אנושית'])) {
     return {
-      text: `📞 תמיכה למנקים:\n\n📧 cleaners@A&M Clean.co.il\n📱 WhatsApp: 050-000-0000\n\nשעות מענה לצוות מנקים:\nא׳–ה׳: 08:00–20:00`,
+      text: `📞 תמיכה למנקים:\n\n📧 cleaners@amclean.co.il\n📱 WhatsApp: 050-000-0000\n\nשעות מענה לצוות מנקים:\nא׳–ה׳: 08:00–20:00`,
       quickReplies: ['שאלה שלא נענתה — שלח מייל', 'חזור לתפריט'],
     };
   }
@@ -817,7 +817,7 @@ function getCleanerResponse(msg: string, userName: string, allBookings: any[]): 
   // ── שלח מייל ────────────────────────────────────────────────────────────
   if (matchAny(msg, ['שלח מייל','שאלה שלא נענתה','שלח לתמיכה','מייל לתמיכה','שאלה שלא נענתה — שלח מייל'])) {
     return {
-      text: `בוודאי! 📧\nנפתח את אפליקציית המייל שלך.\n\n✉️ cleaners@A&M Clean.co.il\n\nנחזור אליך תוך 24 שעות! 🕐`,
+      text: `בוודאי! 📧\nנפתח את אפליקציית המייל שלך.\n\n✉️ cleaners@amclean.co.il\n\nנחזור אליך תוך 24 שעות! 🕐`,
       quickReplies: ['חזור לתפריט'],
       action: 'sendEmail',
     };
@@ -852,7 +852,7 @@ function getCleanerResponse(msg: string, userName: string, allBookings: any[]): 
   // ── לקוח ביטל ────────────────────────────────────────────────────────────
   if (matchAny(msg, ['לקוח ביטל', 'ביטל עלי', 'בוטלה הזמנה', 'לקוח לא הגיע', 'לקוח לא נמצא'])) {
     return {
-      text: '❌ לקוח ביטל הזמנה:\n\nביטול עד 24 שעות לפני — ללא פיצוי\nביטול פחות מ-24 שעות — פנה לתמיכה:\n📧 cleaners@A&M Clean.co.il\n\nאנו בוחנים כל מקרה של ביטול מאוחר ✅',
+      text: '❌ לקוח ביטל הזמנה:\n\nביטול עד 24 שעות לפני — ללא פיצוי\nביטול פחות מ-24 שעות — פנה לתמיכה:\n📧 cleaners@amclean.co.il\n\nאנו בוחנים כל מקרה של ביטול מאוחר ✅',
       quickReplies: ['צור קשר', 'חזור לתפריט'],
     };
   }
@@ -1045,14 +1045,15 @@ export default function SupportScreen() {
         // existed, so the support assistant saw zero bookings for every cleaner
         // who ever asked it about their jobs, and answered from an empty set.
         const bookingField = role === 'cleaner' ? 'cleanerId' : 'clientUid';
-        const q = query(
-          collection(db, 'bookings'),
-          where(bookingField, '==', uid),
-          orderBy('createdAt', 'desc'),
-          limit(20)
-        );
+        // No orderBy: with the where() it needs a composite index the project
+        // does not have, so the query failed on every call and the catch below
+        // hid it — the assistant answered everyone from an empty list. The
+        // newest 20, sorted here.
+        const q = query(collection(db, 'bookings'), where(bookingField, '==', uid));
         const snap = await getDocs(q);
-        allBookings = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+        allBookings = snap.docs.map(d => ({ id: d.id, ...(d.data() as any) }))
+          .sort((a: any, b: any) => String(b.createdAt || '').localeCompare(String(a.createdAt || '')))
+          .slice(0, 20);
         if (role === 'client') {
           activeBooking = allBookings.find(b =>
             b.status && !['done', 'cancelled'].includes(b.status)
@@ -1165,7 +1166,7 @@ export default function SupportScreen() {
       // Open email client if needed
       if (response.action === 'sendEmail') {
         const isCleaner = ctx.role === 'cleaner';
-        const emailAddr = isCleaner ? 'cleaners@A&M Clean.co.il' : 'support@A&M Clean.co.il';
+        const emailAddr = isCleaner ? 'cleaners@amclean.co.il' : 'support@amclean.co.il';
         const roleLabel = isCleaner ? 'מנקה' : 'לקוח';
         const subject = encodeURIComponent(`שאלה שלא נענתה — פנייה לתמיכה A&M Clean (${roleLabel})`);
         const body = encodeURIComponent(

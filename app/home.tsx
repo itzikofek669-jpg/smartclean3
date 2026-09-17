@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
+import { signOutOfDevice } from '../lib/signOutDevice';
 import * as NavigationBar from 'expo-navigation-bar';
 import { useSafeAreaInsets , SafeAreaView as SafeAreaViewCtx } from 'react-native-safe-area-context';
 import {
@@ -18,7 +19,7 @@ import MapView, { Marker, Callout, Circle, PROVIDER_GOOGLE } from 'react-native-
 import Constants from 'expo-constants';
 import * as Location from 'expo-location';
 import { useRouter, useLocalSearchParams } from 'expo-router';
-import { signOut } from 'firebase/auth';
+
 import * as SecureStore from 'expo-secure-store';
 import { collection, addDoc, getDocs, query, where, doc, getDoc, setDoc, onSnapshot, orderBy, updateDoc, arrayUnion, arrayRemove, runTransaction } from 'firebase/firestore';
 import { auth, db } from '../lib/firebase';
@@ -5537,7 +5538,7 @@ export default function HomeScreen() {
         text: t.logoutConfirm, style: 'destructive', onPress: async () => {
           await SecureStore.deleteItemAsync('remember_email').catch(() => {});
           await SecureStore.deleteItemAsync('remember_pass').catch(() => {});
-          await signOut(auth);
+          await signOutOfDevice();
           router.replace('/');
         }
       },
