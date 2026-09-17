@@ -18,6 +18,7 @@ import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 import { TAB_BAR_CONTENT_HEIGHT } from '../lib/BottomTabBar';
 import { demoModeStored, setDemoMode } from '../lib/demoMode';
 import { releaseUrgentRequest } from '../lib/urgentRelease';
+import { fetchPrivateProfile } from '../lib/privateProfile';
 
 // ─── Palette ──────────────────────────────────────────────────────────────────
 const C_DEFAULT = {
@@ -122,9 +123,24 @@ export default function AdminScreen() {
       router.replace('/home');
       return;
     }
+    // Email, phone and addresses live in each user's private half now (see
+    // lib/privateProfile). Fetched once per user and folded in. Moving what is
+    // still public is the website admin's sweep, run when it is chosen to be:
+    // an older build reads these off the public document.
+    const privateByUid = new Map<string, Record<string, any>>();
+    let latestPub: any[] = [];
+    const showUsers = () => setUsers(latestPub.map(u => ({ ...u, ...(privateByUid.get(u.uid) ?? {}) })));
     const unsubUsers = onSnapshot(collection(db, 'users'), snap => {
-      setUsers(snap.docs.map(d => ({ uid: d.id, ...d.data() })));
+      latestPub = snap.docs.map(d => ({ uid: d.id, ...d.data() }));
+      showUsers();
       setLoading(false);
+      const missing = latestPub.filter(u => !privateByUid.has(u.uid));
+      if (!missing.length) return;
+      // Always against the newest list, so a slow fetch cannot put back an
+      // older snapshot.
+      Promise.all(missing.map(async u => { privateByUid.set(u.uid, await fetchPrivateProfile(u.uid)); }))
+        .then(showUsers)
+        .catch(() => {});
     });
     const unsubBookings = onSnapshot(
       query(collection(db, 'bookings'), orderBy('createdAt', 'desc'), limit(300)),

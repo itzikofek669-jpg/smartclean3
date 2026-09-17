@@ -269,6 +269,17 @@ service cloud.firestore {
           && request.resource.data.stars <= 5;
         allow update, delete: if isAdmin();
       }
+
+      // The half of a profile no one else needs: email, home addresses with
+      // floor and flat, a client's phone and GPS position, a cleaner's street
+      // address, bank account and ID photo. They sat on the document above,
+      // which every signed-in account can `get`, and a client's uid is printed
+      // on every job they post — so any account read them. Rules cannot hide
+      // one field of a readable document, so they moved here.
+      // See src/lib/privateProfile.ts for which keys and why.
+      match /private/{docId} {
+        allow read, write: if isAdmin() || (signedIn() && uid() == userId);
+      }
     }
 
     // ── Profile photos ───────────────────────────────────────────────────────

@@ -12,7 +12,8 @@ import * as ImagePicker from 'expo-image-picker';
 import * as ImageManipulator from 'expo-image-manipulator';
 import { useRouter } from 'expo-router';
 import { createUserWithEmailAndPassword, signOut } from 'firebase/auth';
-import { doc, setDoc } from 'firebase/firestore';
+import { writeBatch } from 'firebase/firestore';
+import { batchProfile } from '../lib/privateProfile';
 import { auth, db } from '../lib/firebase';
 import { upsertStructuredAddress } from '../lib/savedAddresses';
 import { saveAvatar } from '../lib/photos';
@@ -750,7 +751,11 @@ export default function RegisterScreen() {
       // ממנו להירשם שוב עם אותה כתובת ("email already in use") בלי שום דרך
       // להיחלץ מזה בעצמו.
       try {
-        await setDoc(doc(db, 'users', cred.user.uid), data);
+        // Email, address, floor and flat go to the private half in the same
+        // write — see lib/privateProfile.
+        const profileBatch = writeBatch(db);
+        batchProfile(profileBatch, cred.user.uid, data, role, 'set');
+        await profileBatch.commit();
         // תופס את המספר באינדקס — best-effort, ולעולם לא חוסם הרשמה.
         //
         // הכלל הוא שההרשמה לא נבדקת על ייחודיות: בדיקה כזו שברה אותה פעמיים.

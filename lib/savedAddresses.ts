@@ -1,4 +1,6 @@
-// Saved addresses for a client, stored on their Firestore user document.
+// Saved addresses for a client, stored with the private half of their profile
+// (users/{uid}/private/profile — see lib/privateProfile). They sat on the user
+// document itself, which any signed-in account can read.
 //
 // There used to be two implementations of this, both writing to the same
 // SecureStore key with different shapes:
@@ -16,10 +18,11 @@
 // address on the device went with it. These are typed by hand, they are the
 // same on every device a person signs in from, and they belong with the account.
 
-import { doc, getDoc, updateDoc } from 'firebase/firestore';
+import { deleteField, doc, getDoc, writeBatch } from 'firebase/firestore';
 import * as SecureStore from 'expo-secure-store';
 import { auth, db } from './firebase';
 import { logError } from './logError';
+import { privateProfileRef } from './privateProfile';
 
 export const MAX_ADDRESSES = 5;
 
@@ -99,8 +102,18 @@ export async function getSavedAddresses(): Promise<SavedAddress[]> {
   const uid = auth.currentUser?.uid;
   if (!uid) return [];
   try {
-    const snap = await getDoc(doc(db, 'users', uid));
-    const data = snap.data() as any;
+    // The private half first; the public document only for an account whose
+    // addresses have not moved yet.
+    const [privSnap, pubSnap] = await Promise.all([
+      getDoc(privateProfileRef(uid)),
+      getDoc(doc(db, 'users', uid)),
+    ]);
+    const priv = privSnap.data() as any;
+    const pub = pubSnap.data() as any;
+    const data = {
+      savedAddresses: Array.isArray(priv?.savedAddresses) ? priv.savedAddresses : pub?.savedAddresses,
+      addresses: Array.isArray(priv?.addresses) ? priv.addresses : pub?.addresses,
+    };
 
     const structured = data?.savedAddresses;
     if (Array.isArray(structured) && structured.length) {
@@ -128,15 +141,18 @@ export async function getSavedAddresses(): Promise<SavedAddress[]> {
 /**
  * Write the list, and mirror the plain strings to `addresses`.
  *
- * The web reads that flat field (src/lib/addresses.ts) and is not being changed
- * in this pass, so keeping it in step is what lets an address saved in the app
- * show up there.
+ * The web reads that flat field (src/lib/addresses.ts), so keeping it in step
+ * is what lets an address saved in the app show up there. Any copy still on the
+ * public document goes in the same write.
  */
 async function persist(uid: string, list: SavedAddress[]): Promise<void> {
-  await updateDoc(doc(db, 'users', uid), {
+  const batch = writeBatch(db);
+  batch.set(privateProfileRef(uid), {
     savedAddresses: list,
     addresses: list.map(a => a.address).filter(Boolean),
-  });
+  }, { merge: true });
+  batch.update(doc(db, 'users', uid), { savedAddresses: deleteField(), addresses: deleteField() });
+  await batch.commit();
 }
 
 /** Add or update an address, most-recently-used first. */

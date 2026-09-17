@@ -11,6 +11,7 @@ import {
 import { useAnimatedValue, useAnimatedValues } from '../lib/useAnimatedValue';
 import { useNow } from '../lib/useNow';
 import { writeBookingDetails, withBookingDetails, migrateOpenJobDetails, fetchBookingDetails } from '../lib/bookingDetails';
+import { fetchOwnProfile, migrateProfile, ownPhone, publicCoord } from '../lib/privateProfile';
 
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -1676,8 +1677,8 @@ function PostJobModal({ visible, onClose, onPosted }: { visible: boolean; onClos
       // גיבוי: כתובת/עיר מהפרופיל (הרשמה)
       try {
         const uid = auth.currentUser?.uid || '';
-        const d = await getDoc(doc(db, 'users', uid));
-        const fallback = d.data()?.address || d.data()?.cleanerAddress || d.data()?.city;
+        const d = await fetchOwnProfile(uid);
+        const fallback = d?.address || d?.cleanerAddress || d?.city;
         if (fallback) setCity(prev => prev || String(fallback));
       } catch (_) {}
     })();
@@ -1756,7 +1757,9 @@ function PostJobModal({ visible, onClose, onPosted }: { visible: boolean; onClos
         bookingDate: dateStr, startTime: `${String(hour).padStart(2, '0')}:00`,
         recurring: 'once', recurringDates: [], createdAt: new Date().toISOString(),
       });
-      await writeBookingDetails(jobRef.id, { address: city.trim(), notes: notes.trim() });
+      // The phone too: the cleaner who takes the job reads it from here, not from
+      // a profile everyone can read. See lib/privateProfile.
+      await writeBookingDetails(jobRef.id, { address: city.trim(), notes: notes.trim(), phone: await ownPhone(uid) });
       upsertAddress(city.trim()).catch(() => {});   // שמור את הכתובת למילוי אוטומטי בפעם הבאה
       onPosted?.();
       onClose();
@@ -2452,7 +2455,8 @@ function BookingModal({ cleaner, visible, onClose, onBookingCreated, prebookData
         busyFrom: busyFromISO,
         busyUntil: busyUntilISO,
       });
-      bookingBatch.set(doc(db, 'bookings', bookingRef.id, 'private', 'details'), { address, addrStreet, addrFloor, addrApt });
+      const clientPhone = await ownPhone(clientUid);
+      bookingBatch.set(doc(db, 'bookings', bookingRef.id, 'private', 'details'), { address, addrStreet, addrFloor, addrApt, phone: clientPhone });
       await bookingBatch.commit();
 
       // ── שמור bookingId והאזן לשינוי סטטוס ───────────────────────────────
@@ -4682,6 +4686,10 @@ export default function HomeScreen() {
     const unsubUserDoc = onSnapshot(doc(db, 'users', uid), snap => {
       if (snap.exists()) {
         const data = snap.data();
+        // Email, phone, addresses and bank details still on the readable-by-all
+        // document move to the private half. Once per session; see
+        // lib/privateProfile.
+        void migrateProfile(uid, data);
         // קישור האימות נפתח בתוכנת דואר, שבה שום קוד שלנו לא רץ — הפרופיל לומד
         // שהכתובת תקינה רק כשהאפליקציה נפתחת שוב.
         //
@@ -5447,7 +5455,9 @@ export default function HomeScreen() {
           if (r && typeof r.latitude === 'number') {
             setRealCleaners(prev => prev.map(c => c.id === d.id ? { ...c, lat: r.latitude, lng: r.longitude } : c));
             if (myUid && d.id === myUid) {
-              await updateDoc(doc(db, 'users', d.id), { lat: r.latitude, lng: r.longitude });
+              // Rounded, like every other write of a cleaner's public position.
+              // See lib/privateProfile.
+              await updateDoc(doc(db, 'users', d.id), { lat: publicCoord(r.latitude), lng: publicCoord(r.longitude) });
             }
           }
         } catch (err) { logError('home:write', err); }

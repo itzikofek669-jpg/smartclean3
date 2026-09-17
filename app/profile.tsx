@@ -55,7 +55,8 @@ import Constants from 'expo-constants';
 import { addBookingToCalendar, removeBookingFromCalendar, calendarSyncMessage } from '../lib/calendarSync';
 import { logError } from '../lib/logError';
 import { useNow } from '../lib/useNow';
-import { withBookingDetails, migrateOpenJobDetails } from '../lib/bookingDetails';
+import { withBookingDetails, migrateOpenJobDetails, fetchBookingDetails } from '../lib/bookingDetails';
+import { batchProfile, fetchOwnProfile, privateProfileRef } from '../lib/privateProfile';
 import { firstError, validateName, validatePhone, validatePrice, validateAge, validateDistance, normalizePhone } from '../lib/validate';
 import { claimPhone, releasePhone } from '../lib/accountChecks';
 import { isUrgentRequestLive, isUrgentRequestExpired } from '../lib/urgentRequest';
@@ -516,6 +517,7 @@ export default function ProfileScreen() {
   const [rateModal,    setRateModal]    = useState(false);
   const [portfolio,    setPortfolio]    = useState<string[]>([]);
   const [idVerified,   setIdVerified]   = useState(false);
+  const [idSubmitted,  setIdSubmitted]  = useState(false);
   const [prefLang,     setPrefLang]     = useState('he');
   const [userPhone,    setUserPhone]    = useState('');
   // null = עוד לא ידוע. היה useState(true), כלומר "יש טוקן" נוחש לפני
@@ -952,9 +954,9 @@ export default function ProfileScreen() {
 
   const openEditProfile = async () => {
     try {
-      const snap = await getDoc(doc(db, 'users', uid));
-      if (snap.exists()) {
-        const d = snap.data();
+      // Both halves: the address, phone and bank fields live in the private one.
+      const d = await fetchOwnProfile(uid);
+      if (d) {
         setEditName(d.name        || '');
         setEditCity(d.city        || '');
         setEditStreet(d.street    || '');
@@ -1051,7 +1053,10 @@ export default function ProfileScreen() {
         (!editAddrPrivate && editApt.trim()) ? `דירה ${editApt.trim()}` : '',
       ].filter(Boolean).join(', ');
 
-      await updateDoc(doc(db, 'users', uid), {
+      // One batch, two documents: what anyone may read about you, and what only
+      // you may. See lib/privateProfile.
+      const profileBatch = writeBatch(db);
+      batchProfile(profileBatch, uid, {
         name:          editName.trim(),
         city:          isCleaner ? (geoExtra.city || editCity.trim()) : editCity.trim(),
         ...(geoExtra.lat != null ? { lat: geoExtra.lat, lng: geoExtra.lng } : {}),
@@ -1086,7 +1091,8 @@ export default function ProfileScreen() {
         bankNum:          editBankNum.trim(),
         bankBranch:       editBankBranch.trim(),
         bankAccount:      editBankAccount.trim(),
-      });
+      }, isCleaner ? 'cleaner' : 'client', 'update');
+      await profileBatch.commit();
       // המספר הישן חוזר רק עכשיו, כשהפרופיל באמת נושא את החדש. שחרור לפני
       // השמירה השאיר, כששמירה נכשלה, פרופיל על מספר שכבר לא מוחזק — פנוי לכל אחד.
       if (phone && phone !== prevPhone) await releasePhone(prevPhone, uid);
@@ -1123,9 +1129,8 @@ export default function ProfileScreen() {
     // ── טעינת נתוני פרופיל (חד-פעמי) ──────────────────────────────────────
     (async () => {
       try {
-        const snap = await getDoc(doc(db, 'users', uid));
-        if (snap.exists()) {
-          const d = snap.data();
+        const d = await fetchOwnProfile(uid);
+        if (d) {
           setUserName(d.name        || '');
           setUserEmail(d.email      || '');
           setUserRole(d.role        || '');
@@ -1154,6 +1159,7 @@ export default function ProfileScreen() {
           // carries inline until this cleaner next saves. See lib/portfolio.
           fetchPortfolio(uid, d.portfolio).then(setPortfolio).catch(() => {});
           setIdVerified(d.identityVerified === true);
+          setIdSubmitted(!!d.idSubmittedAt);
           setPrefLang((d.preferredLang || 'he') as Lang);
           setUserPhone(d.phone || '');
           let code = d.referralCode || '';
@@ -1556,11 +1562,33 @@ export default function ProfileScreen() {
     ]);
   };
 
+  // The photo goes to the private half, and the badge is the admin's to give.
+  // This wrote identityVerified: true onto the cleaner's own profile, which the
+  // rules refuse — a cleaner who marks herself verified is exactly what the
+  // badge exists to rule out — so every upload failed in silence: no photo
+  // stored, no message, the button still there. Now it is stored where only
+  // she and an admin can see it, and an admin approves it from the website.
   const saveIdPhoto = async (b64: string) => {
     const uri = `data:image/jpeg;base64,${b64}`;
-    await setDoc(doc(db, 'users', uid), { idPhotoB64: uri, identityVerified: true }, { merge: true });
-    setIdVerified(true);
-    Alert.alert('✅', t.idVerifyDone);
+    try {
+      const batch = writeBatch(db);
+      batch.set(privateProfileRef(uid), { idPhotoB64: uri }, { merge: true });
+      batch.set(doc(db, 'users', uid), { idSubmittedAt: new Date().toISOString() }, { merge: true });
+      await batch.commit();
+      setIdSubmitted(true);
+      Alert.alert('✅', (t as any).idVerifySubmitted ?? 'התמונה נשלחה לבדיקה. התג יופיע בפרופיל אחרי אישור.');
+    } catch (err) {
+      logError('profile:saveIdPhoto', err);
+      Alert.alert(t.error, t.saveImageError);
+    }
+  };
+
+  // The client's phone, digits only, without the leading 0. It travels with the
+  // booking's private half now; a booking made before that still finds it on
+  // the client's profile until their app moves it. See lib/privateProfile.
+  const clientPhoneOf = async (b: any, clientData: any): Promise<string> => {
+    const raw = b.phone || (b.id ? (await fetchBookingDetails(b.id)).phone : '') || clientData?.phone || '';
+    return String(raw).replace(/\D/g, '').replace(/^0/, '');
   };
 
   // ─── Cleaner: "on my way" ─────────────────────────────────────────────────────
@@ -1577,7 +1605,7 @@ export default function ProfileScreen() {
         }
         // Build URLs first
         const mapsUrl  = b.address ? `https://maps.google.com/?q=${encodeURIComponent(b.address)}` : null;
-        const rawPhone = (clientData.phone || '').replace(/\D/g, '').replace(/^0/, '');
+        const rawPhone = await clientPhoneOf(b, clientData);
         const waMsg    = encodeURIComponent(`שלום! 🚗 אני בדרך אליך לכתובת ${b.address || ''}`);
         const waUrl    = rawPhone ? `https://wa.me/972${rawPhone}?text=${waMsg}` : null;
 
@@ -1894,6 +1922,7 @@ export default function ProfileScreen() {
           // הכתובת בפרטים הפרטיים, באותה כתיבה.
           nextBatch.set(doc(db, 'bookings', nextRef.id, 'private', 'details'), {
             address: b.address || '', addrStreet: b.addrStreet || '', addrFloor: b.addrFloor || '', addrApt: b.addrApt || '',
+            phone: b.phone || '',
           });
           await nextBatch.commit();
           // Notify client about next booking
@@ -1921,7 +1950,7 @@ export default function ProfileScreen() {
       } else {
         try {
           const clientSnap0 = await getDoc(doc(db, 'users', b.clientUid));
-          const rawPhone0 = ((clientSnap0.data()?.phone || '').replace(/\D/g, '').replace(/^0/, ''));
+          const rawPhone0 = await clientPhoneOf(b, clientSnap0.data());
           setPaySheetAmount(actualTotal);
           setPaySheetClientPhone(rawPhone0);
           setPaySheetClientName(b.clientName || '');
@@ -4715,6 +4744,16 @@ export default function ProfileScreen() {
                     <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: '#DCFCE7', borderRadius: 12, padding: 12 }}>
                       <T style={{ fontSize: 22 }}>🪪</T>
                       <T style={{ fontSize: 14, fontWeight: '900', color: '#15803D' }}>{t.idVerifyDone}</T>
+                    </View>
+                  ) : idSubmitted ? (
+                    <View style={{ gap: 8 }}>
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: '#FEF3C7', borderRadius: 12, padding: 12 }}>
+                        <T style={{ fontSize: 22 }}>⏳</T>
+                        <T style={{ flex: 1, fontSize: 14, fontWeight: '800', color: '#92400E' }}>{(t as any).idVerifyPending ?? 'ממתין לאישור'}</T>
+                      </View>
+                      <TouchableOpacity onPress={pickIdPhoto}>
+                        <T style={{ fontSize: 13, color: C.textSub, textAlign: 'center', textDecorationLine: 'underline' }}>{t.idVerifyUpload}</T>
+                      </TouchableOpacity>
                     </View>
                   ) : (
                     <TouchableOpacity style={ep.saveBtn} onPress={pickIdPhoto}>

@@ -130,3 +130,23 @@ test('both products derive a busy window with the same default length', crossRep
     assert.doesNotMatch(src, /Number\(j\?\.hours\) > 0 \? Number\(j\.hours\) : 1/, `${label} still defaults to one hour`);
   }
 });
+
+test('both products hide the same profile fields', crossRepo, () => {
+  // One Firebase project: if the website keeps writing a phone or a home
+  // address onto the public user document, moving it in the app buys nothing.
+  // Not a shared file — the two import their city list from different places —
+  // so this compares the lists themselves.
+  const lists = (src) => {
+    const grab = (name) => {
+      const m = src.match(new RegExp(`const ${name} = \\[([\\s\\S]*?)\\];`));
+      assert.ok(m, `${name} not found`);
+      return [...m[1].matchAll(/'([^']+)'/g)].map((x) => x[1]).sort();
+    };
+    return { always: grab('ALWAYS_PRIVATE'), client: grab('CLIENT_PRIVATE') };
+  };
+  const app = lists(read(appFile('lib/profileFields.ts')));
+  const site = lists(read(siteFile('src/lib/profileFields.ts')));
+  assert.deepEqual(app, site, 'the two products disagree about which profile fields are private');
+  // And the list is not quietly empty.
+  assert.ok(app.always.includes('email') && app.client.includes('phone'));
+});

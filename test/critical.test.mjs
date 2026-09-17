@@ -12,6 +12,7 @@ import { canRepost } from '../.tsbuild/bookingOrigin.mjs';
 import { startDateOf, endDateOf, bookingHours, DEFAULT_BOOKING_HOURS } from '../.tsbuild/bookingSlot.mjs';
 import { readCalendarRemoval, extractPushData } from '../.tsbuild/calendarPush.mjs';
 import { isUrgentRequestLive, isUrgentRequestExpired, expiryOf } from '../.tsbuild/urgentRequest.mjs';
+import { splitFields, reconcile, pendingMove, publicCoord, privateKeysFor } from '../.tsbuild/profileFields.mjs';
 import { claimUpdate, rejectionUpdate, rejectionReleasesToBoard, awaitsMyApproval, occupiesCleanerTime, busyWindowOf, busyFieldsOf, pendingSlotMissed, isBoardJobOfferable, pendingSlotExpired, expiryUpdate } from '../.tsbuild/bookingActions.mjs';
 
 // Every case here is a bug that reached a real user. They are regression tests,
@@ -799,4 +800,71 @@ test('a city is not read out of a street name, a floor, or the wrong end of an a
     ['קרית שמונה', 'קריית שמונה'],
   ];
   for (const [address, city] of cases) assert.equal(cityFromAddress(address, known), city, address);
+});
+
+// ── The private half of a profile (lib/profileFields) ────────────────────────
+// `users/{uid}` is readable by any signed-in account, and a client's uid is on
+// every job they post. These decide what such an account gets to see.
+
+test("a client's phone and position are private; a cleaner's are how she is found", () => {
+  assert.equal(privateKeysFor('client').includes('phone'), true);
+  assert.equal(privateKeysFor('cleaner').includes('phone'), false);
+  // No role yet (a document mid-registration) is treated as a client: the
+  // cautious half, since only a cleaner's number is meant to be on show.
+  assert.equal(privateKeysFor(null).includes('phone'), true);
+  // Nobody's bank details, home address or ID photo are public, either way.
+  for (const role of ['client', 'cleaner']) {
+    for (const key of ['email', 'bankAccount', 'idPhotoB64', 'savedAddresses', 'cleanerAddress']) {
+      assert.equal(privateKeysFor(role).includes(key), true, `${role}/${key}`);
+    }
+  }
+});
+
+test('a profile write is split, and a cleaner is placed to about a kilometre', () => {
+  const { pub, priv } = splitFields({
+    name: 'דנה', role: 'cleaner', city: 'חריש', price: 90,
+    lat: 32.461234, lng: 35.048765, cleanerAddress: 'הגפן 3, חריש', bankAccount: '12345',
+  }, 'cleaner');
+  assert.deepEqual(pub, { name: 'דנה', role: 'cleaner', city: 'חריש', price: 90, lat: 32.46, lng: 35.05 });
+  assert.deepEqual(priv, { cleanerAddress: 'הגפן 3, חריש', bankAccount: '12345' });
+});
+
+test("a client's full home address does not stay in the public `city` field", () => {
+  // Registration asks for the whole address and stored it under `city`.
+  const { pub, priv } = splitFields({ city: 'שדרות ירושלים 5, חריש', phone: '0501234567' }, 'client');
+  assert.equal(pub.city, 'חריש');
+  assert.equal(priv.city, 'שדרות ירושלים 5, חריש');
+  assert.equal(priv.phone, '0501234567');
+  assert.equal(pub.phone, undefined);
+});
+
+test('a city that is only a city leaves no private copy behind', () => {
+  // Without the clear, an old full address in the private half would keep
+  // winning the merge after the person fixed the field.
+  const { pub, priv, clearPrivate } = splitFields({ city: 'חריש' }, 'client');
+  assert.equal(pub.city, 'חריש');
+  assert.equal(priv.city, undefined);
+  assert.deepEqual(clearPrivate, ['city']);
+});
+
+test('what still has to move off the public document', () => {
+  assert.equal(pendingMove({ role: 'client', name: 'דנה' }).any, false);
+  assert.equal(pendingMove({ role: 'client', phone: '050' }).any, true);
+  assert.equal(pendingMove({ role: 'cleaner', phone: '050' }).any, false);
+  assert.equal(pendingMove({ role: 'cleaner', bankNum: '12' }).any, true);
+  assert.equal(pendingMove({ role: 'cleaner', lat: 32.461234 }).any, true);
+  assert.equal(pendingMove({ role: 'cleaner', lat: publicCoord(32.461234) }).any, false);
+});
+
+test('a stale copy left by an older build does not overwrite the real one', () => {
+  // An old build fills its edit form from the public document, where the field
+  // is now gone, and saves the blank back. That blank is the form's, not the
+  // person's.
+  assert.equal(reconcile('', '0501234567'), '0501234567');
+  assert.equal(reconcile('0507654321', '0501234567'), '0507654321');   // actually typed: it wins
+  assert.equal(reconcile(undefined, 'הגפן 3'), 'הגפן 3');
+  assert.equal(reconcile('הגפן 3', undefined), 'הגפן 3');
+  // Address lists are merged, not replaced — the old web client re-saved the
+  // list as the one address it had just used.
+  assert.deepEqual(reconcile(['ב'], ['א', 'ב']), ['ב', 'א']);
 });
