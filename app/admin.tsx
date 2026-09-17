@@ -581,7 +581,7 @@ export default function AdminScreen() {
                     <T style={s.bookingParties}>
                       👤 {b.clientName || 'לקוח'} ← ✨ {b.cleanerName || 'מנקה'}
                     </T>
-                    <T style={s.bookingSub}>📍 {b.address}</T>
+                    <T style={s.bookingSub}>📍 {b.address || b.addrCity}</T>
                     <T style={s.bookingAmount}>
                       ₪{b.total || 0} · {b.hours} שע׳ · {b.paymentMethod}
                     </T>

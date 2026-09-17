@@ -21,7 +21,7 @@ import * as Location from 'expo-location';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 
 import * as SecureStore from 'expo-secure-store';
-import { collection, addDoc, getDocs, query, where, doc, getDoc, setDoc, onSnapshot, orderBy, updateDoc, arrayUnion, arrayRemove, runTransaction } from 'firebase/firestore';
+import { collection, addDoc, getDocs, query, where, doc, getDoc, setDoc, onSnapshot, orderBy, updateDoc, arrayUnion, arrayRemove, runTransaction, writeBatch } from 'firebase/firestore';
 import { auth, db } from '../lib/firebase';
 import { setAnnouncedBooking, getAnnouncedBooking } from '../lib/confirmPresence';
 import {
@@ -2429,10 +2429,15 @@ function BookingModal({ cleaner, visible, onClose, onBookingCreated, prebookData
       const startMM = startMin === 30 ? '30' : '00';
 
       const paymentStatus = payment === 'cash' ? 'awaiting_cash' : payment === 'bit' ? 'awaiting_bit' : 'awaiting_card';
-      const bookingRef = await addDoc(collection(db, 'bookings'), {
+      // The address goes to private/details in the same batch. On the booking,
+      // the cleaner's own list query kept returning it after a cancellation, when
+      // she may no longer read the booking itself. See lib/bookingDetails.
+      const bookingRef = doc(collection(db, 'bookings'));
+      const bookingBatch = writeBatch(db);
+      bookingBatch.set(bookingRef, {
         cleanerId: cleaner.id, cleanerName: cleaner.name,
-        clientUid, clientName, hours, payment, paymentStatus, address, total,
-        addrCity, addrStreet, addrFloor, addrApt, addrPrivate,
+        clientUid, clientName, hours, payment, paymentStatus, total,
+        addrCity, addrPrivate,
         // Client picked this cleaner by name — no advert behind it, so no
         // re-post offer if they later pull out. See lib/bookingOrigin.
         origin: 'direct',
@@ -2447,6 +2452,8 @@ function BookingModal({ cleaner, visible, onClose, onBookingCreated, prebookData
         busyFrom: busyFromISO,
         busyUntil: busyUntilISO,
       });
+      bookingBatch.set(doc(db, 'bookings', bookingRef.id, 'private', 'details'), { address, addrStreet, addrFloor, addrApt });
+      await bookingBatch.commit();
 
       // ── שמור bookingId והאזן לשינוי סטטוס ───────────────────────────────
       setPendingBookingId(bookingRef.id);
@@ -4298,6 +4305,17 @@ export default function HomeScreen() {
       .catch(() => {});
   };
   const closeCancelledPopup = () => { markCancelledSeen(cancelledPopup?.id); setCancelledPopup(null); };
+  // The address of a direct or urgent booking is in private/details, and the
+  // popup is fed a raw snapshot.
+  useEffect(() => {
+    const id = cancelledPopup?.id;
+    if (!id || cancelledPopup?.address) return;
+    let live = true;
+    fetchBookingDetails(id)
+      .then(d => { if (live && d?.address) setCancelledPopup((cur: any) => (cur && cur.id === id ? { ...cur, ...d } : cur)); })
+      .catch(() => {});
+    return () => { live = false; };
+  }, [cancelledPopup]);
   const [reposting, setReposting] = useState(false);
   const seenCancelledRef = useRef<Set<string>>(new Set());
 
@@ -4793,6 +4811,12 @@ export default function HomeScreen() {
               if (newest) {
                 setNewBookingId(newest.id);
                 setNewBookingModal(newest);   // פופ מפורט (במקום Alert בסיסי)
+                // הכתובת ב-private/details.
+                if (!newest.address) {
+                  fetchBookingDetails(newest.id)
+                    .then(d => setNewBookingModal((cur: any) => (cur && cur.id === newest.id ? { ...cur, ...d } : cur)))
+                    .catch(() => {});
+                }
               }
             }
             prevCleanerPendingRef.current = count;
@@ -4811,6 +4835,8 @@ export default function HomeScreen() {
         const bks = snap.docs.map(d => ({ id: d.id, ...d.data() }));
         bks.sort((a: any, b: any) => (b.createdAt || '').localeCompare(a.createdAt || ''));
         setMyBookings(bks);
+        // הכתובות יושבות ב-private/details, ו"הזמן שוב" ממלא מהן את הטופס.
+        withBookingDetails(bks as any).then((full: any) => setMyBookings(full)).catch(() => {});
         // סמן מנקים עם הזמנה ממתינה/מאושרת
         const pendingIds = new Set<string>(
           bks.filter((b: any) => ['pending','confirmed'].includes(b.status)).map((b: any) => b.cleanerId)

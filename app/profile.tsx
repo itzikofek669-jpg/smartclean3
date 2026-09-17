@@ -12,7 +12,7 @@ import { useRouter, useLocalSearchParams } from 'expo-router';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
   doc, getDoc, setDoc, updateDoc, addDoc, deleteDoc, deleteField,
-  collection, query, where, getDocs, orderBy, arrayRemove, arrayUnion, onSnapshot, runTransaction,
+  collection, query, where, getDocs, orderBy, arrayRemove, arrayUnion, onSnapshot, runTransaction, writeBatch,
 } from 'firebase/firestore';
 import { auth, db } from '../lib/firebase';
 import {
@@ -1860,7 +1860,9 @@ export default function ProfileScreen() {
           const nextDateStr = nextDate.toISOString().split('T')[0];
           // A fixed id — one next visit per finished visit. Ending the same job
           // twice made two; the rules key the create on this id.
-          await setDoc(doc(db, 'bookings', `${b.id}-next`), {
+          const nextRef = doc(db, 'bookings', `${b.id}-next`);
+          const nextBatch = writeBatch(db);
+          nextBatch.set(nextRef, {
             cleanerId: uid,
             cleanerName: userName,
             clientUid: b.clientUid,
@@ -1868,11 +1870,7 @@ export default function ProfileScreen() {
             hours: b.hours,
             payment: b.payment,
             paymentStatus: `awaiting_${b.payment}`,
-            address: b.address,
             addrCity: b.addrCity || '',
-            addrStreet: b.addrStreet || '',
-            addrFloor: b.addrFloor || '',
-            addrApt: b.addrApt || '',
             addrPrivate: b.addrPrivate || false,
             // The parent's own total, null included — the rules compare the two.
             total: b.total ?? null,
@@ -1893,6 +1891,11 @@ export default function ProfileScreen() {
             source: 'auto_recurring',
             parentBookingId: b.id,
           });
+          // הכתובת בפרטים הפרטיים, באותה כתיבה.
+          nextBatch.set(doc(db, 'bookings', nextRef.id, 'private', 'details'), {
+            address: b.address || '', addrStreet: b.addrStreet || '', addrFloor: b.addrFloor || '', addrApt: b.addrApt || '',
+          });
+          await nextBatch.commit();
           // Notify client about next booking
           try {
             const clientSnap2 = await getDoc(doc(db, 'users', b.clientUid));
@@ -2404,7 +2407,7 @@ export default function ProfileScreen() {
             cleanerId: uid, cleanerName,
             clientUid: req.clientUid, clientName: req.clientName,
             hours: req.hours, payment: req.paymentMethod, paymentStatus: `awaiting_${req.paymentMethod}`,
-            address: req.address, total: req.total,
+            total: req.total, addrCity: req.addrCity || '',
             origin: 'urgent',
             status: 'confirmed', createdAt: new Date().toISOString(),
             bookingDate: req.dateStr, startTime: req.startTime,
@@ -2417,6 +2420,9 @@ export default function ProfileScreen() {
             // ללקוח שני להזמין את אותה שעה. מסלול הלוח קיבל את זה, הדחוף לא.
             ...busyFieldsOf({ bookingDate: req.dateStr, startTime: req.startTime, hours: req.hours }),
           });
+          // הכתובת בפרטים הפרטיים, באותה טרנזקציה — לא על ההזמנה, שרשימת המנקה
+          // ממשיכה להחזיר גם אחרי ביטול.
+          tx.set(doc(db, 'bookings', bookingRef.id, 'private', 'details'), { address: req.address || '' });
         });
       } catch (txErr: any) {
         if (txErr?.message === 'TAKEN') {

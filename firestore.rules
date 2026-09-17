@@ -786,7 +786,23 @@ service cloud.firestore {
         // The client's own words about their own home. A cleaner may never
         // write here: it is the same data bookingClientDataUnchanged freezes on
         // the parent, and moving it must not hand it back.
-        allow create, update: if isAdmin()
+        //
+        // Created with the booking, in the same batch, where that is possible —
+        // so the parent is read as the batch leaves it. Written in a second step,
+        // the other party's listener could load the booking in between and show
+        // it with no street.
+        allow create: if isAdmin()
+          || (signedIn()
+              && getAfter(/databases/$(database)/documents/bookings/$(bookingId)).data.get('clientUid', '') == uid())
+          // The cleaner creating the booking in this same write — an urgent claim,
+          // or the next visit of a recurring job. The booking rules decide whether
+          // she may create it; its address goes with it, here rather than on the
+          // booking, which her own list query keeps returning after a
+          // cancellation. Never onto a booking that already exists.
+          || (signedIn()
+              && !exists(/databases/$(database)/documents/bookings/$(bookingId))
+              && getAfter(/databases/$(database)/documents/bookings/$(bookingId)).data.get('cleanerId', '') == uid());
+        allow update: if isAdmin()
           || (signedIn() && parent().get('clientUid', '') == uid());
         allow delete: if isAdmin();
       }
