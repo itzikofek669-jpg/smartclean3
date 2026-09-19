@@ -37,6 +37,7 @@ import { canRepost, bookingOrigin } from '../lib/bookingOrigin';
 import { cityFromAddress } from '../lib/cityFromAddress';
 import {
   LANGUAGE_FLAGS, groupConsecutiveDays, normalizeLanguages, workDaysFromAvailability,
+  workingHoursVerdict,
 } from '../lib/cleanerTraits';
 import {
   CITY_COORDS, CITY_KEYS_BY_LEN, REGION_CENTER, regionFromLat,
@@ -2375,6 +2376,29 @@ function BookingModal({ cleaner, visible, onClose, onBookingCreated, prebookData
     selectedDateTime.setHours(Math.floor(startHour), startHour % 1 === 0.5 ? 30 : 0, 0, 0);
     if (selectedDateTime <= new Date()) {
       return Alert.alert(t.error, t.pastHourError);
+    }
+
+    // ── ולידציה: בתוך ימי ושעות העבודה של המנקה ──────────────────────────
+    // שום דבר לא בדק את זה: אפשר היה להזמין מנקה ביום שסימנה כחופש, או בשש
+    // בבוקר כשהיום שלה מתחיל בתשע. כל תאריך של הזמנה חוזרת נבדק, לא רק הראשון.
+    {
+      const hhmm = (h: number) => `${String(Math.floor(h)).padStart(2, '0')}:${h % 1 ? '30' : '00'}`;
+      const dates = [
+        bookingDate,
+        ...(recurring !== 'once' ? recurringDates.map(ds => { const [y, m, d] = ds.split('-').map(Number); return new Date(y, m - 1, d); }) : []),
+      ];
+      for (const d of dates) {
+        const v = workingHoursVerdict(cleaner?.availability, d.getDay(), startHour, hours);
+        if (v.verdict !== 'day-off' && v.verdict !== 'outside-hours') continue;
+        const msg = v.verdict === 'day-off'
+          ? ((t as any).notWorkingDayMsg ?? 'המנקה לא עובד/ת ביום שבחרת. בחר/י יום אחר.')
+          : ((t as any).notWorkingHoursMsg ?? 'ביום הזה המנקה עובד/ת רק בין {start} ל-{end}. בחר/י שעה ומשך שנכנסים בטווח הזה.')
+              .replace('{start}', hhmm(v.start!)).replace('{end}', hhmm(v.end!));
+        return Alert.alert(
+          (t as any).notWorkingTitle ?? '⛔ המנקה לא עובד/ת בזמן שבחרת',
+          d === bookingDate ? msg : `${msg}\n📅 ${fmtDate(d)}`,
+        );
+      }
     }
 
     // תאריך מקומי (לא UTC) — חייב להיות זהה לפורמט שבו ההזמנה נשמרת, אחרת הבדיקה רצה על היום הלא נכון

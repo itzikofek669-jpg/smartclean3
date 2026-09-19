@@ -14,6 +14,7 @@ import { readCalendarRemoval, extractPushData } from '../.tsbuild/calendarPush.m
 import { isUrgentRequestLive, isUrgentRequestExpired, expiryOf } from '../.tsbuild/urgentRequest.mjs';
 import { splitFields, reconcile, pendingMove, publicCoord, privateKeysFor } from '../.tsbuild/profileFields.mjs';
 import { spreadStacked } from '../.tsbuild/jobUtils.mjs';
+import { workingHoursVerdict } from '../.tsbuild/cleanerTraits.mjs';
 import { claimUpdate, rejectionUpdate, rejectionReleasesToBoard, awaitsMyApproval, occupiesCleanerTime, busyWindowOf, busyFieldsOf, pendingSlotMissed, isBoardJobOfferable, pendingSlotExpired, expiryUpdate } from '../.tsbuild/bookingActions.mjs';
 
 // Every case here is a bug that reached a real user. They are regression tests,
@@ -883,4 +884,33 @@ test('jobs in the same town get a pin each, not one pin on top of the others', (
     // Close enough to still read as that town: well under a kilometre.
     assert.ok(Math.abs(p.lat - town.lat) < 0.01 && Math.abs(p.lng - town.lng) < 0.01);
   }
+});
+
+test("a cleaner cannot be booked on a day off or outside her hours", () => {
+  // Nothing checked this: a day she had switched off could be booked.
+  // Sun–Thu, 09:00–17:00; Friday off; Saturday never touched.
+  const week = {
+    sun: { active: true, start: 9, end: 17 }, mon: { active: true, start: 9, end: 17 },
+    tue: { active: true, start: 9, end: 17 }, wed: { active: true, start: 9, end: 17 },
+    thu: { active: true, start: 9, end: 17 }, fri: { active: false, start: 9, end: 17 },
+  };
+  const SUN = 0, FRI = 5, SAT = 6;
+  assert.equal(workingHoursVerdict(week, SUN, 9, 3).verdict, 'ok');
+  assert.equal(workingHoursVerdict(week, SUN, 14, 3).verdict, 'ok');            // ends exactly at 17:00
+  assert.equal(workingHoursVerdict(week, FRI, 10, 2).verdict, 'day-off');
+  assert.equal(workingHoursVerdict(week, SAT, 10, 2).verdict, 'day-off');       // a day never set is not a working day
+  const early = workingHoursVerdict(week, SUN, 7, 2);
+  assert.deepEqual(early, { verdict: 'outside-hours', start: 9, end: 17 });     // the message can name her hours
+  assert.equal(workingHoursVerdict(week, SUN, 15.5, 2).verdict, 'outside-hours'); // 15:30 for two hours runs past 17:00
+});
+
+test('a profile that never set its hours stays bookable', () => {
+  // Older profiles have no availability; reading that as "never works" would
+  // make every one of them unbookable.
+  assert.equal(workingHoursVerdict(undefined, 2, 10, 2).verdict, 'unset');
+  assert.equal(workingHoursVerdict({}, 2, 10, 2).verdict, 'unset');
+  assert.equal(workingHoursVerdict({ sun: { active: false } }, 0, 10, 2).verdict, 'unset');
+  // The oldest shape, a bare `true`, is 9–18 — as the profile screen reads it.
+  assert.equal(workingHoursVerdict({ mon: true }, 1, 10, 2).verdict, 'ok');
+  assert.equal(workingHoursVerdict({ mon: true }, 1, 17, 2).verdict, 'outside-hours');
 });

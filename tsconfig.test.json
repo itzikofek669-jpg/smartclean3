@@ -20,6 +20,7 @@
     "lib/bookingOrigin.ts",
     "lib/mapStyle.ts",
     "lib/cityFromAddress.ts",
-    "lib/profileFields.ts"
+    "lib/profileFields.ts",
+    "lib/cleanerTraits.ts"
   ]
 }

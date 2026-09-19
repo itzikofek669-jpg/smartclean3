@@ -119,3 +119,52 @@ export function groupConsecutiveDays(days: WorkDayCode[]): WorkDayCode[][] {
   }
   return groups;
 }
+
+/**
+ * Whether a booking falls inside the days and hours a cleaner said she works.
+ *
+ *   'ok'            — inside that day's window.
+ *   'day-off'       — she does not work that day.
+ *   'outside-hours' — she works that day, but the job starts before her window
+ *                     or runs past its end.
+ *   'unset'         — she never marked any day. Profiles older than the setting
+ *                     have nothing here, and reading that as "never works" would
+ *                     make every one of them unbookable, so callers allow it.
+ *
+ * Nothing checked this before: a client could book a cleaner on a day she had
+ * switched off, or at six in the morning when her day starts at nine.
+ *
+ * `day` is `Date.getDay()` of the booking's local date; `startHour` is decimal
+ * (9.5 is 09:30). A day stored as a bare `true` — the oldest shape — is read as
+ * 9–18, the way the profile screen has always read it. The hours that apply are
+ * returned with the verdict so the message can say what they are.
+ */
+export function workingHoursVerdict(
+  availability: unknown,
+  day: number,
+  startHour: number,
+  hours: number,
+): { verdict: 'ok' | 'day-off' | 'outside-hours' | 'unset'; start?: number; end?: number } {
+  if (!availability || typeof availability !== 'object') return { verdict: 'unset' };
+  const map = availability as Record<string, unknown>;
+  const read = (v: unknown): DayAvailability | null => {
+    if (v === true) return { ...DEFAULT_DAY, active: true };
+    if (!v || typeof v !== 'object') return null;
+    const o = v as { active?: unknown; start?: unknown; end?: unknown };
+    let start = Number(o.start);
+    let end = Number(o.end);
+    if (!Number.isFinite(start)) start = DEFAULT_DAY.start;
+    if (!Number.isFinite(end)) end = DEFAULT_DAY.end;
+    // An inverted or empty window is unusable; read it the way the editor does.
+    if (end <= start) { start = DEFAULT_DAY.start; end = DEFAULT_DAY.end; }
+    return { active: o.active === true, start, end };
+  };
+  const days = AVAILABILITY_DAY_KEYS.map((k) => read(map[k]));
+  if (!days.some((d) => d?.active)) return { verdict: 'unset' };
+  const d = days[((Math.trunc(day) % 7) + 7) % 7];
+  if (!d?.active) return { verdict: 'day-off' };
+  if (startHour < d.start || startHour + hours > d.end) {
+    return { verdict: 'outside-hours', start: d.start, end: d.end };
+  }
+  return { verdict: 'ok', start: d.start, end: d.end };
+}
