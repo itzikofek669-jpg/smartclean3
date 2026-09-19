@@ -199,6 +199,42 @@ export function getJobCoords(j: any): { lat: number; lng: number } | null {
   return null;
 }
 
+/**
+ * Map points for a list of jobs, with stacked ones fanned out.
+ *
+ * A job is placed by its city, so every job in one town lands on exactly the
+ * same point and only the top pin can be tapped — the others cannot be picked
+ * from the map at all. Repeats go on small rings (about 300 m, six to a ring)
+ * around the shared point, in list order, so each one can be reached once the
+ * map is zoomed to the town. Jobs with no known place are left out.
+ */
+export function spreadStacked<T>(
+  items: T[],
+  coordsOf: (item: T) => { lat: number; lng: number } | null,
+): { item: T; lat: number; lng: number }[] {
+  const seen = new Map<string, number>();
+  const out: { item: T; lat: number; lng: number }[] = [];
+  for (const item of items) {
+    const c = coordsOf(item);
+    if (!c) continue;
+    const key = `${c.lat.toFixed(5)},${c.lng.toFixed(5)}`;
+    const n = seen.get(key) ?? 0;
+    seen.set(key, n + 1);
+    if (n === 0) { out.push({ item, lat: c.lat, lng: c.lng }); continue; }
+    const ring = Math.floor((n - 1) / 6) + 1;
+    const angle = ((n - 1) % 6) * (Math.PI / 3) + (ring - 1) * (Math.PI / 6);
+    const r = 0.003 * ring;
+    out.push({
+      item,
+      lat: c.lat + r * Math.sin(angle),
+      // A degree of longitude is shorter away from the equator; without this
+      // the ring is an ellipse, squashed east–west.
+      lng: c.lng + (r * Math.cos(angle)) / Math.cos((c.lat * Math.PI) / 180),
+    });
+  }
+  return out;
+}
+
 /** Great-circle distance in kilometres. */
 export function getDistanceKm(lat1: number, lon1: number, lat2: number, lon2: number): number {
   const R = 6371;

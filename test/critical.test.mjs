@@ -13,6 +13,7 @@ import { startDateOf, endDateOf, bookingHours, DEFAULT_BOOKING_HOURS } from '../
 import { readCalendarRemoval, extractPushData } from '../.tsbuild/calendarPush.mjs';
 import { isUrgentRequestLive, isUrgentRequestExpired, expiryOf } from '../.tsbuild/urgentRequest.mjs';
 import { splitFields, reconcile, pendingMove, publicCoord, privateKeysFor } from '../.tsbuild/profileFields.mjs';
+import { spreadStacked } from '../.tsbuild/jobUtils.mjs';
 import { claimUpdate, rejectionUpdate, rejectionReleasesToBoard, awaitsMyApproval, occupiesCleanerTime, busyWindowOf, busyFieldsOf, pendingSlotMissed, isBoardJobOfferable, pendingSlotExpired, expiryUpdate } from '../.tsbuild/bookingActions.mjs';
 
 // Every case here is a bug that reached a real user. They are regression tests,
@@ -867,4 +868,19 @@ test('a stale copy left by an older build does not overwrite the real one', () =
   // Address lists are merged, not replaced — the old web client re-saved the
   // list as the one address it had just used.
   assert.deepEqual(reconcile(['ב'], ['א', 'ב']), ['ב', 'א']);
+});
+
+test('jobs in the same town get a pin each, not one pin on top of the others', () => {
+  // Jobs are placed by city, so three jobs in one town were one tappable pin.
+  const town = { lat: 32.46, lng: 35.05 };
+  const jobs = [{ id: 'a' }, { id: 'b' }, { id: 'c' }, { id: 'nowhere' }];
+  const pts = spreadStacked(jobs, (j) => (j.id === 'nowhere' ? null : town));
+  assert.deepEqual(pts.map((p) => p.item.id), ['a', 'b', 'c']);   // no place, no pin
+  assert.deepEqual([pts[0].lat, pts[0].lng], [town.lat, town.lng]); // the first stays put
+  const keys = new Set(pts.map((p) => `${p.lat.toFixed(6)},${p.lng.toFixed(6)}`));
+  assert.equal(keys.size, 3);
+  for (const p of pts.slice(1)) {
+    // Close enough to still read as that town: well under a kilometre.
+    assert.ok(Math.abs(p.lat - town.lat) < 0.01 && Math.abs(p.lng - town.lng) < 0.01);
+  }
 });

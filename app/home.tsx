@@ -40,7 +40,7 @@ import {
 } from '../lib/cleanerTraits';
 import {
   CITY_COORDS, CITY_KEYS_BY_LEN, REGION_CENTER, regionFromLat,
-  cityNameOf, getCoordsForCleaner, getJobCoords,
+  cityNameOf, getCoordsForCleaner, getJobCoords, spreadStacked,
   getDistanceKm, getDistanceMeters,
   formatJobDate, bookingBusyWindow, windowsOverlap,
   stripEmoji, countWords, limitWords, buildFullAddress,
@@ -618,6 +618,34 @@ function CleanerMapMarker({ c, isSel, onPress }: { c: any; isSel: boolean; onPre
       anchor={{ x: 0.5, y: 0.5 }}
     >
       <View style={{ width: dotSize, height: dotSize, borderRadius: dotSize / 2, backgroundColor: dotColor, borderWidth: 2, borderColor: C.white, elevation: 4, shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.3, shadowRadius: 2 }} />
+    </Marker>
+  );
+}
+
+/** The ring on a job picked on the map, and on its card in the list. */
+const JOB_SELECTED = '#F59E0B';
+
+// סמן עבודה על מפת המנקה — סגול לדחופה, כחול לעבודה מהלוח, כמו באתר. הנבחרת
+// גדולה יותר ועם טבעת כתומה, באותו צבע שמסמן את הכרטיס שלה ברשימה.
+// Keyed by selection at the call site, so a change remounts it and it tracks
+// long enough to redraw at its new size — a marker that has stopped tracking
+// keeps its old picture on Android.
+function JobMapMarker({ lat, lng, urgent, isSel, onPress }: { lat: number; lng: number; urgent: boolean; isSel: boolean; onPress: () => void }) {
+  const [track, setTrack] = React.useState(true);
+  React.useEffect(() => {
+    const id = setTimeout(() => setTrack(false), 900);
+    return () => clearTimeout(id);
+  }, []);
+  const size = isSel ? 24 : urgent ? 18 : 15;
+  return (
+    <Marker
+      coordinate={{ latitude: lat, longitude: lng }}
+      tracksViewChanges={track}
+      onPress={onPress}
+      anchor={{ x: 0.5, y: 0.5 }}
+      zIndex={isSel ? 998 : urgent ? 2 : 1}
+    >
+      <View style={{ width: size, height: size, borderRadius: size / 2, backgroundColor: urgent ? '#7C3AED' : '#1E63D6', borderWidth: isSel ? 4 : 2, borderColor: isSel ? JOB_SELECTED : '#fff', elevation: 4, shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.3, shadowRadius: 2 }} />
     </Marker>
   );
 }
@@ -3850,6 +3878,8 @@ export default function HomeScreen() {
   const [searchSugg, setSearchSugg] = useState<{label:string; icon:string}[]>([]);
   const [showSearchSugg, setShowSearchSugg] = useState(false);
   const [selected,   setSelected]   = useState<string | null>(null);
+  // The job a cleaner picked on the map; its card is ringed and scrolled to.
+  const [selectedJobId, setSelectedJobId] = useState<string | null>(null);
   const [profile,    setProfile]    = useState<any>(null);
   const [profileReviews, setProfileReviews] = useState(false); // נפתח ישר על חלק הביקורות
   const openProfileReviews = (c: any) => { setProfileReviews(true); setProfile(c); };
@@ -5860,7 +5890,24 @@ export default function HomeScreen() {
                 </View>
               </Marker>
             )}
-            {(() => {
+            {/* A cleaner's map shows the jobs on her board, as on the website —
+                it showed other cleaners (herself among them), so there was
+                nothing on it to tap that related to the list below. */}
+            {myRole === 'cleaner' && spreadStacked(jobBoard, getJobCoords).slice(0, 120).map(({ item: j, lat, lng }) => (
+              <JobMapMarker
+                key={`${j._id}-${selectedJobId === j._id}`}
+                lat={lat}
+                lng={lng}
+                urgent={j._kind === 'urgent'}
+                isSel={selectedJobId === j._id}
+                onPress={() => {
+                  setSelectedJobId(j._id);
+                  const idx = jobBoard.findIndex((x: any) => x._id === j._id);
+                  if (idx >= 0) setTimeout(() => { try { flatListRef.current?.scrollToIndex({ index: idx, animated: true, viewPosition: 0.15 }); } catch { /* onScrollToIndexFailed retries */ } }, 60);
+                }}
+              />
+            ))}
+            {myRole !== 'cleaner' && (() => {
               // ביצועים: מרנדרים רק סמנים בתוך התצוגה הנוכחית (עם שוליים), מוגבל ל-120
               const padLat = (mapRegion?.latitudeDelta  || 4) * 0.6;
               const padLng = (mapRegion?.longitudeDelta || 4) * 0.6;
@@ -5898,6 +5945,8 @@ export default function HomeScreen() {
         <FlatList
           ref={flatListRef}
           style={s.list} data={myRole === 'cleaner' ? jobBoard : filtered} keyExtractor={i => i._id || i.id}
+          // The ring on the card picked on the map lives outside `data`.
+          extraData={selectedJobId}
           contentContainerStyle={{ padding: 10, gap: 10, paddingBottom: insets.bottom + TAB_BAR_CONTENT_HEIGHT + 16 }}
           showsVerticalScrollIndicator={false}
           initialNumToRender={6}
@@ -6000,8 +6049,14 @@ export default function HomeScreen() {
                 const area = cityFromAddress(rawArea, CITY_COORDS);
                 const price = j.total ?? j.maxPrice ?? j.pricePerHour ?? null;
                 const isUrgent = j._kind === 'urgent';
+                const isPicked = selectedJobId === j._id;
                 return (
-                  <View style={[s.jobCard, isUrgent && { borderColor: '#7C3AED', borderWidth: 3, backgroundColor: '#EDE9FE', shadowColor: '#7C3AED', shadowOpacity: 0.3, shadowRadius: 8, elevation: 5 }]}>
+                  <View style={[
+                    s.jobCard,
+                    isUrgent && { borderColor: '#7C3AED', borderWidth: 3, backgroundColor: '#EDE9FE', shadowColor: '#7C3AED', shadowOpacity: 0.3, shadowRadius: 8, elevation: 5 },
+                    // Picked on the map: ringed in the pin's colour and a little larger.
+                    isPicked && { borderColor: JOB_SELECTED, borderWidth: 3, transform: [{ scale: 1.03 }], shadowColor: JOB_SELECTED, shadowOpacity: 0.45, shadowRadius: 10, elevation: 8, marginVertical: 4 },
+                  ]}>
                     {isUrgent && (
                       <View style={{ alignSelf: 'flex-end', backgroundColor: '#7C3AED', borderRadius: 8, paddingHorizontal: 9, paddingVertical: 3, marginBottom: 8 }}>
                         <T style={{ color: '#fff', fontSize: 11.5, fontWeight: '900' }}>⚡ {(t as any).urgentBadge ?? 'דחוף'}</T>
@@ -6011,7 +6066,7 @@ export default function HomeScreen() {
                       <T style={[s.jobTitle, isUrgent && { color: '#5B21B6' }]}>{isUrgent ? '🚨 ' : '🧹 '}{svc || ((t as any).defaultServiceName ?? 'ניקיון')}</T>
                       {price != null && <T style={[s.jobPrice, isUrgent && { color: '#6D28D9' }]}>{(t as any).totalShort ?? 'סה"כ'} ₪{price}</T>}
                     </View>
-                    <TouchableOpacity activeOpacity={0.7} style={{ gap: 4, marginBottom: 10 }} onPress={() => showJobOnMap(j)}>
+                    <TouchableOpacity activeOpacity={0.7} style={{ gap: 4, marginBottom: 10 }} onPress={() => { setSelectedJobId(j._id); showJobOnMap(j); }}>
                       {!!dateStr && <T style={s.jobRow}>📅 {formatJobDate(dateStr)}{timeStr ? ` ${(t as any).atHour ?? 'בשעה'} ${timeStr}` : ''}</T>}
                       {!!j.hours && <T style={s.jobRow}>⏱️ {j.hours} {(t as any).hoursUnit ?? 'שעות'}</T>}
                       <T style={s.jobRow}>🏠 {propType}</T>
