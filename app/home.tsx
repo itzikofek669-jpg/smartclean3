@@ -1659,7 +1659,9 @@ function PostJobModal({ visible, onClose, onPosted }: { visible: boolean; onClos
   const [isPrivate, setIsPrivate] = useState(true);
   const [city, setCity]         = useState('');
   const [citySugg, setCitySugg] = useState<string[]>([]);
-  const [budget, setBudget]     = useState('');
+  // Chosen from the same row of amounts as an urgent request, not typed. The
+  // free-text field took 0, 5 or 99999, and blank posted a job with no price.
+  const [budget, setBudget]     = useState(80);
   const [notes, setNotes]       = useState('');
   const [photos, setPhotos]     = useState<string[]>([]);   // base64 (data URIs) — עד 3
   const [busy, setBusy]         = useState(false);
@@ -1750,8 +1752,8 @@ function PostJobModal({ visible, onClose, onPosted }: { visible: boolean; onClos
         // מכתובת שמורה מלאה — רחוב, עיר, קומה, דירה. ראה lib/cityFromAddress:
         // "שדרות ירושלים 5, חריש" פורסם בירושלים, והמנקות בחריש לא ראו אותו.
         addrCity: cityFromAddress(city, CITY_COORDS),
-        pricePerHour: budget ? Number(budget) : null,
-        total: budget ? Number(budget) * hours : null,
+        pricePerHour: budget,
+        total: budget * hours,
         photos,
         payment: 'cash', paymentStatus: 'awaiting_cash', status: 'pending',
         bookingDate: dateStr, startTime: `${String(hour).padStart(2, '0')}:00`,
@@ -1764,7 +1766,7 @@ function PostJobModal({ visible, onClose, onPosted }: { visible: boolean; onClos
       onPosted?.();
       onClose();
       Alert.alert('📢', (t as any).jobPostedOk ?? 'המודעה פורסמה, מנקים יוכלו לראות ולאשר הזמנה.\nאתה תקבל הודעה כשמנקה יאשר את ההזמנה.');
-      setTypes([]); setCity(''); setCitySugg([]); setBudget(''); setNotes(''); setPhotos([]);
+      setTypes([]); setCity(''); setCitySugg([]); setBudget(80); setNotes(''); setPhotos([]);
     } catch (_) {
       Alert.alert(t.error, (t as any).jobPostError ?? 'שגיאה בפרסום העבודה — נסה שוב');
     } finally { setBusy(false); }
@@ -1822,10 +1824,24 @@ function PostJobModal({ visible, onClose, onPosted }: { visible: boolean; onClos
                 <TouchableOpacity onPress={() => setHours(h => Math.min(12, h + 1))} style={{ padding: 8 }}><T style={{ fontSize: 20, color: C.blue }}>+</T></TouchableOpacity>
               </View>
             </View>
-            <View style={{ flex: 1 }}>
-              <T style={{ fontSize: 14, fontWeight: '800', color: C.textDark, textAlign: 'right', marginBottom: 6 }}>{(t as any).budgetPerHourLabel ?? 'תקציב/שעה (₪)'}</T>
-              <TextInput style={{ backgroundColor: C.white, borderRadius: 12, borderWidth: 1.5, borderColor: C.blueBorder, padding: 12, textAlign: 'center', color: C.textDark }} keyboardType="number-pad" value={budget} onChangeText={setBudget} placeholder="—" placeholderTextColor={C.textSub} />
+          </View>
+
+          {/* סכום מקסימלי לשעה — אותה בחירה כמו בבקשה דחופה */}
+          <View style={{ gap: 8 }}>
+            <T style={{ fontSize: 14, fontWeight: '800', color: C.textDark, textAlign: 'right' }}>💰 {(t as any).urgentMaxPriceLabel ?? 'סכום מקסימלי לשעה'}</T>
+            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, justifyContent: 'center' }}>
+              {[60, 70, 80, 90, 100, 120, 150].map(p => (
+                <TouchableOpacity
+                  key={p}
+                  onPress={() => setBudget(p)}
+                  activeOpacity={0.8}
+                  style={{ paddingHorizontal: 14, paddingVertical: 9, borderRadius: 12, borderWidth: 1.5, backgroundColor: budget === p ? '#7C3AED' : C.white, borderColor: budget === p ? '#7C3AED' : C.blueBorder }}
+                >
+                  <T style={{ fontSize: 13, fontWeight: '800', color: budget === p ? '#fff' : C.textDark }}>₪{p}</T>
+                </TouchableOpacity>
+              ))}
             </View>
+            <T style={{ fontSize: 11, color: C.textSub, textAlign: 'right' }}>{(t as any).jobMaxPriceHint ?? 'המנקים יראו את הסכום הזה במודעה'}</T>
           </View>
 
           <T style={{ fontSize: 14, fontWeight: '800', color: C.textDark, textAlign: 'right' }}>{(t as any).propertyTypeLabel ?? 'סוג נכס'}</T>
@@ -6941,7 +6957,7 @@ function createS(c: AppColors) {
   payChipText:  { fontSize: 10, fontWeight: '600', color: c.textDark },
   actionBtn:         { flex: 1, backgroundColor: c.blueLight, borderRadius: 10, paddingVertical: 10, paddingHorizontal: 4, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: c.blueBorder, minHeight: 40 },
   actionBtnText:     { fontSize: 14, fontWeight: '700', color: c.blue, textAlign: 'center' },
-  actionBtnPrimary:  { flex: 1, backgroundColor: c.blue, borderRadius: 10, paddingVertical: 10, paddingHorizontal: 4, alignItems: 'center', justifyContent: 'center', minHeight: 40 },
+  actionBtnPrimary:  { flex: 1, backgroundColor: c.green, borderRadius: 10, paddingVertical: 10, paddingHorizontal: 4, alignItems: 'center', justifyContent: 'center', minHeight: 40 },
   actionBtnPrimaryText: { fontSize: 14, fontWeight: '800', color: c.white, textAlign: 'center' },
   urgentHeaderBtn:  { backgroundColor: '#7C3AED', borderRadius: 10, paddingHorizontal: 10, paddingVertical: 6, alignItems: 'center', justifyContent: 'center' },
   darkModeToggle:   { backgroundColor: 'rgba(255,255,255,0.15)', borderRadius: 10, paddingHorizontal: 9, paddingVertical: 6, alignItems: 'center', justifyContent: 'center' },
@@ -7005,7 +7021,8 @@ function createS(c: AppColors) {
   profileFooter:     { flexDirection: 'row', gap: 10, paddingHorizontal: 14, paddingTop: 10, paddingBottom: 6, backgroundColor: c.bluePale, borderTopWidth: 1, borderColor: c.blueBorder },
   footerChat:   { flex: 1, backgroundColor: c.blueLight, borderRadius: 12, padding: 14, alignItems: 'center', borderWidth: 1, borderColor: c.blueBorder },
   footerChatText: { fontSize: 14, fontWeight: '700', color: c.blue },
-  footerBook:   { flex: 2, backgroundColor: c.blue, borderRadius: 12, padding: 14, alignItems: 'center' },
+  // Green, like "take the job": the one action each screen is there for.
+  footerBook:   { flex: 2, backgroundColor: c.green, borderRadius: 12, padding: 14, alignItems: 'center' },
   footerBookText: { fontSize: 14, fontWeight: '700', color: c.white },
   availBadge:   { backgroundColor: c.greenBg, borderRadius: 20, paddingHorizontal: 14, paddingVertical: 6 },
   availBadgeOff:{ backgroundColor: 'rgba(255,255,255,0.15)' },

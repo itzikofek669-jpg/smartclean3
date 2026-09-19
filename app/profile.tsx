@@ -3607,7 +3607,7 @@ export default function ProfileScreen() {
                           {PAY_ICONS[req.paymentMethod] || '💳'} {req.paymentMethod === 'cash' ? t.payCash : req.paymentMethod === 'bit' ? t.payBit : req.paymentMethod === 'paybox' ? t.payPaybox : req.paymentMethod === 'bank' ? t.payBank : req.paymentMethod === 'card' ? t.payCard : req.paymentMethod}
                         </T>
                         <TouchableOpacity
-                          style={{ backgroundColor: '#7C3AED', borderRadius: 10, paddingVertical: 12, alignItems: 'center', marginTop: 4 }}
+                          style={{ backgroundColor: '#10B981', borderRadius: 10, paddingVertical: 12, alignItems: 'center', marginTop: 4 }}
                           onPress={() => handleAcceptUrgent(req)}
                         >
                           <T style={{ fontSize: 14, fontWeight: '900', color: '#fff' }}>{t.urgentAcceptBtn}</T>
