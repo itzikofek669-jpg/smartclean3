@@ -23,6 +23,7 @@ import * as SecureStore from 'expo-secure-store';
 import { auth, db } from './firebase';
 import { logError } from './logError';
 import { privateProfileRef } from './privateProfile';
+import { reconcile } from './profileFields';
 
 export const MAX_ADDRESSES = 5;
 
@@ -110,9 +111,11 @@ export async function getSavedAddresses(): Promise<SavedAddress[]> {
     ]);
     const priv = privSnap.data() as any;
     const pub = pubSnap.data() as any;
+    // Merged, not one or the other: an older build may have saved an address
+    // to the public copy since the move, and persist() below deletes it.
     const data = {
-      savedAddresses: Array.isArray(priv?.savedAddresses) ? priv.savedAddresses : pub?.savedAddresses,
-      addresses: Array.isArray(priv?.addresses) ? priv.addresses : pub?.addresses,
+      savedAddresses: reconcile(pub?.savedAddresses, priv?.savedAddresses, 'savedAddresses'),
+      addresses: reconcile(pub?.addresses, priv?.addresses, 'addresses'),
     };
 
     const structured = data?.savedAddresses;

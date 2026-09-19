@@ -61,9 +61,15 @@ service cloud.firestore {
     // message — but not create work, claim it, message people or review them.
     // Nothing read `blocked` anywhere, so a blocked account went on booking,
     // broadcasting, chatting and reviewing as before.
+    //
+    // And not banned. An admin deleting a user removed only the profile; the
+    // sign-in account lived on, a missing profile reads as "not blocked" below,
+    // and it could write a fresh one and carry on. Deleting now leaves a
+    // bans/{uid} document behind, which only an admin can write.
     function callerNotBlocked() {
-      return !exists(/databases/$(database)/documents/users/$(uid()))
-        || get(/databases/$(database)/documents/users/$(uid())).data.get('blocked', false) != true;
+      return !exists(/databases/$(database)/documents/bans/$(uid()))
+        && (!exists(/databases/$(database)/documents/users/$(uid()))
+            || get(/databases/$(database)/documents/users/$(uid())).data.get('blocked', false) != true);
     }
 
     // Which top-level keys is this write touching?
@@ -211,12 +217,21 @@ service cloud.firestore {
       // Client discovery trusts this flag, and it was the owner's to write: an
       // account with an unverified token set emailVerified: true on itself and
       // was listed to every client. It may only say true when the token does.
+      // Every client's cleaner list downloads every cleaner's bio; a 900 KB one
+      // was accepted. Both forms cap it by words, far below this.
+      function bioSane() {
+        return request.resource.data.get('bio', '') is string
+          && request.resource.data.get('bio', '').size() <= 3000;
+      }
+
       function emailVerifiedIsHonest() {
         return request.resource.data.get('emailVerified', false) != true
           || request.auth.token.get('email_verified', false) == true;
       }
 
       allow create: if signedIn() && uid() == userId
+        // A banned account does not get to start over with a clean profile.
+        && !exists(/databases/$(database)/documents/bans/$(userId))
         // The update rule locks role; create did not, so a brand-new account
         // wrote itself role 'admin' in its very first write.
         && request.resource.data.get('role', 'client') in ['client', 'cleaner']
@@ -224,7 +239,8 @@ service cloud.firestore {
           'rating', 'reviewCount', 'reviews', 'reviewsCount',
           'blocked', 'blockedUntilReview', 'identityVerified', 'adminNote'
         ])
-        && emailVerifiedIsHonest();
+        && emailVerifiedIsHonest()
+        && bioSane();
 
       allow update: if isAdmin()
         || (signedIn() && uid() == userId && !touchesOwnRating()
@@ -234,7 +250,8 @@ service cloud.firestore {
             // cleaner discovery, and role 'admin' passed the website's route
             // guard, which reads profile.role straight through.
             && !changed().hasAny(['blocked', 'blockedUntilReview', 'identityVerified', 'adminNote', 'role'])
-            && (!changed().hasAny(['emailVerified']) || emailVerifiedIsHonest()))
+            && (!changed().hasAny(['emailVerified']) || emailVerifiedIsHonest())
+            && (!changed().hasAny(['bio']) || bioSane()))
         || (signedIn() && uid() != userId && isValidRatingUpdate(userId));
 
       allow delete: if isAdmin();
@@ -277,9 +294,48 @@ service cloud.firestore {
       // on every job they post — so any account read them. Rules cannot hide
       // one field of a readable document, so they moved here.
       // See src/lib/privateProfile.ts for which keys and why.
+      //
+      // Two documents and no others: `profile`, and `idPhoto` — the ID picture
+      // on its own so it does not ride along with every read of the profile.
+      // Any name and any number were accepted, so an account could park
+      // megabytes under itself.
       match /private/{docId} {
-        allow read, write: if isAdmin() || (signedIn() && uid() == userId);
+        allow read: if isAdmin() || (signedIn() && uid() == userId);
+        allow delete: if isAdmin();
+        allow create, update: if isAdmin()
+          || (signedIn() && uid() == userId
+              && ((docId == 'profile' && privateProfileSane())
+                  || (docId == 'idPhoto' && idPhotoSane() && notYetVerified())));
+
+        // Bounded strings, so the document stays a profile and not a store.
+        function privateProfileSane() {
+          return request.resource.data.keys().size() <= 40
+            && request.resource.data.get('email', '').size() <= 200
+            && request.resource.data.get('bitPhone', '').size() <= 40
+            && request.resource.data.get('payboxLink', '').size() <= 300
+            && request.resource.data.get('cleanerAddress', '').size() <= 300
+            && request.resource.data.get('address', '').size() <= 300;
+        }
+        function idPhotoSane() {
+          return request.resource.data.keys().hasOnly(['dataUrl', 'submittedAt'])
+            && request.resource.data.dataUrl is string
+            && request.resource.data.dataUrl.size() <= 900000
+            && request.resource.data.dataUrl.matches('data:image/.*');
+        }
+        // Once an admin has approved the ID, the picture behind the badge stays
+        // what was approved. Swapping it after approval kept the badge.
+        function notYetVerified() {
+          return get(/databases/$(database)/documents/users/$(userId)).data.get('identityVerified', false) != true;
+        }
       }
+    }
+
+    // ── Bans ─────────────────────────────────────────────────────────────────
+    // Written by an admin deleting a user; read by callerNotBlocked and the
+    // users create rule. The subject may read their own, so the app can say why.
+    match /bans/{userId} {
+      allow read: if isAdmin() || (signedIn() && uid() == userId);
+      allow write: if isAdmin();
     }
 
     // ── Profile photos ───────────────────────────────────────────────────────
@@ -402,6 +458,9 @@ service cloud.firestore {
       // own branch and its own cap.
       allow create: if signedIn() && callerNotBlocked() && (
         request.resource.data.get('clientUid', '') == uid()
+        // `-next` ids are the recurring branch's. A client could create one
+        // first and the cleaner's real next visit was then refused.
+        && !bookingId.matches('.*-next$')
         // pending only. A client-created booking may not arrive already
         // approved — approval is the cleaner's act, and a booking a client could
         // create as confirmed and then mark done was a rating citation minted
@@ -786,6 +845,18 @@ service cloud.firestore {
         function parent() {
           return get(/databases/$(database)/documents/bookings/$(bookingId)).data;
         }
+        // One document, of these fields, of a sane size. Anything was accepted —
+        // 900 KB of "notes" included, which the cleaner then downloads.
+        function detailsSane() {
+          return detailId == 'details'
+            && request.resource.data.keys().hasOnly(['address', 'addrStreet', 'addrFloor', 'addrApt', 'notes', 'phone'])
+            && request.resource.data.get('address', '').size() <= 300
+            && request.resource.data.get('addrStreet', '').size() <= 200
+            && request.resource.data.get('addrFloor', '').size() <= 20
+            && request.resource.data.get('addrApt', '').size() <= 20
+            && request.resource.data.get('notes', '').size() <= 3000
+            && request.resource.data.get('phone', '').size() <= 30;
+        }
         // The cleaner's side mirrors the booking itself, which stops being her
         // business once it is cancelled. Without the same guard here, the
         // street, flat and phone stayed readable to her indefinitely — the very
@@ -803,18 +874,18 @@ service cloud.firestore {
         // the other party's listener could load the booking in between and show
         // it with no street.
         allow create: if isAdmin()
-          || (signedIn()
+          || (signedIn() && detailsSane()
               && getAfter(/databases/$(database)/documents/bookings/$(bookingId)).data.get('clientUid', '') == uid())
           // The cleaner creating the booking in this same write — an urgent claim,
           // or the next visit of a recurring job. The booking rules decide whether
           // she may create it; its address goes with it, here rather than on the
           // booking, which her own list query keeps returning after a
           // cancellation. Never onto a booking that already exists.
-          || (signedIn()
+          || (signedIn() && detailsSane()
               && !exists(/databases/$(database)/documents/bookings/$(bookingId))
               && getAfter(/databases/$(database)/documents/bookings/$(bookingId)).data.get('cleanerId', '') == uid());
         allow update: if isAdmin()
-          || (signedIn() && parent().get('clientUid', '') == uid());
+          || (signedIn() && detailsSane() && parent().get('clientUid', '') == uid());
         allow delete: if isAdmin();
       }
     }

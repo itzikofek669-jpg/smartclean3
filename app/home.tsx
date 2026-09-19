@@ -631,7 +631,8 @@ const JOB_SELECTED = '#F59E0B';
 // Keyed by selection at the call site, so a change remounts it and it tracks
 // long enough to redraw at its new size — a marker that has stopped tracking
 // keeps its old picture on Android.
-function JobMapMarker({ lat, lng, urgent, isSel, onPress }: { lat: number; lng: number; urgent: boolean; isSel: boolean; onPress: () => void }) {
+// Memoised with a stable onPick, so panning the map does not re-render every pin.
+const JobMapMarker = React.memo(function JobMapMarker({ id, lat, lng, urgent, isSel, onPick }: { id: string; lat: number; lng: number; urgent: boolean; isSel: boolean; onPick: (id: string) => void }) {
   const [track, setTrack] = React.useState(true);
   React.useEffect(() => {
     const id = setTimeout(() => setTrack(false), 900);
@@ -642,14 +643,14 @@ function JobMapMarker({ lat, lng, urgent, isSel, onPress }: { lat: number; lng: 
     <Marker
       coordinate={{ latitude: lat, longitude: lng }}
       tracksViewChanges={track}
-      onPress={onPress}
+      onPress={() => onPick(id)}
       anchor={{ x: 0.5, y: 0.5 }}
       zIndex={isSel ? 998 : urgent ? 2 : 1}
     >
       <View style={{ width: size, height: size, borderRadius: size / 2, backgroundColor: urgent ? '#7C3AED' : '#1E63D6', borderWidth: isSel ? 4 : 2, borderColor: isSel ? JOB_SELECTED : '#fff', elevation: 4, shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.3, shadowRadius: 2 }} />
     </Marker>
   );
-}
+});
 
 function Stars({ rating, size = 13 }: { rating: number; size?: number }) {
   const C = useAppColors();
@@ -2388,7 +2389,7 @@ function BookingModal({ cleaner, visible, onClose, onBookingCreated, prebookData
         ...(recurring !== 'once' ? recurringDates.map(ds => { const [y, m, d] = ds.split('-').map(Number); return new Date(y, m - 1, d); }) : []),
       ];
       for (const d of dates) {
-        const v = workingHoursVerdict(cleaner?.availability, d.getDay(), startHour, hours);
+        const v = workingHoursVerdict(cleaner?.availability, d.getDay(), startHour, hours, cleaner?.availabilitySet === true);
         if (v.verdict !== 'day-off' && v.verdict !== 'outside-hours') continue;
         const msg = v.verdict === 'day-off'
           ? ((t as any).notWorkingDayMsg ?? 'המנקה לא עובד/ת ביום שבחרת. בחר/י יום אחר.')
@@ -3016,6 +3017,18 @@ function BookingModal({ cleaner, visible, onClose, onBookingCreated, prebookData
               </T>
             )}
             <TimeWheelPicker value={startHour} onChange={setStartHour} minHour={minHour} maxHour={MAX_BOOKING_HOUR} />
+            {/* Said as soon as the day or time is picked, not only after the
+                whole form is filled and "book" is pressed. */}
+            {(() => {
+              const v = workingHoursVerdict(cleaner?.availability, bookingDate.getDay(), startHour, hours, cleaner?.availabilitySet === true);
+              if (v.verdict !== 'day-off' && v.verdict !== 'outside-hours') return null;
+              const hhmm = (h: number) => `${String(Math.floor(h)).padStart(2, '0')}:${h % 1 ? '30' : '00'}`;
+              const msg = v.verdict === 'day-off'
+                ? ((t as any).notWorkingDayMsg ?? 'המנקה לא עובד/ת ביום שבחרת. בחר/י יום אחר.')
+                : ((t as any).notWorkingHoursMsg ?? 'ביום הזה המנקה עובד/ת רק בין {start} ל-{end}. בחר/י שעה ומשך שנכנסים בטווח הזה.')
+                    .replace('{start}', hhmm(v.start!)).replace('{end}', hhmm(v.end!));
+              return <T style={{ fontSize: 12.5, color: '#DC2626', fontWeight: '700', textAlign: 'right', marginTop: 6 }}>⛔ {msg}</T>;
+            })()}
 
             {/* Recurring */}
             <T style={s.fieldLabel}>🔁 {t.recurringLabel}</T>
@@ -4180,6 +4193,9 @@ export default function HomeScreen() {
       const reqRef = await addDoc(collection(db, 'urgentRequests'), {
         clientUid: uid, clientName,
         address: urgentAddress.trim(),
+        // The city alone, as the website writes it: the booking a claim makes
+        // copies it, and without it every urgent booking had no city at all.
+        addrCity: cityFromAddress(urgentAddress, CITY_COORDS),
         lat: clientLat, lng: clientLng,
         date: urgentDate, dateStr,
         startTime: `${hh}:${mm}`,
@@ -4451,7 +4467,8 @@ export default function HomeScreen() {
         addrFloor: b?.addrFloor || '',
         addrApt: b?.addrApt || '',
         notes: b?.notes || '',
-        phone: b?.phone || '',
+        // The client's own, when the job reposted never carried one.
+        phone: b?.phone || await ownPhone(uid),
       });
       markCancelledSeen(b?.id);
       setCancelledPopup(null);
@@ -4947,7 +4964,9 @@ export default function HomeScreen() {
           b.reviewDeadline && new Date(b.reviewDeadline) < new Date()
         );
         if (overdue.length > 0) {
-          try { await updateDoc(doc(db, 'users', uid), { blockedUntilReview: true }); } catch (_) {}
+          // Worked out again from the bookings on every load, so nothing is
+          // written: blockedUntilReview is the admin's field, and the rules
+          // refused this write every time, silently.
           setIsBlocked(true);
           setPendingReviewBooking(overdue[0]);
           setShowMandatoryReview(true);
@@ -5196,6 +5215,15 @@ export default function HomeScreen() {
       { id: String(b._id), distKm: b._distKm, demo: !!b._bot },
     ));
   }, [openUrgent, openBookings, botJobs, hiddenJobIds, myCleanerCoords, myMaxKm, cleanerBusy, search, t]);
+
+  // A pick outlives nothing: once that job leaves the board (taken, hidden,
+  // out of range, or a demo list regenerated) nothing is ringed.
+  const pickedJobId = selectedJobId && jobBoard.some((x: any) => x._id === selectedJobId) ? selectedJobId : null;
+  const pickJob = React.useCallback((id: string) => {
+    setSelectedJobId(id);
+    const idx = jobBoard.findIndex((x: any) => x._id === id);
+    if (idx >= 0) setTimeout(() => { try { flatListRef.current?.scrollToIndex({ index: idx, animated: true, viewPosition: 0.15 }); } catch { /* onScrollToIndexFailed retries */ } }, 60);
+  }, [jobBoard]);
 
   // ── תפיסת עבודה מהלוח ──────────────────────────────────────────────────────
   // צ'אט מנקה↔לקוח דרך מסך ההודעות הכללי (ניטרלי לתפקיד, ללא בוט תגובה אוטומטית)
@@ -5477,6 +5505,8 @@ export default function HomeScreen() {
           // Per-day availability the profile screen writes. The service-details
           // card derives the working days from it — see workDaysFromAvailability.
           availability:     data.availability      || {},
+          // She set her days herself: a week with none on means not bookable.
+          availabilitySet:  data.availabilitySet === true,
           // The rest of what the service-details card reads. These were simply
           // missing from this mapping, so the mobility, range and languages
           // rows had nothing to render and silently dropped out -- while the
@@ -5652,7 +5682,6 @@ export default function HomeScreen() {
         b.id !== pendingReviewBooking.id && b.status === 'done' && b.reviewRequired === true && !b.cleanerRating
       );
       if (remaining.length === 0) {
-        try { await updateDoc(doc(db, 'users', uid), { blockedUntilReview: false }); } catch (_) {}
         setIsBlocked(false);
       } else {
         setPendingReviewBooking(remaining[0]);
@@ -5890,7 +5919,9 @@ export default function HomeScreen() {
             // Follows the app's theme, not the phone's. See lib/mapStyle.
             customMapStyle={themeDark ? MAP_STYLE_DARK : MAP_STYLE_LIGHT}
             userInterfaceStyle={themeDark ? 'dark' : 'light'}
-            initialRegion={REGION_DEFAULTS.all} showsUserLocation={false} showsMyLocationButton={false} onRegionChangeComplete={setMapRegion}>
+            initialRegion={REGION_DEFAULTS.all} showsUserLocation={false} showsMyLocationButton={false} onRegionChangeComplete={setMapRegion}
+            // A tap on the map itself, not on a pin, lets go of the picked job.
+            onPress={(e: any) => { if (e?.nativeEvent?.action !== 'marker-press') setSelectedJobId(null); }}>
             {nearbyMode && userCoords && (
               <Circle
                 center={{ latitude: userCoords.lat, longitude: userCoords.lng }}
@@ -5917,18 +5948,26 @@ export default function HomeScreen() {
             {/* A cleaner's map shows the jobs on her board, as on the website —
                 it showed other cleaners (herself among them), so there was
                 nothing on it to tap that related to the list below. */}
-            {myRole === 'cleaner' && spreadStacked(jobBoard, getJobCoords).slice(0, 120).map(({ item: j, lat, lng }) => (
+            {myRole === 'cleaner' && (() => {
+              // Only the pins in (and just around) the current view, as for the
+              // client's map: a hundred custom-view markers mounting at once is
+              // what the short-redraw pattern above exists to avoid.
+              const padLat = (mapRegion?.latitudeDelta  || 4) * 0.6;
+              const padLng = (mapRegion?.longitudeDelta || 4) * 0.6;
+              const cLat = mapRegion?.latitude  ?? REGION_DEFAULTS.all.latitude;
+              const cLng = mapRegion?.longitude ?? REGION_DEFAULTS.all.longitude;
+              return spreadStacked(jobBoard, getJobCoords)
+                .filter(p => Math.abs(p.lat - cLat) <= padLat && Math.abs(p.lng - cLng) <= padLng)
+                .slice(0, 120);
+            })().map(({ item: j, lat, lng }) => (
               <JobMapMarker
-                key={`${j._id}-${selectedJobId === j._id}`}
+                key={`${j._id}-${pickedJobId === j._id}`}
+                id={j._id}
                 lat={lat}
                 lng={lng}
                 urgent={j._kind === 'urgent'}
-                isSel={selectedJobId === j._id}
-                onPress={() => {
-                  setSelectedJobId(j._id);
-                  const idx = jobBoard.findIndex((x: any) => x._id === j._id);
-                  if (idx >= 0) setTimeout(() => { try { flatListRef.current?.scrollToIndex({ index: idx, animated: true, viewPosition: 0.15 }); } catch { /* onScrollToIndexFailed retries */ } }, 60);
-                }}
+                isSel={pickedJobId === j._id}
+                onPick={pickJob}
               />
             ))}
             {myRole !== 'cleaner' && (() => {
@@ -5970,7 +6009,7 @@ export default function HomeScreen() {
           ref={flatListRef}
           style={s.list} data={myRole === 'cleaner' ? jobBoard : filtered} keyExtractor={i => i._id || i.id}
           // The ring on the card picked on the map lives outside `data`.
-          extraData={selectedJobId}
+          extraData={pickedJobId}
           contentContainerStyle={{ padding: 10, gap: 10, paddingBottom: insets.bottom + TAB_BAR_CONTENT_HEIGHT + 16 }}
           showsVerticalScrollIndicator={false}
           initialNumToRender={6}
@@ -6073,7 +6112,7 @@ export default function HomeScreen() {
                 const area = cityFromAddress(rawArea, CITY_COORDS);
                 const price = j.total ?? j.maxPrice ?? j.pricePerHour ?? null;
                 const isUrgent = j._kind === 'urgent';
-                const isPicked = selectedJobId === j._id;
+                const isPicked = pickedJobId === j._id;
                 return (
                   <View style={[
                     s.jobCard,

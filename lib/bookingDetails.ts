@@ -81,6 +81,44 @@ export async function fetchBookingDetails(bookingId: string): Promise<BookingDet
   }
 }
 
+// Once per booking per app session.
+const phoneBackfilled = new Set<string>();
+
+/**
+ * Put the client's phone on their live bookings' private half where it is
+ * missing. Run from the CLIENT's own screen, because only the client may write
+ * their details once a booking exists.
+ *
+ * The cleaner reads it from there ("on my way", the payment sheet) — the
+ * client's profile no longer shows it to anyone. An urgent claim is written by
+ * the cleaner, who has no phone to copy; a booking made by an older build
+ * never carried one; and a repeat visit or repost copies what its parent had.
+ */
+/** Whether backfillClientPhone has anything left to look at — so the phone is only read when it does. */
+export function needsPhoneBackfill(rows: { id: string; status?: string }[]): boolean {
+  return rows.some((b) => !!b?.id && !phoneBackfilled.has(b.id)
+    && !['done', 'cancelled', 'expired'].includes(String(b.status)));
+}
+
+export async function backfillClientPhone(
+  rows: { id: string; status?: string }[],
+  phone: string,
+): Promise<void> {
+  if (!phone) return;
+  for (const b of rows) {
+    if (!b?.id || phoneBackfilled.has(b.id)) continue;
+    if (['done', 'cancelled', 'expired'].includes(String(b.status))) continue;
+    phoneBackfilled.add(b.id);
+    try {
+      const d = await fetchBookingDetails(b.id);
+      if (!d.phone) await writeBookingDetails(b.id, { phone });
+    } catch (err) {
+      phoneBackfilled.delete(b.id);
+      logError('bookingDetails/backfillPhone', err);
+    }
+  }
+}
+
 /**
  * Fold the private half back into bookings the reader is a party to.
  *

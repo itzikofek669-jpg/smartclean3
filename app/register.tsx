@@ -616,6 +616,13 @@ export default function RegisterScreen() {
         ] : []),
       );
       if (invalid) return Alert.alert(t.error, invalid);
+      // A working day that ends before it starts — say a cleared "until" field,
+      // stored as 0 — was saved as typed, and bookings were then checked
+      // against hours she never meant.
+      if (role === 'cleaner' && DAY_KEYS.some(d => availability[d].active
+        && !(availability[d].start >= 6 && availability[d].end <= 23 && availability[d].end > availability[d].start))) {
+        return Alert.alert(t.error, (t as any).availHoursInvalid ?? 'שעת הסיום של יום עבודה חייבת להיות אחרי שעת ההתחלה, בין 6:00 ל-23:00.');
+      }
     }
 
     // ── מיקום — חובה לשני התפקידים ───────────────────────────────────────
@@ -729,7 +736,7 @@ export default function RegisterScreen() {
         // Availability — save only active days (same format as profile.tsx: numeric hours)
         const activeDays: Record<string, { active: boolean; start: number; end: number }> = {};
         DAY_KEYS.forEach(d => { if (availability[d].active) activeDays[d] = { active: true, start: availability[d].start, end: availability[d].end }; });
-        if (Object.keys(activeDays).length > 0) data.availability = activeDays;
+        if (Object.keys(activeDays).length > 0) { data.availability = activeDays; data.availabilitySet = true; }
       }
 
       // שמירת התמונה עכשיו, כשיש uid — הכללים מתירים כתיבה רק ל-

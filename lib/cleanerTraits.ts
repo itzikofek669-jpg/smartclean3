@@ -60,6 +60,25 @@ export interface DayAvailability { active: boolean; start: number; end: number }
 export const DEFAULT_DAY: DayAvailability = { active: false, start: 9, end: 18 };
 
 /**
+ * One stored day, whatever shape it was written in. The oldest shape is a bare
+ * `true`, which the profile screen has always read as working 9–18; it used to
+ * be read three ways — working by the booking check, not working by the card,
+ * and switched off by the website's editor, which then saved it that way.
+ */
+function readDay(v: unknown): DayAvailability | null {
+  if (v === true) return { ...DEFAULT_DAY, active: true };
+  if (!v || typeof v !== 'object') return null;
+  const o = v as { active?: unknown; start?: unknown; end?: unknown };
+  let start = Number(o.start);
+  let end = Number(o.end);
+  if (!Number.isFinite(start)) start = DEFAULT_DAY.start;
+  if (!Number.isFinite(end)) end = DEFAULT_DAY.end;
+  // An inverted or empty window is unusable; read it as the default hours.
+  if (end <= start) { start = DEFAULT_DAY.start; end = DEFAULT_DAY.end; }
+  return { active: o.active === true, start, end };
+}
+
+/**
  * Coerce a stored `availability` map into a complete, well-typed one.
  *
  * Firestore holds whatever was written, and the app only ever stores the days
@@ -67,16 +86,14 @@ export const DEFAULT_DAY: DayAvailability = { active: false, start: 9, end: 18 }
  * means the editor never has to reason about missing keys.
  */
 export function normalizeAvailability(value: unknown): Record<string, DayAvailability> {
-  const src = (value && typeof value === 'object' ? value : {}) as Record<string, any>;
+  const src = (value && typeof value === 'object' ? value : {}) as Record<string, unknown>;
   const out: Record<string, DayAvailability> = {};
   for (const k of AVAILABILITY_DAY_KEYS) {
-    const d = src[k] ?? {};
-    const start = Number(d.start);
-    const end = Number(d.end);
+    const d = readDay(src[k]) ?? DEFAULT_DAY;
     out[k] = {
-      active: d.active === true,
-      start: Number.isFinite(start) ? Math.min(23, Math.max(6, start)) : DEFAULT_DAY.start,
-      end: Number.isFinite(end) ? Math.min(23, Math.max(6, end)) : DEFAULT_DAY.end,
+      active: d.active,
+      start: Math.min(23, Math.max(6, d.start)),
+      end: Math.min(23, Math.max(6, d.end)),
     };
     // An inverted or empty window is unusable; fall back rather than store it.
     if (out[k].end <= out[k].start) { out[k].start = DEFAULT_DAY.start; out[k].end = DEFAULT_DAY.end; }
@@ -98,8 +115,8 @@ export function normalizeAvailability(value: unknown): Record<string, DayAvailab
  */
 export function workDaysFromAvailability(availability: unknown): WorkDayCode[] {
   if (!availability || typeof availability !== 'object') return [];
-  const map = availability as Record<string, { active?: boolean } | undefined>;
-  return WORK_DAY_CODES.filter((d) => map[AVAILABILITY_DAY_KEYS[d]]?.active === true);
+  const map = availability as Record<string, unknown>;
+  return WORK_DAY_CODES.filter((d) => readDay(map[AVAILABILITY_DAY_KEYS[d]])?.active === true);
 }
 
 /**
@@ -127,9 +144,13 @@ export function groupConsecutiveDays(days: WorkDayCode[]): WorkDayCode[][] {
  *   'day-off'       — she does not work that day.
  *   'outside-hours' — she works that day, but the job starts before her window
  *                     or runs past its end.
- *   'unset'         — she never marked any day. Profiles older than the setting
- *                     have nothing here, and reading that as "never works" would
- *                     make every one of them unbookable, so callers allow it.
+ *   'unset'         — no day is marked and `daysChosen` is false. Profiles older
+ *                     than the setting have nothing here, and the website's
+ *                     editor saves a full week of "off" for anyone who never
+ *                     touched it, so "never works" cannot be read into that:
+ *                     callers allow it. `daysChosen` is the profile's
+ *                     `availabilitySet` — written when she actually sets her
+ *                     days — and with it, a week of all days off means that.
  *
  * Nothing checked this before: a client could book a cleaner on a day she had
  * switched off, or at six in the morning when her day starts at nine.
@@ -144,23 +165,11 @@ export function workingHoursVerdict(
   day: number,
   startHour: number,
   hours: number,
+  daysChosen = false,
 ): { verdict: 'ok' | 'day-off' | 'outside-hours' | 'unset'; start?: number; end?: number } {
-  if (!availability || typeof availability !== 'object') return { verdict: 'unset' };
-  const map = availability as Record<string, unknown>;
-  const read = (v: unknown): DayAvailability | null => {
-    if (v === true) return { ...DEFAULT_DAY, active: true };
-    if (!v || typeof v !== 'object') return null;
-    const o = v as { active?: unknown; start?: unknown; end?: unknown };
-    let start = Number(o.start);
-    let end = Number(o.end);
-    if (!Number.isFinite(start)) start = DEFAULT_DAY.start;
-    if (!Number.isFinite(end)) end = DEFAULT_DAY.end;
-    // An inverted or empty window is unusable; read it the way the editor does.
-    if (end <= start) { start = DEFAULT_DAY.start; end = DEFAULT_DAY.end; }
-    return { active: o.active === true, start, end };
-  };
-  const days = AVAILABILITY_DAY_KEYS.map((k) => read(map[k]));
-  if (!days.some((d) => d?.active)) return { verdict: 'unset' };
+  const map = (availability && typeof availability === 'object' ? availability : {}) as Record<string, unknown>;
+  const days = AVAILABILITY_DAY_KEYS.map((k) => readDay(map[k]));
+  if (!days.some((d) => d?.active)) return { verdict: daysChosen ? 'day-off' : 'unset' };
   const d = days[((Math.trunc(day) % 7) + 7) % 7];
   if (!d?.active) return { verdict: 'day-off' };
   if (startHour < d.start || startHour + hours > d.end) {

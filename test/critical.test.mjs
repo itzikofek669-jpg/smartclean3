@@ -14,7 +14,7 @@ import { readCalendarRemoval, extractPushData } from '../.tsbuild/calendarPush.m
 import { isUrgentRequestLive, isUrgentRequestExpired, expiryOf } from '../.tsbuild/urgentRequest.mjs';
 import { splitFields, reconcile, pendingMove, publicCoord, privateKeysFor } from '../.tsbuild/profileFields.mjs';
 import { spreadStacked } from '../.tsbuild/jobUtils.mjs';
-import { workingHoursVerdict } from '../.tsbuild/cleanerTraits.mjs';
+import { workingHoursVerdict, workDaysFromAvailability, normalizeAvailability } from '../.tsbuild/cleanerTraits.mjs';
 import { claimUpdate, rejectionUpdate, rejectionReleasesToBoard, awaitsMyApproval, occupiesCleanerTime, busyWindowOf, busyFieldsOf, pendingSlotMissed, isBoardJobOfferable, pendingSlotExpired, expiryUpdate } from '../.tsbuild/bookingActions.mjs';
 
 // Every case here is a bug that reached a real user. They are regression tests,
@@ -913,4 +913,33 @@ test('a profile that never set its hours stays bookable', () => {
   // The oldest shape, a bare `true`, is 9–18 — as the profile screen reads it.
   assert.equal(workingHoursVerdict({ mon: true }, 1, 10, 2).verdict, 'ok');
   assert.equal(workingHoursVerdict({ mon: true }, 1, 17, 2).verdict, 'outside-hours');
+});
+
+test('a cleaner who switched every day off is not bookable, once she chose that herself', () => {
+  const allOff = { sun: { active: false, start: 9, end: 17 }, mon: { active: false, start: 9, end: 17 } };
+  // Chose her days (availabilitySet): a week with none on means she is not working.
+  assert.equal(workingHoursVerdict(allOff, 0, 10, 2, true).verdict, 'day-off');
+  // Never touched them: the website's editor saves a full week of "off" for
+  // her anyway, so that cannot be read as "never works".
+  assert.equal(workingHoursVerdict(allOff, 0, 10, 2, false).verdict, 'unset');
+});
+
+test("a day stored as a bare `true` is a working day everywhere, not just in the booking check", () => {
+  // It was: working to the check, not working on her card, and "off" in the
+  // website's editor — which then saved it that way.
+  assert.deepEqual(workDaysFromAvailability({ mon: true, tue: { active: true } }), [1, 2]);
+  assert.deepEqual(normalizeAvailability({ mon: true }).mon, { active: true, start: 9, end: 18 });
+});
+
+test("an older build's rebuilt address does not overwrite the real one", () => {
+  // Build 200 rebuilds `address` from what the public document still holds —
+  // by then only the city — and saves it.
+  assert.equal(reconcile('תל אביב', 'הרצל 5, תל אביב, קומה 3, דירה 7', 'address'), 'הרצל 5, תל אביב, קומה 3, דירה 7');
+  assert.equal(reconcile('תל אביב', 'הרצל 5, תל אביב', 'city'), 'הרצל 5, תל אביב');
+  // Its one-entry list goes after the real ones, not in front of them.
+  const real = [{ address: 'הרצל 5', isPrimary: true }, { address: 'ביאליק 2' }];
+  const old = [{ address: 'תל אביב', isPrimary: true }];
+  assert.deepEqual(reconcile(old, real, 'savedAddresses').map((a) => a.address), ['הרצל 5', 'ביאליק 2', 'תל אביב']);
+  // A phone or bank account someone actually typed still wins.
+  assert.equal(reconcile('0507654321', '0501234567', 'phone'), '0507654321');
 });

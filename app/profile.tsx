@@ -37,7 +37,7 @@ import {
   MAX_PORTFOLIO_IMAGES, MAX_PORTFOLIO_IMAGE_CHARS,
 } from '../lib/portfolio';
 import {
-  LANGUAGE_CODES, LANGUAGE_FLAGS, normalizeLanguages,
+  LANGUAGE_CODES, LANGUAGE_FLAGS, normalizeLanguages, workingHoursVerdict,
 } from '../lib/cleanerTraits';
 import { setActiveChat } from '../lib/chatPresence';
 import { readVoiceNote, voiceNoteSource } from '../lib/voiceNotes';
@@ -55,8 +55,8 @@ import Constants from 'expo-constants';
 import { addBookingToCalendar, removeBookingFromCalendar, calendarSyncMessage } from '../lib/calendarSync';
 import { logError } from '../lib/logError';
 import { useNow } from '../lib/useNow';
-import { withBookingDetails, migrateOpenJobDetails, fetchBookingDetails } from '../lib/bookingDetails';
-import { batchProfile, fetchOwnProfile, privateProfileRef } from '../lib/privateProfile';
+import { withBookingDetails, migrateOpenJobDetails, fetchBookingDetails, backfillClientPhone, needsPhoneBackfill } from '../lib/bookingDetails';
+import { batchProfile, fetchOwnProfile, idPhotoRef, ownPhone } from '../lib/privateProfile';
 import { firstError, validateName, validatePhone, validatePrice, validateAge, validateDistance, normalizePhone } from '../lib/validate';
 import { claimPhone, releasePhone } from '../lib/accountChecks';
 import { isUrgentRequestLive, isUrgentRequestExpired } from '../lib/urgentRequest';
@@ -507,6 +507,7 @@ export default function ProfileScreen() {
   const [workAreas,    setWorkAreas]    = useState<string[]>([]);
   const [areasSaved,   setAreasSaved]   = useState(false);
   const [availability, setAvailability] = useState<Record<string, { active: boolean; start: number; end: number }>>({});
+  const [availabilitySet, setAvailabilitySet] = useState(false);
   const [availSaved,   setAvailSaved]   = useState(false);
   const [showPhone,    setShowPhone]    = useState(true);
   const [bookings,     setBookings]     = useState<any[]>([]);
@@ -990,7 +991,13 @@ export default function ProfileScreen() {
         setEditBankBranch(d.bankBranch || '');
         setEditBankAccount(d.bankAccount || '');
       }
-    } catch (_) {}
+    } catch (err) {
+      // Not opened half-filled: saving a form whose private fields failed to
+      // load writes blanks over the real phone, addresses and bank details.
+      logError('profile:openEdit', err);
+      Alert.alert(t.error, (t as any).errNoInternet ?? 'אין חיבור לאינטרנט');
+      return;
+    }
     setEditOpen(true);
   };
 
@@ -1154,6 +1161,7 @@ export default function ProfileScreen() {
               : { active: !!v, start: 9, end: 18 };
           }
           setAvailability(parsedAvail);
+          setAvailabilitySet(d.availabilitySet === true);
           setShowPhone(d.showPhone !== false);
           // Live gallery, falling back to whatever the user document still
           // carries inline until this cleaner next saves. See lib/portfolio.
@@ -1200,6 +1208,9 @@ export default function ProfileScreen() {
         // עבודות שפורסמו לפני הפיצול עדיין נושאות את הכתובת על מסמך הלוח. רק
         // הלקוח שמחזיק בהן יכול להעביר אותן, אז המסך שלו עושה את זה בשקט.
         docs.forEach((b: any) => { void migrateOpenJobDetails(b); });
+        // The cleaner reads the client's phone from each booking's private
+        // half; fill it in wherever it is missing. See lib/bookingDetails.
+        if (needsPhoneBackfill(docs as any)) void ownPhone(uid).then(phone => backfillClientPhone(docs as any, phone));
       },
       (err) => logError('profile:clientBookings', err),
     );
@@ -1354,7 +1365,10 @@ export default function ProfileScreen() {
     const cur = availability[day] || { active: false, start: 9, end: 18 };
     const next = { ...availability, [day]: { ...cur, active: !cur.active } };
     setAvailability(next);
-    await setDoc(doc(db, 'users', uid), { availability: next }, { merge: true });
+    setAvailabilitySet(true);
+    // availabilitySet: she chose her days herself, so a week with every day
+    // off means she is not taking bookings (lib/cleanerTraits).
+    await setDoc(doc(db, 'users', uid), { availability: next, availabilitySet: true }, { merge: true });
     setAvailSaved(true);
     setTimeout(() => setAvailSaved(false), 2000);
   };
@@ -1367,7 +1381,10 @@ export default function ProfileScreen() {
     if (type === 'end'   && val <= cur.start) return;
     const next = { ...availability, [day]: { ...cur, [type]: val } };
     setAvailability(next);
-    await setDoc(doc(db, 'users', uid), { availability: next }, { merge: true });
+    setAvailabilitySet(true);
+    // availabilitySet: she chose her days herself, so a week with every day
+    // off means she is not taking bookings (lib/cleanerTraits).
+    await setDoc(doc(db, 'users', uid), { availability: next, availabilitySet: true }, { merge: true });
     setAvailSaved(true);
     setTimeout(() => setAvailSaved(false), 2000);
   };
@@ -1544,9 +1561,9 @@ export default function ProfileScreen() {
           if (!perm.granted) return Alert.alert(t.error, t.galleryPermDenied);
           const res = await ImagePicker.launchImageLibraryAsync({
             mediaTypes: ImagePicker.MediaTypeOptions.Images,
-            allowsEditing: false, quality: 0.3, base64: true,
+            allowsEditing: false, quality: 1, base64: false,
           });
-          if (!res.canceled && res.assets[0].base64) saveIdPhoto(res.assets[0].base64);
+          if (!res.canceled) saveIdPhoto(res.assets[0]?.uri);
         },
       },
       {
@@ -1554,8 +1571,8 @@ export default function ProfileScreen() {
         onPress: async () => {
           const perm = await ImagePicker.requestCameraPermissionsAsync();
           if (!perm.granted) return Alert.alert(t.error, t.cameraPermDenied);
-          const res = await ImagePicker.launchCameraAsync({ allowsEditing: false, quality: 0.3, base64: true });
-          if (!res.canceled && res.assets[0].base64) saveIdPhoto(res.assets[0].base64);
+          const res = await ImagePicker.launchCameraAsync({ allowsEditing: false, quality: 1, base64: false });
+          if (!res.canceled) saveIdPhoto(res.assets[0]?.uri);
         },
       },
       { text: t.cancel, style: 'cancel' },
@@ -1568,12 +1585,24 @@ export default function ProfileScreen() {
   // badge exists to rule out — so every upload failed in silence: no photo
   // stored, no message, the button still there. Now it is stored where only
   // she and an admin can see it, and an admin approves it from the website.
-  const saveIdPhoto = async (b64: string) => {
-    const uri = `data:image/jpeg;base64,${b64}`;
+  //
+  // Resized first, and kept in a document of its own (lib/privateProfile
+  // idPhotoRef): a camera photo at quality 0.3 could still pass Firestore's
+  // 1 MiB document limit, and on the profile it rode along with every read of
+  // the cleaner's own details.
+  const saveIdPhoto = async (localUri?: string) => {
+    if (!localUri) return;
     try {
+      const out = await ImageManipulator.manipulateAsync(
+        localUri,
+        [{ resize: { width: 1200 } }],
+        { compress: 0.6, format: ImageManipulator.SaveFormat.JPEG, base64: true },
+      );
+      if (!out.base64) throw new Error('no base64');
+      const now = new Date().toISOString();
       const batch = writeBatch(db);
-      batch.set(privateProfileRef(uid), { idPhotoB64: uri }, { merge: true });
-      batch.set(doc(db, 'users', uid), { idSubmittedAt: new Date().toISOString() }, { merge: true });
+      batch.set(idPhotoRef(uid), { dataUrl: `data:image/jpeg;base64,${out.base64}`, submittedAt: now });
+      batch.set(doc(db, 'users', uid), { idSubmittedAt: now }, { merge: true });
       await batch.commit();
       setIdSubmitted(true);
       Alert.alert('✅', (t as any).idVerifySubmitted ?? 'התמונה נשלחה לבדיקה. התג יופיע בפרופיל אחרי אישור.');
@@ -1884,8 +1913,25 @@ export default function ProfileScreen() {
         try {
           const daysToAdd = b.recurring === 'weekly' ? 7 : 30;
           const currentDate = new Date(b.bookingDate || now);
-          const nextDate = new Date(currentDate.getTime() + daysToAdd * 24 * 60 * 60 * 1000);
+          let nextDate = new Date(currentDate.getTime() + daysToAdd * 24 * 60 * 60 * 1000);
+          // On a day she works. Thirty days on is two weekdays on, so a monthly
+          // visit came back on a day she may have off; a weekly one only moves
+          // if she has changed her days since. Her next working day within the
+          // week, or the plain date if none fits. (UTC day: the date string is
+          // read and written as UTC here.)
+          {
+            const [sh = 8, sm = 0] = String(b.startTime || '08:00').split(':').map(Number);
+            for (let i = 0; i < 7; i++) {
+              const tryDate = new Date(nextDate.getTime() + i * 24 * 60 * 60 * 1000);
+              const v = workingHoursVerdict(availability, tryDate.getUTCDay(), sh + sm / 60, Number(b.hours) || 2, availabilitySet);
+              if (v.verdict === 'ok' || v.verdict === 'unset') { nextDate = tryDate; break; }
+            }
+          }
           const nextDateStr = nextDate.toISOString().split('T')[0];
+          // The address and phone may not have been folded into this row yet.
+          const det: any = (b.address && b.phone) ? {} : await fetchBookingDetails(b.id);
+          const src: any = { ...det };
+          for (const [k, v] of Object.entries(b)) if (v !== '' && v != null) src[k] = v;
           // A fixed id — one next visit per finished visit. Ending the same job
           // twice made two; the rules key the create on this id.
           const nextRef = doc(db, 'bookings', `${b.id}-next`);
@@ -1921,8 +1967,8 @@ export default function ProfileScreen() {
           });
           // הכתובת בפרטים הפרטיים, באותה כתיבה.
           nextBatch.set(doc(db, 'bookings', nextRef.id, 'private', 'details'), {
-            address: b.address || '', addrStreet: b.addrStreet || '', addrFloor: b.addrFloor || '', addrApt: b.addrApt || '',
-            phone: b.phone || '',
+            address: src.address || '', addrStreet: src.addrStreet || '', addrFloor: src.addrFloor || '', addrApt: src.addrApt || '',
+            phone: src.phone || '',
           });
           await nextBatch.commit();
           // Notify client about next booking
@@ -2436,7 +2482,7 @@ export default function ProfileScreen() {
             cleanerId: uid, cleanerName,
             clientUid: req.clientUid, clientName: req.clientName,
             hours: req.hours, payment: req.paymentMethod, paymentStatus: `awaiting_${req.paymentMethod}`,
-            total: req.total, addrCity: req.addrCity || '',
+            total: req.total, addrCity: req.addrCity || cityFromAddress(req.address || '', CITY_COORDS),
             origin: 'urgent',
             status: 'confirmed', createdAt: new Date().toISOString(),
             bookingDate: req.dateStr, startTime: req.startTime,
@@ -2935,6 +2981,17 @@ export default function ProfileScreen() {
                     <T style={{ fontSize: 16, fontWeight: '900', color: C.blue }}>₪{pendingConfirmBooking.total}</T>
                   </View>
                   <T style={{ fontSize: 13, color: C.textDark }}>📍 {pendingConfirmBooking.address}</T>
+                  {/* Outside the days or hours she set — a booking from a build older
+                      than that check, or her hours changed since. */}
+                  {(() => {
+                    const pb = pendingConfirmBooking;
+                    const [y, mo, dd] = String(pb.bookingDate || '').split('-').map(Number);
+                    const [h, mi] = String(pb.startTime || '').split(':').map(Number);
+                    if (!y || !mo || !dd || !Number.isFinite(h)) return null;
+                    const v = workingHoursVerdict(availability, new Date(y, mo - 1, dd).getDay(), h + (mi || 0) / 60, Number(pb.hours) || 2, availabilitySet).verdict;
+                    if (v !== 'day-off' && v !== 'outside-hours') return null;
+                    return <T style={{ fontSize: 12.5, fontWeight: '800', color: '#DC2626' }}>{(t as any).offHoursBookingWarn ?? '⚠️ ההזמנה מחוץ לימים או לשעות העבודה שסימנת'}</T>;
+                  })()}
                   {(() => {
                     const svc = (Array.isArray(pendingConfirmBooking.serviceTypes) && pendingConfirmBooking.serviceTypes.length
                       ? pendingConfirmBooking.serviceTypes.map((st: string) => t.types[st] || st).join(', ')

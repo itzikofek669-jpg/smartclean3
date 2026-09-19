@@ -85,29 +85,45 @@ export const isBlank = (v: any) =>
   v === undefined || v === null || v === '' || (Array.isArray(v) && v.length === 0);
 
 /**
+ * Keys an older build rebuilds from what it can still see on the public
+ * document — by then only the city — rather than from anything the person
+ * typed. Build 200's profile form writes `address` as street + city + floor +
+ * flat, so with the street gone it saves "תל אביב" over a full home address,
+ * even when only the name was changed.
+ */
+const REBUILT_BY_OLD_BUILDS = ['address', 'street', 'floor', 'apt', 'apartment', 'addresses', 'savedAddresses', 'city'];
+
+function mergeLists(first: any[], second: any[]): any[] {
+  const keyOf = (x: any) => (typeof x === 'string' ? x : String(x?.address ?? JSON.stringify(x)));
+  const seen = new Set<string>();
+  return [...first, ...second].filter((x) => {
+    const k = keyOf(x);
+    if (seen.has(k)) return false;
+    seen.add(k);
+    return true;
+  }).slice(0, 5);
+}
+
+/**
  * Which value the private half keeps when both halves hold the key.
  *
  * The public copy can only have come from an older build writing after the
  * move, and such a build fills its edit form from the public document, where
  * the field is now gone. So a blank there is the form's emptiness, not the
- * person clearing it, and loses; anything they actually typed wins. Address
- * lists are merged rather than replaced: the old web client re-saved the list
- * as the one address it had just used.
+ * person clearing it, and loses; anything they actually typed — a phone, a
+ * bank account — wins. Address fields are the exception (see
+ * REBUILT_BY_OLD_BUILDS): there the private value wins, and address lists are
+ * merged with the private entries first, since the old web client re-saved the
+ * list as the one address it had just used.
  */
-export function reconcile(pubVal: any, privVal: any): any {
+export function reconcile(pubVal: any, privVal: any, key?: string): any {
   if (privVal === undefined || isBlank(privVal)) return pubVal;
   if (isBlank(pubVal)) return privVal;
+  const rebuilt = !!key && REBUILT_BY_OLD_BUILDS.includes(key);
   if (Array.isArray(pubVal) && Array.isArray(privVal)) {
-    const keyOf = (x: any) => (typeof x === 'string' ? x : String(x?.address ?? JSON.stringify(x)));
-    const seen = new Set<string>();
-    return [...pubVal, ...privVal].filter((x) => {
-      const k = keyOf(x);
-      if (seen.has(k)) return false;
-      seen.add(k);
-      return true;
-    }).slice(0, 5);
+    return rebuilt ? mergeLists(privVal, pubVal) : mergeLists(pubVal, privVal);
   }
-  return pubVal;
+  return rebuilt ? privVal : pubVal;
 }
 
 /** What a public profile document still has to give up, if anything. */

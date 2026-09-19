@@ -14,6 +14,7 @@ import {
 import { auth, db } from '../lib/firebase';
 import { setActiveChat } from '../lib/chatPresence';
 import { awaitsMyApproval, rejectionUpdate, rejectionReleasesToBoard, occupiesCleanerTime } from '../lib/bookingActions';
+import { workingHoursVerdict } from '../lib/cleanerTraits';
 import { releaseUrgentRequest } from '../lib/urgentRelease';
 import { bookingBusyWindow, windowsOverlap } from '../lib/jobUtils';
 import { addBookingToCalendar, removeBookingFromCalendar } from '../lib/calendarSync';
@@ -107,10 +108,17 @@ function InlineChatModal({ chatId, otherUid, otherName, visible, onClose }: any)
   // וזה נכון לכל שלושת סוגי ההזמנות. ההחלטה עצמה ב-lib/bookingActions.
   const [pendingBooking, setPendingBooking] = useState<any>(null);
   const [deciding, setDeciding] = useState(false);
+  // The cleaner's own days and hours, to say when a job waiting on her falls
+  // outside them — one sent from a build older than that check, or her hours
+  // changed since (lib/cleanerTraits).
+  const [myHours, setMyHours] = useState<{ availability?: unknown; set: boolean } | null>(null);
 
   useEffect(() => {
     const myUid = auth.currentUser?.uid;
     if (!visible || !myUid || !otherUid) return;
+    getDoc(doc(db, 'users', myUid))
+      .then(s => setMyHours({ availability: s.data()?.availability, set: s.data()?.availabilitySet === true }))
+      .catch(err => logError('messages:myHours', err));
     const unsub = onSnapshot(
       query(collection(db, 'bookings'), where('cleanerId', '==', myUid)),
       snap => {
@@ -243,12 +251,17 @@ function InlineChatModal({ chatId, otherUid, otherName, visible, onClose }: any)
   const scrollRef                     = useRef<ScrollView>(null);
   const myUid                         = auth.currentUser?.uid || '';
 
-  // גלילה לסוף הצ'אט כשהמקלדת נפתחת — שההודעה האחרונה תמיד גלויה
+  // גלילה לסוף הצ'אט כשהמקלדת נפתחת — שההודעה האחרונה תמיד גלויה.
+  // kbOpen מצמצם את כרטיס ההזמנה הממתינה לשורה אחת: הוא יושב אחרי ההודעה
+  // האחרונה, ובמלואו, עם מקלדת פתוחה, הוא לקח את רוב מה שנשאר מהמסך.
+  const [kbOpen, setKbOpen] = useState(false);
   useEffect(() => {
-    const sub = Keyboard.addListener('keyboardDidShow', () => {
+    const show = Keyboard.addListener('keyboardDidShow', () => {
+      setKbOpen(true);
       setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 50);
     });
-    return () => sub.remove();
+    const hide = Keyboard.addListener('keyboardDidHide', () => setKbOpen(false));
+    return () => { show.remove(); hide.remove(); };
   }, []);
 
   useEffect(() => {
@@ -654,6 +667,25 @@ function InlineChatModal({ chatId, otherUid, otherName, visible, onClose }: any)
                     approval modal on the profile screen. */}
                 {(() => {
                   const b = pendingBooking;
+                  const [y, mo, dd] = String(b.bookingDate || '').split('-').map(Number);
+                  const [h, mi] = String(b.startTime || '').split(':').map(Number);
+                  const verdict = myHours && y && mo && dd && Number.isFinite(h)
+                    ? workingHoursVerdict(myHours.availability, new Date(y, mo - 1, dd).getDay(), h + (mi || 0) / 60, Number(b.hours) || 2, myHours.set).verdict
+                    : 'unset';
+                  const offHours = verdict === 'day-off' || verdict === 'outside-hours'
+                    ? <T style={{ fontSize: 12.5, fontWeight: '800', color: '#DC2626', textAlign: 'right' }}>{(t as any).offHoursBookingWarn ?? '⚠️ ההזמנה מחוץ לימים או לשעות העבודה שסימנת'}</T>
+                    : null;
+                  // One line while typing, so the conversation keeps the screen.
+                  if (kbOpen) {
+                    return (
+                      <View style={{ gap: 2 }}>
+                        <T style={{ fontSize: 13, fontWeight: '800', color: '#1C1917', textAlign: 'right' }} numberOfLines={1}>
+                          👤 {b.clientName || '—'} · 📅 {b.bookingDate || '—'} {b.startTime || ''} · ₪{b.total ?? '—'}
+                        </T>
+                        {offHours}
+                      </View>
+                    );
+                  }
                   const svc = (Array.isArray(b.serviceTypes) && b.serviceTypes.length
                     ? b.serviceTypes
                     : (b.serviceType ? String(b.serviceType).split(' + ') : []))
@@ -681,6 +713,7 @@ function InlineChatModal({ chatId, otherUid, otherName, visible, onClose }: any)
                       {!!b.notes && (
                         <T style={{ fontSize: 13, color: '#44403C', textAlign: 'right' }} numberOfLines={2}>📝 {b.notes}</T>
                       )}
+                      {offHours}
                     </View>
                   );
                 })()}

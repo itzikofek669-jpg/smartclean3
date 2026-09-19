@@ -7,7 +7,7 @@ import {
 } from 'react-native';
 import {
   collection, onSnapshot, query, orderBy, limit,
-  updateDoc, doc, getDoc, addDoc, deleteDoc,
+  updateDoc, doc, getDoc, addDoc, deleteDoc, writeBatch,
 } from 'firebase/firestore';
 
 import * as SecureStore from 'expo-secure-store';
@@ -216,12 +216,21 @@ export default function AdminScreen() {
     const roleLabel = role === 'cleaner' ? 'המנקה' : 'הלקוח';
     Alert.alert(
       `מחיקת ${roleLabel}`,
-      `למחוק לצמיתות את ${name || roleLabel}?\n\nהפעולה אינה הפיכה — הפרופיל יוסר מהמערכת. (חשבון ההתחברות עצמו לא נמחק.)`,
+      `למחוק לצמיתות את ${name || roleLabel}?\n\nהפעולה אינה הפיכה — הפרופיל והפרטים האישיים יוסרו, והחשבון ייחסם מלהזמין, לקחת עבודות או לפתוח פרופיל חדש.`,
       [
         { text: 'ביטול', style: 'cancel' },
         { text: '🗑️ מחק', style: 'destructive', onPress: async () => {
           try {
-            await deleteDoc(doc(db, 'users', uid));
+            // One write: the profile, its private half and ID photo, and a ban.
+            // Deleting the profile alone left the sign-in account able to write
+            // a fresh, unblocked one — the rules read a missing profile as "not
+            // blocked" — and left the bank details and ID photo behind.
+            const batch = writeBatch(db);
+            batch.delete(doc(db, 'users', uid));
+            batch.delete(doc(db, 'users', uid, 'private', 'profile'));
+            batch.delete(doc(db, 'users', uid, 'private', 'idPhoto'));
+            batch.set(doc(db, 'bans', uid), { bannedAt: new Date().toISOString(), name: name || '', role: role || '' });
+            await batch.commit();
           } catch (e) {
             Alert.alert('שגיאה', 'מחיקה נכשלה — נסה שוב');
           }
