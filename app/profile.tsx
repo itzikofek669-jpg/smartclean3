@@ -55,7 +55,7 @@ import Constants from 'expo-constants';
 import { addBookingToCalendar, removeBookingFromCalendar, calendarSyncMessage } from '../lib/calendarSync';
 import { logError } from '../lib/logError';
 import { useNow } from '../lib/useNow';
-import { withBookingDetails, migrateOpenJobDetails, fetchBookingDetails, backfillClientPhone, needsPhoneBackfill } from '../lib/bookingDetails';
+import { withBookingDetails, migrateOpenJobDetails, fetchBookingDetails, backfillClientPhone, needsPhoneBackfill, urgentDetailsRef, copyUrgentDetails } from '../lib/bookingDetails';
 import { batchProfile, fetchOwnProfile, idPhotoRef, ownPhone } from '../lib/privateProfile';
 import { firstError, validateName, validatePhone, validatePrice, validateAge, validateDistance, normalizePhone } from '../lib/validate';
 import { claimPhone, releasePhone } from '../lib/accountChecks';
@@ -1262,10 +1262,14 @@ export default function ProfileScreen() {
         // ההוא בחוק לא יכול להתאים, וגם הסעיף המקביל כאן היה קוד מת.
         expired
           .filter((r: any) => r.clientUid === uid)
-          .forEach((r: any) => deleteDoc(doc(db, 'urgentRequests', r.id))
-            // לא נבלע יותר: מחיקה שנדחית למרות שאנחנו הבעלים היא באג בחוקים,
-            // ואי אפשר לתקן מה שלא רואים.
-            .catch(err => logError('profile:urgentExpiredDelete', err)));
+          // החלק הפרטי (כתובת וטלפון) קודם — אחרי שהבקשה נמחקה, החוקים כבר לא
+          // יודעים של מי הוא, והכתובת הייתה נשארת.
+          .forEach((r: any) => deleteDoc(urgentDetailsRef(r.id))
+            .catch(err => logError('profile:urgentDetailsDelete', err))
+            .finally(() => deleteDoc(doc(db, 'urgentRequests', r.id))
+              // לא נבלע יותר: מחיקה שנדחית למרות שאנחנו הבעלים היא באג בחוקים,
+              // ואי אפשר לתקן מה שלא רואים.
+              .catch(err => logError('profile:urgentExpiredDelete', err))));
         setUrgentRequests(reqs);
         if (prevUrgentCount >= 0 && reqs.length > prevUrgentCount) setActiveTab('urgent');
         prevUrgentCount = reqs.length;
@@ -2431,6 +2435,20 @@ export default function ProfileScreen() {
   // ─── Accept urgent request ───────────────────────────────────────────────────
   const acceptingUrgentRef = useRef(false);
   const handleAcceptUrgent = async (req: any) => {
+    // רק מנקה שהאדמין אישר לה תעודת זהות לוקחת עבודות — החוקים מסרבים לכל
+    // אחת אחרת, ובלי זה היא הייתה מקבלת שגיאה כללית. נקרא מהמסמך ולא מה-state:
+    // מפוש, המסך הזה נפתח ישר לכאן לפני שהפרופיל נטען.
+    const meSnap = await getDoc(doc(db, 'users', uid)).catch(() => null);
+    const me: any = meSnap?.data() ?? {};
+    if (me.identityVerified !== true) {
+      Alert.alert(
+        '🪪 ' + t.idVerifyTitle,
+        me.idSubmittedAt
+          ? ((t as any).verifyPendingBanner ?? '⏳ תעודת הזהות שלך ממתינה לאישור. אחרי האישור אפשר יהיה לקחת עבודות.')
+          : ((t as any).verifyToTakeJobs ?? 'כדי לקחת עבודות צריך אימות זהות: מעלים צילום תעודה בעריכת הפרופיל, ואחרי אישור אפשר לקחת עבודות.'),
+      );
+      return;
+    }
     // מנע לחיצה כפולה מקומית
     if (acceptingUrgentRef.current) return;
     acceptingUrgentRef.current = true;
@@ -2444,7 +2462,9 @@ export default function ProfileScreen() {
         cleanerId: uid,
         clientUid: req.clientUid, clientName: req.clientName,
         hours: req.hours, payment: req.paymentMethod, paymentStatus: `awaiting_${req.paymentMethod}`,
-        address: req.address, total: req.total,
+        // The city until she takes it: the street is in the request's private
+        // half, which is hers to read once she holds it.
+        address: req.address || req.addrCity || '', total: req.total,
         origin: 'urgent',
         status: 'pending', createdAt: new Date().toISOString(),
         bookingDate: req.dateStr, startTime: req.startTime,
@@ -2497,8 +2517,12 @@ export default function ProfileScreen() {
           });
           // הכתובת בפרטים הפרטיים, באותה טרנזקציה — לא על ההזמנה, שרשימת המנקה
           // ממשיכה להחזיר גם אחרי ביטול.
-          tx.set(doc(db, 'bookings', bookingRef.id, 'private', 'details'), { address: req.address || '' });
+          // בקשה מגרסה ישנה עדיין נושאת את הכתובת על השידור עצמו.
+          if (req.address) tx.set(doc(db, 'bookings', bookingRef.id, 'private', 'details'), { address: req.address });
         });
+        // בקשה עדכנית שומרת את הכתובת בחלק הפרטי שלה, שמותר לקרוא רק עכשיו,
+        // כשהיא שלה. מועתקת מילה במילה — החוקים בודקים שזה תואם.
+        if (!req.address) await copyUrgentDetails(bookingRef.id, req.id);
       } catch (txErr: any) {
         if (txErr?.message === 'TAKEN') {
           CONFIRM_SENT.delete(req.id);
@@ -3654,7 +3678,7 @@ export default function ProfileScreen() {
                           </View>
                         </View>
                         <T style={{ fontSize: 14, color: C.textDark, fontWeight: '700' }}>👤 {req.clientName}</T>
-                        <T style={{ fontSize: 13, color: C.textDark }}>📍 {req.address}</T>
+                        <T style={{ fontSize: 13, color: C.textDark }}>📍 {req.address || req.addrCity}</T>
                         <View style={{ flexDirection: 'row', gap: 12 }}>
                           <T style={{ fontSize: 12, color: C.textSub }}>📅 {req.date === 'today' ? t.urgentToday : t.urgentTomorrow} {req.startTime}</T>
                           <T style={{ fontSize: 12, color: C.textSub }}>⏱️ {req.hours} {t.hoursUnit}</T>

@@ -1,5 +1,5 @@
 import { doc, getDoc, setDoc, updateDoc, deleteField } from 'firebase/firestore';
-import { db } from './firebase';
+import { auth, db } from './firebase';
 import { logError } from './logError';
 import { CITY_COORDS } from './jobUtils';
 import { cityFromAddress } from './cityFromAddress';
@@ -119,6 +119,58 @@ export async function backfillClientPhone(
   }
 }
 
+/** The private half of an urgent request: its exact address and the client's phone. */
+export const urgentDetailsRef = (reqId: string) => doc(db, 'urgentRequests', reqId, 'private', 'details');
+
+const urgentCache = new Map<string, BookingDetails>();
+
+/**
+ * Read an urgent request's private half — the client, the cleaner holding the
+ * request and an admin may. Empty when there is none (a request written by an
+ * older build carries its address on the broadcast itself) or it is refused.
+ */
+export async function fetchUrgentDetails(reqId: string): Promise<BookingDetails> {
+  const hit = urgentCache.get(reqId);
+  if (hit) return hit;
+  try {
+    const snap = await getDoc(urgentDetailsRef(reqId));
+    if (!snap.exists()) return {};
+    const d = snap.data() as BookingDetails;
+    urgentCache.set(reqId, d);
+    return d;
+  } catch (err) {
+    logError('bookingDetails/fetchUrgent', err);
+    return {};
+  }
+}
+
+const urgentCopied = new Set<string>();
+
+/**
+ * Copy an urgent request's address and phone into the booking the claim made.
+ *
+ * The broadcast carries only the city now. The claim cannot copy the rest in
+ * its own transaction — until that commits the cleaner does not hold the
+ * request and may not read its private half — so she copies it right after,
+ * word for word; the rules check it matches.
+ */
+export async function copyUrgentDetails(bookingId: string, reqId: string): Promise<boolean> {
+  if (!bookingId || !reqId || urgentCopied.has(bookingId)) return false;
+  urgentCopied.add(bookingId);
+  try {
+    const u = await fetchUrgentDetails(reqId);
+    if (!u.address) { urgentCopied.delete(bookingId); return false; }
+    const out: BookingDetails = { address: u.address };
+    if (u.phone) out.phone = u.phone;
+    await writeBookingDetails(bookingId, out);
+    return true;
+  } catch (err) {
+    urgentCopied.delete(bookingId);
+    logError('bookingDetails/copyUrgent', err);
+    return false;
+  }
+}
+
 /**
  * Fold the private half back into bookings the reader is a party to.
  *
@@ -135,7 +187,17 @@ export async function withBookingDetails<T extends { id: string; address?: strin
 ): Promise<T[]> {
   return Promise.all(rows.map(async (b) => {
     if (b.address) return b;
-    return { ...b, ...(await fetchBookingDetails(b.id)) };
+    const d = await fetchBookingDetails(b.id);
+    const rid = (b as { urgentRequestId?: string }).urgentRequestId;
+    if (d.address || !rid) return { ...b, ...d };
+    // An urgent booking whose address has not been copied in yet — the copy
+    // right after the claim failed, or has not run. Shown from the request's
+    // private half, and copied in when the reader is the cleaner.
+    const u = await fetchUrgentDetails(rid);
+    if (u.address && auth.currentUser?.uid === (b as { cleanerId?: string }).cleanerId) {
+      void copyUrgentDetails(b.id, rid);
+    }
+    return { ...b, ...u, ...Object.fromEntries(Object.entries(d).filter(([, v]) => v)) };
   }));
 }
 

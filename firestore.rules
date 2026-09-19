@@ -43,6 +43,16 @@ service cloud.firestore {
         && get(/databases/$(database)/documents/users/$(uid())).data.get('role', '') == 'cleaner';
     }
 
+    // Taking a job off the board, or an urgent request, hands over a stranger's
+    // home address and phone. Any new account could register as a cleaner,
+    // take a job, read them, hand it back — and do it again for every job on
+    // the board. Only a cleaner whose ID an admin has approved may take one.
+    // (identityVerified is admin-only; see the users rules.)
+    function callerIsVerifiedCleaner() {
+      return callerIsCleaner()
+        && get(/databases/$(database)/documents/users/$(uid())).data.get('identityVerified', false) == true;
+    }
+
     // A verified address, not just a claimed one. Password sign-up accepts any
     // email and issues a token carrying it with email_verified false, so an admin
     // address with no Auth account behind it was anybody's to register — and with
@@ -814,7 +824,7 @@ service cloud.firestore {
         // pinned: a probe claimed one straight to `done`, and another claimed a
         // job somebody else was already holding, because neither the resulting
         // status nor the current cleanerId was checked.
-        || (isOpenJob() && callerIsCleaner() && callerNotBlocked()
+        || (isOpenJob() && callerIsVerifiedCleaner() && callerNotBlocked()
             && bookingClientUnchanged() && bookingMoneyUnchanged()
             && bookingOriginUnchanged()
             && resource.data.get('cleanerId', '') == ''
@@ -844,6 +854,16 @@ service cloud.firestore {
       match /private/{detailId} {
         function parent() {
           return get(/databases/$(database)/documents/bookings/$(bookingId)).data;
+        }
+        function urgentCopy() {
+          return signedIn()
+            && parent().get('cleanerId', '') == uid()
+            && parent().get('origin', '') == 'urgent'
+            && parent().get('status', '') != 'cancelled'
+            && parent().get('urgentRequestId', '') != '';
+        }
+        function urgentPrivate() {
+          return get(/databases/$(database)/documents/urgentRequests/$(parent().urgentRequestId)/private/details).data;
         }
         // One document, of these fields, of a sane size. Anything was accepted —
         // 900 KB of "notes" included, which the cleaner then downloads.
@@ -883,9 +903,25 @@ service cloud.firestore {
           // cancellation. Never onto a booking that already exists.
           || (signedIn() && detailsSane()
               && !exists(/databases/$(database)/documents/bookings/$(bookingId))
-              && getAfter(/databases/$(database)/documents/bookings/$(bookingId)).data.get('cleanerId', '') == uid());
+              && getAfter(/databases/$(database)/documents/bookings/$(bookingId)).data.get('cleanerId', '') == uid())
+          // The cleaner of an urgent booking copying the address and phone in
+          // from the request's private half, word for word. The claim itself
+          // cannot: until its transaction commits she does not hold the request
+          // and may not read that half. Verbatim is the point — nothing of hers.
+          || (urgentCopy() && detailsSane()
+              && request.resource.data.keys().hasOnly(['address', 'phone'])
+              && request.resource.data.get('address', '') == urgentPrivate().get('address', '')
+              && (!request.resource.data.keys().hasAny(['phone'])
+                  || request.resource.data.phone == urgentPrivate().get('phone', '')));
         allow update: if isAdmin()
-          || (signedIn() && detailsSane() && parent().get('clientUid', '') == uid());
+          || (signedIn() && detailsSane() && parent().get('clientUid', '') == uid())
+          // The same copy, when the client's own screen got there first with
+          // the phone (bookingDetails backfillClientPhone).
+          || (urgentCopy() && detailsSane()
+              && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['address', 'phone'])
+              && request.resource.data.get('address', '') == urgentPrivate().get('address', '')
+              && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['phone'])
+                  || request.resource.data.phone == urgentPrivate().get('phone', '')));
         allow delete: if isAdmin();
       }
     }
@@ -1050,7 +1086,7 @@ service cloud.firestore {
         || (urgentOwner() && urgentOwnerUnchanged())
         // A cleaner claims a request that is genuinely open, touching only the
         // claim fields, and may only claim it for themselves.
-        || (signedIn() && callerIsCleaner() && callerNotBlocked() && urgentOwnerUnchanged() && onlyClaimFields()
+        || (signedIn() && callerIsVerifiedCleaner() && callerNotBlocked() && urgentOwnerUnchanged() && onlyClaimFields()
             && resource.data.get('status', '') == 'open'
             && request.resource.data.get('status', '') == 'taken'
             // Both spellings, or the claim is lying under one of them: writing
@@ -1088,6 +1124,34 @@ service cloud.firestore {
         resource.data.get('clientUid', '') == uid()
         || resource.data.get('cleanerId', '') == uid()
       ));
+
+      // The client's exact address and phone, written with the request in one
+      // batch. An open request is readable by every signed-in account — that is
+      // what a broadcast is — and it carried the street, floor, flat and the
+      // phone's exact GPS fix. It now carries the city and a position rounded
+      // to about a kilometre; this is read by the client, the cleaner who took
+      // the request, and an admin.
+      match /private/{docId} {
+        function req() {
+          return get(/databases/$(database)/documents/urgentRequests/$(reqId)).data;
+        }
+        function urgentDetailsSane() {
+          return docId == 'details'
+            && request.resource.data.keys().hasOnly(['address', 'phone'])
+            && request.resource.data.get('address', '') is string
+            && request.resource.data.get('address', '').size() <= 300
+            && request.resource.data.get('phone', '') is string
+            && request.resource.data.get('phone', '').size() <= 30;
+        }
+        allow read: if isAdmin()
+          || (signedIn() && (req().get('clientUid', '') == uid()
+              || req().get('takenByUid', '') == uid()
+              || req().get('takenBy', '') == uid()));
+        allow create: if signedIn() && urgentDetailsSane()
+          && getAfter(/databases/$(database)/documents/urgentRequests/$(reqId)).data.get('clientUid', '') == uid();
+        allow update: if signedIn() && urgentDetailsSane() && req().get('clientUid', '') == uid();
+        allow delete: if isAdmin() || (signedIn() && req().get('clientUid', '') == uid());
+      }
     }
 
     // ── Reports (bug reports / reporting a user) ─────────────────────────────

@@ -10,7 +10,7 @@ import {
 } from 'react-native';
 import { useAnimatedValue, useAnimatedValues } from '../lib/useAnimatedValue';
 import { useNow } from '../lib/useNow';
-import { writeBookingDetails, withBookingDetails, migrateOpenJobDetails, fetchBookingDetails } from '../lib/bookingDetails';
+import { writeBookingDetails, withBookingDetails, migrateOpenJobDetails, fetchBookingDetails, urgentDetailsRef } from '../lib/bookingDetails';
 import { fetchOwnProfile, migrateProfile, ownPhone, publicCoord } from '../lib/privateProfile';
 
 import { Image } from 'expo-image';
@@ -4190,13 +4190,20 @@ export default function HomeScreen() {
 
       const expiresAt = new Date(Date.now() + 2 * 60 * 60 * 1000).toISOString();
 
-      const reqRef = await addDoc(collection(db, 'urgentRequests'), {
+      // The broadcast carries the city and a position rounded to about a
+      // kilometre; the street, floor, flat and phone go in its private half in
+      // the same write. An open request is readable by every signed-in account
+      // — that is what a broadcast is — and it carried the full address and
+      // this phone's exact GPS fix. See lib/bookingDetails urgentDetailsRef.
+      const reqRef = doc(collection(db, 'urgentRequests'));
+      const reqBatch = writeBatch(db);
+      reqBatch.set(urgentDetailsRef(reqRef.id), { address: urgentAddress.trim(), phone: await ownPhone(uid) });
+      reqBatch.set(reqRef, {
         clientUid: uid, clientName,
-        address: urgentAddress.trim(),
         // The city alone, as the website writes it: the booking a claim makes
         // copies it, and without it every urgent booking had no city at all.
         addrCity: cityFromAddress(urgentAddress, CITY_COORDS),
-        lat: clientLat, lng: clientLng,
+        lat: publicCoord(clientLat), lng: publicCoord(clientLng),
         date: urgentDate, dateStr,
         startTime: `${hh}:${mm}`,
         hours: urgentHours,
@@ -4210,6 +4217,7 @@ export default function HomeScreen() {
         expiresAt,
         notifiedCleaners: [],
       });
+      await reqBatch.commit();
       setUrgentRequestId(reqRef.id);
 
       // ניקיון דחוף זמין בכל שעה (הוסרה הגבלת השעה)
@@ -4300,7 +4308,7 @@ export default function HomeScreen() {
             await sendPushNotification(
               pushToken,
               `🚨 ניקוי דחוף! — ${dateLabel} ${hh}:${mm}`,
-              `${urgentServiceTypes.length ? urgentServiceTypes.map(st => t.types[st] || st).join(', ') + ' · ' : ''}📍 ${urgentAddress.trim()} · ⏱️ ${urgentHours} שעות · ₪${msgTotal}`,
+              `${urgentServiceTypes.length ? urgentServiceTypes.map(st => t.types[st] || st).join(', ') + ' · ' : ''}📍 ${cityFromAddress(urgentAddress, CITY_COORDS) || ''} · ⏱️ ${urgentHours} שעות · ₪${msgTotal}`,
               { type: 'urgent', urgent: true, requestId: reqRef.id, tab: 'urgent' },
               { channelId: 'urgent', color: '#ff1744' }
             );
@@ -4482,6 +4490,9 @@ export default function HomeScreen() {
 
   // Mandatory review
   const [isBlocked,            setIsBlocked]            = useState(false);
+  // Whether an admin has approved her ID — the rules let only such a cleaner
+  // take board or urgent work, which hands over a client's address and phone.
+  const [myIdState, setMyIdState] = useState<'verified' | 'pending' | 'none'>('none');
   const [pendingReviewBooking, setPendingReviewBooking] = useState<any>(null);
   const [showMandatoryReview,  setShowMandatoryReview]  = useState(false);
   const [mandatoryStars,       setMandatoryStars]       = useState(0);
@@ -4798,6 +4809,7 @@ export default function HomeScreen() {
           })();
         }
         if (data?.blockedUntilReview) setIsBlocked(true);
+        setMyIdState(data?.identityVerified === true ? 'verified' : data?.idSubmittedAt ? 'pending' : 'none');
         const role = resolveRole({ exists: snap.exists(), data });
         if (!role) return;                       // ראה lib/resolveRole
         setMyRole(role);
@@ -5247,6 +5259,20 @@ export default function HomeScreen() {
     if (claimingRef.current) return;
     if (job._bot) {
       Alert.alert('🤖', (t as any).botJobMsg ?? 'זו עבודת דמה להדגמה — עבודות אמיתיות יופיעו כאן מלקוחות באזור שלך.');
+      return;
+    }
+    // Said here rather than left to the rules, which would refuse it with
+    // nothing but a generic error.
+    if (myIdState !== 'verified') {
+      Alert.alert(
+        '🪪 ' + ((t as any).idVerifyTitle ?? 'אימות זהות'),
+        myIdState === 'pending'
+          ? ((t as any).verifyPendingBanner ?? '⏳ תעודת הזהות שלך ממתינה לאישור. אחרי האישור אפשר יהיה לקחת עבודות.')
+          : ((t as any).verifyToTakeJobs ?? 'כדי לקחת עבודות צריך אימות זהות: מעלים צילום תעודה בעריכת הפרופיל, ואחרי אישור אפשר לקחת עבודות.'),
+        myIdState === 'pending'
+          ? [{ text: 'OK' }]
+          : [{ text: t.cancel, style: 'cancel' }, { text: (t as any).idVerifyUpload ?? 'העלה תעודת זהות', onPress: () => router.push('/profile') }],
+      );
       return;
     }
     if (job._kind === 'urgent') {
@@ -6025,6 +6051,20 @@ export default function HomeScreen() {
           ListHeaderComponent={myRole === 'cleaner' ? (
             <View style={{ marginBottom: 6 }}>
               <T style={{ fontSize: 18, fontWeight: '900', color: C.textDark, textAlign: 'right' }}>🧹 {(t as any).jobBoardTitle ?? 'ניקיונות שמחכות לך'}</T>
+              {myIdState !== 'verified' && (
+                <TouchableOpacity
+                  activeOpacity={0.8}
+                  disabled={myIdState === 'pending'}
+                  onPress={() => router.push('/profile')}
+                  style={{ marginTop: 6, backgroundColor: '#FEF3C7', borderRadius: 10, paddingVertical: 8, paddingHorizontal: 10, borderWidth: 1, borderColor: '#FCD34D' }}
+                >
+                  <T style={{ fontSize: 12.5, fontWeight: '800', color: '#92400E', textAlign: 'right' }}>
+                    {myIdState === 'pending'
+                      ? ((t as any).verifyPendingBanner ?? '⏳ תעודת הזהות שלך ממתינה לאישור. אחרי האישור אפשר יהיה לקחת עבודות.')
+                      : ((t as any).verifyBanner ?? '🪪 לקיחת עבודות מהלוח נפתחת אחרי אימות זהות — מעלים צילום תעודה בעריכת הפרופיל.')}
+                  </T>
+                </TouchableOpacity>
+              )}
               {/* מקרא הלוח — שתי שורות קצרות ומקבילות בבלוק אחד: מה הסגול אומר,
                   ושהמנקה מקבל גם הזמנות ישירות מלקוחות (לא רק מהלוח). */}
               <View style={{ marginTop: 6, backgroundColor: C.bluePale, borderRadius: 10, paddingVertical: 8, paddingHorizontal: 10, gap: 6, borderWidth: 1, borderColor: C.blueBorder }}>
@@ -6427,7 +6467,7 @@ export default function HomeScreen() {
                 : '';
               return (
                 <T style={{ fontSize: 15, color: C.textDark, lineHeight: 24, textAlign: 'right', marginBottom: 18 }}>
-                  {urgentPopupReq.dateStr || ''} {urgentPopupReq.startTime || ''}{svc ? `${'\n'}🧹 ${svc}` : ''}{'\n'}📍 {urgentPopupReq.address || ''}{'\n'}⏱️ {urgentPopupReq.hours || ''} {t.hoursUnit} · ₪{urgentPopupReq.total || ''}
+                  {urgentPopupReq.dateStr || ''} {urgentPopupReq.startTime || ''}{svc ? `${'\n'}🧹 ${svc}` : ''}{'\n'}📍 {urgentPopupReq.address || urgentPopupReq.addrCity || ''}{'\n'}⏱️ {urgentPopupReq.hours || ''} {t.hoursUnit} · ₪{urgentPopupReq.total || ''}
                 </T>
               );
             })()}
