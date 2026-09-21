@@ -2435,20 +2435,6 @@ export default function ProfileScreen() {
   // ─── Accept urgent request ───────────────────────────────────────────────────
   const acceptingUrgentRef = useRef(false);
   const handleAcceptUrgent = async (req: any) => {
-    // רק מנקה שהאדמין אישר לה תעודת זהות לוקחת עבודות — החוקים מסרבים לכל
-    // אחת אחרת, ובלי זה היא הייתה מקבלת שגיאה כללית. נקרא מהמסמך ולא מה-state:
-    // מפוש, המסך הזה נפתח ישר לכאן לפני שהפרופיל נטען.
-    const meSnap = await getDoc(doc(db, 'users', uid)).catch(() => null);
-    const me: any = meSnap?.data() ?? {};
-    if (me.identityVerified !== true) {
-      Alert.alert(
-        '🪪 ' + t.idVerifyTitle,
-        me.idSubmittedAt
-          ? ((t as any).verifyPendingBanner ?? '⏳ תעודת הזהות שלך ממתינה לאישור. אחרי האישור אפשר יהיה לקחת עבודות.')
-          : ((t as any).verifyToTakeJobs ?? 'כדי לקחת עבודות צריך אימות זהות: מעלים צילום תעודה בעריכת הפרופיל, ואחרי אישור אפשר לקחת עבודות.'),
-      );
-      return;
-    }
     // מנע לחיצה כפולה מקומית
     if (acceptingUrgentRef.current) return;
     acceptingUrgentRef.current = true;

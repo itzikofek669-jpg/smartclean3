@@ -4501,9 +4501,6 @@ export default function HomeScreen() {
 
   // Mandatory review
   const [isBlocked,            setIsBlocked]            = useState(false);
-  // Whether an admin has approved her ID — the rules let only such a cleaner
-  // take board or urgent work, which hands over a client's address and phone.
-  const [myIdState, setMyIdState] = useState<'verified' | 'pending' | 'none'>('none');
   const [pendingReviewBooking, setPendingReviewBooking] = useState<any>(null);
   const [showMandatoryReview,  setShowMandatoryReview]  = useState(false);
   const [mandatoryStars,       setMandatoryStars]       = useState(0);
@@ -4820,7 +4817,6 @@ export default function HomeScreen() {
           })();
         }
         if (data?.blockedUntilReview) setIsBlocked(true);
-        setMyIdState(data?.identityVerified === true ? 'verified' : data?.idSubmittedAt ? 'pending' : 'none');
         const role = resolveRole({ exists: snap.exists(), data });
         if (!role) return;                       // ראה lib/resolveRole
         setMyRole(role);
@@ -5270,20 +5266,6 @@ export default function HomeScreen() {
     if (claimingRef.current) return;
     if (job._bot) {
       Alert.alert('🤖', (t as any).botJobMsg ?? 'זו עבודת דמה להדגמה — עבודות אמיתיות יופיעו כאן מלקוחות באזור שלך.');
-      return;
-    }
-    // Said here rather than left to the rules, which would refuse it with
-    // nothing but a generic error.
-    if (myIdState !== 'verified') {
-      Alert.alert(
-        '🪪 ' + ((t as any).idVerifyTitle ?? 'אימות זהות'),
-        myIdState === 'pending'
-          ? ((t as any).verifyPendingBanner ?? '⏳ תעודת הזהות שלך ממתינה לאישור. אחרי האישור אפשר יהיה לקחת עבודות.')
-          : ((t as any).verifyToTakeJobs ?? 'כדי לקחת עבודות צריך אימות זהות: מעלים צילום תעודה בעריכת הפרופיל, ואחרי אישור אפשר לקחת עבודות.'),
-        myIdState === 'pending'
-          ? [{ text: 'OK' }]
-          : [{ text: t.cancel, style: 'cancel' }, { text: (t as any).idVerifyUpload ?? 'העלה תעודת זהות', onPress: () => router.push('/profile') }],
-      );
       return;
     }
     if (job._kind === 'urgent') {
@@ -6062,20 +6044,6 @@ export default function HomeScreen() {
           ListHeaderComponent={myRole === 'cleaner' ? (
             <View style={{ marginBottom: 6 }}>
               <T style={{ fontSize: 18, fontWeight: '900', color: C.textDark, textAlign: 'right' }}>🧹 {(t as any).jobBoardTitle ?? 'ניקיונות שמחכות לך'}</T>
-              {myIdState !== 'verified' && (
-                <TouchableOpacity
-                  activeOpacity={0.8}
-                  disabled={myIdState === 'pending'}
-                  onPress={() => router.push('/profile')}
-                  style={{ marginTop: 6, backgroundColor: '#FEF3C7', borderRadius: 10, paddingVertical: 8, paddingHorizontal: 10, borderWidth: 1, borderColor: '#FCD34D' }}
-                >
-                  <T style={{ fontSize: 12.5, fontWeight: '800', color: '#92400E', textAlign: 'right' }}>
-                    {myIdState === 'pending'
-                      ? ((t as any).verifyPendingBanner ?? '⏳ תעודת הזהות שלך ממתינה לאישור. אחרי האישור אפשר יהיה לקחת עבודות.')
-                      : ((t as any).verifyBanner ?? '🪪 לקיחת עבודות מהלוח נפתחת אחרי אימות זהות — מעלים צילום תעודה בעריכת הפרופיל.')}
-                  </T>
-                </TouchableOpacity>
-              )}
               {/* מקרא הלוח — שתי שורות קצרות ומקבילות בבלוק אחד: מה הסגול אומר,
                   ושהמנקה מקבל גם הזמנות ישירות מלקוחות (לא רק מהלוח). */}
               <View style={{ marginTop: 6, backgroundColor: C.bluePale, borderRadius: 10, paddingVertical: 8, paddingHorizontal: 10, gap: 6, borderWidth: 1, borderColor: C.blueBorder }}>
