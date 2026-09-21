@@ -623,8 +623,15 @@ function CleanerMapMarker({ c, isSel, onPress }: { c: any; isSel: boolean; onPre
   );
 }
 
-/** The ring on a job picked on the map, and on its card in the list. */
-const JOB_SELECTED = '#F59E0B';
+/**
+ * The ring on a job picked on the map, and on its card in the list.
+ *
+ * The brand blue, not a warning colour: amber read as an alert and fought with
+ * the orange "my location" dot. The picked pin also gets a soft halo, so it
+ * stands out among pins of its own colour.
+ */
+const JOB_SELECTED = '#185FA5';
+const JOB_SELECTED_HALO = 'rgba(24,95,165,0.25)';
 
 // סמן עבודה על מפת המנקה — סגול לדחופה, כחול לעבודה מהלוח, כמו באתר. הנבחרת
 // גדולה יותר ועם טבעת כתומה, באותו צבע שמסמן את הכרטיס שלה ברשימה.
@@ -647,7 +654,11 @@ const JobMapMarker = React.memo(function JobMapMarker({ id, lat, lng, urgent, is
       anchor={{ x: 0.5, y: 0.5 }}
       zIndex={isSel ? 998 : urgent ? 2 : 1}
     >
-      <View style={{ width: size, height: size, borderRadius: size / 2, backgroundColor: urgent ? '#7C3AED' : '#1E63D6', borderWidth: isSel ? 4 : 2, borderColor: isSel ? JOB_SELECTED : '#fff', elevation: 4, shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.3, shadowRadius: 2 }} />
+      <View style={isSel
+        ? { width: size + 14, height: size + 14, borderRadius: (size + 14) / 2, backgroundColor: JOB_SELECTED_HALO, alignItems: 'center', justifyContent: 'center' }
+        : undefined}>
+        <View style={{ width: size, height: size, borderRadius: size / 2, backgroundColor: urgent ? '#7C3AED' : '#1E63D6', borderWidth: isSel ? 3 : 2, borderColor: isSel ? JOB_SELECTED : '#fff', elevation: 4, shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.3, shadowRadius: 2 }} />
+      </View>
     </Marker>
   );
 });
