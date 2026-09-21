@@ -19,6 +19,7 @@ import { TAB_BAR_CONTENT_HEIGHT } from '../lib/BottomTabBar';
 import { demoModeStored, setDemoMode } from '../lib/demoMode';
 import { releaseUrgentRequest } from '../lib/urgentRelease';
 import { fetchPrivateProfile } from '../lib/privateProfile';
+import { logError } from '../lib/logError';
 
 // ─── Palette ──────────────────────────────────────────────────────────────────
 const C_DEFAULT = {
@@ -259,9 +260,24 @@ export default function AdminScreen() {
       return Alert.alert('שגיאה', 'מלא כותרת ותוכן');
     setPushSending(true);
     try {
+      // Actually sent. This used to collect the tokens, do nothing with them and
+      // still say "sent to N users" — the broadcast never left the device.
       const tokens = users.map(u => u.pushToken).filter(Boolean);
-      // TODO: call cloud function / FCM in production
-      Alert.alert('✅ נשלח', `ההתראה נשלחה ל-${tokens.length} משתמשים`);
+      if (!tokens.length) return Alert.alert('', 'אין משתמשים עם התראות פעילות');
+      let sent = 0;
+      for (let i = 0; i < tokens.length; i += 90) {
+        const chunk = tokens.slice(i, i + 90).map(to => ({
+          to, title: pushTitle.trim(), body: pushBody.trim(), sound: 'default', priority: 'high',
+        }));
+        try {
+          const res = await fetch('https://exp.host/--/api/v2/push/send', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(chunk),
+          });
+          if (res.ok) sent += chunk.length;
+        } catch (err) { logError('admin:broadcast', err); }
+      }
+      if (sent === 0) return Alert.alert('שגיאה', 'שליחת ההתראה נכשלה — בדוק חיבור ונסה שוב');
+      Alert.alert('✅ נשלח', `ההתראה נשלחה ל-${sent} משתמשים`);
       setPushTitle(''); setPushBody('');
     } finally {
       setPushSending(false);

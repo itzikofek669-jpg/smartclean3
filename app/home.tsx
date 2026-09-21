@@ -10,7 +10,7 @@ import {
 } from 'react-native';
 import { useAnimatedValue, useAnimatedValues } from '../lib/useAnimatedValue';
 import { useNow } from '../lib/useNow';
-import { writeBookingDetails, withBookingDetails, migrateOpenJobDetails, fetchBookingDetails, urgentDetailsRef } from '../lib/bookingDetails';
+import { withBookingDetails, migrateOpenJobDetails, fetchBookingDetails, urgentDetailsRef } from '../lib/bookingDetails';
 import { fetchOwnProfile, migrateProfile, ownPhone, publicCoord } from '../lib/privateProfile';
 
 import { Image } from 'expo-image';
@@ -634,7 +634,7 @@ const JOB_SELECTED = '#185FA5';
 const JOB_SELECTED_HALO = 'rgba(24,95,165,0.25)';
 
 // סמן עבודה על מפת המנקה — סגול לדחופה, כחול לעבודה מהלוח, כמו באתר. הנבחרת
-// גדולה יותר ועם טבעת כתומה, באותו צבע שמסמן את הכרטיס שלה ברשימה.
+// גדולה יותר, עם טבעת כחולה והילה — אותו סימון שהכרטיס שלה מקבל ברשימה.
 // Keyed by selection at the call site, so a change remounts it and it tracks
 // long enough to redraw at its new size — a marker that has stopped tracking
 // keeps its old picture on Android.
@@ -1784,7 +1784,11 @@ function PostJobModal({ visible, onClose, onPosted }: { visible: boolean; onClos
       // עבודה על הלוח קריאה לכל מחובר — זה מה שלוח הוא — וחוקי Firestore לא
       // יכולים להסתיר שדה בודד. לכן הכתובת המדויקת וההערות של הלקוח יורדות
       // ל-bookings/{id}/private, וכאן נשאר רק מה שמנקה צריכה כדי להחליט.
-      const jobRef = await addDoc(collection(db, 'bookings'), {
+      // One batch: written apart, a failed second write left the job live on
+      // the board with no address at all, and nothing to heal it.
+      const jobRef = doc(collection(db, 'bookings'));
+      const jobBatch = writeBatch(db);
+      jobBatch.set(jobRef, {
         open: true, cleanerId: '', clientUid: uid, clientName,
         origin: 'open',
         serviceTypes: types, serviceType: types.join(' + '),
@@ -1802,7 +1806,8 @@ function PostJobModal({ visible, onClose, onPosted }: { visible: boolean; onClos
       });
       // The phone too: the cleaner who takes the job reads it from here, not from
       // a profile everyone can read. See lib/privateProfile.
-      await writeBookingDetails(jobRef.id, { address: city.trim(), notes: notes.trim(), phone: await ownPhone(uid) });
+      jobBatch.set(doc(db, 'bookings', jobRef.id, 'private', 'details'), { address: city.trim(), notes: notes.trim(), phone: await ownPhone(uid) });
+      await jobBatch.commit();
       upsertAddress(city.trim()).catch(() => {});   // שמור את הכתובת למילוי אוטומטי בפעם הבאה
       onPosted?.();
       onClose();
@@ -4434,11 +4439,13 @@ export default function HomeScreen() {
    * ורוצה שמישהו ייקח את זה, לא לחפש מחדש.
    */
   const repostCancelledBooking = async (b: any) => {
+    // הנעילה לפני כל await: הבדיקה ישבה אחרי קריאת הפרטים, והקשה כפולה מהירה
+    // עברה את שתיהן ופרסמה את העבודה פעמיים.
+    if (reposting) return;
+    setReposting(true);
     // הפופאפ מוזן מ-snapshot גולמי שלא עבר מיזוג, אז אין בו כתובת. פרסום מחדש
     // כמו שהוא כתב פרטים ריקים, ומי שתפסה את העבודה החדשה קיבלה בלי רחוב.
     if (b && !b.address && b.id) b = { ...b, ...(await fetchBookingDetails(b.id)) };
-    if (reposting) return;
-    setReposting(true);
     try {
       const uid = auth.currentUser?.uid || '';
       const dateStr = String(b?.bookingDate || '');
@@ -4460,7 +4467,9 @@ export default function HomeScreen() {
         : (b?.serviceType ? String(b.serviceType).split(' + ') : []);
       // אותו פיצול כמו בפרסום רגיל: הרחוב, הקומה, הדירה וההערות לא יושבים על
       // מסמך שכל מחובר יכול לקרוא. ראה lib/bookingDetails.
-      const repostRef = await addDoc(collection(db, 'bookings'), {
+      const repostRef = doc(collection(db, 'bookings'));
+      const repostBatch = writeBatch(db);
+      repostBatch.set(repostRef, {
         open: true, cleanerId: '', cleanerName: '',
         clientUid: uid, clientName: b?.clientName || '',
         serviceTypes: types, serviceType: types.join(' + '),
@@ -4480,7 +4489,9 @@ export default function HomeScreen() {
         recurring: 'once', recurringDates: [],
         repostedFrom: b?.id || '',
       });
-      await writeBookingDetails(repostRef.id, {
+      // In the same batch as the job — the rule reads the parent through
+      // getAfter, so the two land together or not at all.
+      repostBatch.set(doc(db, 'bookings', repostRef.id, 'private', 'details'), {
         address: b?.address || '',
         addrStreet: b?.addrStreet || '',
         addrFloor: b?.addrFloor || '',
@@ -4489,6 +4500,7 @@ export default function HomeScreen() {
         // The client's own, when the job reposted never carried one.
         phone: b?.phone || await ownPhone(uid),
       });
+      await repostBatch.commit();
       markCancelledSeen(b?.id);
       setCancelledPopup(null);
       Alert.alert('✅', (t as any).repostOkMsg ?? 'ההזמנה פורסמה מחדש — מנקים באזור שלך יראו אותה');
@@ -5238,11 +5250,18 @@ export default function HomeScreen() {
   // A pick outlives nothing: once that job leaves the board (taken, hidden,
   // out of range, or a demo list regenerated) nothing is ringed.
   const pickedJobId = selectedJobId && jobBoard.some((x: any) => x._id === selectedJobId) ? selectedJobId : null;
+  // The board goes through a ref, so this callback never changes — with
+  // jobBoard as a dependency every board update handed each pin a new onPick
+  // and the React.memo around the marker bought nothing.
+  const jobBoardRef = useRef<any[]>([]);
+  // In an effect, not during render: writing a ref while rendering is the case
+  // the React Compiler rules exist to catch.
+  useEffect(() => { jobBoardRef.current = jobBoard; }, [jobBoard]);
   const pickJob = React.useCallback((id: string) => {
     setSelectedJobId(id);
-    const idx = jobBoard.findIndex((x: any) => x._id === id);
+    const idx = jobBoardRef.current.findIndex((x: any) => x._id === id);
     if (idx >= 0) setTimeout(() => { try { flatListRef.current?.scrollToIndex({ index: idx, animated: true, viewPosition: 0.15 }); } catch { /* onScrollToIndexFailed retries */ } }, 60);
-  }, [jobBoard]);
+  }, []);
 
   // ── תפיסת עבודה מהלוח ──────────────────────────────────────────────────────
   // צ'אט מנקה↔לקוח דרך מסך ההודעות הכללי (ניטרלי לתפקיד, ללא בוט תגובה אוטומטית)

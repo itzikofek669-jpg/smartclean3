@@ -10,7 +10,7 @@ import { pendingMove, privateKeysFor, publicCity, publicCoord, reconcile, splitF
  * Which fields, and why, is lib/profileFields.ts — this is the half that reads
  * and writes. Mirrored in the website's src/lib/privateProfile.ts.
  */
-export { needsProfileMigration, privateKeysFor, publicCoord } from './profileFields';
+export { needsProfileMigration, publicCoord } from './profileFields';
 
 export const privateProfileRef = (uid: string) => doc(db, 'users', uid, 'private', 'profile');
 

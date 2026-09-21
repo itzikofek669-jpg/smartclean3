@@ -598,7 +598,16 @@ export default function ProfileScreen() {
     const fresh = pendingBks.filter((b: any) => !SHOWN_PENDING.has(b.id) && b.createdAt && (nowMs - new Date(b.createdAt).getTime()) < 5 * 60 * 1000);
     pendingBks.forEach((b: any) => SHOWN_PENDING.add(b.id));
     if (fresh.length > 0) {
-      setPendingConfirmBooking(fresh.sort((a: any, b: any) => String(b.createdAt).localeCompare(String(a.createdAt)))[0]);
+      const pick = fresh.sort((a: any, b: any) => String(b.createdAt).localeCompare(String(a.createdAt)))[0];
+      setPendingConfirmBooking(pick);
+      // This runs on the raw snapshot, before the private half is folded in, and
+      // it marks every pending id as shown — so a second pass never came. The
+      // modal showed no address and approving wrote a calendar event without one.
+      if (!pick.address) {
+        fetchBookingDetails(pick.id)
+          .then(d => setPendingConfirmBooking((cur: any) => (cur?.id === pick.id ? { ...cur, ...d } : cur)))
+          .catch(err => logError('profile:pendingDetails', err));
+      }
     }
   }, [incomingBks, userRole]);
 
@@ -1136,7 +1145,14 @@ export default function ProfileScreen() {
     // ── טעינת נתוני פרופיל (חד-פעמי) ──────────────────────────────────────
     (async () => {
       try {
-        const d = await fetchOwnProfile(uid);
+        // Falls back to the public half: this screen only displays, and a
+        // failed private read (offline, nothing cached yet) used to leave the
+        // whole profile blank — no name, no role, no availability.
+        const d = await fetchOwnProfile(uid).catch(async err => {
+          logError('profile:ownProfile', err);
+          const snap = await getDoc(doc(db, 'users', uid));
+          return snap.exists() ? snap.data() : null;
+        });
         if (d) {
           setUserName(d.name        || '');
           setUserEmail(d.email      || '');

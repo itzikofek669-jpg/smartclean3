@@ -33,20 +33,6 @@ const attempted = new Set<string>();
 const DETAIL_KEYS: (keyof BookingDetails)[] =
   ['address', 'addrStreet', 'addrFloor', 'addrApt', 'notes', 'phone'];
 
-/** Split a booking payload into what may be public and what may not. */
-export function splitBookingDetails<T extends Record<string, unknown>>(
-  payload: T,
-): { open: Omit<T, keyof BookingDetails>; details: BookingDetails } {
-  const open = { ...payload } as Record<string, unknown>;
-  const details: BookingDetails = {};
-  for (const k of DETAIL_KEYS) {
-    if (payload[k] !== undefined) {
-      (details as Record<string, unknown>)[k] = payload[k];
-      delete open[k];
-    }
-  }
-  return { open: open as Omit<T, keyof BookingDetails>, details };
-}
 
 export async function writeBookingDetails(bookingId: string, details: BookingDetails): Promise<void> {
   await setDoc(doc(db, 'bookings', bookingId, 'private', 'details'), details, { merge: true });
@@ -238,14 +224,16 @@ export async function migrateOpenJobDetails(b: {
   });
   if (!carries) return false;
   try {
-    await writeBookingDetails(b.id, {
-      address: b.address ?? '',
-      addrStreet: b.addrStreet ?? '',
-      addrFloor: b.addrFloor ?? '',
-      addrApt: b.addrApt ?? '',
-      notes: b.notes ?? '',
-      phone: b.phone ?? '',
-    });
+    // Only the fields this booking actually carries. Writing the whole set with
+    // '' for the missing ones erased what was already in the private half — the
+    // client's own screen fills in the phone there (backfillClientPhone), and a
+    // migration a moment later blanked it.
+    const move: BookingDetails = {};
+    for (const k of DETAIL_KEYS) {
+      const v = (b as Record<string, unknown>)[k];
+      if (typeof v === 'string' && v !== '') (move as Record<string, string>)[k] = v;
+    }
+    await writeBookingDetails(b.id, move);
     // Only once the copy is safely written. The reverse order would leave a job
     // with no address at all if the second write failed.
     await updateDoc(doc(db, 'bookings', b.id), {

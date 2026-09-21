@@ -474,6 +474,11 @@ service cloud.firestore {
         && !request.resource.data.keys().hasAny([
           'actualTotal', 'actualHours', 'paidAt', 'finishedAt', 'cleanerRating'
         ])
+        // A job on the board is readable by every signed-in account, and the
+        // split that moved the street, flat, notes and phone to private/details
+        // was enforced by the clients alone: an older build — or anyone with a
+        // console — could write them straight back onto the public document.
+        && (request.resource.data.get('open', false) != true || !clientHalfOnTheBooking())
 
       // A cleaner creating the booking that an urgent claim produces.
       //
@@ -490,6 +495,10 @@ service cloud.firestore {
       // about to mark it taken.
       || (signedIn() && callerIsCleaner()
           && request.resource.data.get('cleanerId', '') == uid()
+          // Hers from the first write: neither an urgent claim nor a repeat
+          // visit belongs on the board, and a board job is world-readable.
+          && request.resource.data.get('open', false) != true
+          && !clientHalfOnTheBooking()
           && request.resource.data.get('origin', '') == 'urgent'
           && request.resource.data.get('status', '') in ['pending', 'confirmed']
           && (request.resource.data.get('total', 0) == null
@@ -524,6 +533,8 @@ service cloud.firestore {
       // actually recurring.
       || (signedIn() && callerIsCleaner()
           && request.resource.data.get('cleanerId', '') == uid()
+          && request.resource.data.get('open', false) != true
+          && !clientHalfOnTheBooking()
           && request.resource.data.get('status', '') == 'pending'
           && (request.resource.data.get('total', 0) == null
               || request.resource.data.get('total', 0) >= 0)
@@ -651,6 +662,13 @@ service cloud.firestore {
       // attacker's choosing, and the doctored record was world-readable through
       // isOpenJob(). Freezing `origin` did not help because none of this touches
       // it. The client may still correct their own details; the cleaner may not.
+      // What belongs in bookings/{id}/private/details and nowhere else.
+      function clientHalfOnTheBooking() {
+        return request.resource.data.keys().hasAny([
+          'address', 'addrStreet', 'addrFloor', 'addrApt', 'notes', 'phone'
+        ]);
+      }
+
       function bookingClientDataUnchanged() {
         return request.resource.data.get('address', '') == resource.data.get('address', '')
           && request.resource.data.get('addrStreet', '') == resource.data.get('addrStreet', '')
@@ -658,6 +676,11 @@ service cloud.firestore {
           && request.resource.data.get('addrFloor', '') == resource.data.get('addrFloor', '')
           && request.resource.data.get('addrApt', '') == resource.data.get('addrApt', '')
           && request.resource.data.get('phone', '') == resource.data.get('phone', '')
+          // Which urgent request this booking came from. Free to repoint, it was
+          // an address oracle: the copy branch below accepts a guessed address
+          // only when it matches that request's private half, so a cleaner could
+          // point a booking of hers at any other client's request and test.
+          && request.resource.data.get('urgentRequestId', '') == resource.data.get('urgentRequestId', '')
           && request.resource.data.get('clientName', '') == resource.data.get('clientName', '')
           && request.resource.data.get('bookingDate', '') == resource.data.get('bookingDate', '')
           && request.resource.data.get('startTime', '') == resource.data.get('startTime', '')
