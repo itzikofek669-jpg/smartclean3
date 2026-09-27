@@ -113,7 +113,9 @@ function createS(c: AppColors) {
     // 50pt from the top of the field — but the field opens with its label, so
     // the list landed on the input and covered the address being typed. A
     // fixed offset also broke with the app's larger-text setting.
-    addrDropdown:    { marginTop: 4, backgroundColor: c.white, borderRadius: 10, borderWidth: 1, borderColor: c.blueBorder, elevation: 5, maxHeight: 200 },
+    // No maxHeight: the lookup returns up to six rows (~250pt), and a 200pt cap
+    // on a View that does not scroll hid the sixth under the privacy note.
+    addrDropdown:    { marginTop: 4, backgroundColor: c.white, borderRadius: 10, borderWidth: 1, borderColor: c.blueBorder, elevation: 5 },
     addrSugRow:      { flexDirection: 'row', alignItems: 'center', padding: 12, gap: 8 },
     addrSugBorder:   { borderBottomWidth: 1, borderBottomColor: c.blueBorder },
     addrSugText:     { fontSize: 14, color: c.textDark, flex: 1, textAlign: 'right' },

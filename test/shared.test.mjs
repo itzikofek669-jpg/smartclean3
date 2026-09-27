@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import url from 'node:url';
+import { SHARED } from '../scripts/shared-hash.mjs';
 
 // The two products share one Firebase project. Where they claim to agree, a
 // difference is not a style issue — it lets an account blocked on one side in
@@ -89,6 +90,8 @@ const SHARED_PAIRS = [
   // The client's cleaner search. The site showed everyone for a town and the
   // app showed no one; one rule now, in one file.
   ['lib/search.ts',        'src/lib/search.ts'],
+  ['lib/terms.ts',         'src/lib/terms.ts'],
+  ['scripts/shared-hash.mjs', 'scripts/shared-hash.mjs'],
   ['firestore.rules',      'firestore.rules'],
 ];
 
@@ -114,12 +117,19 @@ test('the manifest covers every file that is supposed to be shared', () => {
     .map(l => l.trim().split(/\s+/)[1])
     .filter(Boolean)
     .sort();
-  const expected = [...new Set(SHARED_PAIRS.map(([appPath]) =>
-    appPath.replace(/^lib\//, '').replace(/\.ts$/, '').replace('firestore.rules', 'firestoreRules'),
-  ))].sort();
+  const expected = SHARED.map((f) => f.name).sort();
   assert.deepEqual(inManifest, expected,
-    'the manifest and this file disagree about which files are shared');
+    'the manifest and shared-hash.mjs disagree about which files are shared');
   assert.equal(inManifest.length, new Set(inManifest).size, 'the manifest lists a file twice');
+});
+
+test("this test's pairs are exactly the guard's list", () => {
+  // Three hand-kept lists — SHARED in the script, the manifest, and the pairs
+  // above — and only two were ever compared. Now all three are.
+  const fromScript = SHARED.map((f) => `${f.app} = ${f.web}`).sort();
+  const fromHere = SHARED_PAIRS.map(([a, w]) => `${a} = ${w}`).sort();
+  assert.deepEqual(fromHere, fromScript,
+    'SHARED_PAIRS here and SHARED in scripts/shared-hash.mjs name different files');
 });
 
 test('both products derive a busy window with the same default length', crossRepo, () => {

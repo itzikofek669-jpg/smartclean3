@@ -44,8 +44,15 @@
 import { createHash } from 'node:crypto';
 import { readFileSync, writeFileSync, existsSync } from 'node:fs';
 
-/** Path in the mobile app -> path on the website. One of the two will exist. */
-const SHARED = [
+/**
+ * Path in the mobile app -> path on the website. One of the two will exist.
+ *
+ * Exported so test/shared.test.mjs can hold its own list to this one. A file
+ * missing from here was simply never hashed: removing `search` from it while
+ * changing lib/search.ts passed every check, and the legal terms have been
+ * byte-identical in both products without anything comparing them.
+ */
+export const SHARED = [
   { name: 'verifyRule',     app: 'lib/verifyRule.ts',     web: 'src/lib/verifyRule.ts' },
   { name: 'displayOrder',   app: 'lib/displayOrder.ts',   web: 'src/lib/displayOrder.ts' },
   { name: 'urgentRequest',  app: 'lib/urgentRequest.ts',  web: 'src/lib/urgentRequest.ts' },
@@ -56,6 +63,10 @@ const SHARED = [
   { name: 'cityFromAddress', app: 'lib/cityFromAddress.ts', web: 'src/lib/cityFromAddress.ts' },
   { name: 'jobSearch',      app: 'lib/jobSearch.ts',      web: 'src/lib/jobSearch.ts' },
   { name: 'search',         app: 'lib/search.ts',         web: 'src/lib/search.ts' },
+  { name: 'terms',          app: 'lib/terms.ts',          web: 'src/lib/terms.ts' },
+  // The guard itself. Two copies of this script that disagree are two
+  // different ideas of what "in step" means.
+  { name: 'sharedHash',     app: 'scripts/shared-hash.mjs', web: 'scripts/shared-hash.mjs' },
   { name: 'firestoreRules', app: 'firestore.rules',       web: 'firestore.rules' },
 ];
 
@@ -104,6 +115,14 @@ if (RUN_AS_CLI) {
   const expected = parse(readFileSync(MANIFEST, 'utf8'));
   const actual = hashesHere();
   let bad = 0;
+  // A name in the manifest that the list above no longer has: something was
+  // un-registered, and from then on nothing would hash it.
+  for (const name of Object.keys(expected)) {
+    if (!(name in actual)) {
+      bad += 1;
+      console.error(`  DRIFT ${name} — in ${MANIFEST} but not in SHARED`);
+    }
+  }
   for (const [name, hash] of Object.entries(actual)) {
     if (expected[name] === hash) console.log(`  ok    ${name}`);
     else {

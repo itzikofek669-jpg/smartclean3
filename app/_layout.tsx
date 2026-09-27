@@ -73,8 +73,13 @@ if (Platform.OS === 'android') {
 
 // ── רישום push token ושמירה ב-Firestore ──────────────────────────────────────
 async function registerPushToken(uid: string, waitedForProfile = false) {
-  // Remote push tokens don't work in Expo Go (SDK 53+) — skip to avoid the error.
-  if (Constants.appOwnership === 'expo') return;
+  // Remote push was removed from Expo Go on ANDROID in SDK 53 —
+  // getExpoPushTokenAsync throws there. On iOS Expo Go still supports it:
+  // expo-notifications only logs a warning (see its warnOfExpoGoPushUsage, which
+  // throws for Platform.OS === 'android' and nothing else). Skipping Expo Go on
+  // both platforms meant an iPhone running Expo Go could never register, and
+  // the "turn on" button in the profile reported a bare "no token" error.
+  if (Constants.appOwnership === 'expo' && Platform.OS === 'android') return;
   try {
     // The user's own decision comes first, before the OS permission is even
     // consulted. Turning notifications off in the profile screen only cleared
@@ -306,9 +311,6 @@ export default function RootLayout() {
         (b.address ? Promise.resolve(b) : fetchBookingDetails(b.id).then(d => ({ ...b, ...d })))
           .then(full => addBookingToCalendar(full, { role }))
           .then(async res => {
-            // Every outcome, not just the two that used to be logged. The
-            // silent ones — already-synced above all — are exactly the
-            // answers we could never get out of a release build.
             if (res === 'bad-slot' || res === 'no-id') {
               logError('layout:calendarSlot', { id: b.id, bookingDate: b.bookingDate, startTime: b.startTime, res });
               return;
@@ -350,9 +352,6 @@ export default function RootLayout() {
         // this particular booking cancelled.
         if (!removedCancelled.has(b.id)) {
           removedCancelled.add(b.id);
-          // Which role's listener saw the cancellation is the thing that
-          // separates "the removal ran and failed" from "this device never
-          // heard about it" — and those need completely different fixes.
           // The sweep only for a cancellation seen happening. This set lives in
           // memory, so on every launch the whole history of cancelled bookings
           // arrived as new and each re-swept its old slot — deleting the event of

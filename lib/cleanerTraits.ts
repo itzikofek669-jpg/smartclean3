@@ -160,6 +160,25 @@ export function groupConsecutiveDays(days: WorkDayCode[]): WorkDayCode[][] {
  * 9–18, the way the profile screen has always read it. The hours that apply are
  * returned with the verdict so the message can say what they are.
  */
+
+export function workingHoursVerdict(
+  availability: unknown,
+  day: number,
+  startHour: number,
+  hours: number,
+  daysChosen = false,
+): { verdict: 'ok' | 'day-off' | 'outside-hours' | 'unset'; start?: number; end?: number } {
+  const map = (availability && typeof availability === 'object' ? availability : {}) as Record<string, unknown>;
+  const days = AVAILABILITY_DAY_KEYS.map((k) => readDay(map[k]));
+  if (!days.some((d) => d?.active)) return { verdict: daysChosen ? 'day-off' : 'unset' };
+  const d = days[((Math.trunc(day) % 7) + 7) % 7];
+  if (!d?.active) return { verdict: 'day-off' };
+  if (startHour < d.start || startHour + hours > d.end) {
+    return { verdict: 'outside-hours', start: d.start, end: d.end };
+  }
+  return { verdict: 'ok', start: d.start, end: d.end };
+}
+
 /**
  * Is this cleaner worth alerting about work at this time?
  *
@@ -178,8 +197,9 @@ export function groupConsecutiveDays(days: WorkDayCode[]): WorkDayCode[][] {
  * work no days, and alerting her for anything is exactly wrong. Every other
  * caller of workingHoursVerdict already passes it — this one did not.
  *
- * This decides the PUSH only. The request still reaches her board either way:
- * declining to ring someone's phone is not the same as hiding work from her.
+ * This decides ALERTS only — the push, and the app's in-app urgent popup. The
+ * request still reaches her board either way: declining to ring someone's
+ * phone is not the same as hiding work from her.
  */
 export function worksAt(
   availability: unknown,
@@ -190,22 +210,4 @@ export function worksAt(
 ): boolean {
   const { verdict } = workingHoursVerdict(availability, day, startHour, hours, daysChosen);
   return verdict !== 'day-off' && verdict !== 'outside-hours';
-}
-
-export function workingHoursVerdict(
-  availability: unknown,
-  day: number,
-  startHour: number,
-  hours: number,
-  daysChosen = false,
-): { verdict: 'ok' | 'day-off' | 'outside-hours' | 'unset'; start?: number; end?: number } {
-  const map = (availability && typeof availability === 'object' ? availability : {}) as Record<string, unknown>;
-  const days = AVAILABILITY_DAY_KEYS.map((k) => readDay(map[k]));
-  if (!days.some((d) => d?.active)) return { verdict: daysChosen ? 'day-off' : 'unset' };
-  const d = days[((Math.trunc(day) % 7) + 7) % 7];
-  if (!d?.active) return { verdict: 'day-off' };
-  if (startHour < d.start || startHour + hours > d.end) {
-    return { verdict: 'outside-hours', start: d.start, end: d.end };
-  }
-  return { verdict: 'ok', start: d.start, end: d.end };
 }

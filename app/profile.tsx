@@ -2,7 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import {
   View, Text, StyleSheet, ScrollView, FlatList, TouchableOpacity,
-  StatusBar, ActivityIndicator, Alert, Modal, Switch, Share, Linking,
+  StatusBar, ActivityIndicator, Alert, Modal, Share, Linking,
   TextInput, KeyboardAvoidingView, Platform, BackHandler, Clipboard, Keyboard,
 } from 'react-native';
 import { Image } from 'expo-image';
@@ -2408,7 +2408,13 @@ export default function ProfileScreen() {
             Constants.expoConfig?.extra?.eas?.projectId ??
             (Constants as any).easConfig?.projectId ??
             Constants.expoConfig?.slug ?? '';
-          if (projectId && Constants.appOwnership !== 'expo') {
+          // Android Expo Go has no remote push since SDK 53 and throws; iOS
+          // Expo Go still has it. This skipped Expo Go on both, so on an
+          // iPhone the button never asked and always said "no token".
+          if (Constants.appOwnership === 'expo' && Platform.OS === 'android') {
+            throw new Error('expo-go-android');
+          }
+          if (projectId) {
             const td = await Notifications.getExpoPushTokenAsync({ projectId });
             token = td?.data ?? '';
           }

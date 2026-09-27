@@ -113,6 +113,16 @@ export function isUrgentRequestExpired(
 /** Latest hour an urgent cleaning may start, local time. 22 = 22:00. */
 export const URGENT_LAST_START_HOUR = 22;
 
+/**
+ * Earliest hour an urgent cleaning may start, local time. 7 = 07:00.
+ *
+ * Capping the evening left the night wide open: a request made at 00:10 was
+ * pre-filled for 01:00 and sent, and every cleaner who never set her hours —
+ * the ones worksAt deliberately keeps alertable — was woken by it. The website
+ * already started its stepper at 07:00; now both products refuse earlier.
+ */
+export const URGENT_FIRST_START_HOUR = 7;
+
 /** "HH:MM" → hours as a number: "21:30" → 21.5. NaN when unparseable. */
 export function hourOfTime(hhmm: string | null | undefined): number {
   const m = /^(\d{1,2}):(\d{2})$/.exec(String(hhmm ?? '').trim());
@@ -120,9 +130,18 @@ export function hourOfTime(hhmm: string | null | undefined): number {
   return Number(m[1]) + Number(m[2]) / 60;
 }
 
-/** May an urgent cleaning start at this hour? */
+/** May an urgent cleaning start at this hour? 07:00 to 22:00, both included. */
 export function urgentStartAllowed(hour: number): boolean {
-  return Number.isFinite(hour) && hour <= URGENT_LAST_START_HOUR;
+  return Number.isFinite(hour) && hour >= URGENT_FIRST_START_HOUR && hour <= URGENT_LAST_START_HOUR;
+}
+
+/**
+ * The first hour a form may offer for an urgent cleaning today: now plus the
+ * form's lead time, rounded up to the half hour, and never before 07:00.
+ */
+export function urgentFirstSlot(now: Date = new Date(), leadMinutes = 0): number {
+  const mins = now.getHours() * 60 + now.getMinutes() + leadMinutes;
+  return Math.max(URGENT_FIRST_START_HOUR, Math.ceil(mins / 30) * 30 / 60);
 }
 
 /**
@@ -135,7 +154,5 @@ export function urgentStartAllowed(hour: number): boolean {
  * rather than offer an empty wheel or a time that will be refused.
  */
 export function urgentTodayClosed(now: Date = new Date(), leadMinutes = 0): boolean {
-  const mins = now.getHours() * 60 + now.getMinutes() + leadMinutes;
-  const firstSlot = Math.ceil(mins / 30) * 30 / 60;
-  return firstSlot > URGENT_LAST_START_HOUR;
+  return urgentFirstSlot(now, leadMinutes) > URGENT_LAST_START_HOUR;
 }

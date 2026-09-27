@@ -11,10 +11,11 @@ import { cityFromAddress } from '../.tsbuild/cityFromAddress.mjs';
 import { canRepost } from '../.tsbuild/bookingOrigin.mjs';
 import { startDateOf, endDateOf, bookingHours, DEFAULT_BOOKING_HOURS } from '../.tsbuild/bookingSlot.mjs';
 import { readCalendarRemoval, extractPushData } from '../.tsbuild/calendarPush.mjs';
-import { isUrgentRequestLive, isUrgentRequestExpired, expiryOf, URGENT_LAST_START_HOUR, hourOfTime, urgentStartAllowed, urgentTodayClosed } from '../.tsbuild/urgentRequest.mjs';
+import { isUrgentRequestLive, isUrgentRequestExpired, expiryOf, URGENT_FIRST_START_HOUR, URGENT_LAST_START_HOUR, hourOfTime, urgentStartAllowed, urgentTodayClosed, urgentFirstSlot } from '../.tsbuild/urgentRequest.mjs';
 import { splitFields, reconcile, pendingMove, publicCoord, privateKeysFor } from '../.tsbuild/profileFields.mjs';
 import { spreadStacked } from '../.tsbuild/jobUtils.mjs';
-import { matchJob, jobOnBoard, jobCityOf, nearestCity } from '../.tsbuild/jobSearch.mjs';
+import { matchJob, jobOnBoard, jobCityOf, nearestCity, filterBoard } from '../.tsbuild/jobSearch.mjs';
+import { normText, resolvePlace, textMatches, servesPlace, searchCleaners } from '../.tsbuild/search.mjs';
 import { workingHoursVerdict, workDaysFromAvailability, normalizeAvailability, worksAt } from '../.tsbuild/cleanerTraits.mjs';
 import { claimUpdate, rejectionUpdate, rejectionReleasesToBoard, awaitsMyApproval, occupiesCleanerTime, busyWindowOf, busyFieldsOf, pendingSlotMissed, isBoardJobOfferable, pendingSlotExpired, expiryUpdate } from '../.tsbuild/bookingActions.mjs';
 
@@ -1081,4 +1082,113 @@ test('town and service match in the viewer\'s language as well as Hebrew', () =>
   assert.equal(matchJob(job, 'office', lookups), 'service');
   assert.equal(matchJob(job, 'משרדים', lookups), 'service');
   assert.equal(matchJob(job, 'ירושלים', lookups), 'none');
+});
+
+
+// ── Second review round: what five reviewers found in the first fixes ────────
+
+test('an urgent cleaning cannot start before 07:00 either', () => {
+  // Capping the evening left the night open: at 00:10 the form pre-filled
+  // 01:00, sent it, and woke every cleaner who never set her hours.
+  assert.equal(URGENT_FIRST_START_HOUR, 7);
+  assert.equal(urgentStartAllowed(1), false);
+  assert.equal(urgentStartAllowed(6.5), false);
+  assert.equal(urgentStartAllowed(7), true);
+  const at = (h, m) => new Date(2026, 8, 27, h, m);
+  assert.equal(urgentFirstSlot(at(0, 10)), 7);          // never before 07:00
+  assert.equal(urgentFirstSlot(at(3, 0), 30), 7);
+  assert.equal(urgentFirstSlot(at(9, 10)), 9.5);
+  assert.equal(urgentFirstSlot(at(21, 10), 30), 22);
+  assert.equal(urgentTodayClosed(at(0, 10)), false);    // the morning is still open
+  assert.equal(hourOfTime('9:30'), 9.5);
+  assert.ok(Number.isNaN(hourOfTime('22:00:00')));
+  // The oldest availability shape, a bare `true`, is 09:00–18:00.
+  assert.equal(worksAt({ sun: true }, 0, 17, 2), false);
+  assert.equal(worksAt({ sun: true }, 0, 10, 2), true);
+});
+
+test('a town is recognised however it is typed', () => {
+  // The app took only an exact Hebrew key, so these all found nobody.
+  const T = { 'תל אביב': { lat: 32.08, lng: 34.78 }, 'חדרה': { lat: 32.43, lng: 34.92 },
+              'קרית שמונה': { lat: 33.2, lng: 35.57 }, 'חדרה מערב': { lat: 32.4, lng: 34.9 } };
+  const en = (c) => ({ 'חדרה': 'Hadera', 'תל אביב': 'Tel Aviv' })[c] || '';
+  assert.equal(resolvePlace('תל-אביב', T)?.city, 'תל אביב');
+  assert.equal(resolvePlace('קריית שמונה', T)?.city, 'קרית שמונה');
+  assert.equal(resolvePlace('Hadera', T, en)?.city, 'חדרה');
+  assert.equal(resolvePlace('hadera', T, en)?.city, 'חדרה');
+  assert.equal(resolvePlace('חדר', T)?.city, 'חדרה');                 // shortest partial wins
+  assert.equal(resolvePlace('חדר', T, undefined, false), null);       // …unless partials are off
+  assert.equal(resolvePlace('ח', T), null);                           // one letter is not a town
+  assert.equal(resolvePlace('', T), null);
+  assert.equal(normText('  תל-אביב  '), 'תל אביב');
+});
+
+test("a cleaner's own reach decides a town search", () => {
+  // S4/S10 in the mutation run: every existing case sat inside the 30 km default.
+  const dist = (a, b) => Math.hypot(a.lat - b.lat, a.lng - b.lng) * 111;
+  const HERE = { lat: 32, lng: 35 };
+  const near = { lat: 32.135, lng: 35 };                              // ~15 km
+  const far = { lat: 32.72, lng: 35 };                                // ~80 km
+  assert.equal(servesPlace({ ...near, maxDistance: 5 }, HERE, dist), false);
+  assert.equal(servesPlace({ ...far, maxDistance: 100 }, HERE, dist), true);
+  // Exactly at her limit still counts.
+  assert.equal(servesPlace({ lat: 32.09, lng: 35, maxDistance: 10 }, HERE, (a, b) => 10), true);
+});
+
+test('text matching folds hyphens, קרית and case', () => {
+  assert.equal(textMatches({ city: 'תל אביב' }, 'תל-אביב'), true);
+  assert.equal(textMatches({ city: 'קרית אונו' }, 'קריית אונו'), true);
+  assert.equal(textMatches({ city: 'Haifa' }, 'HAIFA'), true);
+});
+
+test('searchCleaners keeps the right cleaners and says which named the text', () => {
+  const dist = (a, b) => Math.hypot(a.lat - b.lat, a.lng - b.lng) * 111;
+  const PLACE = { lat: 32, lng: 35 };
+  const cs = [
+    { id: 'lives', name: 'דנה', city: 'חדרה', lat: 32, lng: 35 },
+    { id: 'travels', name: 'רון', city: 'חריש', lat: 32.09, lng: 35 },   // ~10 km
+    { id: 'far', name: 'גל', city: 'אילת', lat: 29.5, lng: 35 },
+    { id: 'unplaced', name: 'ליאור', city: 'עיר לא ידועה' },
+  ];
+  const kept = searchCleaners(cs, 'חדרה', PLACE, (c) => c, dist);
+  assert.deepEqual(kept.map((k) => k.item.id), ['lives', 'travels', 'unplaced']);
+  assert.deepEqual(kept.filter((k) => k.textHit).map((k) => k.item.id), ['lives']);
+  assert.equal(searchCleaners(cs, '', PLACE, (c) => c, dist).length, 4);
+  assert.deepEqual(searchCleaners(cs, 'רון', null, (c) => c, dist).map((k) => k.item.id), ['travels']);
+});
+
+test('one or two letters do not reach past the radius on the board', () => {
+  // "ר" matched 143 of 208 towns and flooded a cleaner's board on the first keystroke.
+  const job = { clientName: 'רותם', addrCity: 'רמת גן' };
+  assert.equal(matchJob(job, 'ר'), 'service');                 // narrows, inside the radius
+  assert.equal(matchJob(job, 'רו'), 'client');                 // a name, two letters in
+  assert.equal(matchJob(job, 'גן'), 'place');                  // start of a word in the town
+  assert.equal(matchJob(job, 'ותם'), 'service');               // mid-word: still inside the radius
+  assert.equal(matchJob({ addrCity: 'Haifa' }, 'HAIFA'), 'place');
+  assert.equal(matchJob({ addrCity: 'תל אביב' }, 'תל-אביב'), 'place');
+  assert.equal(jobOnBoard('service', 30, 30), true);           // exactly at the radius
+  assert.equal(jobOnBoard('service', 30.01, 30), false);
+});
+
+test('a job keeps its own town over the derived one', () => {
+  assert.equal(jobCityOf({ addrCity: 'חיפה' }, 'תל אביב'), 'חיפה');
+  assert.equal(jobCityOf({ city: 'עכו' }, 'חיפה'), 'עכו');          // the older `city` field counts
+  const T = { 'תל אביב': { lat: 32.0853, lng: 34.7818 } };
+  assert.equal(nearestCity({ lat: 32.0853, lng: 34.8768 }, T), null); // ~8.9 km: over the 5 km limit
+  assert.equal(nearestCity({ lat: 32.0853, lng: 34.8118 }, T), 'תל אביב'); // ~2.8 km
+});
+
+test('filterBoard searches first and applies the radius after', () => {
+  const jobs = [
+    { _id: 'near', clientName: 'אורן', addrCity: 'רמת גן', _distKm: 5 },
+    { _id: 'far', clientName: 'שגיא', addrCity: 'חיפה', _distKm: 80 },
+    { _id: 'legacy', clientName: 'נועה', _city: 'תל אביב', _distKm: 2 },
+    { _id: 'bot', clientName: 'בוט', addrCity: 'אילת', _distKm: 300, _bot: true },
+  ];
+  const ids = (q) => filterBoard(jobs, q, 30).map((j) => j._id);
+  assert.deepEqual(ids(''), ['near', 'legacy', 'bot']);        // browsing: radius, demo exempt
+  assert.deepEqual(ids('חיפה'), ['far']);                      // a town reaches past it
+  assert.deepEqual(ids('שגיא'), ['far']);                      // so does a client
+  assert.deepEqual(ids('תל אביב'), ['legacy']);                // found by its derived town
+  assert.deepEqual(ids('זזזז'), []);
 });

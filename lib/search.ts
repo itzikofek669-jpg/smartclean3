@@ -55,18 +55,69 @@ export interface Place {
 /** How far a cleaner travels when she never said. Matches the urgent broadcast. */
 export const DEFAULT_TRAVEL_KM = 30;
 
+/**
+ * Text compared the way people type it: ״ and ", hyphens and spaces, קרית and
+ * קריית, and case. The same folding lib/cityFromAddress applies to addresses —
+ * repeated here rather than imported so this file compiles on its own for the
+ * tests. Without it "תל-אביב" found nobody listed in "תל אביב".
+ */
+export function normText(s: string | null | undefined): string {
+  return String(s ?? '')
+    .replace(/[״”“]/g, '"')
+    .replace(/[׳’‘]/g, "'")
+    .replace(/[-־–]/g, ' ')
+    .replace(/קריית/g, 'קרית')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .toLowerCase();
+}
+
 /** Everything about a cleaner that free text is matched against. */
 export function haystack(c: SearchableCleaner): string {
-  return [c.name, c.city, ...(c.workAreas ?? []), ...(c.services ?? [])]
+  return normText([c.name, c.city, ...(c.workAreas ?? []), ...(c.services ?? [])]
     .filter(Boolean)
-    .join(' ')
-    .toLowerCase();
+    .join(' '));
 }
 
 /** Does the cleaner's own text answer this query? */
 export function textMatches(c: SearchableCleaner, query: string): boolean {
-  const q = query.trim().toLowerCase();
+  const q = normText(query);
   return !!q && haystack(c).includes(q);
+}
+
+/**
+ * The town a query names, if it names one.
+ *
+ * The app used to accept only an exact Hebrew key of the city table, so the
+ * fix for "search by town finds nothing" survived in six of seven languages:
+ * "Hadera", "תל-אביב", "פרדס חנה כרכור" and a half-typed "חדר" all fell back to
+ * matching the cleaner's own city text, and found nobody. The website had a
+ * looser rule of its own; this is the one rule both now use.
+ *
+ * An exact match — Hebrew or the viewer's language, after normText — always
+ * wins. A PARTIAL one (the start of a town's name, two letters or more) counts
+ * only when `allowPartial`: callers pass false when the text already matches a
+ * cleaner's name, so "אבי" finds Avi rather than dragging the list to תל אביב.
+ * Among partial matches the shortest name wins — "חדר" is חדרה, not חדרה-West.
+ */
+export function resolvePlace(
+  query: string,
+  table: Record<string, Place>,
+  nameOf: (city: string) => string = () => '',
+  allowPartial = true,
+): (Place & { city: string }) | null {
+  const q = normText(query);
+  if (!q) return null;
+  let partial: string | null = null;
+  for (const city of Object.keys(table)) {
+    const he = normText(city);
+    const tr = normText(nameOf(city));
+    if (he === q || (tr && tr === q)) return { city, ...table[city] };
+    if (allowPartial && q.length >= 2 && (he.startsWith(q) || (tr && tr.startsWith(q)))) {
+      if (partial === null || normText(city).length < normText(partial).length) partial = city;
+    }
+  }
+  return partial ? { city: partial, ...table[partial] } : null;
 }
 
 /**
@@ -100,4 +151,33 @@ export function matchesSearch(
   if (!query.trim()) return true;
   if (textMatches(c, query)) return true;
   return place ? servesPlace(c, place, distanceKm) : false;
+}
+
+/**
+ * The search step of both cleaner lists, as one testable function.
+ *
+ * Each screen did this inline — filter, then re-derive the text match inside
+ * the sort comparator — and that inline wiring is exactly where all three
+ * search bugs lived, out of reach of every test. Here each cleaner is adapted
+ * once (the app's list rebuilds on every render, and building the searchable
+ * shape twice per comparison was measurable at 700 cleaners), and the caller
+ * gets back who stays plus whether their own text matched, so it can put the
+ * cleaners who actually say that town above the ones who merely travel there.
+ */
+export function searchCleaners<T>(
+  cleaners: T[],
+  query: string,
+  place: Place | null,
+  toSearchable: (c: T) => SearchableCleaner,
+  distanceKm: (a: Place, b: Place) => number,
+): { item: T; textHit: boolean }[] {
+  const q = query.trim();
+  const kept: { item: T; textHit: boolean }[] = [];
+  for (const item of cleaners) {
+    if (!q) { kept.push({ item, textHit: false }); continue; }
+    const s = toSearchable(item);
+    const textHit = textMatches(s, q);
+    if (textHit || (place && servesPlace(s, place, distanceKm))) kept.push({ item, textHit });
+  }
+  return kept;
 }

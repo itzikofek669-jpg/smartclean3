@@ -326,10 +326,6 @@ async function addBookingToCalendarInner(
 
     if (eventId) {
       await SecureStore.setItemAsync(key, String(eventId)).catch(() => {});
-      // Which calendar matters: writableCalendarId falls back to the first
-      // writable one, which on a phone with no primary can be a local
-      // calendar the user's calendar app does not display. The event is
-      // real, just invisible — indistinguishable from never created.
       return 'added';
     }
     return 'error';
@@ -354,11 +350,9 @@ export async function removeBookingFromCalendar(
   try {
     const key = evtKey(bookingId, opts.uid);
     const id = await SecureStore.getItemAsync(key).catch(() => null);
-    if (!id) {
-      // Nothing recorded for this booking on this device. Worth saying so:
-      // it is the difference between "removed" and "there was never an
-      // entry here", which look the same from the calendar.
-    } else {
+    // No stored event means this device never added one for the booking —
+    // nothing to remove.
+    if (id) {
       // The key is only dropped once the event is actually gone. It used to
       // be deleted regardless: a failed delete then left the entry sitting
       // in the calendar with nothing left pointing at it, so no later

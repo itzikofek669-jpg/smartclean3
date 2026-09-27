@@ -30,9 +30,13 @@
  * shared-files.sha256 covers it.
  */
 
+import { normText } from './search';
+
 export interface SearchableJob {
   clientName?: string | null;
   addrCity?: string | null;
+  /** Some older documents name the town here; getJobCoords and the app's card both read it. */
+  city?: string | null;
   address?: string | null;
   serviceType?: string | null;
   serviceTypes?: string[] | null;
@@ -47,38 +51,55 @@ export interface JobSearchLookups {
   fallbackCity?: string | null;
 }
 
-/** How a job answered a query. `none` drops it; the rest keep it. */
+/**
+ * How a job answered a query. `none` drops it. `client` and `place` were asked
+ * for by name and reach past the radius. `service` is every other match — a
+ * service, or a fragment of a word — and keeps the radius, like browsing.
+ */
 export type JobMatch = 'none' | 'client' | 'place' | 'service';
 
 /** The place a job is in, as text: its own field, else the derived fallback. */
 export function jobCityOf(job: SearchableJob, fallbackCity?: string | null): string {
-  return String(job.addrCity || job.address || fallbackCity || '').trim();
+  return String(job.addrCity || job.city || job.address || fallbackCity || '').trim();
+}
+
+/** Does `text`, or any word in it, start with `q`? Both already normText'ed. */
+function wordStarts(text: string, q: string): boolean {
+  return !!text && (text.startsWith(q) || text.split(' ').some((w) => w.startsWith(q)));
 }
 
 /**
  * What, if anything, this job matched. An empty query matches as `service` —
  * the browsing case — so the caller's radius still applies to it.
+ *
+ * A name reaches past the radius only when it looks like one: two letters or
+ * more, at the start of a word. A plain substring did it on the first
+ * keystroke — "ר" matched 143 of the 208 towns, and a cleaner who began typing
+ * "ניקיון" watched jobs from across the country flood in and drain away again.
+ * Anything shorter or mid-word still narrows the list, inside the radius.
  */
 export function matchJob(job: SearchableJob, query: string, lookups: JobSearchLookups = {}): JobMatch {
-  const q = query.trim().toLowerCase();
+  const q = normText(query);
   if (!q) return 'service';
 
-  if (String(job.clientName ?? '').toLowerCase().includes(q)) return 'client';
-
+  const client = normText(job.clientName);
   const city = jobCityOf(job, lookups.fallbackCity);
-  if (city) {
-    const translated = (lookups.cityName?.(city) ?? '').toLowerCase();
-    if (city.toLowerCase().includes(q) || (translated && translated.includes(q))) return 'place';
+  const cityHe = normText(city);
+  const cityTr = city ? normText(lookups.cityName?.(city)) : '';
+
+  if (q.length >= 2) {
+    if (wordStarts(client, q)) return 'client';
+    if (wordStarts(cityHe, q) || wordStarts(cityTr, q)) return 'place';
   }
 
   const services = Array.isArray(job.serviceTypes) && job.serviceTypes.length
     ? job.serviceTypes
     : (job.serviceType ? [job.serviceType] : []);
-  const hit = services.some((s) => {
-    const label = (lookups.serviceName?.(s) ?? '').toLowerCase();
-    return String(s).toLowerCase().includes(q) || (!!label && label.includes(q));
-  });
-  return hit ? 'service' : 'none';
+  const text = [client, cityHe, cityTr,
+    ...services.map((s) => normText(s)),
+    ...services.map((s) => normText(lookups.serviceName?.(s))),
+  ].filter(Boolean).join(' ');
+  return text.includes(q) ? 'service' : 'none';
 }
 
 /**
@@ -124,4 +145,35 @@ export function nearestCity(
     if (d < bestKm) { bestKm = d; best = name; }
   }
   return bestKm <= withinKm ? best : null;
+}
+
+/** What the boards attach to a job before searching it. */
+export interface BoardJob extends SearchableJob {
+  /** Distance from the cleaner, or null when either end cannot be placed. */
+  _distKm?: number | null;
+  /** The derived town for a job that names none — see nearestCity. */
+  _city?: string | null;
+  /** A demo card: never radius-limited, matched without translations. */
+  _bot?: boolean;
+}
+
+/**
+ * The search-and-radius step of both job boards, as one testable function.
+ *
+ * Each board did this inline, and the inline version is where the radius once
+ * ran before the search, and where dropping `fallbackCity` or the demo branch
+ * would have passed every test. The lookups translate towns and services into
+ * the viewer's language; the fallback town comes from each job.
+ */
+export function filterBoard<T extends BoardJob>(
+  jobs: T[],
+  query: string,
+  maxKm: number,
+  lookups: Omit<JobSearchLookups, 'fallbackCity'> = {},
+): T[] {
+  return jobs.filter((j) => {
+    if (j._bot) return matchJob(j, query) !== 'none';
+    const match = matchJob(j, query, { ...lookups, fallbackCity: j._city });
+    return jobOnBoard(match, j._distKm ?? null, maxKm);
+  });
 }
