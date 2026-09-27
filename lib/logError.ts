@@ -14,18 +14,11 @@
  *
  *   try { await optionalThing(); } catch (err) { logError('where', err); }
  *
- * It used to print in development and do nothing otherwise, which meant the
- * build people actually run could not explain itself: a released app hitting
- * one of these paths produced no console, no log, no trace of any kind. Every
- * call now also lands in the in-app diagnostics buffer, which costs a string in
- * a bounded array and is what makes a fault reproducible on a real device
- * without a laptop attached to it. See lib/diagnostics.ts.
+ * It prints in development and stays quiet in a release build, which is the
+ * right trade for a user-facing app: the person using it is not debugging it.
  */
-import { record } from './diagnostics';
-
 export function logError(context: string, err: unknown): void {
   if (__DEV__) {
     console.warn(`[${context}]`, err);
   }
-  record(context, err);
 }

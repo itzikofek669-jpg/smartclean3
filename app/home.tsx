@@ -37,8 +37,10 @@ import { canRepost, bookingOrigin } from '../lib/bookingOrigin';
 import { cityFromAddress } from '../lib/cityFromAddress';
 import {
   LANGUAGE_FLAGS, groupConsecutiveDays, normalizeLanguages, workDaysFromAvailability,
-  workingHoursVerdict,
+  workingHoursVerdict, worksAt,
 } from '../lib/cleanerTraits';
+import { matchJob, jobOnBoard, nearestCity } from '../lib/jobSearch';
+import { matchesSearch, textMatches } from '../lib/search';
 import {
   CITY_COORDS, CITY_KEYS_BY_LEN, REGION_CENTER, regionFromLat,
   cityNameOf, getCoordsForCleaner, getJobCoords, spreadStacked,
@@ -47,7 +49,7 @@ import {
   stripEmoji, countWords, limitWords, buildFullAddress,
 } from '../lib/jobUtils';
 import { compareCleaners, compareJobs, isAvailableNow, rotationRank } from '../lib/displayOrder';
-import { isUrgentRequestLive } from '../lib/urgentRequest';
+import { isUrgentRequestLive, URGENT_LAST_START_HOUR, urgentStartAllowed, urgentTodayClosed } from '../lib/urgentRequest';
 import { claimUpdate, occupiesCleanerTime, pendingSlotMissed, pendingSlotExpired, expiryUpdate, rejectionUpdate, isBoardJobOfferable, busySlotOf } from '../lib/bookingActions';
 import { resolveRole } from '../lib/resolveRole';
 import { MAP_STYLE_LIGHT, MAP_STYLE_DARK } from '../lib/mapStyle';
@@ -1357,7 +1359,7 @@ function AddressAutocomplete({ value, onChange, placeholder, onFocus, error }: {
   const C = useAppColors();
   const s = createS(C);
   const acStyles = StyleSheet.create({
-    dropdown:  { position: 'absolute', top: 50, left: 0, right: 0, backgroundColor: C.white, borderRadius: 12, borderWidth: 1, borderColor: C.blueBorder, elevation: 8, shadowColor: '#000', shadowOpacity: 0.12, shadowRadius: 8, zIndex: 9999 },
+    dropdown:  { position: 'absolute', top: '100%', marginTop: 4, left: 0, right: 0, backgroundColor: C.white, borderRadius: 12, borderWidth: 1, borderColor: C.blueBorder, elevation: 8, shadowColor: '#000', shadowOpacity: 0.12, shadowRadius: 8, zIndex: 9999 },
     row:       { paddingHorizontal: 14, paddingVertical: 11, borderBottomWidth: 1, borderBottomColor: C.grayBg },
     main:      { fontSize: 14, fontWeight: '700', color: C.textDark, textAlign: 'right' },
     secondary: { fontSize: 12, color: C.textSub, textAlign: 'right', marginTop: 2 },
@@ -2022,13 +2024,13 @@ function InlineBookingChat({ open, onToggle, messages, text, onChangeText, onSen
     <View style={{ width: '100%', borderRadius: 18, borderWidth: 1.5, borderColor, overflow: 'hidden', marginBottom: 4 }}>
       {/* Header — toggle */}
       <TouchableOpacity
-        style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: bgColor, paddingHorizontal: 16, paddingVertical: 13 }}
+        style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: bgColor, paddingHorizontal: 14, paddingVertical: 10 }}
         onPress={onToggle}
         activeOpacity={0.8}
       >
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-          <T style={{ fontSize: 20 }}>💬</T>
-          <T style={{ fontSize: 15, fontWeight: '800', color: accentColor }}>{t.questionForCleaner}</T>
+          <T style={{ fontSize: 17 }}>💬</T>
+          <T style={{ fontSize: 14, fontWeight: '800', color: accentColor }}>{t.questionForCleaner}</T>
           {messages.length > 0 && (
             <View style={{ backgroundColor: accentColor, borderRadius: 10, paddingHorizontal: 7, paddingVertical: 2 }}>
               <T style={{ fontSize: 11, color: '#fff', fontWeight: '800' }}>{messages.length}</T>
@@ -2804,44 +2806,44 @@ function BookingModal({ cleaner, visible, onClose, onBookingCreated, prebookData
     return (
       <Modal visible={visible} animationType="slide" presentationStyle="pageSheet" onRequestClose={handleCancelPending}>
         <SafeAreaView style={{ flex: 1, backgroundColor: '#FFF7ED' }}>
-          <ScrollView contentContainerStyle={{ flexGrow: 1, alignItems: 'center', justifyContent: 'center', padding: 28, gap: 20, paddingBottom: insets.bottom + 32 }}>
+          <ScrollView contentContainerStyle={{ flexGrow: 1, alignItems: 'center', justifyContent: 'center', padding: 16, gap: 12, paddingBottom: insets.bottom + 16 }}>
 
             {/* אנימציית המתנה */}
-            <View style={{ width: 110, height: 110, borderRadius: 55, backgroundColor: '#FED7AA', alignItems: 'center', justifyContent: 'center', borderWidth: 3, borderColor: '#FB923C' }}>
-              <T style={{ fontSize: 60 }}>⏳</T>
+            <View style={{ width: 64, height: 64, borderRadius: 32, backgroundColor: '#FED7AA', alignItems: 'center', justifyContent: 'center', borderWidth: 3, borderColor: '#FB923C' }}>
+              <T style={{ fontSize: 32 }}>⏳</T>
             </View>
 
-            <T style={{ fontSize: 24, fontWeight: '900', color: '#92400E', textAlign: 'center' }}>
+            <T style={{ fontSize: 20, fontWeight: '900', color: '#92400E', textAlign: 'center' }}>
               {t.pendingTitle}
             </T>
-            <T style={{ fontSize: 14, color: '#B45309', textAlign: 'center', lineHeight: 22 }}>
+            <T style={{ fontSize: 13, color: '#B45309', textAlign: 'center', lineHeight: 18 }}>
               {t.pendingSentMsg}
             </T>
 
             {/* כרטיס פרטי הזמנה */}
-            <View style={{ backgroundColor: '#fff', borderRadius: 18, padding: 20, width: '100%', gap: 12, borderWidth: 1, borderColor: '#FED7AA', elevation: 3 }}>
+            <View style={{ backgroundColor: '#fff', borderRadius: 16, padding: 14, width: '100%', gap: 8, borderWidth: 1, borderColor: '#FED7AA', elevation: 3 }}>
               <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
-                <T style={{ color: '#6B7280', fontSize: 14 }}>{t.cleanerLabel}</T>
-                <T style={{ fontWeight: '800', color: '#1C1917', fontSize: 14 }}>🧹 {bookedDetails.name}</T>
+                <T style={{ color: '#6B7280', fontSize: 13 }}>{t.cleanerLabel}</T>
+                <T style={{ fontWeight: '800', color: '#1C1917', fontSize: 13 }}>🧹 {bookedDetails.name}</T>
               </View>
               <View style={{ height: 1, backgroundColor: '#FED7AA' }} />
               <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
-                <T style={{ color: '#6B7280', fontSize: 14 }}>{t.dateAndTimeLabel}</T>
-                <T style={{ fontWeight: '800', color: '#1C1917', fontSize: 14 }}>📅 {bookedDetails.dateStr} · {bookedDetails.startTime}</T>
+                <T style={{ color: '#6B7280', fontSize: 13 }}>{t.dateAndTimeLabel}</T>
+                <T style={{ fontWeight: '800', color: '#1C1917', fontSize: 13 }}>📅 {bookedDetails.dateStr} · {bookedDetails.startTime}</T>
               </View>
               <View style={{ height: 1, backgroundColor: '#FED7AA' }} />
               <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
-                <T style={{ color: '#6B7280', fontSize: 14 }}>{t.hoursUnit}</T>
-                <T style={{ fontWeight: '800', color: '#1C1917', fontSize: 14 }}>⏱️ {bookedDetails.hours} {t.hoursUnit}</T>
+                <T style={{ color: '#6B7280', fontSize: 13 }}>{t.hoursUnit}</T>
+                <T style={{ fontWeight: '800', color: '#1C1917', fontSize: 13 }}>⏱️ {bookedDetails.hours} {t.hoursUnit}</T>
               </View>
               <View style={{ height: 1, backgroundColor: '#FED7AA' }} />
               <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
-                <T style={{ color: '#6B7280', fontSize: 14 }}>{t.totalLabel}</T>
-                <T style={{ fontWeight: '900', color: '#EA580C', fontSize: 18 }}>₪{bookedDetails.total}</T>
+                <T style={{ color: '#6B7280', fontSize: 13 }}>{t.totalLabel}</T>
+                <T style={{ fontWeight: '900', color: '#EA580C', fontSize: 17 }}>₪{bookedDetails.total}</T>
               </View>
               <View style={{ height: 1, backgroundColor: '#FED7AA' }} />
               <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
-                <T style={{ color: '#6B7280', fontSize: 14 }}>{t.addressLabel}</T>
+                <T style={{ color: '#6B7280', fontSize: 13 }}>{t.addressLabel}</T>
                 <T style={{ fontWeight: '700', color: '#1C1917', fontSize: 13, maxWidth: '60%', textAlign: 'right' }}>{bookedDetails.address}</T>
               </View>
             </View>
@@ -2867,7 +2869,7 @@ function BookingModal({ cleaner, visible, onClose, onBookingCreated, prebookData
 
             {/* כפתור ביטול */}
             <TouchableOpacity
-              style={{ backgroundColor: cancellingBooking ? '#D1D5DB' : '#FEE2E2', borderRadius: 14, paddingVertical: 15, width: '100%', alignItems: 'center', borderWidth: 1.5, borderColor: '#FCA5A5' }}
+              style={{ backgroundColor: cancellingBooking ? '#D1D5DB' : '#FEE2E2', borderRadius: 14, paddingVertical: 12, width: '100%', alignItems: 'center', borderWidth: 1.5, borderColor: '#FCA5A5' }}
               onPress={handleCancelPending}
               disabled={cancellingBooking}
             >
@@ -2878,7 +2880,7 @@ function BookingModal({ cleaner, visible, onClose, onBookingCreated, prebookData
 
             {/* כפתור ההזמנות שלי */}
             <TouchableOpacity
-              style={{ backgroundColor: '#fff', borderRadius: 14, paddingVertical: 13, width: '100%', alignItems: 'center', borderWidth: 1, borderColor: '#D1D5DB' }}
+              style={{ backgroundColor: '#fff', borderRadius: 14, paddingVertical: 11, width: '100%', alignItems: 'center', borderWidth: 1, borderColor: '#D1D5DB' }}
               onPress={() => { handleClose(); router.push('/profile'); }}
             >
               <T style={{ fontSize: 14, fontWeight: '700', color: '#6B7280' }}>{t.viewMyBookings}</T>
@@ -2886,7 +2888,7 @@ function BookingModal({ cleaner, visible, onClose, onBookingCreated, prebookData
 
             {/* כפתור חזרה למסך הבית */}
             <TouchableOpacity
-              style={{ backgroundColor: '#fff', borderRadius: 14, paddingVertical: 13, width: '100%', alignItems: 'center', borderWidth: 1, borderColor: '#D1D5DB', flexDirection: 'row', justifyContent: 'center', gap: 8 }}
+              style={{ backgroundColor: '#fff', borderRadius: 14, paddingVertical: 11, width: '100%', alignItems: 'center', borderWidth: 1, borderColor: '#D1D5DB', flexDirection: 'row', justifyContent: 'center', gap: 8 }}
               onPress={handleClose}
             >
               <Text style={{ fontSize: 17 }}>🏠</Text>
@@ -2904,45 +2906,45 @@ function BookingModal({ cleaner, visible, onClose, onBookingCreated, prebookData
     return (
       <Modal visible={visible} animationType="slide" presentationStyle="pageSheet" onRequestClose={handleClose}>
         <SafeAreaView style={{ flex: 1, backgroundColor: '#F0FDF4' }}>
-          <ScrollView contentContainerStyle={{ flexGrow: 1, alignItems: 'center', justifyContent: 'center', padding: 28, gap: 20, paddingBottom: insets.bottom + 32 }}>
+          <ScrollView contentContainerStyle={{ flexGrow: 1, alignItems: 'center', justifyContent: 'center', padding: 16, gap: 12, paddingBottom: insets.bottom + 16 }}>
             {/* אנימציית צ'קמארק */}
-            <View style={{ width: 100, height: 100, borderRadius: 50, backgroundColor: '#D1FAE5', alignItems: 'center', justifyContent: 'center', borderWidth: 3, borderColor: '#10B981' }}>
-              <T style={{ fontSize: 52 }}>✅</T>
+            <View style={{ width: 64, height: 64, borderRadius: 32, backgroundColor: '#D1FAE5', alignItems: 'center', justifyContent: 'center', borderWidth: 3, borderColor: '#10B981' }}>
+              <T style={{ fontSize: 32 }}>✅</T>
             </View>
 
-            <T style={{ fontSize: 26, fontWeight: '900', color: '#065F46', textAlign: 'center' }}>
+            <T style={{ fontSize: 20, fontWeight: '900', color: '#065F46', textAlign: 'center' }}>
               {t.confirmedTitle}
             </T>
 
             {/* כרטיס פרטים */}
-            <View style={{ backgroundColor: '#fff', borderRadius: 18, padding: 20, width: '100%', gap: 12, borderWidth: 1, borderColor: '#A7F3D0', elevation: 3 }}>
+            <View style={{ backgroundColor: '#fff', borderRadius: 16, padding: 14, width: '100%', gap: 8, borderWidth: 1, borderColor: '#A7F3D0', elevation: 3 }}>
               <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-                <T style={{ fontSize: 15, color: '#6B7280' }}>{t.cleanerLabel}</T>
-                <T style={{ fontSize: 15, fontWeight: '800', color: '#065F46' }}>🧹 {bookedDetails.name}</T>
+                <T style={{ fontSize: 13, color: '#6B7280' }}>{t.cleanerLabel}</T>
+                <T style={{ fontSize: 13.5, fontWeight: '800', color: '#065F46' }}>🧹 {bookedDetails.name}</T>
               </View>
               <View style={{ height: 1, backgroundColor: '#D1FAE5' }} />
               <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-                <T style={{ fontSize: 15, color: '#6B7280' }}>{t.dateAndTimeLabel}</T>
-                <T style={{ fontSize: 14, fontWeight: '800', color: '#065F46' }}>📅 {bookedDetails.dateStr} · {bookedDetails.startTime}</T>
+                <T style={{ fontSize: 13, color: '#6B7280' }}>{t.dateAndTimeLabel}</T>
+                <T style={{ fontSize: 13, fontWeight: '800', color: '#065F46' }}>📅 {bookedDetails.dateStr} · {bookedDetails.startTime}</T>
               </View>
               <View style={{ height: 1, backgroundColor: '#D1FAE5' }} />
               <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-                <T style={{ fontSize: 15, color: '#6B7280' }}>{t.hoursUnit}</T>
-                <T style={{ fontSize: 15, fontWeight: '800', color: '#065F46' }}>⏱️ {bookedDetails.hours} {t.hoursUnit}</T>
+                <T style={{ fontSize: 13, color: '#6B7280' }}>{t.hoursUnit}</T>
+                <T style={{ fontSize: 13.5, fontWeight: '800', color: '#065F46' }}>⏱️ {bookedDetails.hours} {t.hoursUnit}</T>
               </View>
               <View style={{ height: 1, backgroundColor: '#D1FAE5' }} />
               <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-                <T style={{ fontSize: 15, color: '#6B7280' }}>{t.totalLabel}</T>
-                <T style={{ fontSize: 20, fontWeight: '900', color: '#059669' }}>₪{bookedDetails.total}</T>
+                <T style={{ fontSize: 13, color: '#6B7280' }}>{t.totalLabel}</T>
+                <T style={{ fontSize: 17, fontWeight: '900', color: '#059669' }}>₪{bookedDetails.total}</T>
               </View>
             </View>
 
             {/* מה הלאה */}
-            <View style={{ backgroundColor: '#EFF6FF', borderRadius: 16, padding: 18, width: '100%', gap: 10, borderWidth: 1, borderColor: '#BFDBFE' }}>
-              <T style={{ fontSize: 15, fontWeight: '800', color: '#1D4ED8', marginBottom: 4 }}>📋 {t.whatsNextTitle}</T>
-              <T style={{ fontSize: 14, color: '#1E40AF', lineHeight: 22 }}>1️⃣  {t.nextStep1}</T>
-              <T style={{ fontSize: 14, color: '#1E40AF', lineHeight: 22 }}>2️⃣  {t.nextStep2}</T>
-              <T style={{ fontSize: 14, color: '#1E40AF', lineHeight: 22 }}>3️⃣  {t.nextStep3}</T>
+            <View style={{ backgroundColor: '#EFF6FF', borderRadius: 14, padding: 12, width: '100%', gap: 5, borderWidth: 1, borderColor: '#BFDBFE' }}>
+              <T style={{ fontSize: 13.5, fontWeight: '800', color: '#1D4ED8', marginBottom: 2 }}>📋 {t.whatsNextTitle}</T>
+              <T style={{ fontSize: 12.5, color: '#1E40AF', lineHeight: 18 }}>1️⃣  {t.nextStep1}</T>
+              <T style={{ fontSize: 12.5, color: '#1E40AF', lineHeight: 18 }}>2️⃣  {t.nextStep2}</T>
+              <T style={{ fontSize: 12.5, color: '#1E40AF', lineHeight: 18 }}>3️⃣  {t.nextStep3}</T>
             </View>
 
             {/* ─── צ'אט עם המנקה ─── */}
@@ -2966,7 +2968,7 @@ function BookingModal({ cleaner, visible, onClose, onBookingCreated, prebookData
 
             {/* כפתור ההזמנות שלי */}
             <TouchableOpacity
-              style={{ backgroundColor: '#2563EB', borderRadius: 14, paddingVertical: 15, paddingHorizontal: 32, width: '100%', alignItems: 'center' }}
+              style={{ backgroundColor: '#2563EB', borderRadius: 14, paddingVertical: 12, paddingHorizontal: 32, width: '100%', alignItems: 'center' }}
               onPress={() => { handleClose(); router.push('/profile'); }}
             >
               <T style={{ fontSize: 16, fontWeight: '900', color: '#fff' }}>{t.viewMyBookings}</T>
@@ -2974,7 +2976,7 @@ function BookingModal({ cleaner, visible, onClose, onBookingCreated, prebookData
 
             {/* כפתור חזרה למסך הבית */}
             <TouchableOpacity
-              style={{ backgroundColor: '#fff', borderRadius: 14, paddingVertical: 13, paddingHorizontal: 32, width: '100%', alignItems: 'center', borderWidth: 1, borderColor: '#D1D5DB', flexDirection: 'row', justifyContent: 'center', gap: 8 }}
+              style={{ backgroundColor: '#fff', borderRadius: 14, paddingVertical: 11, paddingHorizontal: 32, width: '100%', alignItems: 'center', borderWidth: 1, borderColor: '#D1D5DB', flexDirection: 'row', justifyContent: 'center', gap: 8 }}
               onPress={handleClose}
             >
               <T style={{ fontSize: 15, fontWeight: '700', color: '#6B7280' }}>{t.closeBtn}</T>
@@ -4075,8 +4077,10 @@ export default function HomeScreen() {
   const [urgentHours,     setUrgentHours]     = useState(2);
   // שעת מינימום לדחוף: ל"היום" — מהשעה הנוכחית מעוגלת לחצי שעה הבא; ל"מחר" — 7:00
   const urgentMinHour = urgentDate === 'today'
-    ? Math.min(23.5, Math.ceil((new Date().getHours() + new Date().getMinutes() / 60) * 2) / 2)
+    ? Math.min(URGENT_LAST_START_HOUR, Math.ceil((new Date().getHours() + new Date().getMinutes() / 60) * 2) / 2)
     : 7;
+  // אחרי 22:00 אין יותר ניקיון דחוף להיום — השעה האחרונה שאפשר להתחיל בה.
+  const urgentTodayIsClosed = urgentTodayClosed();
   // ודא שהשעה שנבחרה אינה בעבר (בפתיחת המודאל / החלפת תאריך)
   useEffect(() => {
     if (urgentOpen && urgentHour < urgentMinHour) setUrgentHour(urgentMinHour);
@@ -4113,9 +4117,16 @@ export default function HomeScreen() {
     // שעה הבאה הזמינה (עגול ל-30 דקות + 30 דקות קדימה)
     const now   = new Date();
     const mins  = now.getHours() * 60 + now.getMinutes();
-    const nextSlot = Math.min(Math.ceil((mins + 30) / 30) * 30, 22 * 60);
-    setUrgentHour(nextSlot / 60);
-    setUrgentDate('today');
+    const nextSlot = Math.min(Math.ceil((mins + 30) / 30) * 30, URGENT_LAST_START_HOUR * 60);
+    // אחרי השעה האחרונה של היום — פותחים ישר על מחר בבוקר, במקום גלגל ריק
+    // או שעה שתידחה בשליחה.
+    if (urgentTodayClosed(now)) {
+      setUrgentDate('tomorrow');
+      setUrgentHour(8);
+    } else {
+      setUrgentDate('today');
+      setUrgentHour(nextSlot / 60);
+    }
     setUrgentHours(2);
   }, [urgentOpen]);
 
@@ -4164,6 +4175,14 @@ export default function HomeScreen() {
       return Alert.alert(t.error, t.addressNoNumber);
     if (!urgentPayment)
       return Alert.alert(t.error, (t as any).selectPaymentMethod ?? 'בחר/י אמצעי תשלום');
+    // השעה האחרונה לניקיון דחוף היא 22:00 — הגלגל עוצר שם, וגם כאן, כי ערך
+    // שנשמר מפתיחה קודמת יכול להגיע לשליחה בלי לעבור בגלגל.
+    if (!urgentStartAllowed(urgentHour)) {
+      return Alert.alert(t.error, (t as any).urgentTooLate ?? 'ניקיון דחוף אפשר להזמין עד 22:00. בחר/י שעה מוקדמת יותר או מחר.');
+    }
+    if (urgentDate === 'today' && urgentTodayIsClosed) {
+      return Alert.alert(t.error, (t as any).urgentTodayClosed ?? 'להיום כבר אי אפשר — השעה האחרונה לניקיון דחוף היא 22:00. אפשר להזמין למחר.');
+    }
     // לא ניתן להזמין לשעה שכבר עברה (היום)
     if (urgentDate === 'today') {
       const nowH = new Date().getHours() + new Date().getMinutes() / 60;
@@ -4315,6 +4334,12 @@ export default function HomeScreen() {
           if (busyByCleaner[cd.id]) continue;
 
           notified.push(cd.id);
+
+          // מנקה שהגדיר שאינו עובד ביום הזה, או לא בשעות האלה, לא מקבל פוש.
+          // הבקשה עדיין מופיעה לו בלוח — רק ההתראה נחסכת. מי שלא הגדיר שעות
+          // בכלל ממשיך לקבל, אחרת זה היה משתיק את כל מי שדילג על השלב הזה
+          // בהרשמה. ההחלטה עצמה יושבת ב-lib/cleanerTraits, משותפת עם האתר.
+          if (!worksAt(cData.availability, targetDate.getDay(), urgentHour, urgentHours, cData.availabilitySet === true)) continue;
 
           // שלח Push Notification למנקה
           const pushToken = cData.pushToken || '';
@@ -4592,19 +4617,26 @@ export default function HomeScreen() {
   let filtered = [...ALL_CLEANERS];
 
   // 1. חיפוש חופשי — שם / עיר / סוג שירות (עדיפות ראשונה)
-  if (search.trim()) {
-    const sq = search.trim().toLowerCase();
-    filtered = filtered.filter(c => {
-      const nameMatch = String(c.name || '').toLowerCase().includes(sq);
-      const cityHe    = String(c.city || '').toLowerCase();
-      const cityTr    = String(t.cities[c.city] || '').toLowerCase();
-      const cityMatch = cityHe.includes(sq) || cityTr.includes(sq);
-      const typeMatch = (Array.isArray(c.types) ? c.types : []).some((tp: string) => {
-        const tpTr = String(t.types[tp] || '').toLowerCase();
-        return String(tp).toLowerCase().includes(sq) || tpTr.includes(sq);
-      });
-      return nameMatch || cityMatch || typeMatch;
-    });
+  //
+  // עיר חופשה רק לפי הטקסט בשדה העיר של המנקה, ולכן עם כל המנקים האמיתיים
+  // רשומים בחריש, חיפוש חדרה — עשרה ק"מ משם — החזיר רשימה ריקה. עכשיו חיפוש
+  // שהוא שם של עיר מחזיר גם את מי שנוסע/ת אליה בטווח שהגדיר/ה. אותו כלל כמו
+  // באתר, מקובץ משותף: lib/search.
+  const searchQ = search.trim();
+  const searchPlace = searchQ && CITY_COORDS[searchQ] ? CITY_COORDS[searchQ] : null;
+  // לחיפוש: גם שם העיר והשירותים בשפה שנבחרה, וה-types של האפליקציה כ-services.
+  const asSearchable = (c: any) => ({
+    name: c.name,
+    city: [c.city, t.cities[c.city]].filter(Boolean).join(' '),
+    workAreas: c.workAreas,
+    services: (Array.isArray(c.types) ? c.types : []).flatMap((tp: string) => [tp, t.types[tp]].filter(Boolean)),
+    lat: c.lat, lng: c.lng, maxDistance: c.maxDistance,
+  });
+  if (searchQ) {
+    filtered = filtered.filter(c => matchesSearch(
+      asSearchable(c), searchQ, searchPlace,
+      (a, b) => getDistanceKm(a.lat, a.lng, b.lat, b.lng),
+    ));
   }
 
   // 2. אזור (טאב) — מתעלמים ממנו כשמחפשים/מסננים לפי עיר (אחרת העיר "נעלמת" מהאזור)
@@ -4669,10 +4701,18 @@ export default function HomeScreen() {
         ? getDistanceKm(userCoords.lat, userCoords.lng, c.lat, c.lng)
         : null,
     }));
-    withDist.sort((x, y) => compareCleaners(
-      { id: String(x.c.id), available: x.c.available, rating: x.c.rating, distKm: x.distKm },
-      { id: String(y.c.id), available: y.c.available, rating: y.c.rating, distKm: y.distKm },
-    ));
+    withDist.sort((x, y) => {
+      // בחיפוש: מי שהעיר/השם כתובים אצלו ראשון, ורק אז מי שנוסע לשם.
+      if (searchQ) {
+        const xt = textMatches(asSearchable(x.c), searchQ) ? 0 : 1;
+        const yt = textMatches(asSearchable(y.c), searchQ) ? 0 : 1;
+        if (xt !== yt) return xt - yt;
+      }
+      return compareCleaners(
+        { id: String(x.c.id), available: x.c.available, rating: x.c.rating, distKm: x.distKm },
+        { id: String(y.c.id), available: y.c.available, rating: y.c.rating, distKm: y.distKm },
+      );
+    });
     filtered = withDist.map(x => x.c);
   }
 
@@ -5194,18 +5234,22 @@ export default function HomeScreen() {
 
   const jobBoard = React.useMemo(() => {
     const withDist = (j: any) => {
-      if (typeof j._distKm === 'number') return j;
-      if (!myCleanerCoords) return { ...j, _distKm: null };
+      // עבודה מלפני addrCity לא מציינת שום מקום במסמך הציבורי — רק קואורדינטות.
+      // העיר הקרובה משמשת במקומה, כדי שאפשר יהיה לחפש אותה ושהכרטיס יגיד איפה
+      // היא. ראה lib/jobSearch.
+      const _city = j.addrCity || j.address ? null : nearestCity(getJobCoords(j), CITY_COORDS);
+      if (typeof j._distKm === 'number') return { ...j, _city };
+      if (!myCleanerCoords) return { ...j, _distKm: null, _city };
       const c = getJobCoords(j);   // null when the location can't be resolved
-      if (!c) return { ...j, _distKm: null };
-      return { ...j, _distKm: getDistanceKm(myCleanerCoords.lat, myCleanerCoords.lng, c.lat, c.lng) };
+      if (!c) return { ...j, _distKm: null, _city };
+      return { ...j, _distKm: getDistanceKm(myCleanerCoords.lat, myCleanerCoords.lng, c.lat, c.lng), _city };
     };
+    // הגבלת המרחק מופעלת יחד עם החיפוש, למטה — לא לפניו. עבודה שהמנקה מחפשת
+    // לפי עיר או לפי שם הלקוח חייבת להיות נגישה גם מחוץ לטווח.
     const real = [
       ...openUrgent.map(r => ({ ...r, _kind: 'urgent' as const, _id: `u_${r.id}` })),
       ...openBookings.map(b => ({ ...b, _kind: 'booking' as const, _id: `b_${b.id}` })),
-    ].map(withDist)
-      // הגבלת מרחק — רק עבודות בטווח שהמנקה בחר (אם ידוע מרחק)
-      .filter(j => j._distKm == null || j._distKm <= myMaxKm);
+    ].map(withDist);
 
     const jobs = [...real, ...botJobs]
       .filter(j => !hiddenJobIds.has(j._id))
@@ -5217,25 +5261,16 @@ export default function HomeScreen() {
         if (!w) return true;
         return !cleanerBusy.some(b => windowsOverlap(b, w));
       })
-      // The search box sits directly above this board and did nothing to it.
-      // A cleaner typing a town got the same list back, which reads as the
-      // search being broken rather than as it belonging to another screen.
-      //
-      // Matches city and service, in Hebrew and in the selected language, the
-      // same way the client's cleaner list matches.
-      .filter(j => {
-        const q = search.trim().toLowerCase();
-        if (!q) return true;
-        const cityRaw = String(j.addrCity || j.address || '');
-        const cityHe  = cityRaw.toLowerCase();
-        const cityTr  = String((t.cities as any)?.[cityRaw] || '').toLowerCase();
-        if (cityHe.includes(q) || (cityTr && cityTr.includes(q))) return true;
-        const types = Array.isArray(j.serviceTypes)
-          ? j.serviceTypes
-          : (j.serviceType ? [j.serviceType] : []);
-        return types.some((tp: string) =>
-          String(tp).toLowerCase().includes(q)
-          || String((t.types as any)?.[tp] || '').toLowerCase().includes(q));
+      // שם הלקוח, עיר או סוג שירות, בעברית ובשפה שנבחרה — ומרחק הנסיעה, שחיפוש
+      // לפי עיר או לפי אדם עובר מעבר לו. משותף עם הלוח באתר: lib/jobSearch.
+      .filter((j: any) => {
+        if (j._bot) return matchJob(j, search) !== 'none';
+        const match = matchJob(j, search, {
+          cityName: (c) => String((t.cities as any)?.[c] || ''),
+          serviceName: (k) => String((t.types as any)?.[k] || ''),
+          fallbackCity: j._city,
+        });
+        return jobOnBoard(match, j._distKm, myMaxKm);
       });
     // רצועת מרחק ואז רוטציה — ראה lib/displayOrder. מיון לפי מרחק מדויק ואז
     // לפי זמן השאיר את אותן עבודות בראש הלוח של כל מנקה כל היום, ועבודה שלא
@@ -5794,14 +5829,13 @@ export default function HomeScreen() {
         <View style={s.header}>
           <View style={[s.headerLogoRow, flipSide && { flexDirection: 'row-reverse' }]}>
             {/* כפתורי אמצע (הנגישות עברה לתפריט הצד).
-                גלילה אופקית: הכפתורים גדלו לפי התוכן ודחפו את כפתור התפריט אל
-                מחוץ למסך. עכשיו הם נגללים בתוך רוחב פנוי בלבד, וההמבורגר קבוע. */}
-            <ScrollView
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              keyboardShouldPersistTaps="handled"
-              style={{ flex: 1 }}   // flexBasis:0 — נמדד לפי המקום הפנוי, לא לפי התוכן
-              contentContainerStyle={{ flexDirection: 'row', gap: 8, alignItems: 'center', paddingVertical: 2 }}
+                פעם זו הייתה גלילה אופקית, כדי שהכפתורים לא ידחפו את ההמבורגר
+                מהמסך. באייפון השורה הייתה רחבה מהמסך, ו"ניקיון בזמן שלך" נחתך
+                בקצה — כפתור חצוי, בלי שום רמז שאפשר לגלול אליו. עכשיו השורה
+                תמיד נכנסת: שני הכפתורים הארוכים מתכווצים, והטקסט שלהם קטן
+                מעט כשאין מקום (adjustsFontSizeToFit). */}
+            <View
+              style={{ flex: 1, flexDirection: 'row', gap: 6, alignItems: 'center', paddingVertical: 2 }}
             >
               {/* הודעות */}
               <TouchableOpacity
@@ -5833,18 +5867,18 @@ export default function HomeScreen() {
               {/* סגול זהה לאתר ולמסך המנקה — "דחוף" צריך להיות אותו צבע בכל
                   האפליקציה, לא אדום בצד הלקוח וסגול בצד המנקה. */}
               {myRole === 'client' && (
-                <TouchableOpacity onPress={() => setUrgentOpen(true)} activeOpacity={0.85} style={{ borderRadius: 12, overflow: 'hidden', shadowColor: '#7C3AED', shadowOpacity: 0.4, shadowRadius: 8, shadowOffset: { width: 0, height: 3 }, elevation: 4 }}>
+                <TouchableOpacity onPress={() => setUrgentOpen(true)} activeOpacity={0.85} style={{ flexShrink: 1, borderRadius: 12, overflow: 'hidden', shadowColor: '#7C3AED', shadowOpacity: 0.4, shadowRadius: 8, shadowOffset: { width: 0, height: 3 }, elevation: 4 }}>
                   <LinearGradient colors={['#8B5CF6', '#7C3AED']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={s.urgentHeaderBtn}>
-                    <T style={s.urgentHeaderBtnText} numberOfLines={1}>{stripEmoji(t.urgentBtn)}</T>
+                    <T style={s.urgentHeaderBtnText} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{stripEmoji(t.urgentBtn)}</T>
                   </LinearGradient>
                 </TouchableOpacity>
               )}
               {myRole === 'client' && (
-                <TouchableOpacity onPress={() => setPostJobOpen(true)} activeOpacity={0.85} style={[s.urgentHeaderBtn, { backgroundColor: C.blue }]}>
-                  <T style={s.urgentHeaderBtnText} numberOfLines={1}>{stripEmoji((t as any).postJobHomeBtn ?? 'ניקיון בזמן שלך')}</T>
+                <TouchableOpacity onPress={() => setPostJobOpen(true)} activeOpacity={0.85} style={[s.urgentHeaderBtn, { backgroundColor: C.blue, flexShrink: 1 }]}>
+                  <T style={s.urgentHeaderBtnText} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{stripEmoji((t as any).postJobHomeBtn ?? 'ניקיון בזמן שלך')}</T>
                 </TouchableOpacity>
               )}
-            </ScrollView>
+            </View>
 
             {/* Cleaner only: absolutely centred on the button row, which is a
                 true centre regardless of how wide the buttons either side
@@ -5923,6 +5957,10 @@ export default function HomeScreen() {
                 onChangeText={handleSearchChange}
                 placeholderTextColor={C.textSub}
                 textAlign="right"
+                // "חיפוש" במקלדת סוגר אותה ואת ההצעות. הן כיסו את התוצאות, כך
+                // שחיפוש שעבד נראה כאילו לא קרה כלום.
+                returnKeyType="search"
+                onSubmitEditing={() => { setShowSearchSugg(false); Keyboard.dismiss(); }}
                 onBlur={() => setTimeout(() => setShowSearchSugg(false), 180)}
               />
               {search.length > 0 && (
@@ -5937,7 +5975,7 @@ export default function HomeScreen() {
                   <TouchableOpacity
                     key={idx}
                     style={[s.searchSuggItem, idx < searchSugg.length - 1 && { borderBottomWidth: 1, borderBottomColor: C.grayBorder }]}
-                    onPress={() => { setSearch(item.label); setShowSearchSugg(false); if (item.icon === '📍') focusCityRef.current(item.label); }}
+                    onPress={() => { setSearch(item.label); setShowSearchSugg(false); Keyboard.dismiss(); if (item.icon === '📍') focusCityRef.current(item.label); }}
                   >
                     <T style={{ fontSize: 14, marginLeft: 6 }}>{item.icon}</T>
                     <T style={s.searchSuggText}>{item.label}</T>
@@ -6145,7 +6183,7 @@ export default function HomeScreen() {
                 const dateStr = j.bookingDate || j.dateStr || '';
                 const timeStr = j.startTime || '';
                 const propType = j.isPrivateHouse ? ((t as any).privateHouseLabel ?? 'בית פרטי') : ((t as any).aptBuildingLabel ?? 'דירה');
-                const rawArea = j.addrCity || j.city || j.address || '';
+                const rawArea = j.addrCity || j.city || j.address || j._city || '';
                 // העיר בלבד, באותה קריאה שממנה נמדד המרחק (lib/cityFromAddress).
                 const area = cityFromAddress(rawArea, CITY_COORDS);
                 const price = j.total ?? j.maxPrice ?? j.pricePerHour ?? null;
@@ -6809,7 +6847,8 @@ export default function HomeScreen() {
                     ]).map(opt => (
                       <TouchableOpacity
                         key={opt.key}
-                        style={{ flex: 1, borderRadius: 14, paddingVertical: 14, alignItems: 'center', gap: 4, backgroundColor: urgentDate === opt.key ? '#7C3AED' : C.white, borderWidth: 1.5, borderColor: urgentDate === opt.key ? '#7C3AED' : C.blueBorder }}
+                        disabled={opt.key === 'today' && urgentTodayIsClosed}
+                        style={{ flex: 1, borderRadius: 14, paddingVertical: 14, alignItems: 'center', gap: 4, backgroundColor: urgentDate === opt.key ? '#7C3AED' : C.white, borderWidth: 1.5, borderColor: urgentDate === opt.key ? '#7C3AED' : C.blueBorder, opacity: opt.key === 'today' && urgentTodayIsClosed ? 0.4 : 1 }}
                         onPress={() => setUrgentDate(opt.key)}
                       >
                         <T style={{ fontSize: 22 }}>{opt.icon}</T>
@@ -6861,7 +6900,7 @@ export default function HomeScreen() {
                 {/* שעת התחלה */}
                 <View style={{ gap: 8 }}>
                   <T style={[s.fieldLabel, { textAlign: 'right' }]}>{t.timeLabel}</T>
-                  <TimeWheelPicker value={urgentHour} onChange={setUrgentHour} minHour={urgentMinHour} maxHour={23.5} />
+                  <TimeWheelPicker value={urgentHour} onChange={setUrgentHour} minHour={urgentMinHour} maxHour={URGENT_LAST_START_HOUR} />
                 </View>
 
                 {/* שעות עבודה */}
@@ -7115,7 +7154,7 @@ function createS(c: AppColors) {
   actionBtnText:     { fontSize: 14, fontWeight: '700', color: c.blue, textAlign: 'center' },
   actionBtnPrimary:  { flex: 1, backgroundColor: c.green, borderRadius: 10, paddingVertical: 10, paddingHorizontal: 4, alignItems: 'center', justifyContent: 'center', minHeight: 40 },
   actionBtnPrimaryText: { fontSize: 14, fontWeight: '800', color: c.white, textAlign: 'center' },
-  urgentHeaderBtn:  { backgroundColor: '#7C3AED', borderRadius: 10, paddingHorizontal: 10, paddingVertical: 6, alignItems: 'center', justifyContent: 'center' },
+  urgentHeaderBtn:  { backgroundColor: '#7C3AED', borderRadius: 10, paddingHorizontal: 8, paddingVertical: 6, alignItems: 'center', justifyContent: 'center' },
   darkModeToggle:   { backgroundColor: 'rgba(255,255,255,0.15)', borderRadius: 10, paddingHorizontal: 9, paddingVertical: 6, alignItems: 'center', justifyContent: 'center' },
   a11yBtn:          { backgroundColor: '#EEF4FB', borderRadius: 10, width: 36, height: 32, alignItems: 'center', justifyContent: 'center' },
   urgentHeaderBtnText: { fontSize: 13, color: c.white, fontWeight: '900' },

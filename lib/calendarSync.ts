@@ -21,7 +21,6 @@ import * as Calendar from 'expo-calendar/legacy';
 import * as SecureStore from 'expo-secure-store';
 import { Alert, Platform } from 'react-native';
 import { logError } from './logError';
-import { record } from './diagnostics';
 import { auth } from './firebase';
 // The slot arithmetic lives on its own so it can be tested without a device —
 // it is the part that has already put an event on the wrong day. See
@@ -310,14 +309,6 @@ async function addBookingToCalendarInner(
     // vanishing.
     const calendarId = await writableCalendarId();
     if (!calendarId) return 'no-calendar';
-    // Named in the log too: an id alone cannot tell you whether the event
-    // landed somewhere the user will ever look.
-    const calendarName = await Calendar.getCalendarsAsync(Calendar.EntityTypes.EVENT)
-      .then(all => {
-        const c: any = all.find(x => x.id === calendarId);
-        return c ? `${c.title ?? '?'} / ${c.source?.name ?? '?'}` : '?';
-      })
-      .catch(() => '?');
 
     const other = opts.role === 'cleaner' ? b.clientName : b.cleanerName;
     const title = opts.title
@@ -339,7 +330,6 @@ async function addBookingToCalendarInner(
       // writable one, which on a phone with no primary can be a local
       // calendar the user's calendar app does not display. The event is
       // real, just invisible — indistinguishable from never created.
-      record('calendar:added', { calendarId, calendar: calendarName, start: start.toISOString() });
       return 'added';
     }
     return 'error';
@@ -368,7 +358,6 @@ export async function removeBookingFromCalendar(
       // Nothing recorded for this booking on this device. Worth saying so:
       // it is the difference between "removed" and "there was never an
       // entry here", which look the same from the calendar.
-      record('calendar:remove', { id: bookingId, res: 'no-stored-event' });
     } else {
       // The key is only dropped once the event is actually gone. It used to
       // be deleted regardless: a failed delete then left the entry sitting
@@ -382,7 +371,6 @@ export async function removeBookingFromCalendar(
         logError('calendarSync:delete', err);
       }
       if (deleted) await SecureStore.deleteItemAsync(key).catch(() => {});
-      record('calendar:remove', { id: bookingId, event: id, res: deleted ? 'deleted' : 'delete-failed' });
     }
 
     // The sweep is OFF unless asked for, and that default matters.
@@ -414,57 +402,4 @@ export async function removeBookingFromCalendar(
   } catch (err) {
     logError('calendarSync:remove', err);
   }
-}
-/**
- * Every calendar on the device, and the one this module would choose.
- *
- * The selection logic is an inference from flags; this is the fact it is
- * inferring from. It settles the question no result code can: whether the
- * phone has a visible, synced calendar to write to at all. A device with
- * only a local account has nowhere an event can be seen, and no amount of
- * fixing the picker changes that — it is a device setting, not a bug.
- */
-export async function describeCalendars(): Promise<string[]> {
-  try {
-    const cals = await Calendar.getCalendarsAsync(Calendar.EntityTypes.EVENT);
-    const chosen = await writableCalendarId();
-    const out = cals.map((c: any) => [
-      c.id === chosen ? String.fromCharCode(9656) + ' ' : "  ",
-      `id=${c.id}`,
-      `"${c.title ?? "?"}"`,
-      `src=${c.source?.name ?? "?"}/${c.source?.type ?? "?"}`,
-      `write=${c.allowsModifications ? "Y" : "n"}`,
-      `visible=${c.isVisible === undefined ? "?" : (c.isVisible ? "Y" : "n")}`,
-      `synced=${c.isSynced === undefined ? "?" : (c.isSynced ? "Y" : "n")}`,
-    ].join(" "));
-    out.unshift(`${cals.length} calendars, chosen: ${chosen ?? "NONE"}`);
-    return out;
-  } catch (err) {
-    logError("calendarSync:describe", err);
-    return ["failed to read calendars"];
-  }
-}
-/**
- * Re-create a booking's calendar entry, wherever it went last time.
- *
- * The stored event id is what makes the sync idempotent — and what strands a
- * booking whose event was written somewhere the user cannot see. It says
- * "already synced", so the entry is never made again, and no amount of fixing
- * where new events go helps the ones already placed.
- *
- * Deleting the old event first, rather than only forgetting it, avoids leaving
- * a duplicate behind in the calendar it originally landed in.
- */
-export async function resyncBooking(b: CalendarBooking, role: 'client' | 'cleaner'): Promise<CalendarSyncResult> {
-  try {
-    const key = evtKey(b.id);
-    const old = await SecureStore.getItemAsync(key).catch(() => null);
-    if (old) {
-      await Calendar.deleteEventAsync(old).catch(() => {});
-      await SecureStore.deleteItemAsync(key).catch(() => {});
-    }
-  } catch (err) {
-    logError('calendarSync:resync', err);
-  }
-  return addBookingToCalendar(b, { role });
 }

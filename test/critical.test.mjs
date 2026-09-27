@@ -11,10 +11,11 @@ import { cityFromAddress } from '../.tsbuild/cityFromAddress.mjs';
 import { canRepost } from '../.tsbuild/bookingOrigin.mjs';
 import { startDateOf, endDateOf, bookingHours, DEFAULT_BOOKING_HOURS } from '../.tsbuild/bookingSlot.mjs';
 import { readCalendarRemoval, extractPushData } from '../.tsbuild/calendarPush.mjs';
-import { isUrgentRequestLive, isUrgentRequestExpired, expiryOf } from '../.tsbuild/urgentRequest.mjs';
+import { isUrgentRequestLive, isUrgentRequestExpired, expiryOf, URGENT_LAST_START_HOUR, hourOfTime, urgentStartAllowed, urgentTodayClosed } from '../.tsbuild/urgentRequest.mjs';
 import { splitFields, reconcile, pendingMove, publicCoord, privateKeysFor } from '../.tsbuild/profileFields.mjs';
 import { spreadStacked } from '../.tsbuild/jobUtils.mjs';
-import { workingHoursVerdict, workDaysFromAvailability, normalizeAvailability } from '../.tsbuild/cleanerTraits.mjs';
+import { matchJob, jobOnBoard, jobCityOf, nearestCity } from '../.tsbuild/jobSearch.mjs';
+import { workingHoursVerdict, workDaysFromAvailability, normalizeAvailability, worksAt } from '../.tsbuild/cleanerTraits.mjs';
 import { claimUpdate, rejectionUpdate, rejectionReleasesToBoard, awaitsMyApproval, occupiesCleanerTime, busyWindowOf, busyFieldsOf, pendingSlotMissed, isBoardJobOfferable, pendingSlotExpired, expiryUpdate } from '../.tsbuild/bookingActions.mjs';
 
 // Every case here is a bug that reached a real user. They are regression tests,
@@ -904,6 +905,75 @@ test("a cleaner cannot be booked on a day off or outside her hours", () => {
   assert.equal(workingHoursVerdict(week, SUN, 15.5, 2).verdict, 'outside-hours'); // 15:30 for two hours runs past 17:00
 });
 
+test('an urgent push skips a cleaner who does not work then', () => {
+  // The urgent broadcast filtered on distance, price and an overlapping job,
+  // but never on the hours the cleaner herself published — so a cleaner who
+  // does not work Fridays was woken by a 🚨 push for a Friday job, on the one
+  // channel the app is allowed to interrupt her on, for work she cannot take.
+  const week = {
+    sun: { active: true, start: 9, end: 17 }, mon: { active: true, start: 9, end: 17 },
+    tue: { active: true, start: 9, end: 17 }, wed: { active: true, start: 9, end: 17 },
+    thu: { active: true, start: 9, end: 17 }, fri: { active: false, start: 9, end: 17 },
+  };
+  const SUN = 0, FRI = 5, SAT = 6;
+  assert.equal(worksAt(week, SUN, 10, 2), true);
+  assert.equal(worksAt(week, SUN, 15, 2), true);          // ends exactly at 17:00
+  assert.equal(worksAt(week, FRI, 10, 2), false);         // a day she switched off
+  assert.equal(worksAt(week, SAT, 10, 2), false);         // a day she never set
+  assert.equal(worksAt(week, SUN, 7, 2), false);          // starts before she does
+  assert.equal(worksAt(week, SUN, 16, 2), false);         // would run past 17:00
+});
+
+test('an urgent push skips a cleaner who switched every day off', () => {
+  // With every day off, "never set" and "chose to work no days" look the same
+  // to the verdict. The profile's availabilitySet flag tells them apart, and
+  // worksAt used to drop it — so a cleaner who turned all her days off was
+  // still woken for every urgent job in range.
+  const allOff = { sun: { active: false, start: 9, end: 17 }, mon: { active: false, start: 9, end: 17 } };
+  assert.equal(worksAt(allOff, 0, 10, 2, true), false);   // she chose this
+  assert.equal(worksAt(allOff, 0, 10, 2, false), true);   // never touched it
+});
+
+test('an urgent cleaning cannot start after 22:00', () => {
+  // Both pickers ran to 23:30, so a 🚨 push could go out for a cleaning at
+  // half past eleven at night.
+  assert.equal(URGENT_LAST_START_HOUR, 22);
+  assert.equal(urgentStartAllowed(22), true);
+  assert.equal(urgentStartAllowed(21.5), true);
+  assert.equal(urgentStartAllowed(22.5), false);
+  assert.equal(urgentStartAllowed(23.5), false);
+  assert.equal(urgentStartAllowed(NaN), false);            // an unparseable time is not allowed
+  assert.equal(hourOfTime('21:30'), 21.5);
+  assert.equal(hourOfTime('22:00'), 22);
+  assert.equal(urgentStartAllowed(hourOfTime('22:30')), false);
+  assert.ok(Number.isNaN(hourOfTime('')));
+  assert.ok(Number.isNaN(hourOfTime('late')));
+});
+
+test('after the last start the form moves to tomorrow instead of offering nothing', () => {
+  const at = (h, m) => new Date(2026, 8, 27, h, m);
+  // The app rounds up to the next half hour.
+  assert.equal(urgentTodayClosed(at(21, 30)), false);      // 21:30 is still a slot
+  assert.equal(urgentTodayClosed(at(21, 45)), false);      // rounds up to 22:00 — still allowed
+  assert.equal(urgentTodayClosed(at(22, 0)), false);       // 22:00 exactly
+  assert.equal(urgentTodayClosed(at(22, 1)), true);        // next slot is 22:30
+  assert.equal(urgentTodayClosed(at(23, 50)), true);
+  // The website adds 30 minutes of lead time, so it closes half an hour sooner.
+  assert.equal(urgentTodayClosed(at(21, 30), 30), false);  // first slot 22:00
+  assert.equal(urgentTodayClosed(at(21, 31), 30), true);   // first slot 22:30
+  // Morning is untouched.
+  assert.equal(urgentTodayClosed(at(8, 0)), false);
+});
+
+test('an urgent push still reaches a cleaner who never set her hours', () => {
+  // `unset` must stay alertable. Reading "no hours published" as "never works"
+  // would cut every cleaner who skipped that step in registration out of the
+  // urgent market without anyone choosing that.
+  assert.equal(worksAt(undefined, 3, 10, 2), true);
+  assert.equal(worksAt({}, 3, 10, 2), true);
+  assert.equal(worksAt({ sun: { active: false } }, 0, 10, 2), true);
+});
+
 test('a profile that never set its hours stays bookable', () => {
   // Older profiles have no availability; reading that as "never works" would
   // make every one of them unbookable.
@@ -942,4 +1012,73 @@ test("an older build's rebuilt address does not overwrite the real one", () => {
   assert.deepEqual(reconcile(old, real, 'savedAddresses').map((a) => a.address), ['הרצל 5', 'ביאליק 2', 'תל אביב']);
   // A phone or bank account someone actually typed still wins.
   assert.equal(reconcile('0507654321', '0501234567', 'phone'), '0507654321');
+});
+
+
+// ── The cleaner's job search ────────────────────────────────────────────────
+// Reported as "searching as a cleaner finds nothing, not by name and not by
+// city". Reproduced on a seeded board: a client's name found 0 jobs, "תל אביב"
+// found two of three, and "חיפה" found nothing because the job sat outside the
+// cleaner's radius and the radius ran before the search.
+
+const TABLE = {
+  'תל אביב': { lat: 32.0853, lng: 34.7818 },
+  'רמת גן':  { lat: 32.0684, lng: 34.8248 },
+  'חיפה':    { lat: 32.794,  lng: 34.9896 },
+};
+
+test("a cleaner can find a job by the client's name", () => {
+  // The name is printed on every card and was never searched.
+  const job = { clientName: 'רותם לוי', addrCity: 'תל אביב', serviceType: 'ניקיון רגיל' };
+  assert.equal(matchJob(job, 'רותם'), 'client');
+  assert.equal(matchJob(job, 'רותם לוי'), 'client');
+  assert.equal(matchJob(job, 'לוי'), 'client');
+});
+
+test('a job whose document names no town is still found by town', () => {
+  // Jobs from before addrCity carry coordinates only; the address itself is in
+  // the private half now. The nearest town stands in.
+  const legacy = { clientName: 'נועה', serviceType: 'ניקיון רגיל' };
+  const town = nearestCity({ lat: 32.08, lng: 34.78 }, TABLE);
+  assert.equal(town, 'תל אביב');
+  assert.equal(jobCityOf(legacy, town), 'תל אביב');
+  assert.equal(matchJob(legacy, 'תל אביב', { fallbackCity: town }), 'place');
+  // Without the fallback it cannot be found — the bug.
+  assert.equal(matchJob(legacy, 'תל אביב'), 'none');
+});
+
+test('a point in open country is not placed in the least-far town', () => {
+  assert.equal(nearestCity({ lat: 30.5, lng: 34.9 }, TABLE), null);   // the Negev
+  assert.equal(nearestCity(null, TABLE), null);
+  assert.equal(nearestCity({ lat: NaN, lng: 34 }, TABLE), null);
+});
+
+test('a town or a client reaches past the radius; browsing and services do not', () => {
+  // The radius is the cleaner's own answer to how far she goes — right for
+  // browsing. But a cleaner who types "חיפה" is asking about Haifa.
+  assert.equal(jobOnBoard('place', 80, 30), true);
+  assert.equal(jobOnBoard('client', 80, 30), true);
+  assert.equal(jobOnBoard('service', 80, 30), false);   // "משרדים" is still browsing
+  assert.equal(jobOnBoard('service', 10, 30), true);
+  assert.equal(jobOnBoard('service', null, 30), true);  // unknown distance never hides
+  assert.equal(jobOnBoard('none', 1, 30), false);
+});
+
+test('an empty search is browsing, and keeps the radius', () => {
+  const job = { clientName: 'x', addrCity: 'חיפה' };
+  assert.equal(matchJob(job, ''), 'service');
+  assert.equal(matchJob(job, '   '), 'service');
+  assert.equal(jobOnBoard(matchJob(job, ''), 80, 30), false);
+});
+
+test('town and service match in the viewer\'s language as well as Hebrew', () => {
+  const job = { addrCity: 'חיפה', serviceTypes: ['ניקיון משרדים'] };
+  const lookups = {
+    cityName: (c) => ({ 'חיפה': 'Haifa' })[c] || '',
+    serviceName: (k) => ({ 'ניקיון משרדים': 'Office cleaning' })[k] || '',
+  };
+  assert.equal(matchJob(job, 'haifa', lookups), 'place');
+  assert.equal(matchJob(job, 'office', lookups), 'service');
+  assert.equal(matchJob(job, 'משרדים', lookups), 'service');
+  assert.equal(matchJob(job, 'ירושלים', lookups), 'none');
 });

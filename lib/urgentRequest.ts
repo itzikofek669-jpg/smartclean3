@@ -97,3 +97,45 @@ export function isUrgentRequestExpired(
   const t = expiryOf(r);
   return t === null || t <= now.getTime();
 }
+
+// ── When an urgent cleaning may start ─────────────────────────────────────────
+//
+// The app's picker ran to 23:30 and the website's to 23:30 as well, so a client
+// could broadcast a 🚨 request for a cleaning starting at half past eleven at
+// night — and every cleaner in range was woken by a high-priority push for it.
+// Urgent is the one notification channel allowed to interrupt a cleaner, so the
+// window it can fire for is a business rule, not a UI preference: nothing
+// starts after 22:00.
+//
+// Lives here, in the shared file, so the two products cannot drift: the app's
+// wheel, the website's stepper and both send paths read the same number.
+
+/** Latest hour an urgent cleaning may start, local time. 22 = 22:00. */
+export const URGENT_LAST_START_HOUR = 22;
+
+/** "HH:MM" → hours as a number: "21:30" → 21.5. NaN when unparseable. */
+export function hourOfTime(hhmm: string | null | undefined): number {
+  const m = /^(\d{1,2}):(\d{2})$/.exec(String(hhmm ?? '').trim());
+  if (!m) return NaN;
+  return Number(m[1]) + Number(m[2]) / 60;
+}
+
+/** May an urgent cleaning start at this hour? */
+export function urgentStartAllowed(hour: number): boolean {
+  return Number.isFinite(hour) && hour <= URGENT_LAST_START_HOUR;
+}
+
+/**
+ * Is today already past the last urgent start?
+ *
+ * The first slot a form can offer is "now", rounded up to the next half hour,
+ * plus whatever lead time that form adds (`leadMinutes` — the website keeps a
+ * 30-minute buffer, the app none). When that first slot is later than 22:00
+ * there is nothing left to pick today, and the form must move to tomorrow
+ * rather than offer an empty wheel or a time that will be refused.
+ */
+export function urgentTodayClosed(now: Date = new Date(), leadMinutes = 0): boolean {
+  const mins = now.getHours() * 60 + now.getMinutes() + leadMinutes;
+  const firstSlot = Math.ceil(mins / 30) * 30 / 60;
+  return firstSlot > URGENT_LAST_START_HOUR;
+}

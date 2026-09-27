@@ -160,6 +160,38 @@ export function groupConsecutiveDays(days: WorkDayCode[]): WorkDayCode[][] {
  * 9–18, the way the profile screen has always read it. The hours that apply are
  * returned with the verdict so the message can say what they are.
  */
+/**
+ * Is this cleaner worth alerting about work at this time?
+ *
+ * Used by the urgent-request broadcast in both products. A cleaner who told us
+ * she does not work Saturdays, or does not start before 09:00, was still being
+ * woken by a 🚨 push for a Saturday job at 07:00 — a notification she can do
+ * nothing with, on the one channel the app is allowed to interrupt her on.
+ *
+ * `unset` is deliberately alertable. A cleaner who never filled in her hours
+ * has not said no to anything, and silencing her would quietly cut every
+ * cleaner who skipped that step out of the urgent market.
+ *
+ * `daysChosen` is the profile's `availabilitySet` flag, and it matters for one
+ * case: every day switched off. Without the flag that reads as "never set her
+ * hours" and she is alerted for everything; with it, she deliberately chose to
+ * work no days, and alerting her for anything is exactly wrong. Every other
+ * caller of workingHoursVerdict already passes it — this one did not.
+ *
+ * This decides the PUSH only. The request still reaches her board either way:
+ * declining to ring someone's phone is not the same as hiding work from her.
+ */
+export function worksAt(
+  availability: unknown,
+  day: number,
+  startHour: number,
+  hours: number,
+  daysChosen = false,
+): boolean {
+  const { verdict } = workingHoursVerdict(availability, day, startHour, hours, daysChosen);
+  return verdict !== 'day-off' && verdict !== 'outside-hours';
+}
+
 export function workingHoursVerdict(
   availability: unknown,
   day: number,

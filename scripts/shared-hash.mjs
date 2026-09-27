@@ -54,6 +54,8 @@ const SHARED = [
   { name: 'bookingActions', app: 'lib/bookingActions.ts', web: 'src/lib/bookingActions.ts' },
   { name: 'bookingOrigin',  app: 'lib/bookingOrigin.ts',  web: 'src/lib/bookingOrigin.ts' },
   { name: 'cityFromAddress', app: 'lib/cityFromAddress.ts', web: 'src/lib/cityFromAddress.ts' },
+  { name: 'jobSearch',      app: 'lib/jobSearch.ts',      web: 'src/lib/jobSearch.ts' },
+  { name: 'search',         app: 'lib/search.ts',         web: 'src/lib/search.ts' },
   { name: 'firestoreRules', app: 'firestore.rules',       web: 'firestore.rules' },
 ];
 

@@ -109,7 +109,11 @@ function createS(c: AppColors) {
     photoPickerBadge:       { position: 'absolute', bottom: 4, right: 4, width: 28, height: 28, borderRadius: 14, backgroundColor: c.blue, alignItems: 'center', justifyContent: 'center', borderWidth: 2, borderColor: c.white },
     photoPickerLabel:       { fontSize: 14, fontWeight: '700', color: c.textDark },
     photoPickerSub:         { fontSize: 12, color: c.textSub, textAlign: 'center' },
-    addrDropdown:    { position: 'absolute', top: 50, left: 0, right: 0, backgroundColor: c.white, borderRadius: 10, borderWidth: 1, borderColor: c.blueBorder, zIndex: 100, elevation: 5, maxHeight: 200 },
+    // In the flow, directly under the input. It used to be absolute at a fixed
+    // 50pt from the top of the field — but the field opens with its label, so
+    // the list landed on the input and covered the address being typed. A
+    // fixed offset also broke with the app's larger-text setting.
+    addrDropdown:    { marginTop: 4, backgroundColor: c.white, borderRadius: 10, borderWidth: 1, borderColor: c.blueBorder, elevation: 5, maxHeight: 200 },
     addrSugRow:      { flexDirection: 'row', alignItems: 'center', padding: 12, gap: 8 },
     addrSugBorder:   { borderBottomWidth: 1, borderBottomColor: c.blueBorder },
     addrSugText:     { fontSize: 14, color: c.textDark, flex: 1, textAlign: 'right' },

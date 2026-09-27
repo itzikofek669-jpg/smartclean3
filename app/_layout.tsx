@@ -9,7 +9,6 @@ import { auth, db } from '../lib/firebase';
 import { getActiveChat } from '../lib/chatPresence';
 import { logError } from '../lib/logError';
 import { loadDemoMode } from '../lib/demoMode';
-import { loadDiagnostics, diagnosticsEnabled, record } from '../lib/diagnostics';
 import { fetchBookingDetails } from '../lib/bookingDetails';
 import { primeCalendarPermission, addBookingToCalendar, removeBookingFromCalendar, calendarSyncMessage, hasWarnedCalendar, markCalendarWarned } from '../lib/calendarSync';
 // Imported for its side effect as well as the helper: the background task is
@@ -132,7 +131,7 @@ async function registerPushToken(uid: string, waitedForProfile = false) {
 
     const tokenData = await Notifications.getExpoPushTokenAsync({ projectId });
     const token = tokenData?.data;
-    if (!token) { record('push:noToken', { projectId }); return; }
+    if (!token) return;
 
     // Written in a transaction that re-reads the opt-out. The flag was read
     // above, then getExpoPushTokenAsync took its time — and "notifications off"
@@ -145,7 +144,6 @@ async function registerPushToken(uid: string, waitedForProfile = false) {
       if (!cur.exists() || cur.data()?.pushOptOut === true) return;
       tx.update(ref, { pushToken: token });
     });
-    record('push:registered', { token: token.slice(0, 24) + '…' });
 
     // Only once a token exists: the background task has nothing to receive
     // before the server can address this device. Registering it here also means
@@ -157,7 +155,6 @@ async function registerPushToken(uid: string, waitedForProfile = false) {
     // build at all — no google-services.json — and the throw is the only thing
     // that says so.
     logError('push:register', err);
-    record('push:failed', { message: String((err as any)?.message ?? err).slice(0, 200) });
   }
 }
 
@@ -201,7 +198,7 @@ export default function RootLayout() {
 
   // Demo-cleaner opt-in is stored per device; read it once before the
   // cleaner list is built. See lib/demoMode.
-  useEffect(() => { loadDemoMode(); loadDiagnostics(); }, []);
+  useEffect(() => { loadDemoMode(); }, []);
 
   // ── Auth subscription ─────────────────────────────────────────────────────
   // Mounted once. It used to depend on [segments], and useSegments() returns a
@@ -312,20 +309,12 @@ export default function RootLayout() {
             // Every outcome, not just the two that used to be logged. The
             // silent ones — already-synced above all — are exactly the
             // answers we could never get out of a release build.
-            record(`calendar:${role}`, { id: b.id, date: b.bookingDate, time: b.startTime, res });
             if (res === 'bad-slot' || res === 'no-id') {
               logError('layout:calendarSlot', { id: b.id, bookingDate: b.bookingDate, startTime: b.startTime, res });
               return;
             }
             const msg = calendarSyncMessage(res);
-            if (!msg) {
-              if (diagnosticsEnabled() && res !== 'added' && !warned) {
-                warned = true;
-                Alert.alert('אבחון — יומן', `תפקיד: ${role}
-תוצאה: ${res}`);
-              }
-              return;
-            }
+            if (!msg) return;
             if (warned) return;
             if (await hasWarnedCalendar(String(b.id), role)) return;
             // נבדק שוב: הקריאה לאחסון היא await, והזמנה אחרת יכולה הייתה לזכות
@@ -364,7 +353,6 @@ export default function RootLayout() {
           // Which role's listener saw the cancellation is the thing that
           // separates "the removal ran and failed" from "this device never
           // heard about it" — and those need completely different fixes.
-          record(`cancel:${role}`, { id: b.id, date: b.bookingDate });
           // The sweep only for a cancellation seen happening. This set lives in
           // memory, so on every launch the whole history of cancelled bookings
           // arrived as new and each re-swept its old slot — deleting the event of
@@ -432,11 +420,6 @@ export default function RootLayout() {
         },
         err => {
           logError(`layout:${role}Bookings`, err);
-          // A failed query means the sync never even ran for this role.
-          if (diagnosticsEnabled()) {
-            Alert.alert('אבחון — שאילתת הזמנות נכשלה', `תפקיד: ${role}
-${(err as any)?.message ?? err}`);
-          }
         },
       );
     };

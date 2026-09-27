@@ -30,7 +30,6 @@ import * as Notifications from 'expo-notifications';
 import { removeBookingFromCalendar } from './calendarSync';
 import { readCalendarRemoval, extractPushData } from './calendarPush';
 import { logError } from './logError';
-import { record } from './diagnostics';
 
 export const CALENDAR_PUSH_TASK = 'calendar-remove-on-cancel';
 
@@ -50,7 +49,6 @@ TaskManager.defineTask(CALENDAR_PUSH_TASK, async ({ data, error }) => {
     // per user. Reading it anyway would look like a clean no-op while the entry
     // stayed in the calendar.
     await removeBookingFromCalendar(removal.bookingId, undefined, { uid: removal.uid });
-    record('calendar:pushRemoved', { id: removal.bookingId });
   } catch (err) {
     logError('calendarTask:remove', err);
   }
@@ -67,7 +65,6 @@ export async function registerCalendarPushTask(): Promise<void> {
   try {
     if (await TaskManager.isTaskRegisteredAsync(CALENDAR_PUSH_TASK)) return;
     await Notifications.registerTaskAsync(CALENDAR_PUSH_TASK);
-    record('calendar:taskRegistered', {});
   } catch (err) {
     logError('calendarTask:register', err);
   }

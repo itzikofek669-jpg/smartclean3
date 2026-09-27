@@ -21,6 +21,8 @@
     "lib/mapStyle.ts",
     "lib/cityFromAddress.ts",
     "lib/profileFields.ts",
-    "lib/cleanerTraits.ts"
+    "lib/cleanerTraits.ts",
+    "lib/jobSearch.ts",
+    "lib/search.ts"
   ]
 }

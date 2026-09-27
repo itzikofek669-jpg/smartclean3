@@ -83,6 +83,12 @@ const SHARED_PAIRS = [
   // and bookingOrigin answered the same question opposite ways, and only one of
   // them was in this list.
   ['lib/bookingOrigin.ts', 'src/lib/bookingOrigin.ts'],
+  // Both job boards search through it; they had drifted into matching
+  // neither client names nor jobs whose documents name no town.
+  ['lib/jobSearch.ts',     'src/lib/jobSearch.ts'],
+  // The client's cleaner search. The site showed everyone for a town and the
+  // app showed no one; one rule now, in one file.
+  ['lib/search.ts',        'src/lib/search.ts'],
   ['firestore.rules',      'firestore.rules'],
 ];
 
