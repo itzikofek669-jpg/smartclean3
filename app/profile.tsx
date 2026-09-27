@@ -14,6 +14,7 @@ import {
   doc, getDoc, setDoc, updateDoc, addDoc, deleteDoc, deleteField,
   collection, query, where, getDocs, orderBy, arrayRemove, arrayUnion, onSnapshot, runTransaction, writeBatch,
 } from 'firebase/firestore';
+import { pushTokenRef, pushTokenDoc } from '../lib/pushTokenStore';
 import { auth, db } from '../lib/firebase';
 import {
   getSavedAddresses, upsertAddress, setPrimaryAddress, deleteAddressById,
@@ -2372,6 +2373,8 @@ export default function ProfileScreen() {
         // ההתראות חזרו, והכפתור המשיך להציג "כבוי". לא הייתה שום דרך לכבות
         // התראות מתוך האפליקציה.
         await updateDoc(doc(db, 'users', uid), { pushToken: '', pushOptOut: true });
+        // והעותק הפרטי — שרת ההתראות קורא ממנו. ראה lib/pushTokenStore.
+        await deleteDoc(pushTokenRef(uid)).catch(err => logError('profile:pushTokenDelete', err));
         setHasPushToken(false);
       } else {
         // ── הפעלה ─────────────────────────────────────────────────────────────
@@ -2432,6 +2435,7 @@ export default function ProfileScreen() {
           // pushOptOut נמחק כאן, אחרת registerPushToken ימשיך לצאת מוקדם
           // והטוקן שנכתב עכשיו לא יתחדש אף פעם.
           await updateDoc(doc(db, 'users', uid), { pushToken: token, pushOptOut: false });
+          await setDoc(pushTokenRef(uid), pushTokenDoc(token)).catch(err => logError('profile:pushTokenWrite', err));
           setHasPushToken(true);
         } else {
           Alert.alert('שגיאה', 'לא ניתן לקבל טוקן להתראות.');

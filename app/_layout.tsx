@@ -4,7 +4,8 @@ import { Stack, useRouter, useSegments } from 'expo-router';
 import { onAuthStateChanged, signOut } from 'firebase/auth';
 import * as Notifications from 'expo-notifications';
 import Constants from 'expo-constants';
-import { doc, getDoc, updateDoc, collection, query, where, onSnapshot, runTransaction } from 'firebase/firestore';
+import { doc, getDoc, setDoc, updateDoc, collection, query, where, onSnapshot, runTransaction } from 'firebase/firestore';
+import { pushTokenRef, pushTokenDoc } from '../lib/pushTokenStore';
 import { auth, db } from '../lib/firebase';
 import { getActiveChat } from '../lib/chatPresence';
 import { logError } from '../lib/logError';
@@ -143,12 +144,22 @@ async function registerPushToken(uid: string, waitedForProfile = false) {
     // from another device landing in that gap left { pushOptOut: true,
     // pushToken: <live token> }. Every sender reads only pushToken, so pushes
     // kept coming while the toggle said off.
-    await runTransaction(db, async (tx) => {
+    const wrote = await runTransaction(db, async (tx) => {
       const ref = doc(db, 'users', uid);
       const cur = await tx.get(ref);
-      if (!cur.exists() || cur.data()?.pushOptOut === true) return;
+      if (!cur.exists() || cur.data()?.pushOptOut === true) return false;
       tx.update(ref, { pushToken: token });
+      return true;
     });
+    // And the private copy the notification server reads — see
+    // lib/pushTokenStore. Separately and best effort, never in the transaction
+    // above: until the rules that open `pushTokens` are deployed this write is
+    // refused, and inside the transaction it took the profile write down with
+    // it, so the device stopped registering at all.
+    if (wrote) {
+      await setDoc(pushTokenRef(uid), pushTokenDoc(token))
+        .catch(err => logError('layout:pushTokenPrivate', err));
+    }
 
     // Only once a token exists: the background task has nothing to receive
     // before the server can address this device. Registering it here also means

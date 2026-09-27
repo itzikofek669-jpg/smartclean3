@@ -338,6 +338,44 @@ service cloud.firestore {
       allow write: if isAdmin();
     }
 
+    // ── Push tokens ──────────────────────────────────────────────────────────
+    // Where a device's Expo push token lives from now on — readable by its
+    // owner and an admin, and by no one else.
+    //
+    // It used to sit on the public profile, and every push was sent from the
+    // sender's own phone straight to Expo, which asks for no credentials. So
+    // any signed-in account could list every cleaner's token and push them
+    // anything: a fake urgent job, or a fake cancellation whose silent payload
+    // deletes the cleaning from the victim's calendar. Pushes now go through
+    // the notification server (the website's worker/notify.js), which reads
+    // these with its own service account — past these rules — after checking
+    // the sender really is a party to the event.
+    //
+    // The profile field stays readable only until every build writes here; the
+    // last migration step deletes it and forbids it.
+    function pushTokenSane() {
+      let d = request.resource.data;
+      return d.keys().hasOnly(['token', 'updatedAt', 'platform'])
+        && d.token is string
+        && d.token.size() <= 220
+        && d.token.matches('^Expo(nent)?PushToken\\[[^\\]]+\\]$')
+        && d.get('updatedAt', '') is string
+        && d.get('platform', '') is string
+        && d.get('platform', '').size() <= 20;
+    }
+    match /pushTokens/{userId} {
+      allow get: if isAdmin() || (signedIn() && uid() == userId);
+      allow list: if isAdmin();
+      allow create, update: if signedIn() && uid() == userId && pushTokenSane();
+      allow delete: if isAdmin() || (signedIn() && uid() == userId);
+    }
+
+    // Which events the notification server has already sent, so a replayed
+    // request rings nobody twice. Only the server touches it.
+    match /notifyLog/{id} {
+      allow read, write: if false;
+    }
+
     // ── Profile photos ───────────────────────────────────────────────────────
     // One document per user, holding nothing but the avatar.
     //

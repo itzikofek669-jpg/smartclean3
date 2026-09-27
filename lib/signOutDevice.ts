@@ -1,8 +1,9 @@
 import { signOut } from 'firebase/auth';
-import { doc, runTransaction } from 'firebase/firestore';
+import { doc, getDoc, deleteDoc, runTransaction } from 'firebase/firestore';
 import * as Notifications from 'expo-notifications';
 import Constants from 'expo-constants';
 import { auth, db } from './firebase';
+import { pushTokenRef } from './pushTokenStore';
 import { logError } from './logError';
 
 const within = <T,>(p: Promise<T>, ms: number): Promise<T> =>
@@ -35,6 +36,15 @@ export async function signOutOfDevice(): Promise<void> {
             const cur = await tx.get(ref);
             if (cur.exists() && cur.data()?.pushToken === token) tx.update(ref, { pushToken: '' });
           }), 4000);
+          // The private copy too, or the notification server keeps ringing a
+          // phone its owner signed out of. Its own step, best effort: until the
+          // rules opening `pushTokens` are deployed it is refused, and that must
+          // not stop the profile's token being cleared. See lib/pushTokenStore.
+          await within((async () => {
+            const priv = pushTokenRef(uid);
+            const mine = await getDoc(priv);
+            if (mine.exists() && mine.data()?.token === token) await deleteDoc(priv);
+          })(), 4000).catch(err => logError('signOutOfDevice:private', err));
         }
       }
     } catch (err) {
