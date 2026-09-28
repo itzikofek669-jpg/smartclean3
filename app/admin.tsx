@@ -19,7 +19,7 @@ import { TAB_BAR_CONTENT_HEIGHT } from '../lib/BottomTabBar';
 import { demoModeStored, setDemoMode } from '../lib/demoMode';
 import { releaseUrgentRequest } from '../lib/urgentRelease';
 import { fetchPrivateProfile } from '../lib/privateProfile';
-import { logError } from '../lib/logError';
+import { broadcast } from '../lib/notify';
 
 // ─── Palette ──────────────────────────────────────────────────────────────────
 const C_DEFAULT = {
@@ -260,23 +260,15 @@ export default function AdminScreen() {
       return Alert.alert('שגיאה', 'מלא כותרת ותוכן');
     setPushSending(true);
     try {
-      // Actually sent. This used to collect the tokens, do nothing with them and
-      // still say "sent to N users" — the broadcast never left the device.
-      const tokens = users.map(u => u.pushToken).filter(Boolean);
-      if (!tokens.length) return Alert.alert('', 'אין משתמשים עם התראות פעילות');
-      let sent = 0;
-      for (let i = 0; i < tokens.length; i += 90) {
-        const chunk = tokens.slice(i, i + 90).map(to => ({
-          to, title: pushTitle.trim(), body: pushBody.trim(), sound: 'default', priority: 'high',
-        }));
-        try {
-          const res = await fetch('https://exp.host/--/api/v2/push/send', {
-            method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(chunk),
-          });
-          if (res.ok) sent += chunk.length;
-        } catch (err) { logError('admin:broadcast', err); }
+      // Through the notification server, which checks this is an admin and
+      // looks up who has a phone registered — the tokens are no longer on the
+      // profiles. The count in the alert is what the server actually rang.
+      const { sent, skipped } = await broadcast(pushTitle.trim(), pushBody.trim(), users.map(u => u.uid));
+      if (sent === 0) {
+        return Alert.alert('שגיאה', skipped
+          ? 'לאף משתמש אין התראות פעילות'
+          : 'שליחת ההתראה נכשלה — בדוק חיבור ונסה שוב');
       }
-      if (sent === 0) return Alert.alert('שגיאה', 'שליחת ההתראה נכשלה — בדוק חיבור ונסה שוב');
       Alert.alert('✅ נשלח', `ההתראה נשלחה ל-${sent} משתמשים`);
       setPushTitle(''); setPushBody('');
     } finally {
@@ -720,6 +712,7 @@ export default function AdminScreen() {
                 style={s.input}
                 value={pushTitle}
                 onChangeText={setPushTitle}
+                maxLength={80}
                 placeholder="לדוגמה: עדכון חשוב מ-A&M Clean"
                 placeholderTextColor={C.sub}
               />
@@ -728,6 +721,7 @@ export default function AdminScreen() {
                 style={[s.input, { height: 80, textAlignVertical: 'top', paddingTop: 12 }]}
                 value={pushBody}
                 onChangeText={setPushBody}
+                maxLength={300}
                 placeholder="תוכן ההתראה..."
                 placeholderTextColor={C.sub}
                 multiline
@@ -740,7 +734,7 @@ export default function AdminScreen() {
                 <T style={s.bigBtnText}>
                   {pushSending
                     ? 'שולח...'
-                    : `📢 שלח ל-${users.filter(u => u.pushToken).length} משתמשים`}
+                    : `📢 שלח לכל המשתמשים (${users.length})`}
                 </T>
               </TouchableOpacity>
             </View>

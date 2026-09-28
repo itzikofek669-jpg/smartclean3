@@ -581,27 +581,6 @@ async function isCleanerBusy(
 
 
 
-async function sendPushNotification(token: string, title: string, body: string, data?: Record<string, any>, opts?: { channelId?: string; color?: string }) {
-  try {
-    const res = await fetch('https://exp.host/--/api/v2/push/send', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        to: token, title, body,
-        sound: 'default',
-        channelId: opts?.channelId || 'messages',
-        priority: 'high',
-        ...(opts?.color ? { color: opts.color } : {}),
-        data: data || {},
-      }),
-    });
-    const json = await res.json().catch(() => ({}));
-    console.log('[PUSH result]', json);
-    return json;
-  } catch (e) {
-    console.warn('[PUSH error]', e);
-  }
-}
 
 
 // סמן מנקה על המפה — עוקב פעם אחת קצרה כדי להצטייר, ואז מפסיק (חוסך זיכרון, מונע קריסה)
@@ -2579,19 +2558,8 @@ function BookingModal({ cleaner, visible, onClose, onBookingCreated, prebookData
       // שלו, אז ניסיון של הלקוח לעדכן את מסמך המנקה נדחה תמיד (וה-catch בלע
       // את זה בשקט). המנקה גוזר את busySlots אצלו מההזמנות שלו — ראה
       // lastBusySlotsRef במאזין ההזמנות של המנקה.
-      try {
-        const cleanerUid = cleaner.uid || cleaner.id;
-        const cleanerDoc = await getDoc(doc(db, 'users', cleanerUid));
-        const pushToken = cleanerDoc.data()?.pushToken;
-        const svcLabel = serviceTypes.map(st => String(t.types[st] || st).replace(/[\u{1F000}-\u{1FFFF}\u{2600}-\u{27BF}\u{2B00}-\u{2BFF}\u{FE0F}\u{200D}]/gu, '').trim()).filter(Boolean).join(', ');
-        const timeLabel = `${String(Math.floor(startHour)).padStart(2,'0')}:${startHour % 1 === 0.5 ? '30' : '00'}`;
-        if (pushToken) await sendPushNotification(
-          pushToken,
-          `📅 הזמנה חדשה מ-${clientName}!`,
-          `${svcLabel ? svcLabel + ' · ' : ''}📅 ${bookingDate.toLocaleDateString(LOCALE_MAP[lang] || 'he-IL')} ${timeLabel} · ⏱️ ${hours} שעות · 📍 ${address}`,
-          { type: 'new_booking', bookingId: bookingRef.id, tab: 'bookings' }
-        );
-      } catch (_) {}
+      // ההתראה למנקה — דרך שרת ההתראות (lib/notify), שקורא את ההזמנה עצמה.
+      void notify({ event: 'new_booking', bookingId: bookingRef.id });
       // ── Bit payment message in chat ────────────────────────────────────
       if (payment === 'bit') {
         try {
@@ -4282,6 +4250,7 @@ export default function HomeScreen() {
         } else {
         const cleanersSnap = await getDocs(query(collection(db,'users'), where('role','==','cleaner')));
         const notified: string[] = [];
+        const ring: string[] = []; // מתוך notified — מי שגם עובד/ת בשעות האלה
         const noLocation = !userCoords; // אין מיקום — שלח לכולם
 
         // ── מנקים שכבר תפוסים בניקיון אחר בשעות החופפות לדחוף — לא נשלח להם פוש ──
@@ -4357,25 +4326,14 @@ export default function HomeScreen() {
           // בהרשמה. ההחלטה עצמה יושבת ב-lib/cleanerTraits, משותפת עם האתר.
           if (!worksAt(cData.availability, targetDate.getDay(), urgentHour, urgentHours, cData.availabilitySet === true)) continue;
 
-          // שלח Push Notification למנקה
-          const pushToken = cData.pushToken || '';
-          if (pushToken) {
-            const dateLabel = urgentDate === 'today' ? 'היום' : 'מחר';
-            const msgTotal  = urgentHours * urgentMaxPrice;
-            await sendPushNotification(
-              pushToken,
-              `🚨 ניקוי דחוף! — ${dateLabel} ${hh}:${mm}`,
-              `${urgentServiceTypes.length ? urgentServiceTypes.map(st => t.types[st] || st).join(', ') + ' · ' : ''}📍 ${cityFromAddress(urgentAddress, CITY_COORDS) || ''} · ⏱️ ${urgentHours} שעות · ₪${msgTotal}`,
-              { type: 'urgent', urgent: true, requestId: reqRef.id, tab: 'urgent' },
-              { channelId: 'urgent', color: '#ff1744' }
-            );
-            console.log('[PUSH → urgent]', cData.name);
-          } else {
-            console.warn('[PUSH] אין pushToken למנקה:', cData.name);
-          }
+          ring.push(cd.id);
         }
 
         await updateDoc(doc(db,'urgentRequests', reqRef.id), { notifiedCleaners: notified });
+        // הפוש עצמו — דרך שרת ההתראות, רק למי שעובד/ת ביום ובשעות האלה.
+        // השרת קורא את הבקשה, בודק שהיא פתוחה ובחלון 07–22, ושהנמענים מנקים.
+        // הוא מקבל עד 500 נמענים בבקשה (MAX_URGENT_RECIPIENTS ב-worker/notify.js).
+        if (ring.length) void notify({ event: 'urgent', requestId: reqRef.id, recipients: ring.slice(0, 500) });
 
         if (notified.length === 0) {
           Alert.alert('', t.urgentNoCleaners);
@@ -5402,15 +5360,9 @@ export default function HomeScreen() {
         Alert.alert('', (t as any).jobTakenMsg ?? 'העבודה כבר נתפסה על ידי מנקה אחר');
         return;
       }
-      // התראה ללקוח
-      try {
-        const clientDoc = await getDoc(doc(db, 'users', job.clientUid));
-        const tok = clientDoc.data()?.pushToken;
-        // "אישר" הפך לשקר: התפיסה מורידה מהלוח ומשאירה את ההזמנה ממתינה
-        // לאישור המנקה, בדיוק כמו בשני המסלולים האחרים. לקוח שקיבל "אושר"
-        // ואז ראה סטטוס ממתין לא היה מבין מה קרה.
-        if (tok) sendPushNotification(tok, '👀 ' + ((t as any).jobTakenTitle ?? 'מנקה לקח את ההזמנה שלך'), `${myName} ${(t as any).jobTakenBody ?? 'בוחן את הפרטים ויאשר בקרוב'}`, { type: 'booking_claimed' });
-      } catch (_) {}
+      // התראה ללקוח: "מנקה לקח את ההזמנה" — לא "אושר". התפיסה מורידה מהלוח
+      // ומשאירה את ההזמנה ממתינה לאישור המנקה, בדיוק כמו בשני המסלולים האחרים.
+      void notify({ event: 'booking_claimed', bookingId: job.id });
       Alert.alert('✅', (t as any).jobClaimedOk ?? 'תפסת את העבודה. היא לא תוצג יותר למנקים אחרים — אשר או דחה אותה בתחתית הצ\'אט.');
       openClientChat(job.clientUid, job.clientName);
     } catch (e) {

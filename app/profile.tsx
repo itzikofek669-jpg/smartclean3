@@ -360,34 +360,6 @@ const SERVICE_DETAIL: Record<string, string[]> = {
 
 const DAYS_KEYS = ['sun','mon','tue','wed','thu','fri','sat'] as const;
 
-async function sendPushNotification(
-  token: string,
-  title: string,
-  body: string,
-  data?: any,
-  opts: { contentAvailable?: boolean } = {},
-) {
-  try {
-    await fetch('https://exp.host/--/api/v2/push/send', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        to: token, title, body,
-        sound: 'default',
-        channelId: 'messages',
-        priority: 'high',
-        // Without this iOS delivers the banner and nothing else — the app is
-        // never given a chance to act on the payload unless it happens to be
-        // in the foreground. Set for the cancellation push so the receiving
-        // device can take the cleaning out of its calendar without being
-        // opened. See lib/calendarTask.ts.
-        ...(opts.contentAvailable ? { _contentAvailable: true } : {}),
-        ...(data ? { data } : {}),
-      }),
-    });
-  } catch (_) {}
-}
-
 const LOCALE_MAP: Record<string, string> = { he: 'he-IL', en: 'en-GB', ru: 'ru-RU', ar: 'ar-SA', fr: 'fr-FR', hi: 'hi-IN' };
 
 /**
@@ -1644,9 +1616,7 @@ export default function ProfileScreen() {
       try {
         const clientSnap = await getDoc(doc(db, 'users', b.clientUid));
         const clientData = clientSnap.data() || {};
-        if (clientData.pushToken) {
-          await sendPushNotification(clientData.pushToken, t.pushOnWayTitle, t.pushOnWayBody);
-        }
+        void notify({ event: 'onway', bookingId: b.id });
         // Build URLs first
         const mapsUrl  = b.address ? `https://maps.google.com/?q=${encodeURIComponent(b.address)}` : null;
         const rawPhone = await clientPhoneOf(b, clientData);
@@ -1868,11 +1838,7 @@ export default function ProfileScreen() {
       await updateDoc(doc(db, 'bookings', b.id), { status: 'active', startedAt: now });
       setIncomingBks(prev => prev.map(x => x.id === b.id ? { ...x, status: 'active', startedAt: now } : x));
       // push to client
-      try {
-        const clientSnap = await getDoc(doc(db, 'users', b.clientUid));
-        const token = clientSnap.data()?.pushToken;
-        if (token) await sendPushNotification(token, t.pushCleaningStarted, t.pushCleaningStartedBody);
-      } catch (err) { logError('profile:write', err); }
+      void notify({ event: 'started', bookingId: b.id });
     } catch (_) {
       Alert.alert(t.error, t.updateStatusError);
     }
@@ -1896,7 +1862,6 @@ export default function ProfileScreen() {
   const handleEndCleaning = async (b: any) => {
     try {
       const now = new Date().toISOString();
-      const duration = b.startedAt ? calcDuration(b.startedAt, now) : '';
 
       // חישוב שעות ותשלום אמיתיים
       let actualHours = b.hours;
@@ -1985,13 +1950,7 @@ export default function ProfileScreen() {
           });
           await nextBatch.commit();
           // Notify client about next booking
-          try {
-            const clientSnap2 = await getDoc(doc(db, 'users', b.clientUid));
-            const token2 = clientSnap2.data()?.pushToken;
-            if (token2) {
-              await sendPushNotification(token2, t.autoRecurCreated, `📅 ${nextDateStr}`);
-            }
-          } catch (_) {}
+          void notify({ event: 'recurring_created', bookingId: nextRef.id });
         } catch (_) {}
       }
       // הסר את חלון הזמן מ-busySlots של המנקה
@@ -2020,22 +1979,10 @@ export default function ProfileScreen() {
         } catch (_) {}
       }
 
-      // שליחה ללקוח — push + תזכורת דירוג אחרי 30 דקות
-      try {
-        const clientSnap = await getDoc(doc(db, 'users', b.clientUid));
-        const clientData = clientSnap.data() || {};
-        // push
-        if (clientData.pushToken) {
-          const body = duration
-            ? `${t.pushCleaningEndedBody} · ${t.durationLabel}: ${duration}`
-            : t.pushCleaningEndedBody;
-          await sendPushNotification(clientData.pushToken, t.pushCleaningEnded, body);
-          // שלח התראת ביקורת חובה אחרי 5 דקות
-          setTimeout(() => {
-            sendPushNotification(clientData.pushToken, t.pushReviewRequired, t.pushReviewRequiredBody).catch(() => {});
-          }, 5 * 60 * 1000);
-        }
-      } catch (_) {}
+      // שליחה ללקוח — "הניקיון הסתיים", עם הבקשה לדרג באותה התראה. קודם
+      // תזכורת הדירוג נשלחה מטיימר של חמש דקות בטלפון של המנקה, שלא רץ
+      // כשהאפליקציה עוברת לרקע.
+      void notify({ event: 'ended', bookingId: b.id });
     } catch (_) {
       Alert.alert(t.error, t.updateStatusError);
     }
@@ -2245,23 +2192,13 @@ export default function ProfileScreen() {
 
       // שלח push + הודעת צ'אט ללקוח
       try {
-        const clientSnap = await getDoc(doc(db, 'users', b.clientUid));
-        const token = clientSnap.data()?.pushToken;
         const dateLabel = confirmed.bookingDate || b.bookingDate || '';
         const timeLabel = confirmed.startTime   || b.startTime   || '';
-        const pushBody  = dateChanged
-          ? `${userName} אישר עם שינוי זמן: ${dateLabel} ב-${timeLabel}`
-          : `${userName} אישר את ההזמנה שלך — ${dateLabel} ב-${timeLabel}`;
         // לא שולחים פוש אישור כפול רק כשהלקיחה והאישור הם אותה פעולה כאן
         // (claimAndConfirmUrgent שולח "נמצא מנקה"). בקשה דחופה שנלקחה באתר ממתינה
-        // לאישור, ובלי הפוש הזה הלקוח לא שמע דבר כשהמנקה אישרה.
-        if (token && !b.urgentUnclaimed) {
-          await fetch('https://exp.host/--/api/v2/push/send', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ to: token, title: '✅ ההזמנה אושרה!', body: pushBody, sound: 'default', priority: 'high', channelId: 'default', data: { type: 'booking_confirmed' } }),
-          });
-        }
+        // לאישור, ובלי הפוש הזה הלקוח לא שמע דבר כשהמנקה אישרה. השרת קורא את
+        // ההזמנה אחרי העדכון, כך שתאריך ושעה שהשתנו כאן הם אלה שבהתראה.
+        if (!b.urgentUnclaimed) void notify({ event: 'booking_confirmed', bookingId: b.id });
         // שלח גם הודעת צ'אט אוטומטית ללקוח
         const chatId = [uid, b.clientUid].sort().join('_');
         const chatMsg = dateChanged
@@ -2533,16 +2470,7 @@ export default function ProfileScreen() {
         throw txErr;
       }
       // נתפס בהצלחה ע"י המנקה הזה — פוש ללקוח
-      try {
-        const clientSnap = await getDoc(doc(db, 'users', req.clientUid));
-        const pushToken = clientSnap.data()?.pushToken;
-        if (pushToken) {
-          await fetch('https://exp.host/--/api/v2/push/send', {
-            method: 'POST', headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ to: pushToken, title: t.urgentFoundMsg, body: `${cleanerName} קיבל את הבקשה שלך!`, sound: 'default', channelId: 'default', priority: 'high', data: { type: 'booking_confirmed' } }),
-          });
-        }
-      } catch (_) {}
+      void notify({ event: 'urgent_claimed', requestId: req.id });
       // הערה: אין שולחים פוש "ההזמנה נתפסה" לשאר המנקים — מי שנמצא במסך האישור מקבל באנר באפליקציה.
       SHOWN_PENDING.add(bookingRef.id);
       incomingBks.forEach((x: any) => { if (x.status === 'pending') SHOWN_PENDING.add(x.id); });
@@ -2592,35 +2520,14 @@ export default function ProfileScreen() {
                 busySlots: arrayRemove({ from: b.busyFrom, until: b.busyUntil }),
               }).catch(() => {});
             }
-            // שלח פוש לצד השני על הביטול
-            try {
-              const otherUid = userRole === 'cleaner' ? b.clientUid : b.cleanerId;
-              if (otherUid) {
-                const otherSnap = await getDoc(doc(db, 'users', otherUid));
-                const token = otherSnap.data()?.pushToken;
-                if (token) {
-                  const byName = userRole === 'cleaner' ? (b.cleanerName || 'המנקה') : (b.clientName || 'הלקוח');
-                  const dateLabel = `${b.bookingDate || ''}${b.startTime ? ' ' + b.startTime : ''}`.trim();
-                  // עבודה שחזרה ללוח היא לא ביטול, והלקוח צריך לדעת שהיא עדיין
-                  // פתוחה. אותם מסרים שהצ'אט כבר משתמש בהם.
-                  const released = (write as any).open === true;
-                  await sendPushNotification(
-                    token,
-                    released
-                      ? ((t as any).pushJobReleasedTitle ?? '🔁 העבודה חזרה ללוח')
-                      : ((t as any).pushBookingCancelledTitle ?? '❌ הזמנה בוטלה'),
-                    released
-                      ? ((t as any).pushJobReleasedBody ?? 'המנקה לא יוכל להגיע. העבודה שלך פתוחה שוב למנקים אחרים.') + (dateLabel ? ` · ${dateLabel}` : '')
-                      : ((t as any).pushBookingCancelledBody ?? 'ההזמנה בוטלה על ידי {who}').replace('{who}', byName) + (dateLabel ? ` · ${dateLabel}` : ''),
-                    // `uid` names whose calendar entry to remove: the stored
-                    // event ids are keyed per user, and the background task
-                    // runs before auth has been restored so it cannot ask.
-                    { type: 'booking_cancelled', bookingId: b.id, uid: otherUid },
-                    { contentAvailable: true },
-                  );
-                }
-              }
-            } catch (_) {}
+            // שלח פוש לצד השני על הביטול. עבודה שחזרה ללוח היא לא ביטול, והלקוח
+            // צריך לדעת שהיא עדיין פתוחה. השרת בוחר את הנמען מתוך ההזמנה, ובביטול
+            // מצרף לה את ה-uid שלו — המשימה ברקע מוחקת לפיו את הניקיון מהיומן.
+            const released = (write as any).open === true;
+            // לקוח שמבטל עבודה מהלוח שאף מנקה עוד לא לקח/ה — אין צד שני להודיע לו.
+            if (released || b.cleanerId) {
+              void notify({ event: released ? 'booking_released' : 'booking_cancelled', bookingId: b.id });
+            }
           } catch (e: any) {
             Alert.alert(t.error, e?.message || 'שגיאה');
           }
@@ -3285,25 +3192,7 @@ export default function ProfileScreen() {
                             // רק חזרה ללוח. הלקוח היה מקבל "ההזמנה בוטלה"
                             // ורואה ברשימה שלו "ממתין", בלי שום הסבר.
                             const released = rejectionReleasesToBoard(pcb);
-                            try {
-                              if (pcb.clientUid) {
-                                const cs = await getDoc(doc(db, 'users', pcb.clientUid));
-                                const tok = cs.data()?.pushToken;
-                                if (tok) {
-                                  const dl = `${pcb.bookingDate || ''}${pcb.startTime ? ' ' + pcb.startTime : ''}`.trim();
-                                  if (released) {
-                                    await sendPushNotification(
-                                      tok,
-                                      (t as any).pushJobReleasedTitle ?? '🔁 העבודה חזרה ללוח',
-                                      ((t as any).pushJobReleasedBody ?? 'המנקה לא יוכל להגיע. העבודה שלך פתוחה שוב למנקים אחרים.') + (dl ? ` · ${dl}` : ''),
-                                      { type: 'booking_released', bookingId: pcb.id },
-                                    );
-                                  } else {
-                                    await sendPushNotification(tok, (t as any).pushBookingCancelledTitle ?? '❌ הזמנה בוטלה', ((t as any).pushBookingCancelledBody ?? 'ההזמנה בוטלה על ידי {who}').replace('{who}', pcb.cleanerName || 'המנקה') + (dl ? ` · ${dl}` : ''), { type: 'booking_cancelled', bookingId: pcb.id, uid: pcb.clientUid }, { contentAvailable: true });
-                                  }
-                                }
-                              }
-                            } catch (err) { logError('profile:write', err); }
+                            void notify({ event: released ? 'booking_released' : 'booking_cancelled', bookingId: pcb.id });
                           } catch (err) { logError('profile:write', err); }
                           incomingBks.forEach((x: any) => { if (x.status === 'pending') SHOWN_PENDING.add(x.id); });
                           setPendingConfirmBooking(null);

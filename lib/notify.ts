@@ -52,3 +52,25 @@ export async function notify(e: NotifyEvent): Promise<{ sent: number; skipped: n
     return none;
   }
 }
+
+// The server takes at most this many recipients per broadcast request.
+const BROADCAST_CHUNK = 400;
+
+/**
+ * An admin broadcast to `uids`, in as many requests as it takes. The server
+ * looks up who has a phone registered; those who do not come back as skipped.
+ */
+export async function broadcast(title: string, body: string, uids: string[]): Promise<{ sent: number; skipped: number }> {
+  // The lengths the server keeps. Cut here too: the server checks the request's
+  // size before it trims, and a long text on top of 400 ids is refused.
+  const t = title.trim().slice(0, 80);
+  const b = body.trim().slice(0, 300);
+  const all = [...new Set(uids.filter(Boolean))];
+  const total = { sent: 0, skipped: 0 };
+  for (let i = 0; i < all.length; i += BROADCAST_CHUNK) {
+    const r = await notify({ event: 'admin_broadcast', title: t, body: b, recipients: all.slice(i, i + BROADCAST_CHUNK) });
+    total.sent += r.sent;
+    total.skipped += r.skipped;
+  }
+  return total;
+}

@@ -132,27 +132,13 @@ function InlineChatModal({ chatId, otherUid, otherName, visible, onClose }: any)
   }, [visible, otherUid]);
 
   /** Tell the client what just happened. Silence here is how somebody goes to bed not knowing whether they have a cleaner. */
+  // Through the notification server, which reads the booking after the write
+  // above and words the push itself (lib/notify).
   const notifyClient = async (b: any, approved: boolean, released = false) => {
-    if (!b?.clientUid) return;
-    const snap = await getDoc(doc(db, 'users', b.clientUid));
-    const tok = snap.data()?.pushToken;
-    if (!tok) return;
-    const when = `${b.bookingDate || ''}${b.startTime ? ' ' + b.startTime : ''}`.trim();
-    const [title, body, data] = approved
-      ? ['✅ ' + ((t as any).pushBookingConfirmedTitle ?? 'ההזמנה שלך אושרה'),
-         ((t as any).pushBookingConfirmedBody ?? 'המנקה אישר את הניקיון') + (when ? ` · ${when}` : ''),
-         { type: 'booking_confirmed', bookingId: b.id }]
-      : released
-        ? ['🔁 ' + ((t as any).pushJobReleasedTitle ?? 'העבודה חזרה ללוח'),
-           ((t as any).pushJobReleasedBody ?? 'המנקה לא יוכל להגיע. העבודה שלך פתוחה שוב למנקים אחרים.') + (when ? ` · ${when}` : ''),
-           { type: 'booking_released', bookingId: b.id }]
-        : ['❌ ' + ((t as any).pushBookingCancelledTitle ?? 'הזמנה בוטלה'),
-           ((t as any).pushBookingCancelledBody ?? 'ההזמנה בוטלה על ידי {who}').replace('{who}', b.cleanerName || 'המנקה') + (when ? ` · ${when}` : ''),
-           { type: 'booking_cancelled', bookingId: b.id, uid: b.clientUid }];
-    await fetch('https://exp.host/--/api/v2/push/send', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ to: tok, title, body, sound: 'default', priority: 'high', _contentAvailable: !approved, data }),
+    if (!b?.id) return;
+    await notify({
+      event: approved ? 'booking_confirmed' : released ? 'booking_released' : 'booking_cancelled',
+      bookingId: b.id,
     });
   };
 
