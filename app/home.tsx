@@ -41,6 +41,7 @@ import {
 } from '../lib/cleanerTraits';
 import { filterBoard, nearestCity } from '../lib/jobSearch';
 import { notify } from '../lib/notify';
+import { devicePosition } from '../lib/devicePosition';
 import { resolvePlace, searchCleaners } from '../lib/search';
 import {
   CITY_COORDS, CITY_KEYS_BY_LEN, REGION_CENTER, regionFromLat,
@@ -574,12 +575,14 @@ async function isCleanerBusy(
   });
 }
 
-
-
-
-
-
-
+// No fix, fresh or recent (lib/devicePosition). Says what to do about it — the
+// bare "שגיאת מיקום" it replaces told the user nothing.
+function alertNoPosition(t: any) {
+  Alert.alert(
+    t.locationFailedTitle ?? '📍 לא הצלחנו לקבוע מיקום',
+    t.locationFailedMsg ?? 'בדוק/י שהמיקום מופעל במכשיר ונסה/י שוב.',
+  );
+}
 
 
 
@@ -2201,7 +2204,9 @@ function BookingModal({ cleaner, visible, onClose, onBookingCreated, prebookData
     try {
       const perm = await Location.requestForegroundPermissionsAsync();
       if (!perm.granted) { Alert.alert(t.error, t.locationPermDenied); return; }
-      const loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
+      const here = await devicePosition();
+      if (!here) { alertNoPosition(t); return; }
+      const loc = { coords: { latitude: here.lat, longitude: here.lng } };
       const addrs = await getSavedAddresses();
       // geocode any address that doesn't have coordinates yet
       for (const a of addrs) {
@@ -4759,16 +4764,21 @@ export default function HomeScreen() {
   }, [search]);
 
   // Request location once on mount — auto-enable nearby mode
+  // Silent when there is no fix: the map simply starts without "near me", and
+  // the button below asks again when the user wants it.
   useEffect(() => {
     (async () => {
-      const { status } = await Location.requestForegroundPermissionsAsync();
-      if (status !== 'granted') return;
-      const pos = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
-      setUserCoords({ lat: pos.coords.latitude, lng: pos.coords.longitude });
-      setNearbyMode(true);
-      // אפשר לסמן להצטלם פעם אחת, ואז לכבות tracking לחיסכון בביצועים
-      setDotTracks(true);
-      setTimeout(() => setDotTracks(false), 2500);
+      try {
+        const { status } = await Location.requestForegroundPermissionsAsync();
+        if (status !== 'granted') return;
+        const coords = await devicePosition();
+        if (!coords) return;
+        setUserCoords(coords);
+        setNearbyMode(true);
+        // אפשר לסמן להצטלם פעם אחת, ואז לכבות tracking לחיסכון בביצועים
+        setDotTracks(true);
+        setTimeout(() => setDotTracks(false), 2500);
+      } catch (err) { logError('home:initialLocation', err); }
     })();
   }, []);
 
@@ -4779,8 +4789,8 @@ export default function HomeScreen() {
       if (!coords) {
         const { status } = await Location.requestForegroundPermissionsAsync();
         if (status !== 'granted') { Alert.alert(t.error, t.locationPermDenied); return; }
-        const pos = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
-        coords = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+        coords = await devicePosition();
+        if (!coords) { alertNoPosition(t); return; }
         setUserCoords(coords);
       }
       setNearbyMode(true);

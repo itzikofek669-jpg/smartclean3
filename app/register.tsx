@@ -27,6 +27,7 @@ import { TERMS_BY_LANG } from '../lib/terms';
 import ServiceInfoBtn from '../lib/ServiceInfoBtn';
 import { MaterialIcons } from '@expo/vector-icons';
 import { logError } from '../lib/logError';
+import { devicePosition } from '../lib/devicePosition';
 import { claimPhone } from '../lib/accountChecks';
 import { sendVerificationEmail } from '../lib/emailVerification';
 
@@ -655,8 +656,9 @@ export default function RegisterScreen() {
             + 'אפשר לאשר עכשיו, או לשנות בהגדרות המכשיר ולנסות שוב.',
         );
       }
-      const pos = await Location.getCurrentPositionAsync({});
-      coords = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+      // A fresh fix, or the last one from the past hour (lib/devicePosition).
+      coords = await devicePosition();
+      if (!coords) throw new Error('no position, fresh or recent');
     } catch (err) {
       logError('register:location', err);
       return Alert.alert(
