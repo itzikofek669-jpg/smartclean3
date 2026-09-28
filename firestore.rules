@@ -370,6 +370,25 @@ service cloud.firestore {
       allow delete: if isAdmin() || (signedIn() && uid() == userId);
     }
 
+    // Which chat a user has open right now, if any — written by the app and the
+    // website while a conversation is on screen and refreshed every half
+    // minute. The notification server reads it (past these rules) and sends no
+    // push for a message to someone already looking at that conversation.
+    // Only its owner may see it: which conversation you are in is nobody
+    // else's business.
+    match /chatPresence/{userId} {
+      allow get: if isAdmin() || (signedIn() && uid() == userId);
+      allow list: if isAdmin();
+      allow create, update: if signedIn() && uid() == userId
+        && request.resource.data.keys().hasOnly(['chatId', 'at'])
+        && request.resource.data.chatId is string
+        && request.resource.data.chatId.size() > 0
+        && request.resource.data.chatId.size() <= 200
+        && request.resource.data.at is string
+        && request.resource.data.at.size() <= 40;
+      allow delete: if isAdmin() || (signedIn() && uid() == userId);
+    }
+
     // Which events the notification server has already sent, so a replayed
     // request rings nobody twice. Only the server touches it.
     match /notifyLog/{id} {

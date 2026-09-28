@@ -19,6 +19,7 @@ import { releaseUrgentRequest } from '../lib/urgentRelease';
 import { bookingBusyWindow, windowsOverlap } from '../lib/jobUtils';
 import { addBookingToCalendar, removeBookingFromCalendar } from '../lib/calendarSync';
 import { logError } from '../lib/logError';
+import { notify } from '../lib/notify';
 import { fetchBookingDetails } from '../lib/bookingDetails';
 // Firebase Storage לא נדרש — תמונות ואודיו נשמרים כ-base64 ב-Firestore
 import * as ImagePicker from 'expo-image-picker';
@@ -66,22 +67,6 @@ function createS(c: AppColors) {
     convLast:    { fontSize: 12, color: c.textSub, marginTop: 3, textAlign: 'right' },
     convTime:    { fontSize: 11, color: c.textSub },
   });
-}
-
-// ─── Push helper ─────────────────────────────────────────────────────────────
-async function sendPushNotification(token: string, title: string, body: string) {
-  try {
-    await fetch('https://exp.host/--/api/v2/push/send', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        to: token, title, body,
-        sound: 'default',
-        channelId: 'messages',
-        priority: 'high',
-      }),
-    });
-  } catch (_) {}
 }
 
 // ─── Inline Chat Modal ────────────────────────────────────────────────────────
@@ -309,11 +294,9 @@ function InlineChatModal({ chatId, otherUid, otherName, visible, onClose }: any)
           // תשובה אמור לראות אותה שוב — זו המשמעות של להסתיר, בניגוד למחוק.
           deletedFor: [],
         }, { merge: true });
-        const otherDoc = await getDoc(doc(db, 'users', otherUid));
-        const pushToken = otherDoc.data()?.pushToken;
-        if (pushToken) {
-          await sendPushNotification(pushToken, `💬 ${myName}`, msg);
-        }
+        // דרך שרת ההתראות: הוא בודק שהשולח בשיחה, כותב את הנוסח, ולא שולח למי
+        // שכבר נמצא בצ'אט הזה. ראה lib/notify ו-lib/chatPresence.
+        await notify({ event: 'message', chatId });
       } catch (_) {}
     } catch (_) {}
   };
@@ -375,11 +358,9 @@ function InlineChatModal({ chatId, otherUid, otherName, visible, onClose }: any)
         // הודעה חדשה מחזירה את השרשור לשני הצדדים. ראה sendTextMessage.
         deletedFor: [],
       }, { merge: true });
-      try {
-        const otherDoc = await getDoc(doc(db, 'users', otherUid));
-        const pushToken = otherDoc.data()?.pushToken;
-        if (pushToken) await sendPushNotification(pushToken, `📷 ${myName}`, t.chatImageMsg);
-      } catch (_) {}
+      // דרך שרת ההתראות: הוא בודק שהשולח בשיחה, כותב את הנוסח, ולא שולח למי
+      // שכבר נמצא בצ'אט הזה. ראה lib/notify ו-lib/chatPresence.
+      await notify({ event: 'message', chatId });
     } catch (err: any) {
       Alert.alert(t.imageSendError, err?.message || t.error);
     }

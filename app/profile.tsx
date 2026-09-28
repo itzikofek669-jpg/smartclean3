@@ -53,6 +53,7 @@ import * as Notifications from 'expo-notifications';
 import Constants from 'expo-constants';
 import { addBookingToCalendar, removeBookingFromCalendar, calendarSyncMessage } from '../lib/calendarSync';
 import { logError } from '../lib/logError';
+import { notify } from '../lib/notify';
 import { useNow } from '../lib/useNow';
 import { withBookingDetails, migrateOpenJobDetails, fetchBookingDetails, backfillClientPhone, needsPhoneBackfill, urgentDetailsRef, copyUrgentDetails } from '../lib/bookingDetails';
 import { batchProfile, fetchOwnProfile, idPhotoRef, ownPhone } from '../lib/privateProfile';
@@ -1714,11 +1715,9 @@ export default function ProfileScreen() {
       }, { merge: true });
       // push notification ללקוח
       try {
-        const clientSnap = await getDoc(doc(db, 'users', chatClientUid));
-        const pushToken  = clientSnap.data()?.pushToken;
-        if (pushToken) {
-          await sendPushNotification(pushToken, `💬 הודעה מ-${userName}`, msg, { type: 'message' });
-        }
+        // דרך שרת ההתראות: הוא בודק שהשולח בשיחה, כותב את הנוסח, ולא שולח למי
+        // שכבר נמצא בצ'אט הזה. ראה lib/notify ו-lib/chatPresence.
+        await notify({ event: 'message', chatId });
       } catch (_) {}
     } catch (_) {}
   };

@@ -40,6 +40,7 @@ import {
   workingHoursVerdict, worksAt,
 } from '../lib/cleanerTraits';
 import { filterBoard, nearestCity } from '../lib/jobSearch';
+import { notify } from '../lib/notify';
 import { resolvePlace, searchCleaners } from '../lib/search';
 import {
   CITY_COORDS, CITY_KEYS_BY_LEN, REGION_CENTER, regionFromLat,
@@ -2695,13 +2696,9 @@ function BookingModal({ cleaner, visible, onClose, onBookingCreated, prebookData
         unreadBy: arrayUnion(bookedDetails.cleanerUid), deletedFor: [],
       }, { merge: true });
       setTimeout(() => inlineChatScroll.current?.scrollToEnd({ animated: true }), 200);
-      try {
-        const cleanerDoc = await getDoc(doc(db, 'users', bookedDetails.cleanerUid));
-        const pushToken = cleanerDoc.data()?.pushToken;
-        const clientDoc = await getDoc(doc(db, 'users', clientUid));
-        const clientName = clientDoc.data()?.name || 'לקוח';
-        if (pushToken) sendPushNotification(pushToken, `💬 הודעה מ-${clientName}`, msg, { type: 'message' });
-      } catch (err) { logError('home:write', err); }
+      // דרך שרת ההתראות: הוא בודק שהשולח בשיחה, כותב את הנוסח, ולא שולח למי
+      // שכבר נמצא בצ'אט הזה. ראה lib/notify ו-lib/chatPresence.
+      void notify({ event: 'message', chatId });
     } catch (err) { logError('home:write', err); }
   };
 
@@ -3290,8 +3287,12 @@ function ChatModal({ cleaner, visible, onClose }: any) {
   const [text, setText] = useState('');
   const [kbOpen, setKbOpen] = useState(false);
   useEffect(() => {
-    const sh = Keyboard.addListener('keyboardWillShow', () => setKbOpen(true));
-    const hd = Keyboard.addListener('keyboardWillHide', () => setKbOpen(false));
+    // keyboardWill* קיימים רק באייפון. באנדרואיד הם לא נורים אף פעם, אז kbOpen
+    // נשאר false כשהמקלדת פתוחה — ושורת הכתיבה המשיכה לשמור מתחתיה ריווח
+    // בגובה פס הניווט: רווח לבן של כ-50 נקודות בינה לבין המקלדת. באנדרואיד
+    // Did, כמו בצ'אט של המנקה (app/profile.tsx).
+    const sh = Keyboard.addListener(Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow', () => setKbOpen(true));
+    const hd = Keyboard.addListener(Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide', () => setKbOpen(false));
     return () => { sh.remove(); hd.remove(); };
   }, []);
   const scrollRef = useRef<ScrollView>(null);
@@ -3368,9 +3369,9 @@ function ChatModal({ cleaner, visible, onClose }: any) {
         await setDoc(doc(db, 'chats', chatId), {
           participantNames: { [clientUid]: clientName, [otherUid]: cleaner.name },
         }, { merge: true });
-        const cleanerDoc = await getDoc(doc(db, 'users', otherUid));
-        const pushToken = cleanerDoc.data()?.pushToken;
-        if (pushToken) sendPushNotification(pushToken, `💬 הודעה מ-${clientName}`, msg, { type: 'message' });
+        // דרך שרת ההתראות: הוא בודק שהשולח בשיחה, כותב את הנוסח, ולא שולח למי
+        // שכבר נמצא בצ'אט הזה. ראה lib/notify ו-lib/chatPresence.
+        void notify({ event: 'message', chatId });
       } catch (err) { logError('home:write', err); }
     } catch (err) { logError('home:write', err); }
   };

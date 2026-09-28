@@ -35,16 +35,21 @@ LogBox.ignoreLogs([
 // ── הגדרת התנהגות כשהאפליקציה פתוחה בפורגראונד ─────────────────────────────
 // להודעות צ'אט: בפורגראונד לא מציגים באנר מערכת — הפופ-אפ הפנימי (Firestore) מטפל,
 // כדי שתהיה רק הקפצה אחת. ברקע המערכת ממילא מציגה את הפוש כרגיל.
+//
+// ועל הצ'אט שכבר פתוח על המסך — כלום: לא צליל, לא רשימה, לא תג. ההודעה כבר
+// מולך. השרת ממילא לא שולח במקרה הזה (lib/chatPresence), וזה הגיבוי לפוש
+// שיצא לפני שהנוכחות נרשמה, או מבילד ישן ששולח ישירות.
 Notifications.setNotificationHandler({
   handleNotification: async (notification) => {
-    const type = (notification?.request?.content?.data as any)?.type;
-    const isMessage = type === 'message';
+    const data = (notification?.request?.content?.data ?? {}) as any;
+    const isMessage = data.type === 'message';
+    const inThisChat = isMessage && !!data.chatId && data.chatId === getActiveChat();
     return {
       shouldShowAlert:  !isMessage,
       shouldShowBanner: !isMessage,
-      shouldShowList:   true,
-      shouldPlaySound:  true,
-      shouldSetBadge:   true,
+      shouldShowList:   !inThisChat,
+      shouldPlaySound:  !inThisChat,
+      shouldSetBadge:   !inThisChat,
     };
   },
 });
