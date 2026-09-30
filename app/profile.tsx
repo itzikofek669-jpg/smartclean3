@@ -615,7 +615,7 @@ export default function ProfileScreen() {
           return;
         }
         // הבקשה אינה זמינה (נלקחה ע"י אחר/בוטלה/פגה) — הודעה בתוך האפליקציה
-        Alert.alert('⚡', (t as any).urgentAlreadyTakenInApp ?? 'ההזמנה הדחופה כבר נלקחה על ידי מנקה אחר/ת 🙂 הישאר/י זמין/ה — הבאה בדרך!');
+        Alert.alert('⚡', (t as any).urgentAlreadyTakenInApp ?? 'ההזמנה הדחופה כבר נלקחה על ידי נותן שירות אחר/ת 🙂 הישאר/י זמין/ה — הבאה בדרך!');
       } catch (_) { setAcceptOverlay(false); }
     })();
   }, [acceptReqId]);
@@ -887,7 +887,7 @@ export default function ProfileScreen() {
       });
 
       // שליחת אימייל לאדמין
-      const typeLabel = reportType === 'bug' ? 'באג' : reportType === 'cleaner' ? 'דיווח על מנקה' : 'דיווח על לקוח';
+      const typeLabel = reportType === 'bug' ? 'באג' : reportType === 'cleaner' ? 'דיווח על נותן שירות' : 'דיווח על לקוח';
       const subject = encodeURIComponent(`🚨 דיווח חדש — ${typeLabel}`);
       const body = encodeURIComponent(
         `סוג: ${typeLabel}\nיעד: ${reportTarget.trim() || 'לא צוין'}\nתיאור: ${reportDesc.trim()}\n\nמשתמש: ${uid}\nתאריך: ${new Date().toLocaleString(LOCALE_MAP[lang] || 'he-IL')}`
@@ -2425,7 +2425,7 @@ export default function ProfileScreen() {
     try {
       const reqRef = doc(db, 'urgentRequests', req.id);
       const cleanerSnap = await getDoc(doc(db, 'users', uid));
-      const cleanerName = cleanerSnap.data()?.name || 'מנקה';
+      const cleanerName = cleanerSnap.data()?.name || 'נותן שירות';
       const bookingRef = doc(collection(db, 'bookings'));
       try {
         await runTransaction(db, async (tx) => {
@@ -2551,7 +2551,7 @@ export default function ProfileScreen() {
       b.status === 'confirmed' ? '#8B5CF6' :
       b.status === 'cancelled' ? '#EF4444' : C.blueBorder;
 
-    const personName = forCleaner ? (b.clientName || 'לקוח') : (b.cleanerName || 'מנקה');
+    const personName = forCleaner ? (b.clientName || 'לקוח') : (b.cleanerName || 'נותן שירות');
     const hours = isDone && b.actualHours != null ? b.actualHours : b.hours;
     const total = isDone && b.actualTotal != null ? b.actualTotal : b.total;
 
@@ -3146,7 +3146,7 @@ export default function ProfileScreen() {
                       <View style={{ paddingHorizontal: 12, paddingTop: 10, paddingBottom: keyboardOpen ? 8 : insets.bottom + 10, backgroundColor: C.white, borderTopWidth: 1, borderTopColor: C.blueBorder, gap: 8 }}>
                         {urgentTakenByOther && (
                           <View style={{ backgroundColor: '#FEF2F2', borderWidth: 1.5, borderColor: '#FCA5A5', borderRadius: 12, paddingVertical: 10, alignItems: 'center' }}>
-                            <T style={{ fontSize: 14, fontWeight: '900', color: '#DC2626' }}>⚡ ההזמנה נלקחה על ידי מנקה אחר/ת</T>
+                            <T style={{ fontSize: 14, fontWeight: '900', color: '#DC2626' }}>⚡ ההזמנה נלקחה על ידי נותן שירות אחר/ת</T>
                           </View>
                         )}
                         <TouchableOpacity style={{ backgroundColor: C.blue, borderRadius: 14, paddingVertical: 14, alignItems: 'center' }} onPress={() => setPendingConfirmBooking(null)}>
@@ -3171,7 +3171,7 @@ export default function ProfileScreen() {
                       Alert.alert(
                         t.cancelConfirmTitle,
                         rejectionReleasesToBoard(pendingConfirmBooking)
-                          ? ((t as any).releaseToBoardMsg ?? 'העבודה תחזור ללוח ומנקים אחרים יוכלו לקחת אותה.')
+                          ? ((t as any).releaseToBoardMsg ?? 'העבודה תחזור ללוח ונותני שירות אחרים יוכלו לקחת אותה.')
                           : t.cancelConfirmMsg,
                         [
                         { text: t.cancelKeepBooking, style: 'cancel' },
@@ -3240,7 +3240,7 @@ export default function ProfileScreen() {
 
                     {/* שם מנקה + סטטוס */}
                     <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-                      <T style={{ fontSize: 17, fontWeight: '900', color: C.textDark }}>🧹 {b.cleanerName || 'מנקה'}</T>
+                      <T style={{ fontSize: 17, fontWeight: '900', color: C.textDark }}>🧹 {b.cleanerName || 'נותן שירות'}</T>
                       <View style={{ backgroundColor: statusColor, borderRadius: 10, paddingHorizontal: 10, paddingVertical: 4 }}>
                         <T style={{ fontSize: 12, fontWeight: '800', color: '#fff' }}>{getStatusLabel(b.status)}</T>
                       </View>
@@ -4766,7 +4766,7 @@ export default function ProfileScreen() {
             {reportType !== 'bug' && (
               <View style={{ gap: 6 }}>
                 <T style={{ fontSize: 13, fontWeight: '700', color: C.textDark }}>
-                  {reportType === 'cleaner' ? '🧹 שם המנקה' : '👤 שם הלקוח'}
+                  {reportType === 'cleaner' ? '🧹 שם נותן השירות' : '👤 שם הלקוח'}
                 </T>
                 <TextInput
                   style={{ backgroundColor: C.white, borderRadius: 10, padding: 12, fontSize: 14, color: C.textDark, borderWidth: 1, borderColor: C.blueBorder, textAlign: 'right' }}

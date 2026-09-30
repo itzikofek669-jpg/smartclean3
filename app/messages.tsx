@@ -705,7 +705,7 @@ function InlineChatModal({ chatId, otherUid, otherName, visible, onClose }: any)
                       Alert.alert(
                         t.cancelConfirmTitle,
                         backToBoard
-                          ? ((t as any).releaseToBoardMsg ?? 'העבודה תחזור ללוח ומנקים אחרים יוכלו לקחת אותה.')
+                          ? ((t as any).releaseToBoardMsg ?? 'העבודה תחזור ללוח ונותני שירות אחרים יוכלו לקחת אותה.')
                           : t.cancelConfirmMsg,
                         [
                           { text: t.cancelKeepBooking, style: 'cancel' },

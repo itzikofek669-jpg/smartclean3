@@ -62,7 +62,7 @@ const HC_ADMIN = {
   white:     '#FFFFFF',
 };
 
-const TABS = ['📊 דשבורד', '✨ מנקים', '👤 לקוחות', '📋 הזמנות', '🚨 דיווחים', '🛠️ כלים'];
+const TABS = ['📊 דשבורד', '✨ נותני שירות', '👤 לקוחות', '📋 הזמנות', '🚨 דיווחים', '🛠️ כלים'];
 // חייב להיות זהה ל-isAdmin() ב-firestore.rules, ל-ADMIN_EMAILS ב-functions/index.js
 // ול-ADMIN_EMAILS בווב. אימייל שמופיע כאן אבל לא בכללים מקבל מסך ניהול מלא
 // שכל פעולה בו נכשלת בשקט.
@@ -214,7 +214,7 @@ export default function AdminScreen() {
   };
 
   const handleDeleteUser = (uid: string, name: string, role: string) => {
-    const roleLabel = role === 'cleaner' ? 'המנקה' : 'הלקוח';
+    const roleLabel = role === 'cleaner' ? 'נותן השירות' : 'הלקוח';
     Alert.alert(
       `מחיקת ${roleLabel}`,
       `למחוק לצמיתות את ${name || roleLabel}?\n\nהפעולה אינה הפיכה — הפרופיל והפרטים האישיים יוסרו, והחשבון ייחסם מלהזמין, לקחת עבודות או לפתוח פרופיל חדש.`,
@@ -320,7 +320,7 @@ export default function AdminScreen() {
 
   const REPORT_TYPE_LABEL: Record<string, string> = {
     bug: '🐛 באג',
-    cleaner: '🧹 דיווח על מנקה',
+    cleaner: '🧹 דיווח על נותן שירות',
     client: '👤 דיווח על לקוח',
   };
 
@@ -417,7 +417,7 @@ export default function AdminScreen() {
             {/* Stat cards row 1 */}
             <View style={s.statsGrid}>
               <StatCard icon="👥" label="סה״כ משתמשים"   value={users.length}    color={C.blue}   />
-              <StatCard icon="✨" label="מנקים רשומים"    value={cleaners.length} color={C.green}  />
+              <StatCard icon="✨" label="נותני שירות רשומים"    value={cleaners.length} color={C.green}  />
               <StatCard icon="👤" label="לקוחות רשומים"  value={clients.length}  color={C.purple} />
               <StatCard icon="🚫" label="חסומים"         value={users.filter(u => u.blocked).length} color={C.red} />
             </View>
@@ -448,7 +448,7 @@ export default function AdminScreen() {
                 <View style={s.revenueBannerCellSep} />
                 <View style={s.revenueBannerCell}>
                   <T style={s.revenueBannerCellValue}>{cleaners.length}</T>
-                  <T style={s.revenueBannerCellLabel}>מנקים</T>
+                  <T style={s.revenueBannerCellLabel}>נותני שירות</T>
                 </View>
               </View>
             </View>
@@ -476,7 +476,7 @@ export default function AdminScreen() {
 
             {/* Top cleaners */}
             <View style={s.card}>
-              <T style={s.cardTitle}>🏆 מנקים מובילים (לפי דירוג)</T>
+              <T style={s.cardTitle}>🏆 נותני שירות מובילים (לפי דירוג)</T>
               {topCleaners.length === 0
                 ? <T style={s.emptyText}>אין נתונים עדיין</T>
                 : topCleaners.map((c, i) => (
@@ -503,7 +503,7 @@ export default function AdminScreen() {
                 <View key={b.id} style={s.recentRow}>
                   <View style={{ flex: 1 }}>
                     <T style={s.recentName}>
-                      {b.clientName || 'לקוח'} ← {b.cleanerName || 'מנקה'}
+                      {b.clientName || 'לקוח'} ← {b.cleanerName || 'נותן שירות'}
                     </T>
                     <T style={s.recentSub}>{b.date} · ₪{b.total || 0}</T>
                   </View>
@@ -526,20 +526,20 @@ export default function AdminScreen() {
               placeholderTextColor={C.sub}
             />
             <T style={s.listMeta}>
-              {filteredCleaners.length} מנקים
+              {filteredCleaners.length} נותני שירות
               {cleaners.filter(c => c.blocked).length > 0
                 ? ` · ${cleaners.filter(c => c.blocked).length} חסומים`
                 : ''}
             </T>
             {filteredCleaners.length === 0
-              ? <T style={s.emptyText}>לא נמצאו מנקים</T>
+              ? <T style={s.emptyText}>לא נמצאו נותני שירות</T>
               : filteredCleaners.map(c => (
                 <UserCard
                   key={c.uid}
                   user={c}
                   isCleaner
-                  onBlock={() => handleBlock(c.uid, c.name || 'מנקה', !!c.blocked)}
-                  onDelete={() => handleDeleteUser(c.uid, c.name || 'מנקה', 'cleaner')}
+                  onBlock={() => handleBlock(c.uid, c.name || 'נותן שירות', !!c.blocked)}
+                  onDelete={() => handleDeleteUser(c.uid, c.name || 'נותן שירות', 'cleaner')}
                   extraBookings={bookings.filter(b => b.cleanerUid === c.uid).length}
                 />
               ))}
@@ -578,7 +578,7 @@ export default function AdminScreen() {
               style={s.searchInput}
               value={bookingSearch}
               onChangeText={setBookingSearch}
-              placeholder="🔍 חפש לפי לקוח, מנקה, כתובת..."
+              placeholder="🔍 חפש לפי לקוח, נותן שירות, כתובת..."
               placeholderTextColor={C.sub}
             />
             {/* Booking status filter pills */}
@@ -612,7 +612,7 @@ export default function AdminScreen() {
                       <T style={s.bookingDate}>{b.date} {b.startTime || ''}</T>
                     </View>
                     <T style={s.bookingParties}>
-                      👤 {b.clientName || 'לקוח'} ← ✨ {b.cleanerName || 'מנקה'}
+                      👤 {b.clientName || 'לקוח'} ← ✨ {b.cleanerName || 'נותן שירות'}
                     </T>
                     <T style={s.bookingSub}>📍 {b.address || b.addrCity}</T>
                     <T style={s.bookingAmount}>
@@ -744,7 +744,7 @@ export default function AdminScreen() {
               <T style={s.cardTitle}>🤖 מנקי דמו במכשיר הזה</T>
               <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
                 <T style={[s.fieldLabel, { flex: 1, marginTop: 0 }]}>
-                  הצג 200 מנקים מומצאים ברשימה ובמפה
+                  הצג 200 נותני שירות מומצאים ברשימה ובמפה
                 </T>
                 <Switch
                   value={demoOn}
@@ -757,7 +757,7 @@ export default function AdminScreen() {
                 />
               </View>
               <T style={[s.fieldLabel, { color: C.sub, fontWeight: '400' }]}>
-                נשמר על המכשיר הזה בלבד ולא משפיע על אף משתמש אחר. המנקים האלה
+                נשמר על המכשיר הזה בלבד ולא משפיע על אף משתמש אחר. נותני השירות האלה
                 נושאים שמות ודירוגים מומצאים, ולכן הם כבויים כברירת מחדל — הזמנה
                 וצ׳אט מסרבים להם בכל מצב. השינוי נכנס לתוקף בכניסה הבאה למסך הבית.
               </T>
@@ -767,7 +767,7 @@ export default function AdminScreen() {
             <View style={s.card}>
               <T style={s.cardTitle}>📈 סיכום כולל האפליקציה</T>
               <InfoRow label="סה״כ משתמשים"     value={users.length.toString()} />
-              <InfoRow label="מנקים רשומים"      value={cleaners.length.toString()} />
+              <InfoRow label="נותני שירות רשומים"      value={cleaners.length.toString()} />
               <InfoRow label="לקוחות רשומים"     value={clients.length.toString()} />
               <InfoRow label="משתמשים חסומים"    value={users.filter(u => u.blocked).length.toString()} />
               <InfoRow label="סה״כ הזמנות"       value={bookings.length.toString()} />

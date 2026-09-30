@@ -101,7 +101,7 @@ export default function LocationGate() {
       </T>
       <T style={[s.body, { color: C.textSub }]}>
         {tt.locationLockBody
-          || 'ההתאמה בין מנקים ללקוחות מבוססת על מרחק, ולכן חשבון מנקה אינו יכול לפעול בלי גישה למיקום. עד שתפעילו את ההרשאה, החשבון יישאר נעול.'}
+          || 'ההתאמה בין נותני שירות ללקוחות מבוססת על מרחק, ולכן חשבון נותן שירות אינו יכול לפעול בלי גישה למיקום. עד שתפעילו את ההרשאה, החשבון יישאר נעול.'}
       </T>
       <TouchableOpacity style={[s.btn, { backgroundColor: C.blue }]} onPress={ask}>
         <T style={s.btnText}>{tt.locationLockRecheck || 'הפעלתי — בדקו שוב'}</T>

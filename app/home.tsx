@@ -129,132 +129,132 @@ const RL = [
 // אין לו יותר השפעה על שום חישוב אמיתי (ראה getCoordsForCleaner במקום החיפוש
 // הישן שהסתמך עליו).
 const CLEANERS = !__DEV__ ? [] : [
-  { id:'1',  name:'מירה כהן',    initials:'מכ', city:'חיפה',         region:'north',  workAreas:['north'],  types:['ניקוי לפסח','חלונות'],      price:80,  rating:4.9, reviews:142, available:true,  payment:['cash','bit','paybox'], lat:32.794, lng:34.989, bio:'מנקה מקצועית.', reviewsList:RL },
+  { id:'1',  name:'מירה כהן',    initials:'מכ', city:'חיפה',         region:'north',  workAreas:['north'],  types:['ניקוי לפסח','חלונות'],      price:80,  rating:4.9, reviews:142, available:true,  payment:['cash','bit','paybox'], lat:32.794, lng:34.989, bio:'נותנת שירות מקצועית.', reviewsList:RL },
   { id:'2',  name:'כרמל אבו',    initials:'כא', city:'חיפה',         region:'north',  workAreas:['north'],  types:['שטיפת רכב','חלונות'],       price:65,  rating:4.6, reviews:87,  available:false, payment:['cash','bit'],        lat:32.800, lng:34.995, bio:'מומחה לשטיפת רכב.', reviewsList:RL },
-  { id:'3',  name:'נועה לוי',    initials:'נל', city:'חיפה',         region:'north',  workAreas:['north'],  types:['חלונות','לאחר שיפוץ'],      price:70,  rating:4.7, reviews:63,  available:true,  payment:['cash'],               lat:32.788, lng:34.980, bio:'מנקה אמינה ויסודית.', reviewsList:RL },
+  { id:'3',  name:'נועה לוי',    initials:'נל', city:'חיפה',         region:'north',  workAreas:['north'],  types:['חלונות','לאחר שיפוץ'],      price:70,  rating:4.7, reviews:63,  available:true,  payment:['cash'],               lat:32.788, lng:34.980, bio:'נותנת שירות אמינה ויסודית.', reviewsList:RL },
   { id:'4',  name:'סאמי חסן',    initials:'סח', city:'נצרת',         region:'north',  workAreas:['north'],  types:['חלונות','שטיפת רכב'],       price:60,  rating:4.5, reviews:44,  available:true,  payment:['cash','bit'],         lat:32.699, lng:35.303, bio:'מומחה לניקוי חלונות.', reviewsList:RL },
-  { id:'5',  name:'רינה ברק',    initials:'רב', city:'נצרת',         region:'north',  workAreas:['north'],  types:['ניקוי לפסח','חלונות'],      price:75,  rating:4.8, reviews:91,  available:true,  payment:['paybox','cash'],        lat:32.705, lng:35.298, bio:'מנקה מקצועית.', reviewsList:RL },
-  { id:'6',  name:'אמיר שלום',   initials:'אש', city:'עכו',          region:'north',  workAreas:['north'],  types:['שטיפת רכב','ניקוי לפסח'],  price:65,  rating:4.6, reviews:55,  available:true,  payment:['cash'],               lat:32.928, lng:35.082, bio:'מנקה סדיר ואמין.', reviewsList:RL },
+  { id:'5',  name:'רינה ברק',    initials:'רב', city:'נצרת',         region:'north',  workAreas:['north'],  types:['ניקוי לפסח','חלונות'],      price:75,  rating:4.8, reviews:91,  available:true,  payment:['paybox','cash'],        lat:32.705, lng:35.298, bio:'נותנת שירות מקצועית.', reviewsList:RL },
+  { id:'6',  name:'אמיר שלום',   initials:'אש', city:'עכו',          region:'north',  workAreas:['north'],  types:['שטיפת רכב','ניקוי לפסח'],  price:65,  rating:4.6, reviews:55,  available:true,  payment:['cash'],               lat:32.928, lng:35.082, bio:'נותן שירות סדיר ואמין.', reviewsList:RL },
   { id:'7',  name:'חאלד נאסר',   initials:'חנ', city:'טבריה',        region:'north',  workAreas:['north'],  types:['ניקוי לפסח','לאחר שיפוץ'], price:85,  rating:4.8, reviews:72,  available:true,  payment:['cash','bit'],         lat:32.795, lng:35.531, bio:'מומחה לניקוי לאחר שיפוצים.', reviewsList:RL },
-  { id:'8',  name:'יואב גל',     initials:'יג', city:'חריש',         region:'north',  workAreas:['north','center'],  types:['ניקוי לפסח','שטיפת רכב'],  price:70,  rating:4.6, reviews:41,  available:true,  payment:['bit','cash'],         lat:32.458, lng:35.041, bio:'מנקה חריש ואזור השרון.', reviewsList:RL },
+  { id:'8',  name:'יואב גל',     initials:'יג', city:'חריש',         region:'north',  workAreas:['north','center'],  types:['ניקוי לפסח','שטיפת רכב'],  price:70,  rating:4.6, reviews:41,  available:true,  payment:['bit','cash'],         lat:32.458, lng:35.041, bio:'נותן שירות בחריש ואזור השרון.', reviewsList:RL },
   { id:'9',  name:'שלי אדם',     initials:'שא', city:'חריש',         region:'north',  workAreas:['north','center'],  types:['חלונות','ניקיון משרדים'],   price:65,  rating:4.5, reviews:33,  available:true,  payment:['cash'],                lat:32.453, lng:35.036, bio:'ניקיון משרדים ובתים.', reviewsList:RL },
   { id:'10', name:'דנה שמיר',    initials:'דש', city:'חריש',         region:'north',  workAreas:['north','center'],  types:['לאחר שיפוץ','ניקוי לפסח'], price:90,  rating:4.9, reviews:28,  available:true,  payment:['paybox','cash'],        lat:32.462, lng:35.044, bio:'מתמחה בניקוי לאחר שיפוצים.', reviewsList:RL },
-  { id:'11', name:'רחל גולדברג', initials:'רג', city:'תל אביב',      region:'center', workAreas:['center'], types:['ניקוי לפסח','לאחר שיפוץ'], price:95,  rating:4.9, reviews:211, available:true,  payment:['paybox','bit','cash'],  lat:32.087, lng:34.789, bio:'מנקה בכירה.', reviewsList:RL },
+  { id:'11', name:'רחל גולדברג', initials:'רג', city:'תל אביב',      region:'center', workAreas:['center'], types:['ניקוי לפסח','לאחר שיפוץ'], price:95,  rating:4.9, reviews:211, available:true,  payment:['paybox','bit','cash'],  lat:32.087, lng:34.789, bio:'נותנת שירות בכירה.', reviewsList:RL },
   { id:'12', name:'דוד אזולאי',  initials:'דא', city:'תל אביב',      region:'center', workAreas:['center'], types:['חלונות','ניקיון משרדים'],   price:85,  rating:4.7, reviews:166, available:true,  payment:['paybox','cash'],        lat:32.075, lng:34.775, bio:'מקצועי ומהיר.', reviewsList:RL },
   { id:'13', name:'ליאת שמש',    initials:'לש', city:'תל אביב',      region:'center', workAreas:['center'], types:['שטיפת רכב','ניקוי לפסח'],  price:75,  rating:4.6, reviews:88,  available:true,  payment:['bit','cash'],         lat:32.095, lng:34.800, bio:'אמינה ויסודית.', reviewsList:RL },
   { id:'14', name:'נועם לוי',    initials:'נל', city:'תל אביב',      region:'center', workAreas:['center'], types:['לאחר שיפוץ','ניקוי לפסח'], price:100, rating:4.9, reviews:97,  available:false, payment:['paybox','bit','cash'],  lat:32.080, lng:34.770, bio:'פרפקציוניסט מוחלט.', reviewsList:RL },
   { id:'15', name:'אנה פטרוב',   initials:'אפ', city:'ירושלים',      region:'center', workAreas:['center'], types:['חלונות','ניקוי לפסח'],      price:70,  rating:4.6, reviews:55,  available:true,  payment:['cash','bit'],         lat:31.782, lng:35.218, bio:'אמינה ותמיד בזמן.', reviewsList:RL },
-  { id:'16', name:'יוסי מזרחי',  initials:'ימ', city:'ירושלים',      region:'center', workAreas:['center'], types:['ניקוי לפסח','חלונות'],      price:75,  rating:4.7, reviews:82,  available:true,  payment:['cash'],                lat:31.790, lng:35.225, bio:'מנקה ירושלים ואזוריה.', reviewsList:RL },
+  { id:'16', name:'יוסי מזרחי',  initials:'ימ', city:'ירושלים',      region:'center', workAreas:['center'], types:['ניקוי לפסח','חלונות'],      price:75,  rating:4.7, reviews:82,  available:true,  payment:['cash'],                lat:31.790, lng:35.225, bio:'נותן שירות בירושלים ואזוריה.', reviewsList:RL },
   { id:'17', name:'לימור שפירא', initials:'לש', city:'נתניה',        region:'center', workAreas:['center'], types:['ניקוי לפסח','לאחר שיפוץ'], price:80,  rating:4.8, reviews:103, available:true,  payment:['bit','cash'],         lat:32.329, lng:34.857, bio:'מתמחה בניקוי לאחר שיפוצים.', reviewsList:RL },
   { id:'18', name:'מוחמד עבאס',  initials:'מע', city:'ראשון לציון',  region:'center', workAreas:['center','south'], types:['לאחר שיפוץ','חלונות'],      price:110, rating:5.0, reviews:87,  available:true,  payment:['paybox','bit','cash'],  lat:31.971, lng:34.789, bio:'פרפקציוניסט מוחלט.', reviewsList:RL },
   { id:'19', name:'שרית לוי',    initials:'של', city:'פתח תקוה',     region:'center', workAreas:['center'], types:['חלונות','ניקיון משרדים'],   price:65,  rating:4.5, reviews:44,  available:true,  payment:['cash'],                lat:32.089, lng:34.888, bio:'ניקיון משרדים ובתים.', reviewsList:RL },
-  { id:'20', name:'דנה כץ',      initials:'דכ', city:'כפר סבא',      region:'center', workAreas:['center'], types:['שטיפת רכב','ניקוי לפסח'],  price:70,  rating:4.6, reviews:57,  available:true,  payment:['cash','bit'],         lat:32.175, lng:34.907, bio:'מנקה אמינה ומהירה.', reviewsList:RL },
-  { id:'21', name:'מיה גולן',    initials:'מג', city:'הרצליה',       region:'center', workAreas:['center'], types:['ניקוי לפסח','לאחר שיפוץ'], price:90,  rating:4.8, reviews:79,  available:true,  payment:['paybox','bit','cash'],  lat:32.165, lng:34.843, bio:'מנקה הרצליה ואזוריה.', reviewsList:RL },
-  { id:'22', name:"ג'ורג' נסר",  initials:'גנ', city:'באר שבע',      region:'south',  workAreas:['south'],  types:['ניקוי לפסח','חלונות'],      price:65,  rating:4.7, reviews:83,  available:true,  payment:['cash','bit'],         lat:31.252, lng:34.791, bio:'מנקה מקצועי בדרום הארץ.', reviewsList:RL },
+  { id:'20', name:'דנה כץ',      initials:'דכ', city:'כפר סבא',      region:'center', workAreas:['center'], types:['שטיפת רכב','ניקוי לפסח'],  price:70,  rating:4.6, reviews:57,  available:true,  payment:['cash','bit'],         lat:32.175, lng:34.907, bio:'נותנת שירות אמינה ומהירה.', reviewsList:RL },
+  { id:'21', name:'מיה גולן',    initials:'מג', city:'הרצליה',       region:'center', workAreas:['center'], types:['ניקוי לפסח','לאחר שיפוץ'], price:90,  rating:4.8, reviews:79,  available:true,  payment:['paybox','bit','cash'],  lat:32.165, lng:34.843, bio:'נותנת שירות בהרצליה ואזוריה.', reviewsList:RL },
+  { id:'22', name:"ג'ורג' נסר",  initials:'גנ', city:'באר שבע',      region:'south',  workAreas:['south'],  types:['ניקוי לפסח','חלונות'],      price:65,  rating:4.7, reviews:83,  available:true,  payment:['cash','bit'],         lat:31.252, lng:34.791, bio:'נותן שירות מקצועי בדרום הארץ.', reviewsList:RL },
   { id:'23', name:'אורי מזרחי',  initials:'אמ', city:'באר שבע',      region:'south',  workAreas:['south'],  types:['שטיפת רכב','חלונות'],       price:60,  rating:4.5, reviews:47,  available:true,  payment:['cash'],                lat:31.245, lng:34.800, bio:'מומחה לשטיפת רכב.', reviewsList:RL },
   { id:'24', name:'נעמי כהן',    initials:'נכ', city:'באר שבע',      region:'south',  workAreas:['south'],  types:['לאחר שיפוץ','ניקוי לפסח'], price:80,  rating:4.8, reviews:61,  available:true,  payment:['paybox','cash'],        lat:31.255, lng:34.780, bio:'מתמחה בניקוי לאחר שיפוצים.', reviewsList:RL },
-  { id:'25', name:'יעל שמש',     initials:'יש', city:'אשדוד',        region:'south',  workAreas:['south'],  types:['שטיפת רכב','ניקוי לפסח'],  price:70,  rating:4.8, reviews:129, available:false, payment:['paybox','bit','cash'],  lat:31.804, lng:34.655, bio:'מנקה מנוסה ואמינה.', reviewsList:RL },
+  { id:'25', name:'יעל שמש',     initials:'יש', city:'אשדוד',        region:'south',  workAreas:['south'],  types:['שטיפת רכב','ניקוי לפסח'],  price:70,  rating:4.8, reviews:129, available:false, payment:['paybox','bit','cash'],  lat:31.804, lng:34.655, bio:'נותנת שירות מנוסה ואמינה.', reviewsList:RL },
   { id:'26', name:'רמי עמר',     initials:'רע', city:'אשדוד',        region:'south',  workAreas:['south'],  types:['לאחר שיפוץ','חלונות'],      price:90,  rating:4.9, reviews:96,  available:true,  payment:['paybox','cash'],        lat:31.810, lng:34.648, bio:'מתמחה בניקוי לאחר שיפוצים.', reviewsList:RL },
-  { id:'27', name:'עמי נחום',    initials:'ענ', city:'אשקלון',       region:'south',  workAreas:['south'],  types:['ניקוי לפסח','חלונות'],      price:70,  rating:4.7, reviews:58,  available:true,  payment:['cash','bit'],         lat:31.668, lng:34.571, bio:'מנקה אשקלון ואזוריה.', reviewsList:RL },
+  { id:'27', name:'עמי נחום',    initials:'ענ', city:'אשקלון',       region:'south',  workAreas:['south'],  types:['ניקוי לפסח','חלונות'],      price:70,  rating:4.7, reviews:58,  available:true,  payment:['cash','bit'],         lat:31.668, lng:34.571, bio:'נותן שירות באשקלון ואזוריה.', reviewsList:RL },
   { id:'28', name:'פאטמה סאלח',  initials:'פס', city:'אילת',         region:'south',  workAreas:['south'],  types:['ניקוי לפסח','שטיפת רכב'],  price:85,  rating:5.0, reviews:64,  available:true,  payment:['cash','bit'],         lat:29.558, lng:34.952, bio:'הטובה ביותר באילת!', reviewsList:RL },
   { id:'29', name:'משה גבאי',    initials:'מג', city:'אילת',         region:'south',  workAreas:['south'],  types:['שטיפת רכב','חלונות'],       price:75,  rating:4.7, reviews:41,  available:true,  payment:['paybox','cash'],        lat:29.552, lng:34.948, bio:'מומחה לשטיפת רכב.', reviewsList:RL },
   // ── קריות (צפון) ──
-  { id:'30', name:'תמר כץ',      initials:'תכ', city:'קריית אתא',    region:'north',  workAreas:['north'],  types:['ניקוי לפסח','חלונות'],      price:72,  rating:4.8, reviews:93,  available:true,  payment:['cash','bit'],         lat:32.804, lng:35.107, bio:'מנקה מקצועית בקריות.', reviewsList:RL },
+  { id:'30', name:'תמר כץ',      initials:'תכ', city:'קריית אתא',    region:'north',  workAreas:['north'],  types:['ניקוי לפסח','חלונות'],      price:72,  rating:4.8, reviews:93,  available:true,  payment:['cash','bit'],         lat:32.804, lng:35.107, bio:'נותנת שירות מקצועית בקריות.', reviewsList:RL },
   { id:'31', name:'אריאל דוד',   initials:'אד', city:'קריית ביאליק', region:'north',  workAreas:['north'],  types:['שטיפת רכב','ניקיון משרדים'],price:68,  rating:4.6, reviews:51,  available:true,  payment:['cash'],               lat:32.831, lng:35.090, bio:'שטיפת רכב מקצועית.', reviewsList:RL },
   { id:'32', name:'מיכל רוזן',   initials:'מר', city:'קריית מוצקין', region:'north',  workAreas:['north'],  types:['ניקיון אחרי אירוע','חלונות'],price:90, rating:4.9, reviews:77,  available:false, payment:['paybox','bit','cash'],  lat:32.836, lng:35.075, bio:'מומחית לניקיון אחרי אירועים.', reviewsList:RL },
   { id:'33', name:'יגאל שמעון',  initials:'יש', city:'קריית ים',     region:'north',  workAreas:['north'],  types:['לאחר שיפוץ','ניקוי לפסח'], price:80,  rating:4.7, reviews:44,  available:true,  payment:['cash','bit'],         lat:32.851, lng:35.068, bio:'מתמחה בשיפוצים וניקוי לפסח.', reviewsList:RL },
   // ── נהריה / כרמיאל (צפון) ──
-  { id:'34', name:'לילה חדד',    initials:'לח', city:'נהריה',        region:'north',  workAreas:['north'],  types:['חלונות','ניקוי לפסח'],      price:65,  rating:4.6, reviews:38,  available:true,  payment:['cash'],               lat:33.005, lng:35.098, bio:'מנקה נהריה והסביבה.', reviewsList:RL },
-  { id:'35', name:'רון אביב',    initials:'רא', city:'כרמיאל',       region:'north',  workAreas:['north'],  types:['שטיפת רכב','חלונות'],       price:60,  rating:4.5, reviews:29,  available:true,  payment:['cash','bit'],         lat:32.916, lng:35.298, bio:'מנקה כרמיאל.', reviewsList:RL },
-  { id:'36', name:'סוזן נסאר',   initials:'סנ', city:'עפולה',        region:'north',  workAreas:['north'],  types:['ניקוי לפסח','ניקיון משרדים'],price:70, rating:4.7, reviews:56,  available:true,  payment:['cash','bit'],         lat:32.608, lng:35.289, bio:'מנקה מקצועית בעמק.', reviewsList:RL },
-  { id:'37', name:'בנימין לוי',  initials:'בל', city:'צפת',          region:'north',  workAreas:['north'],  types:['לאחר שיפוץ','חלונות'],      price:75,  rating:4.8, reviews:33,  available:false, payment:['cash'],               lat:32.965, lng:35.497, bio:'מנקה צפת והסביבה.', reviewsList:RL },
-  { id:'38', name:'חנה אורלוב',  initials:'חא', city:'בית שאן',      region:'north',  workAreas:['north'],  types:['ניקוי לפסח','שטיפת רכב'],  price:60,  rating:4.5, reviews:22,  available:true,  payment:['cash'],               lat:32.499, lng:35.499, bio:'מנקה אמינה ויסודית.', reviewsList:RL },
+  { id:'34', name:'לילה חדד',    initials:'לח', city:'נהריה',        region:'north',  workAreas:['north'],  types:['חלונות','ניקוי לפסח'],      price:65,  rating:4.6, reviews:38,  available:true,  payment:['cash'],               lat:33.005, lng:35.098, bio:'נותנת שירות בנהריה והסביבה.', reviewsList:RL },
+  { id:'35', name:'רון אביב',    initials:'רא', city:'כרמיאל',       region:'north',  workAreas:['north'],  types:['שטיפת רכב','חלונות'],       price:60,  rating:4.5, reviews:29,  available:true,  payment:['cash','bit'],         lat:32.916, lng:35.298, bio:'נותן שירות בכרמיאל.', reviewsList:RL },
+  { id:'36', name:'סוזן נסאר',   initials:'סנ', city:'עפולה',        region:'north',  workAreas:['north'],  types:['ניקוי לפסח','ניקיון משרדים'],price:70, rating:4.7, reviews:56,  available:true,  payment:['cash','bit'],         lat:32.608, lng:35.289, bio:'נותנת שירות מקצועית בעמק.', reviewsList:RL },
+  { id:'37', name:'בנימין לוי',  initials:'בל', city:'צפת',          region:'north',  workAreas:['north'],  types:['לאחר שיפוץ','חלונות'],      price:75,  rating:4.8, reviews:33,  available:false, payment:['cash'],               lat:32.965, lng:35.497, bio:'נותן שירות בצפת והסביבה.', reviewsList:RL },
+  { id:'38', name:'חנה אורלוב',  initials:'חא', city:'בית שאן',      region:'north',  workAreas:['north'],  types:['ניקוי לפסח','שטיפת רכב'],  price:60,  rating:4.5, reviews:22,  available:true,  payment:['cash'],               lat:32.499, lng:35.499, bio:'נותנת שירות אמינה ויסודית.', reviewsList:RL },
   { id:'39', name:'קרים חסן',    initials:'קח', city:'יוקנעם',       region:'north',  workAreas:['north'],  types:['ניקיון אחרי אירוע','חלונות'],price:85, rating:4.8, reviews:47,  available:true,  payment:['cash','bit'],         lat:32.658, lng:35.098, bio:'מומחה לניקיון אחרי אירועים.', reviewsList:RL },
   // ── רמת גן / גבעתיים (מרכז) ──
-  { id:'40', name:'שירה כהן',    initials:'שכ', city:'רמת גן',       region:'center', workAreas:['center'], types:['ניקוי לפסח','חלונות'],      price:88,  rating:4.9, reviews:134, available:true,  payment:['paybox','bit','cash'],  lat:32.082, lng:34.813, bio:'מנקה רמת גן ואזוריה.', reviewsList:RL },
+  { id:'40', name:'שירה כהן',    initials:'שכ', city:'רמת גן',       region:'center', workAreas:['center'], types:['ניקוי לפסח','חלונות'],      price:88,  rating:4.9, reviews:134, available:true,  payment:['paybox','bit','cash'],  lat:32.082, lng:34.813, bio:'נותנת שירות ברמת גן ואזוריה.', reviewsList:RL },
   { id:'41', name:'אלון גרין',   initials:'אג', city:'רמת גן',       region:'center', workAreas:['center'], types:['שטיפת רכב','ניקיון משרדים'],price:80,  rating:4.7, reviews:61,  available:false, payment:['paybox','cash'],        lat:32.078, lng:34.820, bio:'מקצועי ומהיר.', reviewsList:RL },
-  { id:'42', name:'נטע שפר',     initials:'נש', city:'גבעתיים',      region:'center', workAreas:['center'], types:['ניקיון אחרי אירוע','ניקוי לפסח'],price:95, rating:4.9, reviews:88, available:true, payment:['paybox','bit','cash'],  lat:32.071, lng:34.813, bio:'מנקה גבעתיים ורמת גן.', reviewsList:RL },
+  { id:'42', name:'נטע שפר',     initials:'נש', city:'גבעתיים',      region:'center', workAreas:['center'], types:['ניקיון אחרי אירוע','ניקוי לפסח'],price:95, rating:4.9, reviews:88, available:true, payment:['paybox','bit','cash'],  lat:32.071, lng:34.813, bio:'נותנת שירות בגבעתיים ורמת גן.', reviewsList:RL },
   // ── חולון / בת ים (מרכז) ──
-  { id:'43', name:'אוסמה עבאס',  initials:'אע', city:'חולון',        region:'center', workAreas:['center'], types:['לאחר שיפוץ','ניקוי לפסח'], price:82,  rating:4.7, reviews:72,  available:true,  payment:['cash','bit'],         lat:32.011, lng:34.779, bio:'מנקה חולון ובת ים.', reviewsList:RL },
-  { id:'44', name:'רינת אזולאי', initials:'רא', city:'בת ים',        region:'center', workAreas:['center'], types:['חלונות','ניקיון אחרי אירוע'],price:78,  rating:4.6, reviews:55,  available:true,  payment:['cash'],               lat:32.023, lng:34.752, bio:'מנקה בת ים וחולון.', reviewsList:RL },
+  { id:'43', name:'אוסמה עבאס',  initials:'אע', city:'חולון',        region:'center', workAreas:['center'], types:['לאחר שיפוץ','ניקוי לפסח'], price:82,  rating:4.7, reviews:72,  available:true,  payment:['cash','bit'],         lat:32.011, lng:34.779, bio:'נותן שירות בחולון ובת ים.', reviewsList:RL },
+  { id:'44', name:'רינת אזולאי', initials:'רא', city:'בת ים',        region:'center', workAreas:['center'], types:['חלונות','ניקיון אחרי אירוע'],price:78,  rating:4.6, reviews:55,  available:true,  payment:['cash'],               lat:32.023, lng:34.752, bio:'נותנת שירות בבת ים וחולון.', reviewsList:RL },
   { id:'45', name:'יצחק פרץ',    initials:'יפ', city:'חולון',        region:'center', workAreas:['center'], types:['שטיפת רכב','חלונות'],       price:70,  rating:4.5, reviews:39,  available:false, payment:['cash','bit'],         lat:32.018, lng:34.772, bio:'שטיפת רכב מקצועית.', reviewsList:RL },
   // ── רחובות / נס ציונה (מרכז) ──
-  { id:'46', name:'מרינה פדיה',  initials:'מפ', city:'רחובות',       region:'center', workAreas:['center'], types:['ניקוי לפסח','לאחר שיפוץ'], price:85,  rating:4.8, reviews:96,  available:true,  payment:['paybox','bit','cash'],  lat:31.895, lng:34.811, bio:'מנקה מקצועית ברחובות.', reviewsList:RL },
-  { id:'47', name:'שמואל כהן',   initials:'שכ', city:'נס ציונה',     region:'center', workAreas:['center'], types:['שטיפת רכב','ניקיון משרדים'],price:72,  rating:4.6, reviews:44,  available:true,  payment:['cash'],               lat:31.929, lng:34.798, bio:'מנקה נס ציונה.', reviewsList:RL },
+  { id:'46', name:'מרינה פדיה',  initials:'מפ', city:'רחובות',       region:'center', workAreas:['center'], types:['ניקוי לפסח','לאחר שיפוץ'], price:85,  rating:4.8, reviews:96,  available:true,  payment:['paybox','bit','cash'],  lat:31.895, lng:34.811, bio:'נותנת שירות מקצועית ברחובות.', reviewsList:RL },
+  { id:'47', name:'שמואל כהן',   initials:'שכ', city:'נס ציונה',     region:'center', workAreas:['center'], types:['שטיפת רכב','ניקיון משרדים'],price:72,  rating:4.6, reviews:44,  available:true,  payment:['cash'],               lat:31.929, lng:34.798, bio:'נותן שירות בנס ציונה.', reviewsList:RL },
   { id:'48', name:'לאה גרוס',    initials:'לג', city:'רחובות',       region:'center', workAreas:['center'], types:['ניקיון אחרי אירוע','חלונות'],price:92,  rating:4.9, reviews:67,  available:true,  payment:['paybox','cash'],        lat:31.890, lng:34.817, bio:'מומחית לאירועים.', reviewsList:RL },
   // ── מודיעין (מרכז) ──
-  { id:'49', name:'תומר שני',    initials:'תש', city:'מודיעין',      region:'center', workAreas:['center'], types:['ניקוי לפסח','חלונות'],      price:90,  rating:4.8, reviews:81,  available:true,  payment:['paybox','bit','cash'],  lat:31.893, lng:35.010, bio:'מנקה מודיעין.', reviewsList:RL },
+  { id:'49', name:'תומר שני',    initials:'תש', city:'מודיעין',      region:'center', workAreas:['center'], types:['ניקוי לפסח','חלונות'],      price:90,  rating:4.8, reviews:81,  available:true,  payment:['paybox','bit','cash'],  lat:31.893, lng:35.010, bio:'נותן שירות במודיעין.', reviewsList:RL },
   { id:'50', name:'כלנית מור',   initials:'כמ', city:'מודיעין',      region:'center', workAreas:['center'], types:['לאחר שיפוץ','שטיפת רכב'],  price:85,  rating:4.7, reviews:53,  available:false, payment:['cash','bit'],         lat:31.898, lng:35.004, bio:'מתמחה בשיפוצים.', reviewsList:RL },
   // ── רמלה / לוד (מרכז) ──
-  { id:'51', name:'חאלד יוסף',   initials:'חי', city:'רמלה',         region:'center', workAreas:['center'], types:['ניקוי לפסח','ניקיון אחרי אירוע'],price:70, rating:4.6, reviews:48, available:true, payment:['cash'],              lat:31.929, lng:34.873, bio:'מנקה רמלה ולוד.', reviewsList:RL },
-  { id:'52', name:'שושנה מזרחי', initials:'שמ', city:'לוד',          region:'center', workAreas:['center'], types:['חלונות','ניקוי לפסח'],      price:65,  rating:4.5, reviews:37,  available:true,  payment:['cash','bit'],         lat:31.951, lng:34.898, bio:'מנקה לוד ואזוריה.', reviewsList:RL },
+  { id:'51', name:'חאלד יוסף',   initials:'חי', city:'רמלה',         region:'center', workAreas:['center'], types:['ניקוי לפסח','ניקיון אחרי אירוע'],price:70, rating:4.6, reviews:48, available:true, payment:['cash'],              lat:31.929, lng:34.873, bio:'נותן שירות ברמלה ולוד.', reviewsList:RL },
+  { id:'52', name:'שושנה מזרחי', initials:'שמ', city:'לוד',          region:'center', workAreas:['center'], types:['חלונות','ניקוי לפסח'],      price:65,  rating:4.5, reviews:37,  available:true,  payment:['cash','bit'],         lat:31.951, lng:34.898, bio:'נותנת שירות בלוד ואזוריה.', reviewsList:RL },
   // ── רעננה / הוד השרון (מרכז) ──
-  { id:'53', name:'אורית שמיר',  initials:'אש', city:'רעננה',        region:'center', workAreas:['center'], types:['ניקוי לפסח','חלונות'],      price:95,  rating:4.9, reviews:118, available:true,  payment:['paybox','bit','cash'],  lat:32.184, lng:34.870, bio:'מנקה רעננה והסביבה.', reviewsList:RL },
+  { id:'53', name:'אורית שמיר',  initials:'אש', city:'רעננה',        region:'center', workAreas:['center'], types:['ניקוי לפסח','חלונות'],      price:95,  rating:4.9, reviews:118, available:true,  payment:['paybox','bit','cash'],  lat:32.184, lng:34.870, bio:'נותנת שירות ברעננה והסביבה.', reviewsList:RL },
   { id:'54', name:'גיל אלון',    initials:'גא', city:'הוד השרון',    region:'center', workAreas:['center'], types:['שטיפת רכב','ניקיון משרדים'],price:80,  rating:4.7, reviews:62,  available:true,  payment:['paybox','cash'],        lat:32.151, lng:34.888, bio:'מקצועי ומהיר.', reviewsList:RL },
   { id:'55', name:'מיכל עמית',   initials:'מע', city:'הוד השרון',    region:'center', workAreas:['center'], types:['ניקיון אחרי אירוע','ניקוי לפסח'],price:100, rating:4.9, reviews:74, available:false, payment:['paybox','bit','cash'],  lat:32.148, lng:34.892, bio:'מומחית לאירועים ופסח.', reviewsList:RL },
   // ── בני ברק (מרכז) ──
-  { id:'56', name:'אסתר פרידמן', initials:'אפ', city:'בני ברק',      region:'center', workAreas:['center'], types:['ניקוי לפסח','חלונות'],      price:82,  rating:4.8, reviews:107, available:true,  payment:['cash'],               lat:32.084, lng:34.833, bio:'מנקה בני ברק.', reviewsList:RL },
+  { id:'56', name:'אסתר פרידמן', initials:'אפ', city:'בני ברק',      region:'center', workAreas:['center'], types:['ניקוי לפסח','חלונות'],      price:82,  rating:4.8, reviews:107, available:true,  payment:['cash'],               lat:32.084, lng:34.833, bio:'נותנת שירות בבני ברק.', reviewsList:RL },
   { id:'57', name:'משה שטרן',    initials:'מש', city:'בני ברק',      region:'center', workAreas:['center'], types:['לאחר שיפוץ','מחסן ועליית גג'],price:75, rating:4.6, reviews:43, available:true, payment:['cash'],              lat:32.082, lng:34.837, bio:'מתמחה בשיפוצים ומחסנים.', reviewsList:RL },
   // ── פתח תקוה (מרכז) ──
-  { id:'58', name:'דינה לוי',    initials:'דל', city:'פתח תקוה',     region:'center', workAreas:['center'], types:['ניקוי לפסח','ניקיון אחרי אירוע'],price:87, rating:4.8, reviews:91, available:true, payment:['paybox','bit','cash'],  lat:32.094, lng:34.888, bio:'מנקה פתח תקוה.', reviewsList:RL },
+  { id:'58', name:'דינה לוי',    initials:'דל', city:'פתח תקוה',     region:'center', workAreas:['center'], types:['ניקוי לפסח','ניקיון אחרי אירוע'],price:87, rating:4.8, reviews:91, available:true, payment:['paybox','bit','cash'],  lat:32.094, lng:34.888, bio:'נותנת שירות בפתח תקוה.', reviewsList:RL },
   { id:'59', name:'עמנואל דסה',  initials:'עד', city:'פתח תקוה',     region:'center', workAreas:['center'], types:['שטיפת רכב','חלונות'],       price:70,  rating:4.5, reviews:35,  available:false, payment:['cash','bit'],         lat:32.089, lng:34.882, bio:'שטיפת רכב מהירה.', reviewsList:RL },
   // ── קריית אונו / אור יהודה (מרכז) ──
-  { id:'60', name:'יעל ברק',     initials:'יב', city:'קריית אונו',   region:'center', workAreas:['center'], types:['ניקוי לפסח','חלונות'],      price:88,  rating:4.8, reviews:66,  available:true,  payment:['paybox','cash'],        lat:32.058, lng:34.856, bio:'מנקה קריית אונו.', reviewsList:RL },
-  { id:'61', name:'זיו שלום',    initials:'זש', city:'אור יהודה',    region:'center', workAreas:['center'], types:['ניקיון משרדים','לאחר שיפוץ'],price:78,  rating:4.7, reviews:49,  available:true,  payment:['cash','bit'],         lat:32.028, lng:34.857, bio:'מנקה אור יהודה.', reviewsList:RL },
+  { id:'60', name:'יעל ברק',     initials:'יב', city:'קריית אונו',   region:'center', workAreas:['center'], types:['ניקוי לפסח','חלונות'],      price:88,  rating:4.8, reviews:66,  available:true,  payment:['paybox','cash'],        lat:32.058, lng:34.856, bio:'נותנת שירות בקריית אונו.', reviewsList:RL },
+  { id:'61', name:'זיו שלום',    initials:'זש', city:'אור יהודה',    region:'center', workAreas:['center'], types:['ניקיון משרדים','לאחר שיפוץ'],price:78,  rating:4.7, reviews:49,  available:true,  payment:['cash','bit'],         lat:32.028, lng:34.857, bio:'נותן שירות באור יהודה.', reviewsList:RL },
   // ── ירושלים נוספים ──
-  { id:'62', name:'רחל אברהם',   initials:'רא', city:'ירושלים',      region:'center', workAreas:['center'], types:['ניקוי לפסח','ניקיון אחרי אירוע'],price:85, rating:4.9, reviews:122, available:true, payment:['cash','bit'],         lat:31.775, lng:35.230, bio:'מנקה ירושלים.', reviewsList:RL },
+  { id:'62', name:'רחל אברהם',   initials:'רא', city:'ירושלים',      region:'center', workAreas:['center'], types:['ניקוי לפסח','ניקיון אחרי אירוע'],price:85, rating:4.9, reviews:122, available:true, payment:['cash','bit'],         lat:31.775, lng:35.230, bio:'נותנת שירות בירושלים.', reviewsList:RL },
   { id:'63', name:'ג\'ראח נסר',  initials:'גנ', city:'ירושלים',      region:'center', workAreas:['center'], types:['שטיפת רכב','חלונות'],       price:72,  rating:4.6, reviews:58,  available:true,  payment:['cash'],               lat:31.787, lng:35.220, bio:'שטיפת רכב מקצועית.', reviewsList:RL },
   { id:'64', name:'שרה גולד',    initials:'שג', city:'ירושלים',      region:'center', workAreas:['center'], types:['מחסן ועליית גג','לאחר שיפוץ'],price:80, rating:4.7, reviews:41,  available:false, payment:['cash','bit'],         lat:31.793, lng:35.213, bio:'מתמחה במחסנים ושיפוצים.', reviewsList:RL },
   // ── נתניה נוספים ──
-  { id:'65', name:'איריס לוי',   initials:'אל', city:'נתניה',        region:'center', workAreas:['center'], types:['ניקוי לפסח','ניקיון אחרי אירוע'],price:82, rating:4.8, reviews:77, available:true, payment:['paybox','bit','cash'],  lat:32.321, lng:34.854, bio:'מנקה נתניה.', reviewsList:RL },
+  { id:'65', name:'איריס לוי',   initials:'אל', city:'נתניה',        region:'center', workAreas:['center'], types:['ניקוי לפסח','ניקיון אחרי אירוע'],price:82, rating:4.8, reviews:77, available:true, payment:['paybox','bit','cash'],  lat:32.321, lng:34.854, bio:'נותנת שירות בנתניה.', reviewsList:RL },
   { id:'66', name:'בוריס קוגן',  initials:'בק', city:'נתניה',        region:'center', workAreas:['center'], types:['שטיפת רכב','חלונות'],       price:68,  rating:4.5, reviews:34,  available:true,  payment:['cash'],               lat:32.335, lng:34.861, bio:'שטיפת רכב נתניה.', reviewsList:RL },
   // ── אשדוד נוספים ──
-  { id:'67', name:'לימור אוחיון',initials:'לא', city:'אשדוד',        region:'south',  workAreas:['south'],  types:['ניקוי לפסח','חלונות'],      price:74,  rating:4.8, reviews:88,  available:true,  payment:['cash','bit'],         lat:31.800, lng:34.650, bio:'מנקה אשדוד.', reviewsList:RL },
+  { id:'67', name:'לימור אוחיון',initials:'לא', city:'אשדוד',        region:'south',  workAreas:['south'],  types:['ניקוי לפסח','חלונות'],      price:74,  rating:4.8, reviews:88,  available:true,  payment:['cash','bit'],         lat:31.800, lng:34.650, bio:'נותנת שירות באשדוד.', reviewsList:RL },
   { id:'68', name:'מנשה חדד',    initials:'מח', city:'אשדוד',        region:'south',  workAreas:['south'],  types:['ניקיון אחרי אירוע','לאחר שיפוץ'],price:90, rating:4.7, reviews:52, available:false, payment:['paybox','cash'],       lat:31.807, lng:34.643, bio:'מתמחה באירועים ושיפוצים.', reviewsList:RL },
   // ── נתיבות / שדרות (דרום) ──
-  { id:'69', name:'חיה אסולין',  initials:'חא', city:'נתיבות',       region:'south',  workAreas:['south'],  types:['ניקוי לפסח','חלונות'],      price:60,  rating:4.6, reviews:31,  available:true,  payment:['cash'],               lat:31.421, lng:34.589, bio:'מנקה נתיבות.', reviewsList:RL },
-  { id:'70', name:'אריק בוסו',   initials:'אב', city:'שדרות',        region:'south',  workAreas:['south'],  types:['שטיפת רכב','ניקוי לפסח'],  price:65,  rating:4.5, reviews:28,  available:true,  payment:['cash','bit'],         lat:31.524, lng:34.596, bio:'מנקה שדרות.', reviewsList:RL },
+  { id:'69', name:'חיה אסולין',  initials:'חא', city:'נתיבות',       region:'south',  workAreas:['south'],  types:['ניקוי לפסח','חלונות'],      price:60,  rating:4.6, reviews:31,  available:true,  payment:['cash'],               lat:31.421, lng:34.589, bio:'נותנת שירות בנתיבות.', reviewsList:RL },
+  { id:'70', name:'אריק בוסו',   initials:'אב', city:'שדרות',        region:'south',  workAreas:['south'],  types:['שטיפת רכב','ניקוי לפסח'],  price:65,  rating:4.5, reviews:28,  available:true,  payment:['cash','bit'],         lat:31.524, lng:34.596, bio:'נותן שירות בשדרות.', reviewsList:RL },
   // ── קריית גת / קריית מלאכי (דרום) ──
-  { id:'71', name:'שני ממן',     initials:'שמ', city:'קריית גת',     region:'south',  workAreas:['south'],  types:['ניקוי לפסח','ניקיון אחרי אירוע'],price:72, rating:4.7, reviews:45, available:true, payment:['cash','bit'],         lat:31.608, lng:34.770, bio:'מנקה קריית גת.', reviewsList:RL },
-  { id:'72', name:'אורן פלד',    initials:'אפ', city:'קריית מלאכי',  region:'south',  workAreas:['south'],  types:['לאחר שיפוץ','חלונות'],      price:65,  rating:4.5, reviews:23,  available:true,  payment:['cash'],               lat:31.732, lng:34.743, bio:'מנקה קריית מלאכי.', reviewsList:RL },
+  { id:'71', name:'שני ממן',     initials:'שמ', city:'קריית גת',     region:'south',  workAreas:['south'],  types:['ניקוי לפסח','ניקיון אחרי אירוע'],price:72, rating:4.7, reviews:45, available:true, payment:['cash','bit'],         lat:31.608, lng:34.770, bio:'נותנת שירות בקריית גת.', reviewsList:RL },
+  { id:'72', name:'אורן פלד',    initials:'אפ', city:'קריית מלאכי',  region:'south',  workAreas:['south'],  types:['לאחר שיפוץ','חלונות'],      price:65,  rating:4.5, reviews:23,  available:true,  payment:['cash'],               lat:31.732, lng:34.743, bio:'נותן שירות בקריית מלאכי.', reviewsList:RL },
   // ── דימונה (דרום) ──
-  { id:'73', name:'שלמה גפני',   initials:'שג', city:'דימונה',       region:'south',  workAreas:['south'],  types:['ניקוי לפסח','שטיפת רכב'],  price:58,  rating:4.5, reviews:27,  available:true,  payment:['cash'],               lat:31.069, lng:35.033, bio:'מנקה דימונה והנגב.', reviewsList:RL },
+  { id:'73', name:'שלמה גפני',   initials:'שג', city:'דימונה',       region:'south',  workAreas:['south'],  types:['ניקוי לפסח','שטיפת רכב'],  price:58,  rating:4.5, reviews:27,  available:true,  payment:['cash'],               lat:31.069, lng:35.033, bio:'נותן שירות בדימונה והנגב.', reviewsList:RL },
   // ── באר שבע נוספים ──
-  { id:'74', name:'ורד אזולאי',  initials:'וא', city:'באר שבע',      region:'south',  workAreas:['south'],  types:['ניקוי לפסח','ניקיון אחרי אירוע'],price:75, rating:4.8, reviews:67, available:true, payment:['paybox','bit','cash'],  lat:31.248, lng:34.795, bio:'מנקה ב״ש.', reviewsList:RL },
+  { id:'74', name:'ורד אזולאי',  initials:'וא', city:'באר שבע',      region:'south',  workAreas:['south'],  types:['ניקוי לפסח','ניקיון אחרי אירוע'],price:75, rating:4.8, reviews:67, available:true, payment:['paybox','bit','cash'],  lat:31.248, lng:34.795, bio:'נותנת שירות בב״ש.', reviewsList:RL },
   { id:'75', name:'גדי שמש',     initials:'גש', city:'באר שבע',      region:'south',  workAreas:['south'],  types:['מחסן ועליית גג','לאחר שיפוץ'],price:70, rating:4.6, reviews:38, available:false, payment:['cash'],              lat:31.260, lng:34.788, bio:'מתמחה במחסנים ושיפוצים.', reviewsList:RL },
   // ── תל אביב נוספים ──
-  { id:'76', name:'יונתן לוי',   initials:'יל', city:'תל אביב',      region:'center', workAreas:['center'], types:['ניקוי לפסח','ניקיון משרדים'],price:105, rating:5.0, reviews:189, available:true, payment:['paybox','bit','cash'],  lat:32.068, lng:34.780, bio:'מנקה בכיר ת״א.', reviewsList:RL },
+  { id:'76', name:'יונתן לוי',   initials:'יל', city:'תל אביב',      region:'center', workAreas:['center'], types:['ניקוי לפסח','ניקיון משרדים'],price:105, rating:5.0, reviews:189, available:true, payment:['paybox','bit','cash'],  lat:32.068, lng:34.780, bio:'נותן שירות בכיר בת״א.', reviewsList:RL },
   { id:'77', name:'דנית שרון',   initials:'דש', city:'תל אביב',      region:'center', workAreas:['center'], types:['ניקיון אחרי אירוע','חלונות'],price:98,  rating:4.9, reviews:143, available:true,  payment:['paybox','bit','cash'],  lat:32.077, lng:34.767, bio:'מומחית אירועים ת״א.', reviewsList:RL },
-  { id:'78', name:'עמיר בן דוד', initials:'עב', city:'תל אביב',      region:'center', workAreas:['center'], types:['שטיפת רכב','מחסן ועליית גג'],price:88, rating:4.7, reviews:76, available:false, payment:['paybox','cash'],        lat:32.090, lng:34.793, bio:'מנקה ת״א.', reviewsList:RL },
+  { id:'78', name:'עמיר בן דוד', initials:'עב', city:'תל אביב',      region:'center', workAreas:['center'], types:['שטיפת רכב','מחסן ועליית גג'],price:88, rating:4.7, reviews:76, available:false, payment:['paybox','cash'],        lat:32.090, lng:34.793, bio:'נותן שירות בת״א.', reviewsList:RL },
   // ── חיפה נוספים ──
-  { id:'79', name:'טל כהן',      initials:'טכ', city:'חיפה',         region:'north',  workAreas:['north'],  types:['ניקוי לפסח','ניקיון אחרי אירוע'],price:82, rating:4.8, reviews:99, available:true, payment:['paybox','bit','cash'],  lat:32.790, lng:34.994, bio:'מנקה חיפה.', reviewsList:RL },
-  { id:'80', name:'נדיה פטרוב',  initials:'נפ', city:'חיפה',         region:'north',  workAreas:['north'],  types:['מחסן ועליית גג','לאחר שיפוץ'],price:75, rating:4.6, reviews:48, available:true, payment:['cash'],              lat:32.797, lng:34.982, bio:'מנקה חיפה והכרמל.', reviewsList:RL },
+  { id:'79', name:'טל כהן',      initials:'טכ', city:'חיפה',         region:'north',  workAreas:['north'],  types:['ניקוי לפסח','ניקיון אחרי אירוע'],price:82, rating:4.8, reviews:99, available:true, payment:['paybox','bit','cash'],  lat:32.790, lng:34.994, bio:'נותן שירות בחיפה.', reviewsList:RL },
+  { id:'80', name:'נדיה פטרוב',  initials:'נפ', city:'חיפה',         region:'north',  workAreas:['north'],  types:['מחסן ועליית גג','לאחר שיפוץ'],price:75, rating:4.6, reviews:48, available:true, payment:['cash'],              lat:32.797, lng:34.982, bio:'נותנת שירות בחיפה והכרמל.', reviewsList:RL },
   { id:'81', name:'רמי כהן',     initials:'רכ', city:'חיפה',         region:'north',  workAreas:['north'],  types:['שטיפת רכב','חלונות'],       price:68,  rating:4.5, reviews:34,  available:false, payment:['cash','bit'],         lat:32.801, lng:34.987, bio:'שטיפת רכב חיפה.', reviewsList:RL },
   // ── כפר סבא / רמלה נוספים ──
-  { id:'82', name:'אנה ברון',    initials:'אב', city:'כפר סבא',      region:'center', workAreas:['center'], types:['ניקוי לפסח','ניקיון אחרי אירוע'],price:90, rating:4.9, reviews:83, available:true, payment:['paybox','bit','cash'],  lat:32.179, lng:34.911, bio:'מנקה כפר סבא.', reviewsList:RL },
-  { id:'83', name:'מוחמד סעיד',  initials:'מס', city:'רמלה',         region:'center', workAreas:['center'], types:['לאחר שיפוץ','שטיפת רכב'],  price:72,  rating:4.6, reviews:41,  available:true,  payment:['cash','bit'],         lat:31.925, lng:34.869, bio:'מנקה רמלה.', reviewsList:RL },
+  { id:'82', name:'אנה ברון',    initials:'אב', city:'כפר סבא',      region:'center', workAreas:['center'], types:['ניקוי לפסח','ניקיון אחרי אירוע'],price:90, rating:4.9, reviews:83, available:true, payment:['paybox','bit','cash'],  lat:32.179, lng:34.911, bio:'נותנת שירות בכפר סבא.', reviewsList:RL },
+  { id:'83', name:'מוחמד סעיד',  initials:'מס', city:'רמלה',         region:'center', workAreas:['center'], types:['לאחר שיפוץ','שטיפת רכב'],  price:72,  rating:4.6, reviews:41,  available:true,  payment:['cash','bit'],         lat:31.925, lng:34.869, bio:'נותן שירות ברמלה.', reviewsList:RL },
   // ── הרצליה נוספים ──
-  { id:'84', name:'גל ויס',      initials:'גו', city:'הרצליה',       region:'center', workAreas:['center'], types:['ניקיון משרדים','ניקוי לפסח'],price:100, rating:4.9, reviews:112, available:true, payment:['paybox','bit','cash'],  lat:32.162, lng:34.848, bio:'מנקה הרצליה.', reviewsList:RL },
+  { id:'84', name:'גל ויס',      initials:'גו', city:'הרצליה',       region:'center', workAreas:['center'], types:['ניקיון משרדים','ניקוי לפסח'],price:100, rating:4.9, reviews:112, available:true, payment:['paybox','bit','cash'],  lat:32.162, lng:34.848, bio:'נותן שירות בהרצליה.', reviewsList:RL },
   { id:'85', name:'ציפי חן',     initials:'צח', city:'הרצליה',       region:'center', workAreas:['center'], types:['ניקיון אחרי אירוע','חלונות'],price:95,  rating:4.8, reviews:68,  available:false, payment:['paybox','cash'],        lat:32.168, lng:34.841, bio:'מומחית אירועים הרצליה.', reviewsList:RL },
   // ── ראשון לציון נוספים ──
-  { id:'86', name:'ניר שלום',    initials:'נש', city:'ראשון לציון',  region:'center', workAreas:['center'], types:['ניקוי לפסח','לאחר שיפוץ'], price:88,  rating:4.8, reviews:95,  available:true,  payment:['paybox','bit','cash'],  lat:31.967, lng:34.801, bio:'מנקה ראשל״צ.', reviewsList:RL },
-  { id:'87', name:'פנינה אוחיון',initials:'פא', city:'ראשון לציון',  region:'center', workAreas:['center'], types:['חלונות','ניקיון אחרי אירוע'],price:82,  rating:4.7, reviews:59,  available:true,  payment:['cash','bit'],         lat:31.975, lng:34.794, bio:'מנקה ראשל״צ.', reviewsList:RL },
+  { id:'86', name:'ניר שלום',    initials:'נש', city:'ראשון לציון',  region:'center', workAreas:['center'], types:['ניקוי לפסח','לאחר שיפוץ'], price:88,  rating:4.8, reviews:95,  available:true,  payment:['paybox','bit','cash'],  lat:31.967, lng:34.801, bio:'נותן שירות בראשל״צ.', reviewsList:RL },
+  { id:'87', name:'פנינה אוחיון',initials:'פא', city:'ראשון לציון',  region:'center', workAreas:['center'], types:['חלונות','ניקיון אחרי אירוע'],price:82,  rating:4.7, reviews:59,  available:true,  payment:['cash','bit'],         lat:31.975, lng:34.794, bio:'נותנת שירות בראשל״צ.', reviewsList:RL },
   { id:'88', name:'ג\'ורג סמיר', initials:'גס', city:'ראשון לציון',  region:'center', workAreas:['center'], types:['שטיפת רכב','מחסן ועליית גג'],price:75, rating:4.6, reviews:44, available:false, payment:['cash'],               lat:31.970, lng:34.808, bio:'שטיפת רכב ראשל״צ.', reviewsList:RL },
   // ── אשקלון נוספים ──
-  { id:'89', name:'יפית דוד',    initials:'יד', city:'אשקלון',       region:'south',  workAreas:['south'],  types:['ניקוי לפסח','ניקיון אחרי אירוע'],price:76, rating:4.7, reviews:62, available:true, payment:['cash','bit'],         lat:31.672, lng:34.565, bio:'מנקה אשקלון.', reviewsList:RL },
-  { id:'90', name:'אמנון ביטון', initials:'אב', city:'אשקלון',       region:'south',  workAreas:['south'],  types:['לאחר שיפוץ','חלונות'],      price:68,  rating:4.5, reviews:31,  available:true,  payment:['cash'],               lat:31.664, lng:34.575, bio:'מנקה אשקלון.', reviewsList:RL },
+  { id:'89', name:'יפית דוד',    initials:'יד', city:'אשקלון',       region:'south',  workAreas:['south'],  types:['ניקוי לפסח','ניקיון אחרי אירוע'],price:76, rating:4.7, reviews:62, available:true, payment:['cash','bit'],         lat:31.672, lng:34.565, bio:'נותנת שירות באשקלון.', reviewsList:RL },
+  { id:'90', name:'אמנון ביטון', initials:'אב', city:'אשקלון',       region:'south',  workAreas:['south'],  types:['לאחר שיפוץ','חלונות'],      price:68,  rating:4.5, reviews:31,  available:true,  payment:['cash'],               lat:31.664, lng:34.575, bio:'נותן שירות באשקלון.', reviewsList:RL },
   // ── אילת נוספים ──
-  { id:'91', name:'חן מזרחי',    initials:'חמ', city:'אילת',         region:'south',  workAreas:['south'],  types:['ניקיון אחרי אירוע','חלונות'],price:95,  rating:4.9, reviews:53,  available:true,  payment:['paybox','bit','cash'],  lat:29.560, lng:34.946, bio:'מנקה אילת.', reviewsList:RL },
-  { id:'92', name:'עינב לוי',    initials:'על', city:'אילת',         region:'south',  workAreas:['south'],  types:['ניקוי לפסח','מחסן ועליית גג'],price:80, rating:4.7, reviews:37, available:false, payment:['cash'],              lat:29.555, lng:34.955, bio:'מנקה אילת.', reviewsList:RL },
+  { id:'91', name:'חן מזרחי',    initials:'חמ', city:'אילת',         region:'south',  workAreas:['south'],  types:['ניקיון אחרי אירוע','חלונות'],price:95,  rating:4.9, reviews:53,  available:true,  payment:['paybox','bit','cash'],  lat:29.560, lng:34.946, bio:'נותן שירות באילת.', reviewsList:RL },
+  { id:'92', name:'עינב לוי',    initials:'על', city:'אילת',         region:'south',  workAreas:['south'],  types:['ניקוי לפסח','מחסן ועליית גג'],price:80, rating:4.7, reviews:37, available:false, payment:['cash'],              lat:29.555, lng:34.955, bio:'נותנת שירות באילת.', reviewsList:RL },
   // ── נצרת / טבריה נוספים ──
-  { id:'93', name:'אימן ח\'טיב', initials:'אח', city:'נצרת',         region:'north',  workAreas:['north'],  types:['ניקוי לפסח','ניקיון אחרי אירוע'],price:68, rating:4.7, reviews:54, available:true, payment:['cash','bit'],         lat:32.701, lng:35.297, bio:'מנקה נצרת.', reviewsList:RL },
-  { id:'94', name:'שולה אבו',    initials:'שא', city:'טבריה',        region:'north',  workAreas:['north'],  types:['חלונות','שטיפת רכב'],       price:62,  rating:4.6, reviews:39,  available:true,  payment:['cash'],               lat:32.789, lng:35.524, bio:'מנקה טבריה.', reviewsList:RL },
-  { id:'95', name:'קייס נסר',    initials:'קנ', city:'טבריה',        region:'north',  workAreas:['north'],  types:['לאחר שיפוץ','ניקוי לפסח'], price:72,  rating:4.7, reviews:46,  available:false, payment:['cash','bit'],         lat:32.793, lng:35.528, bio:'מנקה טבריה.', reviewsList:RL },
+  { id:'93', name:'אימן ח\'טיב', initials:'אח', city:'נצרת',         region:'north',  workAreas:['north'],  types:['ניקוי לפסח','ניקיון אחרי אירוע'],price:68, rating:4.7, reviews:54, available:true, payment:['cash','bit'],         lat:32.701, lng:35.297, bio:'נותנת שירות בנצרת.', reviewsList:RL },
+  { id:'94', name:'שולה אבו',    initials:'שא', city:'טבריה',        region:'north',  workAreas:['north'],  types:['חלונות','שטיפת רכב'],       price:62,  rating:4.6, reviews:39,  available:true,  payment:['cash'],               lat:32.789, lng:35.524, bio:'נותנת שירות בטבריה.', reviewsList:RL },
+  { id:'95', name:'קייס נסר',    initials:'קנ', city:'טבריה',        region:'north',  workAreas:['north'],  types:['לאחר שיפוץ','ניקוי לפסח'], price:72,  rating:4.7, reviews:46,  available:false, payment:['cash','bit'],         lat:32.793, lng:35.528, bio:'נותן שירות בטבריה.', reviewsList:RL },
   // ── נוספים מרכז ──
-  { id:'96', name:'איילת גל',    initials:'אג', city:'ראש העין',     region:'center', workAreas:['center'], types:['ניקוי לפסח','ניקיון משרדים'],price:80,  rating:4.7, reviews:57,  available:true,  payment:['cash','bit'],         lat:32.095, lng:34.957, bio:'מנקה ראש העין.', reviewsList:RL },
-  { id:'97', name:'עמית פורת',   initials:'עפ', city:'יהוד',         region:'center', workAreas:['center'], types:['ניקיון אחרי אירוע','חלונות'],price:85,  rating:4.8, reviews:63,  available:true,  payment:['paybox','cash'],        lat:32.032, lng:34.888, bio:'מנקה יהוד ואזוריה.', reviewsList:RL },
-  { id:'98', name:'נעה שפירא',   initials:'נש', city:'מזכרת בתיה',   region:'center', workAreas:['center'], types:['ניקוי לפסח','לאחר שיפוץ'], price:74,  rating:4.6, reviews:33,  available:true,  payment:['cash'],               lat:31.856, lng:34.847, bio:'מנקה מזכרת בתיה.', reviewsList:RL },
-  { id:'99', name:'איתי כהן',    initials:'אכ', city:'גדרה',         region:'center', workAreas:['center','south'], types:['שטיפת רכב','ניקיון אחרי אירוע'],price:76, rating:4.7, reviews:48, available:true, payment:['cash','bit'],         lat:31.812, lng:34.778, bio:'מנקה גדרה ואזוריה.', reviewsList:RL },
+  { id:'96', name:'איילת גל',    initials:'אג', city:'ראש העין',     region:'center', workAreas:['center'], types:['ניקוי לפסח','ניקיון משרדים'],price:80,  rating:4.7, reviews:57,  available:true,  payment:['cash','bit'],         lat:32.095, lng:34.957, bio:'נותנת שירות בראש העין.', reviewsList:RL },
+  { id:'97', name:'עמית פורת',   initials:'עפ', city:'יהוד',         region:'center', workAreas:['center'], types:['ניקיון אחרי אירוע','חלונות'],price:85,  rating:4.8, reviews:63,  available:true,  payment:['paybox','cash'],        lat:32.032, lng:34.888, bio:'נותן שירות ביהוד ואזוריה.', reviewsList:RL },
+  { id:'98', name:'נעה שפירא',   initials:'נש', city:'מזכרת בתיה',   region:'center', workAreas:['center'], types:['ניקוי לפסח','לאחר שיפוץ'], price:74,  rating:4.6, reviews:33,  available:true,  payment:['cash'],               lat:31.856, lng:34.847, bio:'נותנת שירות במזכרת בתיה.', reviewsList:RL },
+  { id:'99', name:'איתי כהן',    initials:'אכ', city:'גדרה',         region:'center', workAreas:['center','south'], types:['שטיפת רכב','ניקיון אחרי אירוע'],price:76, rating:4.7, reviews:48, available:true, payment:['cash','bit'],         lat:31.812, lng:34.778, bio:'נותן שירות בגדרה ואזוריה.', reviewsList:RL },
 ];
 
 /**
@@ -385,7 +385,7 @@ const NEARBY_KM = 30;
 // ──────────────────────────────────────────────────────────────────────────────
 const BOT_FEMALE_NAMES = ['יעל כהן','דנה לוי','מירי אבני','רונית שגב','שירה דהן','נועה ברק','תמר גל','מיכל אזולאי','אורית פרץ','גלית מזרחי','ליאת שמש','רחל גולן','שרה כץ','לאה אדרי','חנה ביטון','אסתר נחום','רותי אשר','סיגל רון','ענת בר','מאיה לב','קרן שגיא','הילה נווה','אורלי מימון','שני דרור'];
 const BOT_MALE_NAMES = ['אבי דוד','יוסי חזן','משה עמר','דוד שלום','עמית רז','איל נוי','רן הראל','גיא ספיר','ניר אלון','עומר טל','דור שביט','אלון מור','יובל סער','ליאור דגן','אסף יונה','עידן כרמי','נדב גבע','ארז שדה','חיים פרי','יעקב נסים','אהרון רחמים','מאיר אביב','שלמה בן דוד','אורי הדר','בני זיו','גד אוחיון','זיו שני','איתי כספי'];
-const BOT_BIOS = ['מנקה מקצועית ואמינה.','שירות יסודי ומהיר.','ניקיון מושלם בכל פעם.','מנקה ותיקה ומנוסה.','דייקנית ואחראית.','שירות אדיב ומקצועי.','מומחית לניקיון בתים ומשרדים.','עבודה נקייה ומדויקת.'];
+const BOT_BIOS = ['נותנת שירות מקצועית ואמינה.','שירות יסודי ומהיר.','ניקיון מושלם בכל פעם.','נותנת שירות ותיקה ומנוסה.','דייקנית ואחראית.','שירות אדיב ומקצועי.','מומחית לניקיון בתים ומשרדים.','עבודה נקייה ומדויקת.'];
 const BOT_PAYMENTS: string[][] = [['cash'],['cash','bit'],['cash','bit','paybox'],['paybox','cash'],['bit','cash'],['cash','bit','paybox','bank']];
 // Service-details traits for demo cleaners. Without them a bot's profile shows
 // a "service details" card holding nothing but its city, because every other
@@ -1796,7 +1796,7 @@ function PostJobModal({ visible, onClose, onPosted }: { visible: boolean; onClos
       upsertAddress(city.trim()).catch(() => {});   // שמור את הכתובת למילוי אוטומטי בפעם הבאה
       onPosted?.();
       onClose();
-      Alert.alert('📢', (t as any).jobPostedOk ?? 'המודעה פורסמה, מנקים יוכלו לראות ולאשר הזמנה.\nאתה תקבל הודעה כשמנקה יאשר את ההזמנה.');
+      Alert.alert('📢', (t as any).jobPostedOk ?? 'המודעה פורסמה, נותני שירות יוכלו לראות ולאשר הזמנה.\nאתה תקבל הודעה כשנותן שירות יאשר את ההזמנה.');
       setTypes([]); setCity(''); setCitySugg([]); setBudget(80); setNotes(''); setPhotos([]);
     } catch (_) {
       Alert.alert(t.error, (t as any).jobPostError ?? 'שגיאה בפרסום העבודה — נסה שוב');
@@ -1815,7 +1815,7 @@ function PostJobModal({ visible, onClose, onPosted }: { visible: boolean; onClos
         </View>
         <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'} keyboardVerticalOffset={0}>
         <ScrollView contentContainerStyle={{ padding: 16, gap: 14, paddingBottom: insets.bottom + 24 }} keyboardShouldPersistTaps="handled">
-          <T style={{ fontSize: 13, color: C.textSub, textAlign: 'center' }}>{(t as any).postJobSub ?? 'כל מנקה מתאים יראה את העבודה ויוכל לקחת אותה'}</T>
+          <T style={{ fontSize: 13, color: C.textSub, textAlign: 'center' }}>{(t as any).postJobSub ?? 'כל נותן שירות מתאים יראה את העבודה ויוכל לקחת אותה'}</T>
 
           <T style={{ fontSize: 14, fontWeight: '800', color: C.textDark, textAlign: 'right' }}>{(t as any).serviceTypeLabel ?? 'סוג ניקיון'}</T>
           <View style={{ flexDirection: 'row-reverse', flexWrap: 'wrap', gap: 8, justifyContent: 'center' }}>
@@ -1872,7 +1872,7 @@ function PostJobModal({ visible, onClose, onPosted }: { visible: boolean; onClos
                 </TouchableOpacity>
               ))}
             </View>
-            <T style={{ fontSize: 11, color: C.textSub, textAlign: 'right' }}>{(t as any).jobMaxPriceHint ?? 'המנקים יראו את הסכום הזה במודעה'}</T>
+            <T style={{ fontSize: 11, color: C.textSub, textAlign: 'right' }}>{(t as any).jobMaxPriceHint ?? 'נותני השירות יראו את הסכום הזה במודעה'}</T>
           </View>
 
           <T style={{ fontSize: 14, fontWeight: '800', color: C.textDark, textAlign: 'right' }}>{(t as any).propertyTypeLabel ?? 'סוג נכס'}</T>
@@ -1902,7 +1902,7 @@ function PostJobModal({ visible, onClose, onPosted }: { visible: boolean; onClos
               {countWords(notes)}/{JOB_NOTES_MAX_WORDS} {(t as any).bioWordCount ?? 'מילים'}
             </T>
           </View>
-          <TextInput style={{ backgroundColor: C.white, borderRadius: 12, borderWidth: 1.5, borderColor: C.blueBorder, padding: 12, textAlign: 'right', color: C.textDark, height: 70, textAlignVertical: 'top' }} value={notes} onChangeText={v => setNotes(limitWords(v, JOB_NOTES_MAX_WORDS))} multiline placeholder={(t as any).notesPh ?? 'פרטים נוספים למנקה…'} placeholderTextColor={C.textSub} />
+          <TextInput style={{ backgroundColor: C.white, borderRadius: 12, borderWidth: 1.5, borderColor: C.blueBorder, padding: 12, textAlign: 'right', color: C.textDark, height: 70, textAlignVertical: 'top' }} value={notes} onChangeText={v => setNotes(limitWords(v, JOB_NOTES_MAX_WORDS))} multiline placeholder={(t as any).notesPh ?? 'פרטים נוספים לנותן השירות…'} placeholderTextColor={C.textSub} />
 
           {/* צירוף תמונות (לא חובה) */}
           <T style={{ fontSize: 14, fontWeight: '800', color: C.textDark, textAlign: 'right' }}>{(t as any).jobPhotosLabel ?? 'תמונות (לא חובה)'}</T>
@@ -2038,7 +2038,7 @@ function InlineBookingChat({ open, onToggle, messages, text, onChangeText, onSen
               <View style={{ alignItems: 'center', paddingVertical: 16 }}>
                 <T style={{ fontSize: 28, marginBottom: 6 }}>👋</T>
                 <T style={{ fontSize: 13, color: '#9CA3AF', textAlign: 'center' }}>
-                  שלח הודעה למנקה — הוא/היא יענה בהקדם
+                  שלח הודעה לנותן השירות — הוא/היא יענה בהקדם
                 </T>
               </View>
             ) : (
@@ -2395,11 +2395,11 @@ function BookingModal({ cleaner, visible, onClose, onBookingCreated, prebookData
         const v = workingHoursVerdict(cleaner?.availability, d.getDay(), startHour, hours, cleaner?.availabilitySet === true);
         if (v.verdict !== 'day-off' && v.verdict !== 'outside-hours') continue;
         const msg = v.verdict === 'day-off'
-          ? ((t as any).notWorkingDayMsg ?? 'המנקה לא עובד/ת ביום שבחרת. בחר/י יום אחר.')
-          : ((t as any).notWorkingHoursMsg ?? 'ביום הזה המנקה עובד/ת רק בין {start} ל-{end}. בחר/י שעה ומשך שנכנסים בטווח הזה.')
+          ? ((t as any).notWorkingDayMsg ?? 'נותן השירות לא עובד/ת ביום שבחרת. בחר/י יום אחר.')
+          : ((t as any).notWorkingHoursMsg ?? 'ביום הזה נותן השירות עובד/ת רק בין {start} ל-{end}. בחר/י שעה ומשך שנכנסים בטווח הזה.')
               .replace('{start}', hhmm(v.start!)).replace('{end}', hhmm(v.end!));
         return Alert.alert(
-          (t as any).notWorkingTitle ?? '⛔ המנקה לא עובד/ת בזמן שבחרת',
+          (t as any).notWorkingTitle ?? '⛔ נותן השירות לא עובד/ת בזמן שבחרת',
           d === bookingDate ? msg : `${msg}\n📅 ${fmtDate(d)}`,
         );
       }
@@ -2463,7 +2463,7 @@ function BookingModal({ cleaner, visible, onClose, onBookingCreated, prebookData
         });
         if (cleanerOverlap) {
           bookingLock.current = false;
-          return Alert.alert('❌ ' + t.overlapTitle, t.cleanerBusyMsg ?? 'המנקה תפוס/ה בשעות אלה — נסה שעה אחרת');
+          return Alert.alert('❌ ' + t.overlapTitle, t.cleanerBusyMsg ?? 'נותן השירות תפוס/ה בשעות אלה — נסה שעה אחרת');
         }
       } catch (_) {}
     }
@@ -3021,8 +3021,8 @@ function BookingModal({ cleaner, visible, onClose, onBookingCreated, prebookData
               if (v.verdict !== 'day-off' && v.verdict !== 'outside-hours') return null;
               const hhmm = (h: number) => `${String(Math.floor(h)).padStart(2, '0')}:${h % 1 ? '30' : '00'}`;
               const msg = v.verdict === 'day-off'
-                ? ((t as any).notWorkingDayMsg ?? 'המנקה לא עובד/ת ביום שבחרת. בחר/י יום אחר.')
-                : ((t as any).notWorkingHoursMsg ?? 'ביום הזה המנקה עובד/ת רק בין {start} ל-{end}. בחר/י שעה ומשך שנכנסים בטווח הזה.')
+                ? ((t as any).notWorkingDayMsg ?? 'נותן השירות לא עובד/ת ביום שבחרת. בחר/י יום אחר.')
+                : ((t as any).notWorkingHoursMsg ?? 'ביום הזה נותן השירות עובד/ת רק בין {start} ל-{end}. בחר/י שעה ומשך שנכנסים בטווח הזה.')
                     .replace('{start}', hhmm(v.start!)).replace('{end}', hhmm(v.end!));
               return <T style={{ fontSize: 12.5, color: '#DC2626', fontWeight: '700', textAlign: 'right', marginTop: 6 }}>⛔ {msg}</T>;
             })()}
@@ -3793,14 +3793,14 @@ function QuickRebookModal({ visible, onClose, myBookings, allCleaners, onBook }:
               <T style={{ fontSize: 52 }}>📋</T>
               <T style={{ fontSize: 18, fontWeight: '800', color: C.textDark, textAlign: 'center' }}>{t.noPrevBookings}</T>
               <T style={{ fontSize: 14, color: C.textSub, textAlign: 'center', lineHeight: 22 }}>
-                לאחר הזמנה ראשונה תוכל/י לחזור עליה בלחיצה אחת — אותו מנקה, אותה כתובת.
+                לאחר הזמנה ראשונה תוכל/י לחזור עליה בלחיצה אחת — אותו נותן שירות, אותה כתובת.
               </T>
             </View>
           ) : (
             <>
               <View style={{ backgroundColor: '#E8F1FB', borderRadius: 14, padding: 12, borderWidth: 1, borderColor: '#C7DEF5' }}>
                 <T style={{ fontSize: 13, color: '#1E5FA8', textAlign: 'center', lineHeight: 20 }}>
-                  ♻️ בחר הזמנה קודמת ← פתח טופס הזמנה עם אותו מנקה
+                  ♻️ בחר הזמנה קודמת ← פתח טופס הזמנה עם אותו נותן שירות
                 </T>
               </View>
               {pastBookings.map((b: any) => {
@@ -4507,7 +4507,7 @@ export default function HomeScreen() {
       await repostBatch.commit();
       markCancelledSeen(b?.id);
       setCancelledPopup(null);
-      Alert.alert('✅', (t as any).repostOkMsg ?? 'ההזמנה פורסמה מחדש — מנקים באזור שלך יראו אותה');
+      Alert.alert('✅', (t as any).repostOkMsg ?? 'ההזמנה פורסמה מחדש — נותני שירות באזור שלך יראו אותה');
     } catch (_) {
       Alert.alert(t.error, (t as any).repostErrMsg ?? 'הפרסום מחדש נכשל — נסה/י שוב');
     } finally {
@@ -5335,7 +5335,7 @@ export default function HomeScreen() {
         Alert.alert('', (t as any).alreadyBookedThenMsg ?? 'כבר יש לך עבודה בשעה הזו — לא ניתן לקחת שתיים חופפות');
         return;
       }
-      let myName = auth.currentUser?.displayName || 'מנקה';
+      let myName = auth.currentUser?.displayName || 'נותן שירות';
       try { const d = await getDoc(doc(db, 'users', uid)); if (d.exists() && d.data()?.name) myName = d.data()!.name; } catch (_) {}
       // תפיסה אטומית — טרנזקציה מבטיחה שרק מנקה אחד יזכה גם אם שניים לוחצים
       // בו-זמנית (getDoc ואז updateDoc זה racy; טרנזקציה לא)
@@ -5367,13 +5367,13 @@ export default function HomeScreen() {
         return;
       }
       if (!won) {
-        Alert.alert('', (t as any).jobTakenMsg ?? 'העבודה כבר נתפסה על ידי מנקה אחר');
+        Alert.alert('', (t as any).jobTakenMsg ?? 'העבודה כבר נתפסה על ידי נותן שירות אחר');
         return;
       }
       // התראה ללקוח: "מנקה לקח את ההזמנה" — לא "אושר". התפיסה מורידה מהלוח
       // ומשאירה את ההזמנה ממתינה לאישור המנקה, בדיוק כמו בשני המסלולים האחרים.
       void notify({ event: 'booking_claimed', bookingId: job.id });
-      Alert.alert('✅', (t as any).jobClaimedOk ?? 'תפסת את העבודה. היא לא תוצג יותר למנקים אחרים — אשר או דחה אותה בתחתית הצ\'אט.');
+      Alert.alert('✅', (t as any).jobClaimedOk ?? 'תפסת את העבודה. היא לא תוצג יותר לנותני שירות אחרים — אשר או דחה אותה בתחתית הצ\'אט.');
       openClientChat(job.clientUid, job.clientName);
     } catch (e) {
       Alert.alert(t.error, (t as any).jobClaimError ?? 'שגיאה בתפיסת העבודה — נסה שוב');
@@ -5511,7 +5511,7 @@ export default function HomeScreen() {
         if (wasHeld && data.status === 'pending' && data.open === true && !data.cleanerId) {
           Alert.alert(
             '🔁 ' + ((t as any).pushJobReleasedTitle ?? 'העבודה חזרה ללוח'),
-            (t as any).pushJobReleasedBody ?? 'המנקה לא יוכל להגיע. העבודה שלך פתוחה שוב למנקים אחרים.',
+            (t as any).pushJobReleasedBody ?? 'נותן השירות לא יוכל להגיע. העבודה שלך פתוחה שוב לנותני שירות אחרים.',
           );
         }
         // זיהוי מעבר חדש ל-confirmed
@@ -5555,7 +5555,7 @@ export default function HomeScreen() {
         const coords = getCoordsForCleaner(data);
         return {
           id: d.id,
-          name:       data.name        || 'מנקה',
+          name:       data.name        || 'נותן שירות',
           initials:   (data.name || 'מ').split(' ').map((w: string) => w[0]).join('').slice(0, 2),
           city:       data.city        || '',
           // כמו באתר: השדה region אם קיים, אחרת אזור אמיתי מתוך workAreas.
@@ -6172,12 +6172,12 @@ export default function HomeScreen() {
               <T style={[s.empty, { marginBottom: 12 }]}>{t.noCleaners}</T>
               {(() => {
                 const reasons: string[] = [];
-                if (search.trim())       reasons.push(`🔍 אין מנקים שתואמים ל"${search.trim()}"`);
-                if (filterCity.trim())   reasons.push(`📍 אין מנקים בעיר "${filterCity.trim()}"`);
+                if (search.trim())       reasons.push(`🔍 אין נותני שירות שתואמים ל"${search.trim()}"`);
+                if (filterCity.trim())   reasons.push(`📍 אין נותני שירות בעיר "${filterCity.trim()}"`);
                 if (filterMaxPrice < 999) reasons.push(`💰 המחיר המקסימלי שבחרת (₪${filterMaxPrice}) אולי נמוך מדי`);
                 if (filterMinRating > 0)  reasons.push(`⭐ הדירוג המינימלי שבחרת (${filterMinRating}+) אולי גבוה מדי`);
                 if (filterAvailOnly)      reasons.push(`🟢 סימנת "זמינים בלבד" — נסה/י לבטל`);
-                if (filterTypes.length > 0) reasons.push(`🔧 אין מנקים לסוג השירות שבחרת`);
+                if (filterTypes.length > 0) reasons.push(`🔧 אין נותני שירות לסוג השירות שבחרת`);
                 if (reasons.length === 0) return <T style={{ fontSize: 12, color: C.textSub, textAlign: 'center' }}>נסה/י להרחיב את אזור החיפוש</T>;
                 return (
                   <View style={{ backgroundColor: C.bluePale, borderRadius: 12, padding: 12, gap: 4, borderWidth: 1, borderColor: C.blueBorder, alignSelf: 'stretch' }}>
@@ -6444,14 +6444,14 @@ export default function HomeScreen() {
             <View style={{ backgroundColor: filtered.length > 0 ? '#D1FAE5' : '#FEE2E2', borderRadius: 12, padding: 12, alignItems: 'center' }}>
               <T style={{ fontWeight: '800', fontSize: 15, color: filtered.length > 0 ? '#065F46' : '#991B1B' }}>
                 {filtered.length > 0
-                  ? `✅ נמצאו ${filtered.length} מנקים`
-                  : '❌ אין מנקים בסינון הנוכחי — נסה להרחיב'}
+                  ? `✅ נמצאו ${filtered.length} נותני שירות`
+                  : '❌ אין נותני שירות בסינון הנוכחי — נסה להרחיב'}
               </T>
             </View>
 
             <TouchableOpacity style={s.confirmBtn} onPress={() => setFilterVisible(false)}>
               <T style={s.confirmBtnText}>
-                ✓ הצג {filtered.length} מנקים
+                ✓ הצג {filtered.length} נותני שירות
               </T>
             </TouchableOpacity>
           </ScrollView>
@@ -6648,13 +6648,13 @@ export default function HomeScreen() {
               {t.bookingConfirmedPopupTitle || '🎉 ההזמנה אושרה!'}
             </Text>
             <Text style={{ fontSize: 14, color: '#6B7280', textAlign: 'center', lineHeight: 22 }}>
-              {t.bookingConfirmedPopupSub || 'המנקה אישר את הגעתו — ההזמנה מאושרת ומוכנה'}
+              {t.bookingConfirmedPopupSub || 'נותן השירות אישר את הגעתו — ההזמנה מאושרת ומוכנה'}
             </Text>
             {/* כרטיס פרטים */}
             {confirmedPopup && (
               <View style={{ backgroundColor: '#F0FDF4', borderRadius: 16, padding: 16, width: '100%', gap: 10, borderWidth: 1, borderColor: '#A7F3D0' }}>
                 <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
-                  <Text style={{ fontSize: 13, color: '#6B7280' }}>🧹 {t.cleanerLabel || 'מנקה'}</Text>
+                  <Text style={{ fontSize: 13, color: '#6B7280' }}>🧹 {t.cleanerLabel || 'נותן שירות'}</Text>
                   <Text style={{ fontSize: 13, fontWeight: '800', color: '#065F46' }}>{confirmedPopup.cleanerName}</Text>
                 </View>
                 {confirmedPopup.bookingDate ? (
@@ -6699,7 +6699,7 @@ export default function HomeScreen() {
               {(t as any).bookingCancelledPopupTitle ?? 'ההזמנה בוטלה'}
             </Text>
             <Text style={{ fontSize: 14, color: '#6B7280', textAlign: 'center', lineHeight: 22 }}>
-              {(t as any).bookingCancelledPopupSub ?? 'המנקה ביטל את ההזמנה. אפשר לפרסם אותה מחדש ומנקים אחרים באזור יוכלו לקחת אותה.'}
+              {(t as any).bookingCancelledPopupSub ?? 'נותן השירות ביטל את ההזמנה. אפשר לפרסם אותה מחדש ונותני שירות אחרים באזור יוכלו לקחת אותה.'}
             </Text>
 
             {/* כל פרטי ההזמנה שבוטלה */}
@@ -6707,7 +6707,7 @@ export default function HomeScreen() {
               <View style={{ backgroundColor: '#FEF2F2', borderRadius: 16, padding: 16, width: '100%', gap: 10, borderWidth: 1, borderColor: '#FECACA' }}>
                 {!!cancelledPopup.cleanerName && (
                   <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
-                    <Text style={{ fontSize: 13, color: '#6B7280' }}>🧹 {t.cleanerLabel || 'מנקה'}</Text>
+                    <Text style={{ fontSize: 13, color: '#6B7280' }}>🧹 {t.cleanerLabel || 'נותן שירות'}</Text>
                     <Text style={{ fontSize: 13, fontWeight: '800', color: '#991B1B' }}>{cancelledPopup.cleanerName}</Text>
                   </View>
                 )}
@@ -6761,7 +6761,7 @@ export default function HomeScreen() {
                 onPress={() => cancelledPopup && repostCancelledBooking(cancelledPopup)}
               >
                 <Text style={{ fontSize: 15, fontWeight: '900', color: '#fff' }}>
-                  {reposting ? '…' : `📢 ${(t as any).repostBtn ?? 'פרסם מחדש וחפש מנקה אחר'}`}
+                  {reposting ? '…' : `📢 ${(t as any).repostBtn ?? 'פרסם מחדש וחפש נותן שירות אחר'}`}
                 </Text>
               </TouchableOpacity>
             )}
@@ -6936,7 +6936,7 @@ export default function HomeScreen() {
                       </TouchableOpacity>
                     ))}
                   </View>
-                  <T style={{ fontSize: 11, color: C.textSub, textAlign: 'right' }}>{(t as any).urgentMaxPriceHint ?? 'ההתראה תישלח רק למנקים שמחירם לשעה עד הסכום שבחרת'}</T>
+                  <T style={{ fontSize: 11, color: C.textSub, textAlign: 'right' }}>{(t as any).urgentMaxPriceHint ?? 'ההתראה תישלח רק לנותני שירות שמחירם לשעה עד הסכום שבחרת'}</T>
                 </View>
 
                 {/* כתובת */}
