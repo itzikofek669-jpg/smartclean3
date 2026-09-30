@@ -1181,7 +1181,9 @@ export default function ProfileScreen() {
     const unsubClient = onSnapshot(
       query(collection(db, 'bookings'), where('clientUid', '==', uid)),
       snap => {
-        const docs = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+        // A job the client edited was replaced by a new one (home.tsx PostJobModal);
+        // listing the old one as "cancelled" would say they cancelled it.
+        const docs = snap.docs.map(d => ({ id: d.id, ...d.data() })).filter((b: any) => !b.replacedBy);
         docs.sort((a: any, b: any) => (b.createdAt || '').localeCompare(a.createdAt || ''));
         setBookings(docs);
         // הכתובת המדויקת וההערות יושבות במסמך משנה פרטי — ראה lib/bookingDetails.

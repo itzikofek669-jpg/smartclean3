@@ -488,7 +488,8 @@ export const JOB_NOTES_MAX_WORDS = 15;
  * Returns false if the lookup itself fails — a flaky read must never block a
  * legitimate booking.
  */
-async function hasClashingRequest(uid: string, dateStr: string, startTime: string): Promise<boolean> {
+// `exceptId`: the job being edited, which would otherwise clash with itself.
+async function hasClashingRequest(uid: string, dateStr: string, startTime: string, exceptId?: string): Promise<boolean> {
   if (!uid || !dateStr || !startTime) return false;
   const DEAD = ['cancelled', 'expired', 'done'];
   try {
@@ -497,7 +498,7 @@ async function hasClashingRequest(uid: string, dateStr: string, startTime: strin
       getDocs(query(collection(db, 'urgentRequests'), where('clientUid', '==', uid), where('dateStr', '==', dateStr))),
     ]);
     const clashes = (d: any) => !DEAD.includes(String(d?.status)) && String(d?.startTime) === startTime;
-    return bk.docs.some(d => clashes(d.data())) || ur.docs.some(d => clashes(d.data()));
+    return bk.docs.some(d => d.id !== exceptId && clashes(d.data())) || ur.docs.some(d => clashes(d.data()));
   } catch (_) {
     return false;
   }
@@ -1764,7 +1765,7 @@ function PostJobModal({ visible, onClose, onPosted, editJob }: { visible: boolea
       const uid = auth.currentUser?.uid || '';
       const startStr = `${String(hour).padStart(2, '0')}:00`;
       // מניעת פרסום כפול — כולל בקשה דחופה קיימת לאותו תאריך+שעה
-      if (await hasClashingRequest(uid, dateStr, startStr)) {
+      if (await hasClashingRequest(uid, dateStr, startStr, editJob?.id)) {
         setBusy(false);
         Alert.alert('', (t as any).jobDupMsg ?? 'כבר פרסמת/הזמנת ניקיון לתאריך ולשעה האלה — בחר/י שעה אחרת.');
         return;
@@ -1805,7 +1806,8 @@ function PostJobModal({ visible, onClose, onPosted, editJob }: { visible: boolea
           if (!cur.exists() || d?.cleanerId || d?.open !== true || d?.status !== 'pending') throw new Error('JOB_TAKEN');
           tx.set(jobRef, jobDoc);
           tx.set(detailsRef, details);
-          tx.update(oldRef, { status: 'cancelled', cancelledBy: 'client', cancelledAt: new Date().toISOString() });
+          // `replacedBy`: an edit, not a cancellation — the client's list hides it.
+          tx.update(oldRef, { status: 'cancelled', cancelledBy: 'client', cancelledAt: new Date().toISOString(), replacedBy: jobRef.id });
         });
       } else {
         const jobBatch = writeBatch(db);
