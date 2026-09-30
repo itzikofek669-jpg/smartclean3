@@ -34,6 +34,7 @@
 // is worse than showing one extra.
 //
 // Kept identical between the two products — shared-files.sha256 covers it.
+import { allCityNames } from './cityNames';
 
 /** The fields discovery search reads. Deliberately structural — the Cleaner
  *  type carries thirty more that have nothing to do with searching. */
@@ -99,6 +100,10 @@ export function textMatches(c: SearchableCleaner, query: string): boolean {
  * only when `allowPartial`: callers pass false when the text already matches a
  * cleaner's name, so "אבי" finds Avi rather than dragging the list to תל אביב.
  * Among partial matches the shortest name wins — "חדר" is חדרה, not חדרה-West.
+ *
+ * Beyond Hebrew and the viewer's language, a town is found by its name in any
+ * language of lib/cityNames: "Afula", "Хайфа" and "عرابة" each find their town
+ * whatever language the screen is in.
  */
 export function resolvePlace(
   query: string,
@@ -109,12 +114,15 @@ export function resolvePlace(
   const q = normText(query);
   if (!q) return null;
   let partial: string | null = null;
+  let partialLen = Infinity;
   for (const city of Object.keys(table)) {
-    const he = normText(city);
-    const tr = normText(nameOf(city));
-    if (he === q || (tr && tr === q)) return { city, ...table[city] };
-    if (allowPartial && q.length >= 2 && (he.startsWith(q) || (tr && tr.startsWith(q)))) {
-      if (partial === null || normText(city).length < normText(partial).length) partial = city;
+    const names = [...allCityNames(city), nameOf(city)].map(normText).filter(Boolean);
+    if (names.includes(q)) return { city, ...table[city] };
+    if (allowPartial && q.length >= 2) {
+      // The shortest name that starts with the query, in whichever language.
+      for (const n of names) {
+        if (n.startsWith(q) && n.length < partialLen) { partial = city; partialLen = n.length; }
+      }
     }
   }
   return partial ? { city: partial, ...table[partial] } : null;

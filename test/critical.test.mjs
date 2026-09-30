@@ -16,6 +16,7 @@ import { splitFields, reconcile, pendingMove, publicCoord, privateKeysFor } from
 import { spreadStacked } from '../.tsbuild/jobUtils.mjs';
 import { matchJob, jobOnBoard, jobCityOf, nearestCity, filterBoard } from '../.tsbuild/jobSearch.mjs';
 import { normText, resolvePlace, textMatches, servesPlace, searchCleaners } from '../.tsbuild/search.mjs';
+import { CITY_NAMES, cityNamesFor } from '../.tsbuild/cityNames.mjs';
 import { workingHoursVerdict, workDaysFromAvailability, normalizeAvailability, worksAt, bookableStarts, busyWindowsOn } from '../.tsbuild/cleanerTraits.mjs';
 import { claimUpdate, rejectionUpdate, rejectionReleasesToBoard, awaitsMyApproval, occupiesCleanerTime, busyWindowOf, busyFieldsOf, pendingSlotMissed, isBoardJobOfferable, pendingSlotExpired, expiryUpdate } from '../.tsbuild/bookingActions.mjs';
 
@@ -1256,4 +1257,35 @@ test('an old-shape busy slot keeps its hour on the day the clocks change', () =>
   const spring = new Date(2026, 2, 27, 10, 0).toISOString();
   const springEnd = new Date(2026, 2, 27, 12, 0).toISOString();
   assert.deepEqual(busyWindowsOn([{ from: spring, until: springEnd }], '2026-03-27'), [{ s: 600, e: 720 }]);
+});
+
+// ── Town names in every language ─────────────────────────────────────────────
+// The dictionaries named barely 80 of about 200 towns: in English, Afula showed
+// as עפולה and "Afula" found nothing. lib/cityNames names every town.
+
+test('every town has a name in every language', () => {
+  const langs = ['en', 'ru', 'ar', 'fr', 'hi', 'uk'];
+  const gaps = Object.entries(CITY_NAMES).filter(([, n]) => langs.some((l) => !n[l])).map(([c]) => c);
+  assert.deepEqual(gaps, []);
+  assert.ok(Object.keys(CITY_NAMES).length >= 200);
+  assert.equal(cityNamesFor('en')['עפולה'], 'Afula');
+  assert.equal(cityNamesFor('ru')['חיפה'], 'Хайфа');
+});
+
+test('a town is found by its name in any language, on any screen', () => {
+  const table = { 'עפולה': { lat: 32.6, lng: 35.29 }, 'חיפה': { lat: 32.8, lng: 34.99 }, 'עראבה': { lat: 32.85, lng: 35.34 } };
+  const heScreen = (c) => c;   // a Hebrew screen names towns in Hebrew
+  assert.equal(resolvePlace('Afula', table, heScreen)?.city, 'עפולה');
+  assert.equal(resolvePlace('Хайфа', table, heScreen)?.city, 'חיפה');
+  assert.equal(resolvePlace('عرابة', table, heScreen)?.city, 'עראבה');
+  assert.equal(resolvePlace('afu', table, heScreen)?.city, 'עפולה');        // started, any case
+  assert.equal(resolvePlace('Хай', table, heScreen, false), null);            // partial only when allowed
+  assert.equal(resolvePlace('עפולה', table, heScreen)?.city, 'עפולה');       // Hebrew as before
+});
+
+test('the job board finds a job by its town in another language', () => {
+  const job = { clientName: 'דנה', addrCity: 'חיפה', serviceType: 'ניקיון רגיל' };
+  assert.equal(matchJob(job, 'Haifa'), 'place');
+  assert.equal(matchJob(job, 'Хайф'), 'place');
+  assert.equal(matchJob(job, 'Tel Aviv'), 'none');
 });

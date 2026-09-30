@@ -1,4 +1,5 @@
 import { ukData } from './ukData';
+import { cityNamesFor } from './cityNames';
 
 export type Lang = 'he' | 'en' | 'ru' | 'ar' | 'fr' | 'hi' | 'uk';
 
@@ -4322,6 +4323,17 @@ const TOTAL_SHORT: Record<string, string> = {
 for (const L of Object.keys(TOTAL_SHORT)) {
   (translations as any)[L].totalShort = TOTAL_SHORT[L];
 }
+
+// Town names. Each dictionary named barely 80 of about 200 towns, so in every
+// language but Hebrew the rest showed — and were searched for — in Hebrew.
+// Every language now starts from the shared table (lib/cityNames) and keeps its
+// own names where it has them. Ukrainian's own map had English underneath it;
+// the table's Ukrainian goes under the Ukrainian names instead.
+for (const L of ['en', 'ru', 'ar', 'fr', 'hi'] as const) {
+  const d = (translations as any)[L];
+  d.cities = { ...cityNamesFor(L), ...(d.cities || {}) };
+}
+(translations as any).uk.cities = { ...cityNamesFor('uk'), ...((ukData as any).cities || {}) };
 
 export type Translations = typeof he;
 export default translations;

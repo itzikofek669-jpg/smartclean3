@@ -91,6 +91,7 @@ const SHARED_PAIRS = [
   // app showed no one; one rule now, in one file.
   ['lib/search.ts',        'src/lib/search.ts'],
   ['lib/terms.ts',         'src/lib/terms.ts'],
+  ['lib/cityNames.ts',     'src/lib/cityNames.ts'],
   ['scripts/shared-hash.mjs', 'scripts/shared-hash.mjs'],
   ['firestore.rules',      'firestore.rules'],
 ];
