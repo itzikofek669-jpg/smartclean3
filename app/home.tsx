@@ -42,6 +42,7 @@ import {
 import { filterBoard, nearestCity } from '../lib/jobSearch';
 import { notify } from '../lib/notify';
 import { devicePosition } from '../lib/devicePosition';
+import { JobPhotosField } from '../lib/JobPhotos';
 import { resolvePlace, searchCleaners } from '../lib/search';
 import {
   CITY_COORDS, CITY_KEYS_BY_LEN, REGION_CENTER, regionFromLat,
@@ -1731,25 +1732,6 @@ function PostJobModal({ visible, onClose, onPosted }: { visible: boolean; onClos
   })();
   const valid = types.length > 0 && city.trim().length >= 2 && !isPastJob;
 
-  // צירוף תמונה — דחיסה חזקה כדי להישאר מתחת למגבלת מסמך של Firestore (1MB)
-  const addPhoto = async () => {
-    if (photos.length >= 3) return Alert.alert('', (t as any).jobPhotosMax ?? 'אפשר לצרף עד 3 תמונות');
-    const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (!perm.granted) return Alert.alert(t.error, t.galleryPermDenied);
-    const res = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ImagePicker.MediaTypeOptions.Images, allowsEditing: false, quality: 1, base64: false, exif: false });
-    if (res.canceled || !res.assets[0]) return;
-    let b64: string | null | undefined;
-    try {
-      for (const st of [{ width: 900, compress: 0.4 }, { width: 720, compress: 0.35 }, { width: 600, compress: 0.3 }]) {
-        const out = await ImageManipulator.manipulateAsync(res.assets[0].uri, [{ resize: { width: st.width } }], { compress: st.compress, format: ImageManipulator.SaveFormat.JPEG, base64: true });
-        b64 = out.base64;
-        if (b64 && b64.length <= 260_000) break;
-      }
-    } catch (_) { return Alert.alert(t.error, t.imageReadError); }
-    if (!b64) return Alert.alert(t.error, t.imageReadError);
-    if (b64.length > 320_000) return Alert.alert(t.imageTooLargeTitle ?? '', t.imageTooLargeMsg ?? 'התמונה גדולה מדי');
-    setPhotos(p => [...p, `data:image/jpeg;base64,${b64}`]);
-  };
   const dateStr = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
 
   const submit = async () => {
@@ -1906,22 +1888,8 @@ function PostJobModal({ visible, onClose, onPosted }: { visible: boolean; onClos
 
           {/* צירוף תמונות (לא חובה) */}
           <T style={{ fontSize: 14, fontWeight: '800', color: C.textDark, textAlign: 'right' }}>{(t as any).jobPhotosLabel ?? 'תמונות (לא חובה)'}</T>
-          <View style={{ flexDirection: 'row-reverse', flexWrap: 'wrap', gap: 8, alignItems: 'center' }}>
-            {photos.map((uri, i) => (
-              <View key={i} style={{ position: 'relative' }}>
-                <Image source={{ uri }} style={{ width: 72, height: 72, borderRadius: 10 }} contentFit="cover" />
-                <TouchableOpacity onPress={() => setPhotos(p => p.filter((_, idx) => idx !== i))} style={{ position: 'absolute', top: -6, left: -6, width: 22, height: 22, borderRadius: 11, backgroundColor: '#EF4444', alignItems: 'center', justifyContent: 'center' }}>
-                  <T style={{ color: '#fff', fontSize: 13, fontWeight: '900' }}>✕</T>
-                </TouchableOpacity>
-              </View>
-            ))}
-            {photos.length < 3 && (
-              <TouchableOpacity onPress={addPhoto} style={{ width: 72, height: 72, borderRadius: 10, borderWidth: 1.5, borderColor: C.blueBorder, borderStyle: 'dashed', backgroundColor: C.white, alignItems: 'center', justifyContent: 'center' }}>
-                <T style={{ fontSize: 26, color: C.blue }}>＋</T>
-                <T style={{ fontSize: 20 }}>📷</T>
-              </TouchableOpacity>
-            )}
-          </View>
+          {/* מצלמה או גלריה — lib/JobPhotos */}
+          <JobPhotosField photos={photos} onChange={setPhotos} />
 
           {isPastJob && (
             <View style={{ backgroundColor: '#FEF2F2', borderWidth: 1.5, borderColor: '#DC2626', borderRadius: 12, padding: 12 }}>
@@ -4166,6 +4134,8 @@ export default function HomeScreen() {
   const [urgentServiceDropOpen, setUrgentServiceDropOpen] = useState(false);
   const [urgentAddress,   setUrgentAddress]   = useState('');
   const [urgentPayment,   setUrgentPayment]   = useState('cash');
+  // תמונות לבקשה דחופה (לא חובה) — מצלמה או גלריה, כמו ב"ניקיון בזמן שלך".
+  const [urgentPhotos,    setUrgentPhotos]    = useState<string[]>([]);
   const [urgentMaxPrice,  setUrgentMaxPrice]  = useState(80); // סכום מקסימלי לשעה — מסנן מנקים בטווח
   const [urgentSending,   setUrgentSending]   = useState(false);
   const [urgentWaiting,   setUrgentWaiting]   = useState(false);
@@ -4323,6 +4293,9 @@ export default function HomeScreen() {
         maxPrice: urgentMaxPrice,
         pricePerHour: urgentMaxPrice,
         total: urgentHours * urgentMaxPrice,
+        // On the broadcast itself, like a board job's photos: the cleaner decides
+        // from them before taking it. Compressed in lib/JobPhotos.
+        photos: urgentPhotos,
         status: 'open',
         createdAt: new Date().toISOString(),
         expiresAt,
@@ -4437,6 +4410,7 @@ export default function HomeScreen() {
       } catch (err) { logError('home:write', err); }
 
       setUrgentWaiting(true);
+      setUrgentPhotos([]);   // already on the request; the next one starts without them
       setUrgentOpen(false); // סגור מודל מיד — חזור למסך הראשי
       // המאזין נשמר ב-ref ומנותק גם בעזיבת המסך, לא רק כשהבקשה נסגרת.
       // קודם הוא נוצר כאן ושוחרר רק על taken/expired/cancelled — לקוח שפרסם
@@ -6600,10 +6574,23 @@ export default function HomeScreen() {
               const svc = urgentPopupReq.serviceType
                 ? String(urgentPopupReq.serviceType).split(' + ').map((st: string) => t.types[st] || st).join(', ')
                 : '';
+              const pics: string[] = Array.isArray(urgentPopupReq.photos) ? urgentPopupReq.photos : [];
               return (
-                <T style={{ fontSize: 15, color: C.textDark, lineHeight: 24, textAlign: 'right', marginBottom: 18 }}>
-                  {urgentPopupReq.dateStr || ''} {urgentPopupReq.startTime || ''}{svc ? `${'\n'}🧹 ${svc}` : ''}{'\n'}📍 {urgentPopupReq.address || urgentPopupReq.addrCity || ''}{'\n'}⏱️ {urgentPopupReq.hours || ''} {t.hoursUnit} · ₪{urgentPopupReq.total || ''}
-                </T>
+                <>
+                  <T style={{ fontSize: 15, color: C.textDark, lineHeight: 24, textAlign: 'right', marginBottom: pics.length ? 10 : 18 }}>
+                    {urgentPopupReq.dateStr || ''} {urgentPopupReq.startTime || ''}{svc ? `${'\n'}🧹 ${svc}` : ''}{'\n'}📍 {urgentPopupReq.address || urgentPopupReq.addrCity || ''}{'\n'}⏱️ {urgentPopupReq.hours || ''} {t.hoursUnit} · ₪{urgentPopupReq.total || ''}
+                  </T>
+                  {/* The client's photos of the job, if any (lib/JobPhotos). Not
+                      tappable here: the enlarged view is a Modal of its own and
+                      would open behind this one on iOS. The board card enlarges. */}
+                  {pics.length > 0 && (
+                    <View style={{ flexDirection: 'row-reverse', gap: 6, marginBottom: 16 }}>
+                      {pics.map((uri, pi) => (
+                        <Image key={pi} source={{ uri }} style={{ width: 64, height: 64, borderRadius: 8 }} contentFit="cover" />
+                      ))}
+                    </View>
+                  )}
+                </>
               );
             })()}
             <View style={{ flexDirection: 'row', gap: 10 }}>
@@ -6920,7 +6907,7 @@ export default function HomeScreen() {
                 <T style={{ fontSize: 16, color: '#065F46', fontWeight: '700' }}>{urgentFoundName}</T>
                 <TouchableOpacity
                   style={{ backgroundColor: C.green, borderRadius: 12, paddingVertical: 14, paddingHorizontal: 36, marginTop: 6 }}
-                  onPress={() => { setUrgentOpen(false); setUrgentFoundName(''); setUrgentRequestId(null); setUrgentAddress(''); setUrgentServiceTypes([]); setUrgentServiceDropOpen(false); }}
+                  onPress={() => { setUrgentOpen(false); setUrgentFoundName(''); setUrgentRequestId(null); setUrgentAddress(''); setUrgentServiceTypes([]); setUrgentServiceDropOpen(false); setUrgentPhotos([]); }}
                 >
                   <T style={{ fontSize: 15, fontWeight: '900', color: C.white }}>{t.closeBtn}</T>
                 </TouchableOpacity>
@@ -7037,6 +7024,12 @@ export default function HomeScreen() {
                   {(!urgentAddress.trim() || urgentAddress.trim().length < 5 || !/\d/.test(urgentAddress)) && (
                     <T style={{ fontSize: 11, color: '#DC2626', fontWeight: '700', textAlign: 'right' }}>⚠️ יש להזין כתובת מלאה כולל מספר בית</T>
                   )}
+                </View>
+
+                {/* תמונות (לא חובה) */}
+                <View style={{ gap: 8 }}>
+                  <T style={[s.fieldLabel, { textAlign: 'right' }]}>{(t as any).jobPhotosLabel ?? 'תמונות (לא חובה)'}</T>
+                  <JobPhotosField photos={urgentPhotos} onChange={setUrgentPhotos} />
                 </View>
 
                 {/* תשלום */}
