@@ -211,3 +211,104 @@ export function worksAt(
   const { verdict } = workingHoursVerdict(availability, day, startHour, hours, daysChosen);
   return verdict !== 'day-off' && verdict !== 'outside-hours';
 }
+
+/** Minutes from midnight of one day; `s < e`, and `e` may run past 1440. */
+export interface DayWindow { s: number; e: number }
+
+/**
+ * A cleaner's stored busy slots, as windows on the day `date` (`YYYY-MM-DD`).
+ *
+ * Both stored shapes are read: `{ date, s, e }` in minutes (current), and
+ * `{ from, until }` as ISO instants (older clients) — the latter read on the
+ * reader's local wall clock, as every other check that reads them does. A slot
+ * from the day before that runs past midnight lands at the start of this one.
+ */
+export function busyWindowsOn(slots: unknown, date: string): DayWindow[] {
+  const dayNo = (d: string) => {
+    const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(d);
+    return m ? Date.UTC(Number(m[1]), Number(m[2]) - 1, Number(m[3])) / 86400000 : NaN;
+  };
+  const target = dayNo(date);
+  if (!Number.isFinite(target) || !Array.isArray(slots)) return [];
+  // Local wall-clock minutes relative to `date`. Not (instant - midnight):
+  // on the day the clocks change that is an hour off, and a slot at 10:00
+  // read as 11:00.
+  const wallMinutes = (iso: string) => {
+    const t = new Date(iso);
+    if (!Number.isFinite(t.getTime())) return NaN;
+    const day = Date.UTC(t.getFullYear(), t.getMonth(), t.getDate()) / 86400000;
+    return (day - target) * 1440 + t.getHours() * 60 + t.getMinutes();
+  };
+  const out: DayWindow[] = [];
+  for (const raw of slots) {
+    const slot = raw as { date?: unknown; s?: unknown; e?: unknown; from?: unknown; until?: unknown } | null;
+    if (!slot || typeof slot !== 'object') continue;
+    let s: number;
+    let e: number;
+    if (typeof slot.date === 'string' && typeof slot.s === 'number' && typeof slot.e === 'number') {
+      const offset = (dayNo(slot.date) - target) * 1440;
+      if (!Number.isFinite(offset)) continue;
+      s = slot.s + offset;
+      e = slot.e + offset;
+    } else if (typeof slot.from === 'string' && typeof slot.until === 'string') {
+      s = wallMinutes(slot.from);
+      e = wallMinutes(slot.until);
+      if (!Number.isFinite(s) || !Number.isFinite(e)) continue;
+    } else continue;
+    if (e > s && e > 0 && s < 1440 * 2) out.push({ s, e });
+  }
+  return out;
+}
+
+/**
+ * The start times a direct booking can offer on one day, in half hours
+ * (decimal: 9.5 is 09:30).
+ *
+ *   min   — the start of her working day, or `earliest` when that is later
+ *           (today: the next slot from now).
+ *   max   — the last start that still finishes by the end of her working day,
+ *           so the clock runs to the last hour she works and no further.
+ *   first — the hour to put on the clock: the first start from `min` whose
+ *           job overlaps none of `busy`. `min` again when every start in the
+ *           range collides, and `allBusy` says so.
+ *
+ * With no working hours set at all (see workingHoursVerdict: 'unset') the
+ * clock keeps the old general range, `fallback`. `null` when the day cannot
+ * take this job: a day off, or less of her day left than the job needs.
+ */
+export function bookableStarts(
+  availability: unknown,
+  day: number,
+  hours: number,
+  daysChosen: boolean,
+  opts: { earliest: number; fallback: { min: number; max: number }; busy?: DayWindow[] },
+): { min: number; max: number; first: number; allBusy: boolean; fromProfile: boolean } | null {
+  const up = (h: number) => Math.ceil(h * 2 - 1e-9) / 2;
+  const down = (h: number) => Math.floor(h * 2 + 1e-9) / 2;
+  const map = (availability && typeof availability === 'object' ? availability : {}) as Record<string, unknown>;
+  const days = AVAILABILITY_DAY_KEYS.map((k) => readDay(map[k]));
+  const len = Math.max(0.5, Number(hours) || 0);
+
+  let min: number;
+  let max: number;
+  let fromProfile = true;
+  if (!days.some((d) => d?.active) && !daysChosen) {
+    fromProfile = false;
+    min = up(Math.max(opts.fallback.min, opts.earliest));
+    max = down(opts.fallback.max);
+  } else {
+    const d = days[((Math.trunc(day) % 7) + 7) % 7];
+    if (!d?.active) return null;
+    min = up(Math.max(d.start, opts.earliest));
+    max = down(d.end - len);
+  }
+  if (!(max >= min)) return null;
+
+  const busy = opts.busy ?? [];
+  for (let h = min; h <= max + 1e-9; h += 0.5) {
+    const s = h * 60;
+    const e = s + len * 60;
+    if (!busy.some((b) => s < b.e && e > b.s)) return { min, max, first: h, allBusy: false, fromProfile };
+  }
+  return { min, max, first: min, allBusy: true, fromProfile };
+}

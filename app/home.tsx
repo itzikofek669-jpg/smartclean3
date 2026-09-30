@@ -37,7 +37,7 @@ import { canRepost, bookingOrigin } from '../lib/bookingOrigin';
 import { cityFromAddress } from '../lib/cityFromAddress';
 import {
   LANGUAGE_FLAGS, groupConsecutiveDays, normalizeLanguages, workDaysFromAvailability,
-  workingHoursVerdict, worksAt,
+  workingHoursVerdict, worksAt, bookableStarts, busyWindowsOn,
 } from '../lib/cleanerTraits';
 import { filterBoard, nearestCity } from '../lib/jobSearch';
 import { notify } from '../lib/notify';
@@ -1969,7 +1969,9 @@ function SpinnerPicker({ value, onChange, values, display }: {
 }
 
 function TimeWheelPicker({ value, onChange, minHour = 7, maxHour = 23.5 }: { value: number; onChange: (v: number) => void; minHour?: number; maxHour?: number }) {
-  const timeValues: number[] = Array.from({ length: 34 }, (_, i) => 7 + i * 0.5).filter(h => h >= minHour && h <= maxHour);
+  // From 06:00: the earliest a cleaner can set her working day to start
+  // (normalizeAvailability), and the wheel now opens at her own hours.
+  const timeValues: number[] = Array.from({ length: 36 }, (_, i) => 6 + i * 0.5).filter(h => h >= minHour && h <= maxHour);
   const display = (v: number) => {
     const hh = String(Math.floor(v)).padStart(2, '0');
     const mm = v % 1 === 0.5 ? '30' : '00';
@@ -2324,23 +2326,99 @@ function BookingModal({ cleaner, visible, onClose, onBookingCreated, prebookData
   const todayIsFull = isToday && rawMinHour > MAX_BOOKING_HOUR;
   const minHour = todayIsFull ? 7 : Math.min(rawMinHour, MAX_BOOKING_HOUR);
 
-  // ── כשמשנים תאריך — עדכן שעה אם צריך ──────────────────────────────────
+  // ── השעון לפי שעות העבודה של נותן השירות ──────────────────────────────
+  // השעון הציע 07:00–20:00 ו-09:00 לכולם, בלי קשר לשעות שנותן השירות קבע:
+  // מי שמתחיל בעשר קיבל קודם 09:00, ומי שמסיים בשתיים קיבל שעות עד 20:00 —
+  // וכל אחת מהן נדחתה רק בלחיצה על "הזמן". עכשיו השעון נפתח בשעה הפנויה
+  // הראשונה ביום העבודה שלו, ונגמר בשעה האחרונה שהעבודה עוד מסתיימת בה
+  // (lib/cleanerTraits bookableStarts). השעות התפוסות נקראות מהמסמך שלו
+  // (busySlots, pendingSlots) — אותו מקור של isCleanerBusy בזמן ההזמנה.
+  const cleanerKey = cleaner ? (cleaner.uid || cleaner.id || '') : '';
+  // Kept with the cleaner they belong to, so a late answer for the previous
+  // cleaner is never read as this one's.
+  const [slotsOf, setSlotsOf] = useState<{ key: string; slots: unknown[] } | null>(null);
+  const cleanerSlots = slotsOf && slotsOf.key === cleanerKey ? slotsOf.slots : null;
+  // Read afresh on every opening (closing clears them): a booking made since
+  // the last time this cleaner was opened has to be seen.
   useEffect(() => {
-    // No slot left today: move to tomorrow rather than inventing an hour that
-    // does not exist. Re-runs once on the new date, where todayIsFull is false.
-    if (todayIsFull) {
-      const tomorrow = new Date();
-      tomorrow.setDate(tomorrow.getDate() + 1);
-      tomorrow.setHours(0, 0, 0, 0);
-      setBookingDate(tomorrow);
-      setStartHour(7);
-      return;
+    if (!cleanerKey || !visible) return;
+    let alive = true;
+    const take = (slots: unknown[]) => { if (alive) setSlotsOf({ key: cleanerKey, slots }); };
+    getDoc(doc(db, 'users', cleanerKey))
+      .then(snap => {
+        const d: any = snap.data() || {};
+        take([
+          ...(Array.isArray(d.busySlots) ? d.busySlots : []),
+          ...(Array.isArray(d.pendingSlots) ? d.pendingSlots : []),
+        ]);
+      })
+      // A clock without the busy hours still opens at her working hours;
+      // the check when booking fails closed on its own.
+      .catch(err => { logError('home:cleanerSlots', err); take([]); });
+    return () => { alive = false; };
+  }, [cleanerKey, visible]);
+
+  const ymd = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  const windowFor = (d: Date, isTodayDate: boolean) => bookableStarts(
+    cleaner?.availability, d.getDay(), hours, cleaner?.availabilitySet === true,
+    {
+      earliest: isTodayDate ? rawMinHour : 0,
+      fallback: { min: 7, max: MAX_BOOKING_HOUR },
+      busy: busyWindowsOn(cleanerSlots ?? [], ymd(d)),
+    },
+  );
+  const bookWindow = windowFor(bookingDate, isToday);
+  const clockMin = bookWindow?.min ?? minHour;
+  const clockMax = bookWindow?.max ?? MAX_BOOKING_HOUR;
+
+  // Adjusted during render, React's pattern for state that follows other
+  // state — an effect would first paint the old hour, then jump.
+  //   • On opening, once her busy hours are in: today with nothing left moves
+  //     to her next working day that has a free hour — late in the evening
+  //     too, which used to jump to "tomorrow" even when tomorrow was her day
+  //     off. A day the client picked herself never moves.
+  //   • Each new day (or cleaner, or busy hours arriving): the first free hour.
+  //   • The job's length changed: if the chosen hour now runs into a booked
+  //     one, or past her day, the first free hour again.
+  //   • Otherwise an hour the range no longer holds is pulled back into it.
+  const [advancedFor, setAdvancedFor] = useState('');
+  if (cleanerKey && cleanerSlots !== null && advancedFor !== cleanerKey) {
+    setAdvancedFor(cleanerKey);
+    if (isToday && (!bookWindow || bookWindow.allBusy)) {
+      for (let i = 1; i <= 14; i++) {
+        const d = new Date();
+        d.setHours(0, 0, 0, 0);
+        d.setDate(d.getDate() + i);
+        const w = windowFor(d, false);
+        if (w && !w.allBusy) { setBookingDate(d); break; }
+      }
     }
-    // Clamp at both ends. Raising to the minimum was the only rule before, so
-    // nothing ever pulled an out-of-range hour back down.
-    const clamped = Math.min(Math.max(startHour, minHour), MAX_BOOKING_HOUR);
+  }
+  const suggestKey = `${cleanerKey}|${ymd(bookingDate)}|${cleanerSlots === null ? 0 : 1}`;
+  const [suggestedFor, setSuggestedFor] = useState('');
+  const [checkedLen, setCheckedLen] = useState(hours);
+  if (suggestedFor !== suggestKey) {
+    setSuggestedFor(suggestKey);
+    setCheckedLen(hours);
+    if (bookWindow) setStartHour(bookWindow.first);
+  } else if (checkedLen !== hours) {
+    setCheckedLen(hours);
+    const s0 = startHour * 60;
+    const e0 = s0 + hours * 60;
+    const clash = busyWindowsOn(cleanerSlots ?? [], ymd(bookingDate)).some(b => s0 < b.e && e0 > b.s);
+    if (bookWindow && !bookWindow.allBusy && (clash || startHour < clockMin || startHour > clockMax)) {
+      setStartHour(bookWindow.first);
+    } else {
+      const clamped = Math.min(Math.max(startHour, clockMin), clockMax);
+      if (clamped !== startHour) setStartHour(clamped);
+    }
+  } else {
+    const clamped = Math.min(Math.max(startHour, clockMin), clockMax);
     if (clamped !== startHour) setStartHour(clamped);
-  }, [bookingDate, todayIsFull, minHour]);
+  }
+  // Every way the form closes: the next opening reads her busy hours afresh
+  // and suggests from scratch.
+  const resetClock = () => { setSlotsOf(null); setSuggestedFor(''); setAdvancedFor(''); };
   const [pendingBookingId, setPendingBookingId] = useState<string | null>(null);
   const [cancellingBooking, setCancellingBooking] = useState(false);
   const unsubBookingRef = useRef<(() => void) | null>(null);
@@ -2742,6 +2820,9 @@ function BookingModal({ cleaner, visible, onClose, onBookingCreated, prebookData
     setAddrCity(''); setAddrStreet(''); setAddrFloor(''); setAddrApt(''); setAddrPrivate(false); setSelectedAddrId('');
     setHours(2);
     setBookingDate(new Date()); setStartHour(9); setRecurring('once');
+    // Next opening starts over: her first free hour, and the next working day
+    // if today is done.
+    resetClock();
     setRecurringDates([]);
     setServiceTypes([]); setShowSuccess(false); setBookedDetails(null);
     setAnnouncedBooking(null);
@@ -2767,6 +2848,7 @@ function BookingModal({ cleaner, visible, onClose, onBookingCreated, prebookData
     setShowWaiting(false);
     setPendingBookingId(null);
     setBookedDetails(null);
+    resetClock();
     onClose();
   };
   if (!cleaner) return null;
@@ -3010,12 +3092,17 @@ function BookingModal({ cleaner, visible, onClose, onBookingCreated, prebookData
             <T style={s.fieldLabel}>🕐 {t.timeLabel}</T>
             {isToday && (
               <T style={{ fontSize: 12, color: '#EF4444', marginBottom: 4, textAlign: 'right' }}>
-                ⚠️ ניתן להזמין מ-{String(Math.floor(minHour)).padStart(2,'0')}:{minHour % 1 === 0.5 ? '30' : '00'} ומעלה
+                ⚠️ ניתן להזמין מ-{String(Math.floor(clockMin)).padStart(2,'0')}:{clockMin % 1 === 0.5 ? '30' : '00'} ומעלה
               </T>
             )}
-            <TimeWheelPicker value={startHour} onChange={setStartHour} minHour={minHour} maxHour={MAX_BOOKING_HOUR} />
+            <TimeWheelPicker value={startHour} onChange={setStartHour} minHour={clockMin} maxHour={clockMax} />
             {/* Said as soon as the day or time is picked, not only after the
                 whole form is filled and "book" is pressed. */}
+            {bookWindow?.allBusy && (
+              <T style={{ fontSize: 12.5, color: '#DC2626', fontWeight: '700', textAlign: 'right', marginTop: 6 }}>
+                ⛔ {(t as any).cleanerDayFullMsg ?? 'כל השעות של נותן השירות ביום הזה תפוסות — בחר/י יום אחר.'}
+              </T>
+            )}
             {(() => {
               const v = workingHoursVerdict(cleaner?.availability, bookingDate.getDay(), startHour, hours, cleaner?.availabilitySet === true);
               if (v.verdict !== 'day-off' && v.verdict !== 'outside-hours') return null;

@@ -16,7 +16,7 @@ import { splitFields, reconcile, pendingMove, publicCoord, privateKeysFor } from
 import { spreadStacked } from '../.tsbuild/jobUtils.mjs';
 import { matchJob, jobOnBoard, jobCityOf, nearestCity, filterBoard } from '../.tsbuild/jobSearch.mjs';
 import { normText, resolvePlace, textMatches, servesPlace, searchCleaners } from '../.tsbuild/search.mjs';
-import { workingHoursVerdict, workDaysFromAvailability, normalizeAvailability, worksAt } from '../.tsbuild/cleanerTraits.mjs';
+import { workingHoursVerdict, workDaysFromAvailability, normalizeAvailability, worksAt, bookableStarts, busyWindowsOn } from '../.tsbuild/cleanerTraits.mjs';
 import { claimUpdate, rejectionUpdate, rejectionReleasesToBoard, awaitsMyApproval, occupiesCleanerTime, busyWindowOf, busyFieldsOf, pendingSlotMissed, isBoardJobOfferable, pendingSlotExpired, expiryUpdate } from '../.tsbuild/bookingActions.mjs';
 
 // Every case here is a bug that reached a real user. They are regression tests,
@@ -1191,4 +1191,69 @@ test('filterBoard searches first and applies the radius after', () => {
   assert.deepEqual(ids('שגיא'), ['far']);                      // so does a client
   assert.deepEqual(ids('תל אביב'), ['legacy']);                // found by its derived town
   assert.deepEqual(ids('זזזז'), []);
+});
+
+// ── The clock in a direct booking ────────────────────────────────────────────
+// It offered 07:00–20:00 and 09:00 to everyone, whatever hours the cleaner
+// keeps: a cleaner who starts at 10 was offered 09:00 first, and one who stops
+// at 14 was offered starts until 20:00 — each refused only once "book" was hit.
+
+test('the clock starts at her first free hour and ends at her last', () => {
+  const week = { sun: { active: true, start: 10, end: 16 }, mon: { active: true, start: 8, end: 14 } };
+  const opts = { earliest: 0, fallback: { min: 7, max: 20 } };
+  // Sunday 10–16, a 2-hour job: 10:00 first, 14:00 the last start that ends by 16.
+  assert.deepEqual(bookableStarts(week, 0, 2, true, opts), { min: 10, max: 14, first: 10, allBusy: false, fromProfile: true });
+  // A longer job ends earlier on the clock.
+  assert.equal(bookableStarts(week, 0, 4, true, opts).max, 12);
+  // Her day off, or a job longer than her day: nothing to offer.
+  assert.equal(bookableStarts(week, 5, 2, true, opts), null);
+  assert.equal(bookableStarts(week, 1, 7, true, opts), null);
+  // Today, later than her start: from the next slot, rounded to the half hour.
+  assert.deepEqual(bookableStarts(week, 0, 2, true, { ...opts, earliest: 11.2 }), { min: 11.5, max: 14, first: 11.5, allBusy: false, fromProfile: true });
+  // No hours ever set: the old general range, still honouring today's next slot.
+  assert.deepEqual(bookableStarts({}, 3, 2, false, { ...opts, earliest: 9 }), { min: 9, max: 20, first: 9, allBusy: false, fromProfile: false });
+  // Every day switched off on purpose is not "unset".
+  assert.equal(bookableStarts({}, 3, 2, true, opts), null);
+});
+
+test('the clock skips hours she is already booked', () => {
+  const week = { sun: { active: true, start: 9, end: 18 } };
+  const opts = { earliest: 0, fallback: { min: 7, max: 20 } };
+  // Busy 09:00–11:00: a 2-hour job is first free at 11:00.
+  assert.equal(bookableStarts(week, 0, 2, true, { ...opts, busy: [{ s: 540, e: 660 }] }).first, 11);
+  // Busy 10:00–12:00: 09:00 would run into it, so 12:00.
+  assert.equal(bookableStarts(week, 0, 2, true, { ...opts, busy: [{ s: 600, e: 720 }] }).first, 12);
+  // A gap exactly as long as the job is used.
+  assert.equal(bookableStarts(week, 0, 2, true, { ...opts, busy: [{ s: 540, e: 600 }, { s: 720, e: 1080 }] }).first, 10);
+  // Nothing free: the range stays, and it says so.
+  const full = bookableStarts(week, 0, 2, true, { ...opts, busy: [{ s: 540, e: 1080 }] });
+  assert.equal(full.allBusy, true);
+  assert.equal(full.first, 9);
+});
+
+test('busy slots land on the right day, in both stored shapes', () => {
+  assert.deepEqual(busyWindowsOn([{ date: '2026-10-04', s: 600, e: 720 }], '2026-10-04'), [{ s: 600, e: 720 }]);
+  // The next day is kept, shifted by a day: a late job that runs past midnight
+  // can still collide with it.
+  assert.deepEqual(busyWindowsOn([{ date: '2026-10-05', s: 600, e: 720 }], '2026-10-04'), [{ s: 2040, e: 2160 }]);
+  assert.deepEqual(busyWindowsOn([{ date: '2026-10-07', s: 600, e: 720 }], '2026-10-04'), []);
+  // 23:00–01:00 the night before covers the first hour of this day.
+  assert.deepEqual(busyWindowsOn([{ date: '2026-10-03', s: 1380, e: 1500 }], '2026-10-04'), [{ s: -60, e: 60 }]);
+  // The older ISO shape, on the reader's clock.
+  const from = new Date(2026, 9, 4, 13, 0).toISOString();
+  const until = new Date(2026, 9, 4, 15, 30).toISOString();
+  assert.deepEqual(busyWindowsOn([{ from, until }], '2026-10-04'), [{ s: 780, e: 930 }]);
+  assert.deepEqual(busyWindowsOn([null, 'x', { from: 'bad', until: 'bad' }], '2026-10-04'), []);
+  assert.deepEqual(busyWindowsOn(undefined, '2026-10-04'), []);
+});
+
+test('an old-shape busy slot keeps its hour on the day the clocks change', () => {
+  // Israel leaves summer time on 2026-10-25. Built from local fields, so the
+  // expectation holds in any timezone the tests run in.
+  const from = new Date(2026, 9, 25, 10, 0).toISOString();
+  const until = new Date(2026, 9, 25, 12, 0).toISOString();
+  assert.deepEqual(busyWindowsOn([{ from, until }], '2026-10-25'), [{ s: 600, e: 720 }]);
+  const spring = new Date(2026, 2, 27, 10, 0).toISOString();
+  const springEnd = new Date(2026, 2, 27, 12, 0).toISOString();
+  assert.deepEqual(busyWindowsOn([{ from: spring, until: springEnd }], '2026-03-27'), [{ s: 600, e: 720 }]);
 });
