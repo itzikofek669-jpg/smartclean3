@@ -178,6 +178,9 @@ function createS(c: AppColors) {
     startBtnText: { fontSize: 14, fontWeight: '800', color: c.white },
     endBtn:       { marginTop: 10, backgroundColor: c.green, borderRadius: 10, padding: 12, alignItems: 'center' },
     endBtnText:   { fontSize: 14, fontWeight: '800', color: c.white },
+    // Undo a mistaken "on my way" / "started": quiet, so it is not pressed by accident.
+    undoBtn:      { backgroundColor: c.white, borderRadius: 10, paddingVertical: 9, alignItems: 'center', borderWidth: 1, borderColor: c.blueBorder },
+    undoBtnText:  { fontSize: 13, fontWeight: '700', color: c.textSub },
     cancelBtn:     { marginTop: 10, backgroundColor: '#FEE2E2', borderRadius: 10, padding: 12, alignItems: 'center', borderWidth: 1.5, borderColor: '#FCA5A5' },
     cancelBtnText: { fontSize: 14, fontWeight: '800', color: '#DC2626' },
 
@@ -1844,6 +1847,44 @@ export default function ProfileScreen() {
     }
   };
 
+  // ─── Cleaner: undo "on my way" / "started" pressed by mistake ─────────────────
+  // One step back: started → on the way (or confirmed, if "on my way" was never
+  // pressed), on the way → confirmed. The time stamp of the undone step goes with
+  // it, so a later "started" measures the job from the real start. The client
+  // sees the status change on their screen; no push is sent for the undo.
+  const handleUndoProgress = (b: any) => {
+    const back: 'onway' | 'confirmed' = b.status === 'active' && b.onwayAt ? 'onway' : 'confirmed';
+    const label = b.status === 'active' ? t.startCleaningBtn : t.onWayBtn;
+    Alert.alert(
+      (t as any).undoProgressTitle ?? '↩️ ביטול הלחיצה',
+      ((t as any).undoProgressMsg ?? 'לבטל את "{step}"? ההזמנה תחזור למצב הקודם.').replace('{step}', String(label || '').replace(/^\S+\s+/, '')),
+      [
+        { text: t.cancel, style: 'cancel' },
+        {
+          text: (t as any).undoProgressBtn ?? '↩️ כן, לבטל',
+          onPress: async () => {
+            try {
+              const upd: any = b.status === 'active'
+                ? { status: back, startedAt: deleteField() }
+                : { status: 'confirmed', onwayAt: deleteField() };
+              await updateDoc(doc(db, 'bookings', b.id), upd);
+              setIncomingBks(prev => prev.map(x => {
+                if (x.id !== b.id) return x;
+                const { startedAt: _s, onwayAt: _o, ...rest } = x;
+                return b.status === 'active'
+                  ? { ...rest, ...(x.onwayAt ? { onwayAt: x.onwayAt } : {}), status: back }
+                  : { ...rest, status: 'confirmed' };
+              }));
+            } catch (err) {
+              logError('profile:undoProgress', err);
+              Alert.alert(t.error, t.updateStatusError);
+            }
+          },
+        },
+      ],
+    );
+  };
+
   // ─── Cleaner: mark payment received ──────────────────────────────────────────
   const handlePaymentReceived = async (b: any) => {
     try {
@@ -2709,6 +2750,17 @@ export default function ProfileScreen() {
           </View>
         )}
 
+        {/* Edit — the client's own job on the board, while nobody has taken it.
+            Opens "ניקיון בזמן שלך" with its details (home.tsx, editJobId). */}
+        {!forCleaner && b.open === true && !b.cleanerId && b.status === 'pending' && (
+          <TouchableOpacity
+            style={[s.undoBtn, { marginTop: 10 }]}
+            onPress={() => router.push({ pathname: '/home', params: { editJobId: b.id } })}
+          >
+            <T style={[s.undoBtnText, { color: C.blue }]}>✏️ {(t as any).editJobBtn ?? 'עריכת המודעה'}</T>
+          </TouchableOpacity>
+        )}
+
         {/* Cancel button — pending/confirmed/onway, both client and cleaner (כולל דחוף) */}
         {(b.status === 'pending' || b.status === 'confirmed' || b.status === 'onway') && (
           <TouchableOpacity style={s.cancelBtn} onPress={() => handleCancelBooking(b)}>
@@ -2742,6 +2794,11 @@ export default function ProfileScreen() {
             <TouchableOpacity style={s.startBtn} onPress={() => handleStartCleaning(b)}>
               <T style={s.startBtnText}>✨ {t.startCleaningBtn}</T>
             </TouchableOpacity>
+            {b.status === 'onway' && (
+              <TouchableOpacity style={s.undoBtn} onPress={() => handleUndoProgress(b)}>
+                <T style={s.undoBtnText}>↩️ {(t as any).undoOnWayBtn ?? 'ביטול "אני בדרך"'}</T>
+              </TouchableOpacity>
+            )}
           </View>
         )}
         {/* (The standalone "start cleaning" button for `onway` lived here. The
@@ -2760,6 +2817,11 @@ export default function ProfileScreen() {
             )}
           >
             <T style={s.endBtnText}>✅ {t.endCleaningBtn}</T>
+          </TouchableOpacity>
+        )}
+        {forCleaner && isActive && (
+          <TouchableOpacity style={[s.undoBtn, { marginTop: 8 }]} onPress={() => handleUndoProgress(b)}>
+            <T style={s.undoBtnText}>↩️ {(t as any).undoStartBtn ?? 'ביטול "התחלתי עבודה"'}</T>
           </TouchableOpacity>
         )}
         {/* Payment received button */}

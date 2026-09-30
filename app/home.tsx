@@ -1665,11 +1665,25 @@ function MultiCalendarPicker({ selected, onChange, label }: {
 }
 
 // ─── Post Open Job (client) ───────────────────────────────────────────────────
-function PostJobModal({ visible, onClose, onPosted }: { visible: boolean; onClose: () => void; onPosted?: () => void }) {
+// `editJob`: the client's own job on the board, not yet taken, to change. Saving
+// replaces it — the old one is cancelled and the new one posted in one
+// transaction — because the rules freeze a posted job's price and hours
+// (bookingMoneyUnchanged) against tampering, and those are exactly what a
+// client wants to change. A job a cleaner took meanwhile is not touched.
+function PostJobModal({ visible, onClose, onPosted, editJob }: { visible: boolean; onClose: () => void; onPosted?: () => void; editJob?: any | null }) {
   const { t } = useLanguage();
   const C = useAppColors();
   const insets = useSafeAreaInsets();
-  const [types, setTypes]       = useState<string[]>([]);
+  // Editing starts from the job's own values. The modal is keyed per job
+  // (see <PostJobModal key=…>), so these initialisers run for each one.
+  const ej = editJob?.id ? editJob : null;
+  const ejDate = (() => {
+    const [y, m, d] = String(ej?.bookingDate || '').split('-').map(Number);
+    return y && m && d ? new Date(y, m - 1, d) : null;
+  })();
+  const ejHour = ej ? Number(String(ej.startTime || '').split(':')[0]) : NaN;
+  const [types, setTypes]       = useState<string[]>(() =>
+    !ej ? [] : Array.isArray(ej.serviceTypes) && ej.serviceTypes.length ? ej.serviceTypes : String(ej.serviceType || '').split(' + ').filter(Boolean));
   // ברירת מחדל: מסונכרן עם השעה הנוכחית (השעה הבאה), כדי שלא ייפול בעבר
   const defaultSlot = (() => {
     const n = new Date(); const d = new Date(n);
@@ -1679,24 +1693,33 @@ function PostJobModal({ visible, onClose, onPosted }: { visible: boolean; onClos
     d.setHours(h, 0, 0, 0);
     return { d, h };
   })();
-  const [date, setDate]         = useState<Date>(defaultSlot.d);
+  const [date, setDate]         = useState<Date>(ejDate ?? defaultSlot.d);
   const [calOpen, setCalOpen]   = useState(false);
-  const [hour, setHour]         = useState(defaultSlot.h);
-  const [hours, setHours]       = useState(2);
-  const [isPrivate, setIsPrivate] = useState(true);
-  const [city, setCity]         = useState('');
+  const [hour, setHour]         = useState(Number.isFinite(ejHour) ? ejHour : defaultSlot.h);
+  const [hours, setHours]       = useState(ej && Number(ej.hours) > 0 ? Number(ej.hours) : 2);
+  const [isPrivate, setIsPrivate] = useState(ej ? ej.isPrivateHouse !== false : true);
+  const [city, setCity]         = useState<string>(ej?.addrCity || '');
   const [citySugg, setCitySugg] = useState<string[]>([]);
   // Chosen from the same row of amounts as an urgent request, not typed. The
   // free-text field took 0, 5 or 99999, and blank posted a job with no price.
-  const [budget, setBudget]     = useState(80);
+  const [budget, setBudget]     = useState(ej && Number(ej.pricePerHour) > 0 ? Number(ej.pricePerHour) : 80);
   const [notes, setNotes]       = useState('');
-  const [photos, setPhotos]     = useState<string[]>([]);   // base64 (data URIs) — עד 3
+  const [photos, setPhotos]     = useState<string[]>(ej && Array.isArray(ej.photos) ? ej.photos : []);   // base64 (data URIs) — עד 3
   const [busy, setBusy]         = useState(false);
   const svcKeys = Object.keys(SERVICE_DESCRIPTIONS);
 
+  // עריכה: הכתובת המלאה וההערות יושבות בחלק הפרטי של המודעה.
+  const ejId = ej?.id;
+  useEffect(() => {
+    if (!ejId) return;
+    fetchBookingDetails(ejId)
+      .then(det => { if (det.address) setCity(det.address); setNotes(det.notes || ''); })
+      .catch(err => logError('home:editJobDetails', err));
+  }, [ejId]);
+
   // מילוי אוטומטי של הכתובת — מהכתובות השמורות, ואם אין, מהכתובת/עיר שמההרשמה
   useEffect(() => {
-    if (!visible) return;
+    if (!visible || ejId) return;
     (async () => {
       try {
         const a = await getSavedAddresses();
@@ -1711,7 +1734,7 @@ function PostJobModal({ visible, onClose, onPosted }: { visible: boolean; onClos
         if (fallback) setCity(prev => prev || String(fallback));
       } catch (_) {}
     })();
-  }, [visible]);
+  }, [visible, ejId]);
 
   // השלמת ערים — מתוך רשימת הערים המובנית
   const computeCitySugg = (txt: string) => {
@@ -1754,8 +1777,7 @@ function PostJobModal({ visible, onClose, onPosted }: { visible: boolean; onClos
       // One batch: written apart, a failed second write left the job live on
       // the board with no address at all, and nothing to heal it.
       const jobRef = doc(collection(db, 'bookings'));
-      const jobBatch = writeBatch(db);
-      jobBatch.set(jobRef, {
+      const jobDoc = {
         open: true, cleanerId: '', clientUid: uid, clientName,
         origin: 'open',
         serviceTypes: types, serviceType: types.join(' + '),
@@ -1770,17 +1792,41 @@ function PostJobModal({ visible, onClose, onPosted }: { visible: boolean; onClos
         payment: 'cash', paymentStatus: 'awaiting_cash', status: 'pending',
         bookingDate: dateStr, startTime: `${String(hour).padStart(2, '0')}:00`,
         recurring: 'once', recurringDates: [], createdAt: new Date().toISOString(),
-      });
+      };
       // The phone too: the cleaner who takes the job reads it from here, not from
       // a profile everyone can read. See lib/privateProfile.
-      jobBatch.set(doc(db, 'bookings', jobRef.id, 'private', 'details'), { address: city.trim(), notes: notes.trim(), phone: await ownPhone(uid) });
-      await jobBatch.commit();
+      const details = { address: city.trim(), notes: notes.trim(), phone: await ownPhone(uid) };
+      const detailsRef = doc(db, 'bookings', jobRef.id, 'private', 'details');
+      if (editJob?.id) {
+        const oldRef = doc(db, 'bookings', editJob.id);
+        await runTransaction(db, async (tx) => {
+          const cur = await tx.get(oldRef);
+          const d: any = cur.data();
+          if (!cur.exists() || d?.cleanerId || d?.open !== true || d?.status !== 'pending') throw new Error('JOB_TAKEN');
+          tx.set(jobRef, jobDoc);
+          tx.set(detailsRef, details);
+          tx.update(oldRef, { status: 'cancelled', cancelledBy: 'client', cancelledAt: new Date().toISOString() });
+        });
+      } else {
+        const jobBatch = writeBatch(db);
+        jobBatch.set(jobRef, jobDoc);
+        jobBatch.set(detailsRef, details);
+        await jobBatch.commit();
+      }
       upsertAddress(city.trim()).catch(() => {});   // שמור את הכתובת למילוי אוטומטי בפעם הבאה
       onPosted?.();
       onClose();
-      Alert.alert('📢', (t as any).jobPostedOk ?? 'המודעה פורסמה, נותני שירות יוכלו לראות ולאשר הזמנה.\nאתה תקבל הודעה כשנותן שירות יאשר את ההזמנה.');
+      Alert.alert('📢', editJob?.id
+        ? ((t as any).jobEditedOk ?? 'המודעה עודכנה.')
+        : ((t as any).jobPostedOk ?? 'המודעה פורסמה, נותני שירות יוכלו לראות ולאשר הזמנה.\nאתה תקבל הודעה כשנותן שירות יאשר את ההזמנה.'));
       setTypes([]); setCity(''); setCitySugg([]); setBudget(80); setNotes(''); setPhotos([]);
-    } catch (_) {
+    } catch (err: any) {
+      if (err?.message === 'JOB_TAKEN') {
+        Alert.alert('', (t as any).jobEditTakenMsg ?? 'נותן שירות כבר לקח את העבודה, ולכן אי אפשר לערוך אותה. אפשר לדבר איתו בצ\'אט או לבטל את ההזמנה.');
+        onClose();
+        return;
+      }
+      logError('home:postJob', err);
       Alert.alert(t.error, (t as any).jobPostError ?? 'שגיאה בפרסום העבודה — נסה שוב');
     } finally { setBusy(false); }
   };
@@ -1792,7 +1838,7 @@ function PostJobModal({ visible, onClose, onPosted }: { visible: boolean; onClos
           <TouchableOpacity accessibilityRole="button" accessibilityLabel="סגור" onPress={onClose} style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: 'rgba(255,255,255,0.2)', alignItems: 'center', justifyContent: 'center' }}>
             <T style={{ color: '#fff', fontSize: 18 }}>✕</T>
           </TouchableOpacity>
-          <T style={{ fontSize: 17, fontWeight: '900', color: '#fff' }}>📢 {(t as any).postJobTitle ?? 'פרסם עבודה פתוחה'}</T>
+          <T style={{ fontSize: 17, fontWeight: '900', color: '#fff' }}>{editJob?.id ? `✏️ ${(t as any).editJobTitle ?? 'עריכת מודעה'}` : `📢 ${(t as any).postJobTitle ?? 'פרסם עבודה פתוחה'}`}</T>
           <View style={{ width: 36 }} />
         </View>
         <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'} keyboardVerticalOffset={0}>
@@ -1900,7 +1946,7 @@ function PostJobModal({ visible, onClose, onPosted }: { visible: boolean; onClos
           )}
 
           <TouchableOpacity disabled={!valid || busy} onPress={submit} style={{ backgroundColor: valid && !busy ? C.green : C.grayBorder, borderRadius: 14, paddingVertical: 15, alignItems: 'center', marginTop: 4 }}>
-            <T style={{ color: '#fff', fontWeight: '900', fontSize: 15 }}>{busy ? '…' : `📢 ${(t as any).postJobBtn ?? 'פרסם עבודה'}`}</T>
+            <T style={{ color: '#fff', fontWeight: '900', fontSize: 15 }}>{busy ? '…' : editJob?.id ? `💾 ${(t as any).saveChangesBtn ?? 'שמור שינויים'}` : `📢 ${(t as any).postJobBtn ?? 'פרסם עבודה'}`}</T>
           </TouchableOpacity>
         </ScrollView>
         </KeyboardAvoidingView>
@@ -3908,7 +3954,7 @@ function QuickRebookModal({ visible, onClose, myBookings, allCleaners, onBook }:
 // ─── Main screen ──────────────────────────────────────────────────────────────
 export default function HomeScreen() {
   const router   = useRouter();
-  const navParams = useLocalSearchParams<{ openPostJob?: string }>();
+  const navParams = useLocalSearchParams<{ openPostJob?: string; editJobId?: string }>();
   const { t, setLang, flipSide } = useLanguage();
   const C = useAppColors();
   const s = createS(C);
@@ -4115,6 +4161,25 @@ export default function HomeScreen() {
       router.setParams({ openPostJob: undefined });
     }
   }, [navParams?.openPostJob]);
+  // הגעה מהפרופיל עם editJobId — "✏️ עריכה" על מודעה של הלקוח שעוד לא נלקחה.
+  const [editJob, setEditJob] = useState<any>(null);
+  useEffect(() => {
+    const id = navParams?.editJobId;
+    if (!id) return;
+    router.setParams({ editJobId: undefined });
+    getDoc(doc(db, 'bookings', id))
+      .then(snap => {
+        const d: any = snap.data();
+        if (!snap.exists() || d?.clientUid !== auth.currentUser?.uid) return;
+        if (d?.cleanerId || d?.open !== true || d?.status !== 'pending') {
+          Alert.alert('', (t as any).jobEditTakenMsg ?? 'נותן שירות כבר לקח את העבודה, ולכן אי אפשר לערוך אותה. אפשר לדבר איתו בצ\'אט או לבטל את ההזמנה.');
+          return;
+        }
+        setEditJob({ id: snap.id, ...d });
+        setPostJobOpen(true);
+      })
+      .catch(err => logError('home:editJob', err));
+  }, [navParams?.editJobId]);
   const [urgentDate,      setUrgentDate]      = useState<'today'|'tomorrow'>('today');
   const [urgentHour,      setUrgentHour]      = useState(10);
   const [urgentHours,     setUrgentHours]     = useState(2);
@@ -4452,6 +4517,37 @@ export default function HomeScreen() {
       urgentUnsubRef.current = unsub;
     } catch (_) {}
     setUrgentSending(false);
+  };
+
+  // ✏️ עריכה: הבקשה נשלחה אבל אף נותן שירות עוד לא לקח אותה — מבטלים אותה
+  // וחוזרים לטופס עם אותם פרטים, לתקן ולשלוח מחדש. מחדש ולא עדכון במקום: נותני
+  // השירות קיבלו פוש על הפרטים הישנים, והבקשה המתוקנת צריכה להגיע אליהם כחדשה.
+  // בטרנזקציה, כדי לא לבטל בקשה שנלקחה באותו רגע.
+  const handleEditUrgent = async () => {
+    if (!urgentRequestId) return;
+    const ref = doc(db, 'urgentRequests', urgentRequestId);
+    let photosBack: string[] = [];
+    try {
+      await runTransaction(db, async (tx) => {
+        const cur = await tx.get(ref);
+        const d: any = cur.data();
+        if (!cur.exists() || d?.status !== 'open') throw new Error('URGENT_TAKEN');
+        photosBack = Array.isArray(d?.photos) ? d.photos : [];
+        tx.update(ref, { status: 'cancelled' });
+      });
+    } catch (err: any) {
+      if (err?.message !== 'URGENT_TAKEN') logError('home:editUrgent', err);
+      Alert.alert('', err?.message === 'URGENT_TAKEN'
+        ? ((t as any).urgentEditTakenMsg ?? 'נותן שירות כבר לקח את הבקשה, ולכן אי אפשר לערוך אותה.')
+        : ((t as any).genericError ?? 'שגיאה — נסה שוב'));
+      return;
+    }
+    // The rest of the form still holds what was sent; the photos were cleared
+    // on sending, so they come back from the request.
+    setUrgentPhotos(photosBack);
+    setUrgentWaiting(false);
+    setUrgentRequestId(null);
+    setUrgentFoundName('');
   };
 
   const handleCancelUrgent = async () => {
@@ -6321,7 +6417,14 @@ export default function HomeScreen() {
       </View>
 
       {/* פרסום עבודה פתוחה (לקוח) */}
-      <PostJobModal visible={postJobOpen} onClose={() => setPostJobOpen(false)} />
+      {/* Keyed: switching between editing a job and posting a new one starts
+          from a clean form, not from the other one's fields. */}
+      <PostJobModal
+        key={editJob?.id || 'new'}
+        visible={postJobOpen}
+        editJob={editJob}
+        onClose={() => { setPostJobOpen(false); setEditJob(null); }}
+      />
 
       <CleanerProfile
         cleaner={profile}
@@ -6891,7 +6994,13 @@ export default function HomeScreen() {
                 <T style={{ fontSize: 48 }}>⏳</T>
                 <T style={{ fontSize: 18, fontWeight: '900', color: C.textDark, textAlign: 'center' }}>{t.urgentWaitingMsg}</T>
                 <TouchableOpacity
-                  style={{ backgroundColor: '#FEE2E2', borderRadius: 12, paddingVertical: 12, paddingHorizontal: 28, marginTop: 6 }}
+                  style={{ backgroundColor: '#EDE9FE', borderRadius: 12, paddingVertical: 12, paddingHorizontal: 28, marginTop: 6, borderWidth: 1, borderColor: '#DDD6FE' }}
+                  onPress={handleEditUrgent}
+                >
+                  <T style={{ fontSize: 14, fontWeight: '800', color: '#6D28D9' }}>✏️ {(t as any).urgentEditBtn ?? 'עריכת הבקשה'}</T>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={{ backgroundColor: '#FEE2E2', borderRadius: 12, paddingVertical: 12, paddingHorizontal: 28 }}
                   onPress={handleCancelUrgent}
                 >
                   <T style={{ fontSize: 14, fontWeight: '800', color: '#EF4444' }}>{t.urgentCancelBtn}</T>
