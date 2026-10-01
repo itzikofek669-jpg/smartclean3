@@ -518,8 +518,8 @@ Chapitre A — Définitions générales
 ═══════════════════════════════
 
 1. Introduction et nature du service
-1.1 L'application A&M Clean (« l'Application », « la Plateforme ») est une plateforme technologique purement numérique, servant d'intermédiaire électronique entre les clients souhaitant des services de nettoyage et des prestataires indépendants (« Agents de nettoyage »).
-1.2 L'Application n'est pas une société de nettoyage, n'emploie pas d'agents et n'est pas partie au contrat de service conclu entre le client et l'agent.
+1.1 L'application A&M Clean (« l'Application », « la Plateforme ») est une plateforme technologique purement numérique, servant d'intermédiaire électronique entre les clients souhaitant des services de nettoyage et des prestataires indépendants (« Prestataires »).
+1.2 L'Application n'est pas une société de nettoyage, n'emploie pas de prestataires et n'est pas partie au contrat de service conclu entre le client et le prestataire.
 1.3 Toute transaction, service, paiement et activité s'effectue directement et exclusivement entre les utilisateurs eux-mêmes.
 1.4 L'inscription à l'Application et/ou son utilisation constitue un consentement plein, absolu et irrévocable à toutes les conditions des présentes.
 
@@ -533,16 +533,16 @@ Chapitre B — Limitation absolue de responsabilité
 • Dommage corporel, blessure, décès, accident ou atteinte à la santé de toute nature
 • Dommage matériel, casse, perte, vol, incendie, inondation ou tout dommage physique aux biens
 • Dommage financier, perte de revenus, manque à gagner ou préjudice commercial
-• Dommage à tout tiers résultant de l'activité de l'agent
+• Dommage à tout tiers résultant de l'activité du prestataire
 • Dommage résultant de la non-conformité du service aux attentes du client
-• Dommage résultant d'une négligence, d'une omission ou d'un acte d'un agent
+• Dommage résultant d'une négligence, d'une omission ou d'un acte d'un prestataire
 • Dommage dû à l'utilisation de produits de nettoyage, d'équipements ou d'outils
 • Perte d'informations, de données privées ou atteinte à la vie privée
 • Tout autre dommage résultant de l'utilisation de l'Application ou de la confiance qui lui est accordée
 
-2.2 La Direction de l'Application n'assume aucune responsabilité quant à la qualité, au professionnalisme, à la fiabilité ou à l'aptitude juridique ou sécuritaire de tout agent opérant via la Plateforme.
+2.2 La Direction de l'Application n'assume aucune responsabilité quant à la qualité, au professionnalisme, à la fiabilité ou à l'aptitude juridique ou sécuritaire de tout prestataire opérant via la Plateforme.
 
-2.3 L'Application ne vérifie, ne valide, ne certifie ni n'accorde aucune qualification professionnelle aux agents. La responsabilité du choix de l'agent et de la vérification de son aptitude incombe au seul client.
+2.3 L'Application ne vérifie, ne valide, ne certifie ni n'accorde aucune qualification professionnelle aux prestataires. La responsabilité du choix du prestataire et de la vérification de son aptitude incombe au seul client.
 
 ═══════════════════════════════
 Chapitre C — Responsabilité des utilisateurs
@@ -550,32 +550,32 @@ Chapitre C — Responsabilité des utilisateurs
 
 3. Responsabilité du client
 3.1 Le client déclare et s'engage à ce que :
-• Il a choisi l'agent de son plein gré et à sa seule discrétion
-• Il autorise l'agent à entrer dans son bien à sa discrétion et sous son entière responsabilité
+• Il a choisi le prestataire de son plein gré et à sa seule discrétion
+• Il autorise le prestataire à entrer dans son bien à sa discrétion et sous son entière responsabilité
 • Il est conscient que l'Application ne garantit pas les résultats du service
-• Tout litige avec l'agent sera réglé directement entre lui et l'agent uniquement
+• Tout litige avec le prestataire sera réglé directement entre lui et le prestataire uniquement
 • Il indemnisera la Direction de l'Application pour toute réclamation, dépense ou dommage qui lui serait causé du fait de ses actes
 
-3.2 Le client renonce expressément à toute réclamation, demande ou plainte envers la Direction de l'Application concernant tout sujet lié au service reçu de l'agent.
+3.2 Le client renonce expressément à toute réclamation, demande ou plainte envers la Direction de l'Application concernant tout sujet lié au service reçu du prestataire.
 
-4. Responsabilité de l'agent
-4.1 L'agent déclare et s'engage à ce que :
+4. Responsabilité du prestataire
+4.1 Le prestataire déclare et s'engage à ce que :
 • Il est indépendant, dûment qualifié et agit à sa seule discrétion et responsabilité
 • Il est responsable de tout dommage causé dans le cadre de son travail
 • Il est responsable de s'assurer lui-même, y compris l'assurance responsabilité civile et l'assurance dommages
 • Il assume toute responsabilité professionnelle, juridique, pénale et civile pour ses actes
 • Il est responsable des déclarations fiscales, des cotisations sociales et de toute obligation légale lui incombant en tant qu'indépendant
 
-4.2 La Direction de l'Application n'assume aucune responsabilité pour les dommages causés par un agent.
+4.2 La Direction de l'Application n'assume aucune responsabilité pour les dommages causés par un prestataire.
 
 ═══════════════════════════════
 Chapitre D — Paiements et annulations
 ═══════════════════════════════
 
 5. Politique de paiement
-5.1 Tout paiement s'effectue directement entre le client et l'agent. L'Application ne perçoit aucun paiement et ne détient aucun fonds en fiducie.
+5.1 Tout paiement s'effectue directement entre le client et le prestataire. L'Application ne perçoit aucun paiement et ne détient aucun fonds en fiducie.
 5.2 L'Application n'est pas responsable des non-paiements, des litiges de paiement, des retards ou des échecs de transfert de fonds.
-5.3 Tout litige financier entre un client et un agent est réglé directement entre eux sans l'intervention de l'Application.
+5.3 Tout litige financier entre un client et un prestataire est réglé directement entre eux sans l'intervention de l'Application.
 
 6. Politique d'annulation
 6.1 Annulation jusqu'à 24 heures avant l'heure du service — remboursement intégral.
@@ -588,7 +588,7 @@ Chapitre E — Indemnisation et protection juridique
 ═══════════════════════════════
 
 7. Engagement d'indemnisation
-7.1 Chaque utilisateur (client ou agent) s'engage par les présentes à indemniser, défendre et compenser la Direction de l'Application, ses propriétaires, dirigeants et employés, pour toute réclamation, frais juridiques, indemnisation, amende, dommage direct et indirect, y compris les honoraires d'avocat, découlant de :
+7.1 Chaque utilisateur (client ou prestataire) s'engage par les présentes à indemniser, défendre et compenser la Direction de l'Application, ses propriétaires, dirigeants et employés, pour toute réclamation, frais juridiques, indemnisation, amende, dommage direct et indirect, y compris les honoraires d'avocat, découlant de :
 • Violation des présentes conditions
 • Usage abusif de l'Application
 • Dommage causé par l'utilisateur à un tiers
@@ -602,7 +602,7 @@ Chapitre F — Dispositions supplémentaires
 
 8. Absence de relation de travail
 8.1 L'utilisation de l'Application ne crée en aucun cas de relation employé-employeur, de partenariat, d'agence, de mandat, de franchise ou toute autre relation juridique entre la Direction de l'Application et un utilisateur.
-8.2 Les agents agissent uniquement en tant qu'entrepreneurs indépendants.
+8.2 Les prestataires agissent uniquement en tant qu'entrepreneurs indépendants.
 
 9. Confidentialité et sécurité des données
 9.1 L'Application collecte des informations personnelles uniquement aux fins de la prestation du service.
