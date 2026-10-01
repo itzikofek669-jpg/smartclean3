@@ -2196,7 +2196,7 @@ const ar: typeof he = {
   // ── Job board, calendar & shared UI (were falling back to Hebrew) ──────
   alreadyBookedThenMsg: 'لديك عمل بالفعل في هذا الوقت — لا يمكن أخذ عملين متداخلين',
   atHour: 'في الساعة',
-  bookingCancelledPopupSub: 'ألغى مقدم الخدمة الحجز. يمكنك نشره مجدداً وسيراه مقدمي الخدمة القريبون.',
+  bookingCancelledPopupSub: 'ألغى مقدم الخدمة الحجز. يمكنك نشره مجدداً وسيراه مقدمو الخدمة القريبون.',
   bookingCancelledPopupTitle: 'تم إلغاء الحجز',
   botJobMsg: 'هذه مهمة تجريبية — ستظهر هنا المهام الحقيقية من العملاء في منطقتك.',
   budgetPerHourLabel: 'الميزانية للساعة (₪، اختياري)',
@@ -2242,7 +2242,7 @@ const ar: typeof he = {
   pushBookingCancelledTitle: '❌ تم إلغاء الحجز',
   repostBtn: '🔁 أعد النشر وابحث عن مقدم خدمة آخر',
   repostErrMsg: 'فشلت إعادة النشر — حاول مرة أخرى',
-  repostOkMsg: 'تمت إعادة النشر — سيراه مقدمي الخدمة في منطقتك',
+  repostOkMsg: 'تمت إعادة النشر — سيراه مقدمو الخدمة في منطقتك',
   saveFailedMsg: 'فشل الحفظ. حاول مرة أخرى.',
   selectPaymentMethod: 'اختر وسيلة الدفع',
   selectServiceTypeMulti: 'اختر نوع الخدمة (يمكن اختيار أكثر من واحد)',
@@ -2252,7 +2252,7 @@ const ar: typeof he = {
   urgentBadge: 'عاجل',
   urgentLegend: 'الطلبات ذات الإطار البنفسجي عاجلة — اليوم أو غدًا، في منطقتك',
   urgentMaxPriceHint: 'يُرسل التنبيه فقط لمقدمي الخدمة الذين سعرهم في حدود ميزانيتك',
-  jobMaxPriceHint: 'سيرى مقدمي الخدمة هذا المبلغ في الإعلان',
+  jobMaxPriceHint: 'سيرى مقدمو الخدمة هذا المبلغ في الإعلان',
   availHoursInvalid: 'يجب أن تكون ساعة نهاية يوم العمل بعد ساعة البداية، بين 6:00 و23:00.',
   offHoursBookingWarn: '⚠️ هذا الحجز خارج أيام أو ساعات عملك',
   notWorkingTitle: '⛔ مقدم الخدمة لا يعمل في هذا الوقت',
@@ -2479,7 +2479,7 @@ const ar: typeof he = {
   greetingSuffix: '. كيف يمكنني المساعدة؟',
   nearbyBtn:        '📍 بالقرب مني',
   nearbyBtnOff:     '🗺️ كل المنطقة',
-  noNearbyCleaners: 'لا يوجد مقدمي خدمة متاحون في نطاق 30 كم',
+  noNearbyCleaners: 'لا يوجد مقدمو خدمة متاحون في نطاق 30 كم',
   locationDenied:   'تعذر تحديد الموقع — تحقق من الأذونات',
   nearbyRadius:     '30 كم',
   workAreasTitle: 'مناطق العمل',
@@ -2544,7 +2544,7 @@ const ar: typeof he = {
   alreadyAccount: 'هل لديك حساب؟ تسجيل الدخول',
   onboarding1Title: 'مرحباً بكم في A&M Clean',  onboarding1Sub: 'المنصة الرائدة للربط بين العملاء ومقدمي الخدمة المحترفين',
   onboarding2Title: 'احجز بسهولة وسرعة',         onboarding2Sub: 'اختر الخدمة والتاريخ والوقت — واحصل على مقدم خدمة في دقائق',
-  onboarding3Title: 'مقدمي خدمة موثوقون ومُقيَّمون', onboarding3Sub: 'جميع مقدمي الخدمة مُقيَّمون من عملاء حقيقيين',
+  onboarding3Title: 'مقدمو خدمة موثوقون ومُقيَّمون', onboarding3Sub: 'جميع مقدمي الخدمة مُقيَّمون من عملاء حقيقيين',
   onboardingSkip: 'تخطي', onboardingNext: 'التالي', onboardingStart: 'لنبدأ!',
   favoritesTab: 'المفضلة', favoritesEmpty: 'لا مقدمي خدمة مفضلين بعد', favoritesSub: 'اضغط ❤️ على بطاقة مقدم الخدمة للحفظ',
   portfolioTitle: 'ملف الأعمال', portfolioAdd: 'أضف صورة', portfolioEmpty: 'أضف صوراً تعرض عملك',
@@ -2682,7 +2682,7 @@ const ar: typeof he = {
   urgentSending:      'جارٍ الإرسال...',
   urgentWaitingMsg:   '⏳ تم إرسال الطلب! بانتظار مقدم خدمة...',
   urgentFoundMsg:     '✅ تم العثور على مقدم خدمة!',
-  urgentNoCleaners:   'لا يوجد مقدمي خدمة متاحون الآن — حاول لاحقاً',
+  urgentNoCleaners:   'لا يوجد مقدمو خدمة متاحون الآن — حاول لاحقاً',
   urgentTooLate:      'يمكن بدء التنظيف العاجل بين 07:00 و22:00. اختر وقتًا آخر.',
   urgentTodayClosed:  'فات الأوان لليوم — آخر موعد للتنظيف العاجل 22:00. يمكنك الحجز لغد.',
   urgentCancelBtn:    'إلغاء الطلب',
@@ -3564,7 +3564,7 @@ const hi: typeof he = {
   logoutMsg: 'क्या आप लॉगआउट करना चाहते हैं?', logoutConfirm: 'लॉगआउट',
   cancel: 'रद्द करें', error: 'त्रुटि',
   freeBannerTitle:   '🎉 A&M Clean',
-  freeBannerSub:     'सेवा प्रदाता के लिए 0% कमीशन · ग्राहकों के लिए ₪0 सेवा शुल्क',
+  freeBannerSub:     'सेवा प्रदाताओं के लिए 0% कमीशन · ग्राहकों के लिए ₪0 सेवा शुल्क',
   freeCommissionBadge: '💚 0% कमीशन',
   freeCleanerPromo:  '✅ मुफ़्त जुड़ें — 100% कमाई रखें',
   freeClientPromo:   '✅ पूरी तरह मुफ़्त — ₪0 सेवा शुल्क',
@@ -4032,7 +4032,7 @@ const hi: typeof he = {
   idVerifySubmitted: 'फ़ोटो समीक्षा के लिए भेजी गई। मंज़ूरी के बाद बैज दिखेगा।',
   idVerifyPending: 'मंज़ूरी का इंतज़ार',
   pushJobReleasedTitle: 'आपका काम वापस बोर्ड पर है',
-  pushJobReleasedBody: 'सेवा प्रदाता नहीं आ सकता। आपका काम फिर से अन्य सेवा प्रदाता के लिए खुला है।',
+  pushJobReleasedBody: 'सेवा प्रदाता नहीं आ सकता। आपका काम फिर से अन्य सेवा प्रदाताओं के लिए खुला है।',
   jobTakenTitle: 'एक सेवा प्रदाता ने आपका काम लिया',
   jobTakenBody: 'विवरण देख रहा है और जल्द पुष्टि करेगा',
   pendingApprovalBar: 'एक बुकिंग आपकी स्वीकृति की प्रतीक्षा में है',
@@ -4220,9 +4220,9 @@ const CANCELLED_POPUP: Record<string, { title: string; sub: string; repost: stri
   },
   ar: {
     title: 'تم إلغاء الحجز',
-    sub: 'ألغى مقدم الخدمة الحجز. يمكنك نشره من جديد ليأخذه عامل آخر في منطقتك.',
+    sub: 'ألغى مقدم الخدمة الحجز. يمكنك نشره من جديد ليأخذه مقدم خدمة آخر في منطقتك.',
     repost: 'انشر من جديد وابحث عن عامل آخر',
-    ok: 'تم النشر من جديد — سيراه مقدمي الخدمة في منطقتك',
+    ok: 'تم النشر من جديد — سيراه مقدمو الخدمة في منطقتك',
     err: 'فشل النشر من جديد — حاول مرة أخرى',
   },
   fr: {
@@ -4322,6 +4322,86 @@ const TOTAL_SHORT: Record<string, string> = {
 };
 for (const L of Object.keys(TOTAL_SHORT)) {
   (translations as any)[L].totalShort = TOTAL_SHORT[L];
+}
+
+// Strings added with undo, edit, job photos and the booking clock (2026-09/10),
+// in every language. Each was first written with a Hebrew fallback in the code,
+// so in the other six languages these buttons and messages came out in Hebrew.
+// A key a dictionary already has keeps its own text.
+const ADDED: Record<string, Record<string, string>> = {
+  undoProgressTitle: { he: '↩️ ביטול הלחיצה', en: '↩️ Undo', ru: '↩️ Отмена действия', ar: '↩️ تراجع', fr: '↩️ Annuler', hi: '↩️ पूर्ववत करें', uk: '↩️ Скасування дії' },
+  undoProgressMsg: {
+    he: 'לבטל את "{step}"? ההזמנה תחזור למצב הקודם.',
+    en: 'Undo "{step}"? The booking will go back to its previous status.',
+    ru: 'Отменить «{step}»? Заказ вернётся в предыдущий статус.',
+    ar: 'التراجع عن «{step}»؟ سيعود الحجز إلى حالته السابقة.',
+    fr: 'Annuler « {step} » ? La réservation reviendra à son statut précédent.',
+    hi: '"{step}" पूर्ववत करें? बुकिंग पिछली स्थिति में लौट जाएगी।',
+    uk: 'Скасувати «{step}»? Замовлення повернеться до попереднього статусу.',
+  },
+  undoProgressBtn: { he: '↩️ כן, לבטל', en: '↩️ Yes, undo', ru: '↩️ Да, отменить', ar: '↩️ نعم، تراجع', fr: '↩️ Oui, annuler', hi: '↩️ हाँ, पूर्ववत करें', uk: '↩️ Так, скасувати' },
+  undoOnWayBtn: { he: 'ביטול "אני בדרך"', en: 'Undo "On my way"', ru: 'Отменить «Я в пути»', ar: 'التراجع عن «أنا في الطريق»', fr: 'Annuler « Je suis en route »', hi: '"मैं रास्ते में हूँ" पूर्ववत करें', uk: 'Скасувати «Я в дорозі»' },
+  undoStartBtn: { he: 'ביטול "התחלתי עבודה"', en: 'Undo "Started"', ru: 'Отменить «Начал работу»', ar: 'التراجع عن «بدأت العمل»', fr: 'Annuler « Commencé »', hi: '"काम शुरू किया" पूर्ववत करें', uk: 'Скасувати «Почав роботу»' },
+  undoShortBtn: { he: 'ביטול', en: 'Undo', ru: 'Отменить', ar: 'تراجع', fr: 'Annuler', hi: 'पूर्ववत', uk: 'Скасувати' },
+  editJobBtn: { he: 'עריכת המודעה', en: 'Edit listing', ru: 'Редактировать объявление', ar: 'تعديل الإعلان', fr: "Modifier l'annonce", hi: 'विज्ञापन संपादित करें', uk: 'Редагувати оголошення' },
+  editShortBtn: { he: 'עריכה', en: 'Edit', ru: 'Изменить', ar: 'تعديل', fr: 'Modifier', hi: 'संपादित करें', uk: 'Змінити' },
+  editJobTitle: { he: 'עריכת מודעה', en: 'Edit listing', ru: 'Редактирование объявления', ar: 'تعديل الإعلان', fr: "Modifier l'annonce", hi: 'विज्ञापन संपादन', uk: 'Редагування оголошення' },
+  saveChangesBtn: { he: 'שמור שינויים', en: 'Save changes', ru: 'Сохранить изменения', ar: 'حفظ التغييرات', fr: 'Enregistrer', hi: 'बदलाव सहेजें', uk: 'Зберегти зміни' },
+  jobEditedOk: { he: 'המודעה עודכנה.', en: 'Your listing was updated.', ru: 'Объявление обновлено.', ar: 'تم تحديث الإعلان.', fr: 'Votre annonce a été mise à jour.', hi: 'आपका विज्ञापन अपडेट हो गया।', uk: 'Оголошення оновлено.' },
+  jobEditTakenMsg: {
+    he: "נותן שירות כבר לקח את העבודה, ולכן אי אפשר לערוך אותה. אפשר לדבר איתו בצ'אט או לבטל את ההזמנה.",
+    en: 'A service provider has already taken this job, so it can no longer be edited. You can chat with them or cancel the booking.',
+    ru: 'Исполнитель уже взял эту работу, поэтому её нельзя изменить. Вы можете написать ему в чат или отменить заказ.',
+    ar: 'لقد أخذ مقدم خدمة هذا العمل بالفعل، لذا لا يمكن تعديله. يمكنك مراسلته أو إلغاء الحجز.',
+    fr: 'Un prestataire a déjà pris ce travail : il ne peut plus être modifié. Vous pouvez lui écrire ou annuler la réservation.',
+    hi: 'एक सेवा प्रदाता यह काम पहले ही ले चुका है, इसलिए इसे संपादित नहीं किया जा सकता। आप उससे चैट कर सकते हैं या बुकिंग रद्द कर सकते हैं।',
+    uk: 'Виконавець уже взяв цю роботу, тому її не можна змінити. Ви можете написати йому в чат або скасувати замовлення.',
+  },
+  jobEditLoadError: {
+    he: 'לא הצלחנו לטעון את פרטי המודעה — בדוק/י את החיבור ונסה/י שוב.',
+    en: "We couldn't load the listing's details — check your connection and try again.",
+    ru: 'Не удалось загрузить данные объявления — проверьте соединение и попробуйте снова.',
+    ar: 'تعذّر تحميل تفاصيل الإعلان — تحقق من الاتصال وحاول مجدداً.',
+    fr: "Impossible de charger les détails de l'annonce — vérifiez votre connexion et réessayez.",
+    hi: 'विज्ञापन का विवरण लोड नहीं हो सका — कनेक्शन जाँचें और फिर कोशिश करें।',
+    uk: 'Не вдалося завантажити дані оголошення — перевірте з’єднання і спробуйте ще раз.',
+  },
+  urgentEditBtn: { he: 'עריכת הבקשה', en: 'Edit request', ru: 'Изменить запрос', ar: 'تعديل الطلب', fr: 'Modifier la demande', hi: 'अनुरोध संपादित करें', uk: 'Змінити запит' },
+  urgentEditTakenMsg: {
+    he: 'נותן שירות כבר לקח את הבקשה, ולכן אי אפשר לערוך אותה.',
+    en: 'A service provider has already taken this request, so it can no longer be edited.',
+    ru: 'Исполнитель уже взял этот запрос, поэтому его нельзя изменить.',
+    ar: 'لقد أخذ مقدم خدمة هذا الطلب بالفعل، لذا لا يمكن تعديله.',
+    fr: 'Un prestataire a déjà pris cette demande : elle ne peut plus être modifiée.',
+    hi: 'एक सेवा प्रदाता यह अनुरोध पहले ही ले चुका है, इसलिए इसे संपादित नहीं किया जा सकता।',
+    uk: 'Виконавець уже взяв цей запит, тому його не можна змінити.',
+  },
+  cleanerDayFullMsg: {
+    he: 'כל השעות של נותן השירות ביום הזה תפוסות — בחר/י יום אחר.',
+    en: 'The service provider is fully booked on this day — please pick another day.',
+    ru: 'В этот день у исполнителя всё занято — выберите другой день.',
+    ar: 'جميع ساعات مقدم الخدمة في هذا اليوم محجوزة — اختر يوماً آخر.',
+    fr: 'Le prestataire est complet ce jour-là — choisissez un autre jour.',
+    hi: 'इस दिन सेवा प्रदाता के सभी घंटे बुक हैं — कृपया दूसरा दिन चुनें।',
+    uk: 'Цього дня у виконавця все зайнято — оберіть інший день.',
+  },
+  jobPhotoSourceTitle: { he: '📷 הוספת תמונה', en: '📷 Add a photo', ru: '📷 Добавить фото', ar: '📷 إضافة صورة', fr: '📷 Ajouter une photo', hi: '📷 फ़ोटो जोड़ें', uk: '📷 Додати фото' },
+  removePhoto: { he: 'הסר תמונה', en: 'Remove photo', ru: 'Удалить фото', ar: 'إزالة الصورة', fr: 'Supprimer la photo', hi: 'फ़ोटो हटाएँ', uk: 'Видалити фото' },
+  availabilityUnknownMsg: {
+    he: 'לא הצלחנו לבדוק את זמינות נותן השירות כרגע. בדוק/י את החיבור ונסה/י שוב 🔄',
+    en: "We couldn't check the service provider's availability right now. Check your connection and try again 🔄",
+    ru: 'Не удалось проверить занятость исполнителя. Проверьте соединение и попробуйте снова 🔄',
+    ar: 'تعذّر التحقق من توفر مقدم الخدمة الآن. تحقق من الاتصال وحاول مجدداً 🔄',
+    fr: 'Impossible de vérifier la disponibilité du prestataire pour le moment. Vérifiez votre connexion et réessayez 🔄',
+    hi: 'अभी सेवा प्रदाता की उपलब्धता जाँची नहीं जा सकी। कनेक्शन जाँचें और फिर कोशिश करें 🔄',
+    uk: 'Не вдалося перевірити зайнятість виконавця. Перевірте з’єднання і спробуйте ще раз 🔄',
+  },
+};
+for (const [key, byLang] of Object.entries(ADDED)) {
+  for (const [L, text] of Object.entries(byLang)) {
+    const d = (translations as any)[L];
+    if (d && d[key] == null) d[key] = text;
+  }
 }
 
 // Town names. Each dictionary named barely 80 of about 200 towns, so in every

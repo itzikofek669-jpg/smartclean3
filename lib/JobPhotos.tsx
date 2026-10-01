@@ -1,5 +1,5 @@
 import React from 'react';
-import { Alert, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Alert, TouchableOpacity, View } from 'react-native';
 import { Image } from 'expo-image';
 import * as ImagePicker from 'expo-image-picker';
 import * as ImageManipulator from 'expo-image-manipulator';
@@ -73,17 +73,36 @@ export async function pickJobPhoto(t: any): Promise<string | null> {
   return `data:image/jpeg;base64,${b64}`;
 }
 
-/** The photo row: thumbnails with a remove button, and an add tile up to the limit. */
-export function JobPhotosField({ photos, onChange }: { photos: string[]; onChange: (next: string[]) => void }) {
+/**
+ * The photo row: thumbnails with a remove button, and an add tile up to the limit.
+ *
+ * `onChange` is the form's state setter, and every change goes through it as an
+ * update of the CURRENT list: picking and compressing takes seconds, and a list
+ * captured when ＋ was tapped would undo a ✕ made meanwhile, or bring back
+ * photos the form cleared after sending. `onBusy` tells the form a photo is on
+ * its way, so it can hold its send button until it lands.
+ */
+export function JobPhotosField({ photos, onChange, onBusy }: {
+  photos: string[];
+  onChange: React.Dispatch<React.SetStateAction<string[]>>;
+  onBusy?: (busy: boolean) => void;
+}) {
   const { t } = useLanguage();
   const C = useAppColors();
+  const [busy, setBusy] = React.useState(false);
   const add = async () => {
+    if (busy) return;
     if (photos.length >= JOB_PHOTOS_MAX) {
       Alert.alert('', (t as any).jobPhotosMax ?? 'אפשר לצרף עד 3 תמונות');
       return;
     }
-    const uri = await pickJobPhoto(t);
-    if (uri) onChange([...photos, uri].slice(0, JOB_PHOTOS_MAX));
+    setBusy(true); onBusy?.(true);
+    try {
+      const uri = await pickJobPhoto(t);
+      if (uri) onChange(prev => [...prev, uri].slice(0, JOB_PHOTOS_MAX));
+    } finally {
+      setBusy(false); onBusy?.(false);
+    }
   };
   return (
     <View style={{ flexDirection: 'row-reverse', flexWrap: 'wrap', gap: 8, alignItems: 'center' }}>
@@ -91,7 +110,7 @@ export function JobPhotosField({ photos, onChange }: { photos: string[]; onChang
         <View key={i} style={{ position: 'relative' }}>
           <Image source={{ uri }} style={{ width: 72, height: 72, borderRadius: 10 }} contentFit="cover" />
           <TouchableOpacity
-            onPress={() => onChange(photos.filter((_, idx) => idx !== i))}
+            onPress={() => onChange(prev => prev.filter(p => p !== uri))}
             style={{ position: 'absolute', top: -6, left: -6, width: 22, height: 22, borderRadius: 11, backgroundColor: '#EF4444', alignItems: 'center', justifyContent: 'center' }}
             accessibilityLabel={(t as any).removePhoto ?? 'הסר תמונה'}
           >
@@ -102,11 +121,16 @@ export function JobPhotosField({ photos, onChange }: { photos: string[]; onChang
       {photos.length < JOB_PHOTOS_MAX && (
         <TouchableOpacity
           onPress={add}
+          disabled={busy}
           style={{ width: 72, height: 72, borderRadius: 10, borderWidth: 1.5, borderColor: C.blueBorder, borderStyle: 'dashed', backgroundColor: C.white, alignItems: 'center', justifyContent: 'center' }}
           accessibilityLabel={(t as any).jobPhotoSourceTitle ?? 'הוספת תמונה'}
         >
-          <T style={{ fontSize: 26, color: C.blue }}>＋</T>
-          <T style={{ fontSize: 20 }}>📷</T>
+          {busy ? <ActivityIndicator color={C.blue} /> : (
+            <>
+              <T style={{ fontSize: 26, color: C.blue }}>＋</T>
+              <T style={{ fontSize: 20 }}>📷</T>
+            </>
+          )}
         </TouchableOpacity>
       )}
     </View>

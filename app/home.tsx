@@ -386,7 +386,8 @@ const NEARBY_KM = 30;
 // ──────────────────────────────────────────────────────────────────────────────
 const BOT_FEMALE_NAMES = ['יעל כהן','דנה לוי','מירי אבני','רונית שגב','שירה דהן','נועה ברק','תמר גל','מיכל אזולאי','אורית פרץ','גלית מזרחי','ליאת שמש','רחל גולן','שרה כץ','לאה אדרי','חנה ביטון','אסתר נחום','רותי אשר','סיגל רון','ענת בר','מאיה לב','קרן שגיא','הילה נווה','אורלי מימון','שני דרור'];
 const BOT_MALE_NAMES = ['אבי דוד','יוסי חזן','משה עמר','דוד שלום','עמית רז','איל נוי','רן הראל','גיא ספיר','ניר אלון','עומר טל','דור שביט','אלון מור','יובל סער','ליאור דגן','אסף יונה','עידן כרמי','נדב גבע','ארז שדה','חיים פרי','יעקב נסים','אהרון רחמים','מאיר אביב','שלמה בן דוד','אורי הדר','בני זיו','גד אוחיון','זיו שני','איתי כספי'];
-const BOT_BIOS = ['נותנת שירות מקצועית ואמינה.','שירות יסודי ומהיר.','ניקיון מושלם בכל פעם.','נותנת שירות ותיקה ומנוסה.','דייקנית ואחראית.','שירות אדיב ומקצועי.','מומחית לניקיון בתים ומשרדים.','עבודה נקייה ומדויקת.'];
+// Given to demo profiles of both genders, so worded without one.
+const BOT_BIOS = ['שירות מקצועי ואמין.','שירות יסודי ומהיר.','ניקיון מושלם בכל פעם.','ניסיון של שנים ושירות מנוסה.','דייקנות ואחריות בכל עבודה.','שירות אדיב ומקצועי.','מומחיות בניקיון בתים ומשרדים.','עבודה נקייה ומדויקת.'];
 const BOT_PAYMENTS: string[][] = [['cash'],['cash','bit'],['cash','bit','paybox'],['paybox','cash'],['bit','cash'],['cash','bit','paybox','bank']];
 // Service-details traits for demo cleaners. Without them a bot's profile shows
 // a "service details" card holding nothing but its city, because every other
@@ -1699,24 +1700,19 @@ function PostJobModal({ visible, onClose, onPosted, editJob }: { visible: boolea
   const [hour, setHour]         = useState(Number.isFinite(ejHour) ? ejHour : defaultSlot.h);
   const [hours, setHours]       = useState(ej && Number(ej.hours) > 0 ? Number(ej.hours) : 2);
   const [isPrivate, setIsPrivate] = useState(ej ? ej.isPrivateHouse !== false : true);
-  const [city, setCity]         = useState<string>(ej?.addrCity || '');
+  const [city, setCity]         = useState<string>(ej ? (ej.address || ej.addrCity || '') : '');
   const [citySugg, setCitySugg] = useState<string[]>([]);
   // Chosen from the same row of amounts as an urgent request, not typed. The
   // free-text field took 0, 5 or 99999, and blank posted a job with no price.
   const [budget, setBudget]     = useState(ej && Number(ej.pricePerHour) > 0 ? Number(ej.pricePerHour) : 80);
-  const [notes, setNotes]       = useState('');
+  const [notes, setNotes]       = useState<string>(ej?.notes || '');
   const [photos, setPhotos]     = useState<string[]>(ej && Array.isArray(ej.photos) ? ej.photos : []);   // base64 (data URIs) — עד 3
+  const [photoBusy, setPhotoBusy] = useState(false);   // a photo still being picked/compressed
   const [busy, setBusy]         = useState(false);
   const svcKeys = Object.keys(SERVICE_DESCRIPTIONS);
 
-  // עריכה: הכתובת המלאה וההערות יושבות בחלק הפרטי של המודעה.
+  // עריכה: הכתובת המלאה וההערות נטענו לפני שהטופס נפתח (editJobId).
   const ejId = ej?.id;
-  useEffect(() => {
-    if (!ejId) return;
-    fetchBookingDetails(ejId)
-      .then(det => { if (det.address) setCity(det.address); setNotes(det.notes || ''); })
-      .catch(err => logError('home:editJobDetails', err));
-  }, [ejId]);
 
   // מילוי אוטומטי של הכתובת — מהכתובות השמורות, ואם אין, מהכתובת/עיר שמההרשמה
   useEffect(() => {
@@ -1790,7 +1786,8 @@ function PostJobModal({ visible, onClose, onPosted, editJob }: { visible: boolea
         pricePerHour: budget,
         total: budget * hours,
         photos,
-        payment: 'cash', paymentStatus: 'awaiting_cash', status: 'pending',
+        // An edited job keeps its payment method (a repost may carry bit/paybox).
+        payment: ej?.payment || 'cash', paymentStatus: `awaiting_${ej?.payment || 'cash'}`, status: 'pending',
         bookingDate: dateStr, startTime: `${String(hour).padStart(2, '0')}:00`,
         recurring: 'once', recurringDates: [], createdAt: new Date().toISOString(),
       };
@@ -1937,7 +1934,7 @@ function PostJobModal({ visible, onClose, onPosted, editJob }: { visible: boolea
           {/* צירוף תמונות (לא חובה) */}
           <T style={{ fontSize: 14, fontWeight: '800', color: C.textDark, textAlign: 'right' }}>{(t as any).jobPhotosLabel ?? 'תמונות (לא חובה)'}</T>
           {/* מצלמה או גלריה — lib/JobPhotos */}
-          <JobPhotosField photos={photos} onChange={setPhotos} />
+          <JobPhotosField photos={photos} onChange={setPhotos} onBusy={setPhotoBusy} />
 
           {isPastJob && (
             <View style={{ backgroundColor: '#FEF2F2', borderWidth: 1.5, borderColor: '#DC2626', borderRadius: 12, padding: 12 }}>
@@ -1947,7 +1944,7 @@ function PostJobModal({ visible, onClose, onPosted, editJob }: { visible: boolea
             </View>
           )}
 
-          <TouchableOpacity disabled={!valid || busy} onPress={submit} style={{ backgroundColor: valid && !busy ? C.green : C.grayBorder, borderRadius: 14, paddingVertical: 15, alignItems: 'center', marginTop: 4 }}>
+          <TouchableOpacity disabled={!valid || busy || photoBusy} onPress={submit} style={{ backgroundColor: valid && !busy && !photoBusy ? C.green : C.grayBorder, borderRadius: 14, paddingVertical: 15, alignItems: 'center', marginTop: 4 }}>
             <T style={{ color: '#fff', fontWeight: '900', fontSize: 15 }}>{busy ? '…' : editJob?.id ? `💾 ${(t as any).saveChangesBtn ?? 'שמור שינויים'}` : `📢 ${(t as any).postJobBtn ?? 'פרסם עבודה'}`}</T>
           </TouchableOpacity>
         </ScrollView>
@@ -2535,31 +2532,24 @@ function BookingModal({ cleaner, visible, onClose, onBookingCreated, prebookData
     }
 
     // ── ולידציה: בדיקת חפיפה מצד המנקה ──────────────────────────────────
+    // מתוך השעות התפוסות שנותן השירות מפרסם במסמך שלו (isCleanerBusy) — אותו
+    // מקור של השעון ושל האתר. קודם זו הייתה שאילתה על ההזמנות שלו, שהחוקים
+    // דוחים ללקוח (הן נושאות כתובות וטלפונים של אחרים); הדחייה נבלעה ב-catch,
+    // והבדיקה לא עצרה אף פעם הזמנה על שעה תפוסה. נכשלת סגורה: בלי תשובה לא
+    // מזמינים.
     {
       const cleanerUid = cleaner.uid || cleaner.id;
-      const newStart = selectedDateTime;
-      const newEnd   = new Date(newStart.getTime() + hours * 3600000);
-      const bookingDateStr = localDateStr;
+      const startStr = `${String(Math.floor(startHour)).padStart(2, '0')}:${startHour % 1 === 0.5 ? '30' : '00'}`;
       try {
-        const cleanerSnap = await getDocs(query(
-          collection(db, 'bookings'),
-          where('cleanerId', '==', cleanerUid),
-          where('bookingDate', '==', bookingDateStr),
-        ));
-        const cleanerOverlap = cleanerSnap.docs.some(d => {
-          const ex = d.data();
-          if (['cancelled', 'done'].includes(ex.status)) return false;
-          const [eh, em] = (ex.startTime || '00:00').split(':').map(Number);
-          const exStart = new Date(bookingDate);
-          exStart.setHours(eh, em, 0, 0);
-          const exEnd = new Date(exStart.getTime() + (ex.hours || 1) * 3600000);
-          return newStart < exEnd && newEnd > exStart;
-        });
-        if (cleanerOverlap) {
+        if (await isCleanerBusy(cleanerUid, localDateStr, startStr, hours)) {
           bookingLock.current = false;
           return Alert.alert('❌ ' + t.overlapTitle, t.cleanerBusyMsg ?? 'נותן השירות תפוס/ה בשעות אלה — נסה שעה אחרת');
         }
-      } catch (_) {}
+      } catch (err) {
+        bookingLock.current = false;
+        if (!(err instanceof AvailabilityUnknownError)) logError('home:cleanerBusyCheck', err);
+        return Alert.alert(t.error, (t as any).availabilityUnknownMsg ?? 'לא הצלחנו לבדוק את זמינות נותן השירות כרגע. בדוק/י את החיבור ונסה/י שוב 🔄');
+      }
     }
 
     // ── שמור כתובת ותשלום אחרונים ───────────────────────────────────────
@@ -4169,18 +4159,27 @@ export default function HomeScreen() {
     const id = navParams?.editJobId;
     if (!id) return;
     router.setParams({ editJobId: undefined });
-    getDoc(doc(db, 'bookings', id))
-      .then(snap => {
+    (async () => {
+      try {
+        const snap = await getDoc(doc(db, 'bookings', id));
         const d: any = snap.data();
         if (!snap.exists() || d?.clientUid !== auth.currentUser?.uid) return;
         if (d?.cleanerId || d?.open !== true || d?.status !== 'pending') {
           Alert.alert('', (t as any).jobEditTakenMsg ?? 'נותן שירות כבר לקח את העבודה, ולכן אי אפשר לערוך אותה. אפשר לדבר איתו בצ\'אט או לבטל את ההזמנה.');
           return;
         }
-        setEditJob({ id: snap.id, ...d });
+        // The street and the notes live in the private half. Read here, before
+        // the form opens, and NOT through fetchBookingDetails, which answers {}
+        // on failure: a form opened without them would save the city alone as
+        // the address and wipe the notes. Older jobs still carry them on top.
+        const det = (await getDoc(doc(db, 'bookings', id, 'private', 'details'))).data() || {};
+        setEditJob({ id: snap.id, ...d, address: det.address || d.address || '', notes: det.notes ?? d.notes ?? '' });
         setPostJobOpen(true);
-      })
-      .catch(err => logError('home:editJob', err));
+      } catch (err) {
+        logError('home:editJob', err);
+        Alert.alert(t.error, (t as any).jobEditLoadError ?? 'לא הצלחנו לטעון את פרטי המודעה — בדוק/י את החיבור ונסה/י שוב.');
+      }
+    })();
   }, [navParams?.editJobId]);
   const [urgentDate,      setUrgentDate]      = useState<'today'|'tomorrow'>('today');
   const [urgentHour,      setUrgentHour]      = useState(10);
@@ -4203,6 +4202,7 @@ export default function HomeScreen() {
   const [urgentPayment,   setUrgentPayment]   = useState('cash');
   // תמונות לבקשה דחופה (לא חובה) — מצלמה או גלריה, כמו ב"ניקיון בזמן שלך".
   const [urgentPhotos,    setUrgentPhotos]    = useState<string[]>([]);
+  const [urgentPhotoBusy, setUrgentPhotoBusy] = useState(false);   // a photo still on its way — hold the send
   const [urgentMaxPrice,  setUrgentMaxPrice]  = useState(80); // סכום מקסימלי לשעה — מסנן מנקים בטווח
   const [urgentSending,   setUrgentSending]   = useState(false);
   const [urgentWaiting,   setUrgentWaiting]   = useState(false);
@@ -4781,7 +4781,7 @@ export default function HomeScreen() {
     maxDistance: c.maxDistance,
   });
   const nameHit = !!searchQ && ALL_CLEANERS.some(c => String(c.name || '').toLowerCase().includes(searchQ.toLowerCase()));
-  const searchPlace = resolvePlace(searchQ, CITY_COORDS, cityNameOf, !nameHit);
+  const searchPlace = resolvePlace(searchQ, CITY_COORDS, cityNameOf, !nameHit, !nameHit);
   // מי מהנשארים אומר/ת את הטקסט בעצמו/ה — הם ראשונים במיון.
   const searchTextHit = new Set<any>();
   if (searchQ) {
@@ -7140,7 +7140,7 @@ export default function HomeScreen() {
                 {/* תמונות (לא חובה) */}
                 <View style={{ gap: 8 }}>
                   <T style={[s.fieldLabel, { textAlign: 'right' }]}>{(t as any).jobPhotosLabel ?? 'תמונות (לא חובה)'}</T>
-                  <JobPhotosField photos={urgentPhotos} onChange={setUrgentPhotos} />
+                  <JobPhotosField photos={urgentPhotos} onChange={setUrgentPhotos} onBusy={setUrgentPhotoBusy} />
                 </View>
 
                 {/* תשלום */}
@@ -7175,9 +7175,9 @@ export default function HomeScreen() {
                   const urgentReady = urgentServiceTypes.length > 0 && urgentAddress.trim().length >= 5 && /\d/.test(urgentAddress) && !!urgentPayment;
                   return (
                     <TouchableOpacity
-                      style={{ backgroundColor: (urgentSending || !urgentReady) ? '#94A3B8' : '#7C3AED', borderRadius: 14, padding: 16, alignItems: 'center', elevation: 4, shadowColor: '#7C3AED', shadowOpacity: 0.4, shadowRadius: 8, shadowOffset: { width: 0, height: 4 } }}
+                      style={{ backgroundColor: (urgentSending || !urgentReady || urgentPhotoBusy) ? '#94A3B8' : '#7C3AED', borderRadius: 14, padding: 16, alignItems: 'center', elevation: 4, shadowColor: '#7C3AED', shadowOpacity: 0.4, shadowRadius: 8, shadowOffset: { width: 0, height: 4 } }}
                       onPress={handleSendUrgent}
-                      disabled={urgentSending || !urgentReady}
+                      disabled={urgentSending || !urgentReady || urgentPhotoBusy}
                     >
                       {urgentSending
                         ? <ActivityIndicator color="#fff" />

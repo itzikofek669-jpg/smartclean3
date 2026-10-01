@@ -1289,3 +1289,43 @@ test('the job board finds a job by its town in another language', () => {
   assert.equal(matchJob(job, 'Хайф'), 'place');
   assert.equal(matchJob(job, 'Tel Aviv'), 'none');
 });
+
+test('every town in the town table has its row of names', () => {
+  // Read off the source: jobUtils is not in the test build. The table's keys
+  // keep their quotes (ת"א, ג'לג'וליה); a row keyed without them names nothing.
+  const src = readFileSync(new URL('../lib/jobUtils.ts', import.meta.url), 'utf8');
+  const body = src.slice(src.indexOf('export const CITY_COORDS'), src.indexOf('};', src.indexOf('export const CITY_COORDS')));
+  // Several towns share a line: every `'name': {` is one.
+  const keys = [...body.matchAll(/(['"])((?:\\.|(?!\1).)+)\1\s*:\s*\{/g)].map((m) => m[2].replace(/\\(.)/g, '$1'));
+  assert.ok(keys.length >= 200, `parsed ${keys.length} towns`);
+  const missing = keys.filter((k) => !CITY_NAMES[k] || Object.keys(CITY_NAMES[k]).length < 6);
+  assert.deepEqual(missing, []);
+  assert.equal(CITY_NAMES['ת"א'].en, 'Tel Aviv');
+  assert.equal(CITY_NAMES["ג'לג'וליה"].en, 'Jaljulia');
+  assert.equal(CITY_NAMES['מודיעין'].en, "Modi'in");
+});
+
+test('another language does not hijack a name, and needs three letters to start a town', () => {
+  const table = { 'עומר': { lat: 31.26, lng: 34.84 }, 'חיפה': { lat: 32.8, lng: 34.99 } };
+  const heScreen = (c) => c;
+  // "Omer" is a town in English — but not when it is the name a cleaner goes by.
+  assert.equal(resolvePlace('Omer', table, heScreen, true, true)?.city, 'עומר');
+  assert.equal(resolvePlace('Omer', table, heScreen, false, false), null);
+  // Two letters of another language start nothing; three do.
+  assert.equal(resolvePlace('ha', table, heScreen), null);
+  assert.equal(resolvePlace('hai', table, heScreen)?.city, 'חיפה');
+  const job = { clientName: 'דנה', addrCity: 'חיפה', serviceType: 'ניקיון רגיל' };
+  assert.notEqual(matchJob(job, 'ha'), 'place');
+  assert.equal(matchJob(job, 'hai'), 'place');
+});
+
+test('spellings that differ only in marks find the same town', () => {
+  const table = { 'באר שבע': { lat: 31.25, lng: 34.79 }, 'אום אל-פחם': { lat: 32.52, lng: 35.15 }, 'ת"א': { lat: 32.08, lng: 34.78 } };
+  const heScreen = (c) => c;
+  assert.equal(resolvePlace("Be'er Sheva", table, heScreen)?.city, 'באר שבע');
+  assert.equal(resolvePlace('Beer Sheva', table, heScreen)?.city, 'באר שבע');
+  assert.equal(resolvePlace('תא', table, heScreen)?.city, 'ת"א');
+  assert.equal(normText('أم الفحم'), normText('ام الفحم'));
+  assert.equal(normText('Césarée'), 'cesaree');
+  assert.equal(normText("Кірʼят"), normText("Кір'ят"));
+});

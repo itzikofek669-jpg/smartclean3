@@ -91,8 +91,9 @@ export function matchJob(job: SearchableJob, query: string, lookups: JobSearchLo
   if (q.length >= 2) {
     if (wordStarts(client, q)) return 'client';
     if (wordStarts(cityHe, q) || wordStarts(cityTr, q)) return 'place';
-    // Its name in any other language (lib/cityNames): "Haifa" on a Hebrew screen.
-    if (city && allCityNames(city).some((n) => wordStarts(normText(n), q))) return 'place';
+    // Its name in any other language (lib/cityNames): "Haifa" on a Hebrew
+    // screen. From three letters — "ha", "al", "ка" start dozens of them.
+    if (city && q.length >= 3 && allCityNames(city).slice(1).some((n) => wordStarts(normText(n), q))) return 'place';
   }
 
   const services = Array.isArray(job.serviceTypes) && job.serviceTypes.length

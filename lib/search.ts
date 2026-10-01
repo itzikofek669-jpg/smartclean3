@@ -64,8 +64,20 @@ export const DEFAULT_TRAVEL_KM = 30;
  */
 export function normText(s: string | null | undefined): string {
   return String(s ?? '')
-    .replace(/[״”“]/g, '"')
-    .replace(/[׳’‘]/g, "'")
+    // Letters apart from their marks: accents (Pardès, Césarée), Hebrew niqqud
+    // (but not the maqaf, a hyphen), the Devanagari dot, й/ё — each matches
+    // its plain spelling.
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f\u0591-\u05BD\u05BF-\u05C7]/g, '')
+    // Quote marks and apostrophes in every form go: ת"א is תא, ג'לג'וליה is
+    // גלגוליה, Be'er is Beer, Кір'ят and Кірʼят are one spelling.
+    .replace(/[״”“"׳’‘ʼ'`´]/g, '')
+    // Arabic: alef with or without hamza, final ya, ta marbuta, and the
+    // vowel marks and stretching that do not change a word.
+    .replace(/[أإآٱ]/g, 'ا').replace(/ى/g, 'ي').replace(/ة/g, 'ه')
+    .replace(/[\u064B-\u065F\u0670ـ]/g, '')
+    // Devanagari nukta (ज़ / ज), Russian ё.
+    .replace(/\u093C/g, '').replace(/ё/g, 'е').replace(/Ё/g, 'Е')
     .replace(/[-־–]/g, ' ')
     .replace(/קריית/g, 'קרית')
     .replace(/\s+/g, ' ')
@@ -103,24 +115,30 @@ export function textMatches(c: SearchableCleaner, query: string): boolean {
  *
  * Beyond Hebrew and the viewer's language, a town is found by its name in any
  * language of lib/cityNames: "Afula", "Хайфа" and "عرابة" each find their town
- * whatever language the screen is in.
+ * whatever language the screen is in. Two limits keep that from swallowing
+ * other searches: `otherLanguages` is false when the text already matches a
+ * cleaner's name (a cleaner called Omer must not drag the map to the town of
+ * עומר), and a name in another language counts as started only from three
+ * letters ("ha", "al", "ка" begin dozens of them).
  */
 export function resolvePlace(
   query: string,
   table: Record<string, Place>,
   nameOf: (city: string) => string = () => '',
   allowPartial = true,
+  otherLanguages = true,
 ): (Place & { city: string }) | null {
   const q = normText(query);
   if (!q) return null;
   let partial: string | null = null;
   let partialLen = Infinity;
   for (const city of Object.keys(table)) {
-    const names = [...allCityNames(city), nameOf(city)].map(normText).filter(Boolean);
-    if (names.includes(q)) return { city, ...table[city] };
+    const own = [city, nameOf(city)].map(normText).filter(Boolean);
+    const others = otherLanguages ? allCityNames(city).slice(1).map(normText).filter(Boolean) : [];
+    if (own.includes(q) || others.includes(q)) return { city, ...table[city] };
     if (allowPartial && q.length >= 2) {
       // The shortest name that starts with the query, in whichever language.
-      for (const n of names) {
+      for (const n of [...own, ...(q.length >= 3 ? others : [])]) {
         if (n.startsWith(q) && n.length < partialLen) { partial = city; partialLen = n.length; }
       }
     }
