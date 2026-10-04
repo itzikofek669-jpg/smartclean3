@@ -1,5 +1,5 @@
 import React from 'react';
-import { ActivityIndicator, Alert, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Alert, Platform, TouchableOpacity, View } from 'react-native';
 import { Image } from 'expo-image';
 import * as ImagePicker from 'expo-image-picker';
 import * as ImageManipulator from 'expo-image-manipulator';
@@ -14,6 +14,22 @@ import { T, useAppColors, useLanguage } from './LanguageContext';
 // צריכות להיכנס יחד עם שאר המסמך מתחת למגבלה של Firestore (1MB למסמך).
 
 export const JOB_PHOTOS_MAX = 3;
+
+/**
+ * A job's photos as a screen may show them: the compressed pictures this app
+ * and the website write, three at most.
+ *
+ * The rules do not look inside the list, so a hand-written job could carry an
+ * address on somebody's server — every provider opening the board would call
+ * it, and be seen doing so — or megabytes of text. Anything that is not one of
+ * our own data URLs is simply not shown.
+ */
+export function jobPhotosOf(photos: unknown): string[] {
+  if (!Array.isArray(photos)) return [];
+  return photos
+    .filter((p): p is string => typeof p === 'string' && p.length <= 400_000 && /^data:image\/(jpeg|png|webp);base64,/.test(p))
+    .slice(0, JOB_PHOTOS_MAX);
+}
 
 type Source = 'camera' | 'library';
 
@@ -40,6 +56,10 @@ function askSource(t: any): Promise<Source | null> {
 export async function pickJobPhoto(t: any): Promise<string | null> {
   const source = await askSource(t);
   if (!source) return null;
+  // iOS: the question above is still sliding away when its button answers, and
+  // a camera or gallery presented at that moment — from inside the form's own
+  // sheet — can be dropped without a word. A beat lets it finish.
+  if (Platform.OS === 'ios') await new Promise(resolve => setTimeout(resolve, 350));
   const perm = source === 'camera'
     ? await ImagePicker.requestCameraPermissionsAsync()
     : await ImagePicker.requestMediaLibraryPermissionsAsync();
@@ -110,7 +130,13 @@ export function JobPhotosField({ photos, onChange, onBusy }: {
         <View key={i} style={{ position: 'relative' }}>
           <Image source={{ uri }} style={{ width: 72, height: 72, borderRadius: 10 }} contentFit="cover" />
           <TouchableOpacity
-            onPress={() => onChange(prev => prev.filter(p => p !== uri))}
+            // This tile only. Filtering by value removed every copy of a photo
+            // that had been added twice; by index alone, a list that changed
+            // while a new photo was on its way could lose the wrong one.
+            onPress={() => onChange(prev => {
+              const at = prev[i] === uri ? i : prev.indexOf(uri);
+              return at < 0 ? prev : prev.filter((_, j) => j !== at);
+            })}
             style={{ position: 'absolute', top: -6, left: -6, width: 22, height: 22, borderRadius: 11, backgroundColor: '#EF4444', alignItems: 'center', justifyContent: 'center' }}
             accessibilityLabel={(t as any).removePhoto ?? 'הסר תמונה'}
           >

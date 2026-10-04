@@ -69,9 +69,18 @@ export function normText(s: string | null | undefined): string {
     // its plain spelling.
     .normalize('NFD')
     .replace(/[\u0300-\u036f\u0591-\u05BD\u05BF-\u05C7]/g, '')
-    // Quote marks and apostrophes in every form go: ת"א is תא, ג'לג'וליה is
-    // גלגוליה, Be'er is Beer, Кір'ят and Кірʼят are one spelling.
+    // The gershayim of a Hebrew abbreviation — the mark before a word's last
+    // letter, in ת"א, ראשל"צ, כ"ס — is kept, as one plain ": typed ״, ” or ",
+    // it is the same abbreviation. Dropping it made ת"א the letters תא, which
+    // also sit inside "קריית אתא" and at the start of "תאיר": the abbreviation
+    // found the wrong town's cleaners, and two letters of a name jumped the
+    // map to Tel Aviv.
+    // (Two apostrophes typed for it count as the same mark.)
+    .replace(/([\u05D0-\u05EA])(?:[״”“"]|''|׳׳)([\u05D0-\u05EA])(?![\u05D0-\u05EA])/g, '$1\uE000$2')
+    // Every other quote mark and apostrophe goes: ג'לג'וליה is גלגוליה, Be'er
+    // is Beer, Кір'ят and Кірʼят are one spelling.
     .replace(/[״”“"׳’‘ʼ'`´]/g, '')
+    .replace(/\uE000/g, '"')
     // Arabic: alef with or without hamza, final ya, ta marbuta, and the
     // vowel marks and stretching that do not change a word.
     .replace(/[أإآٱ]/g, 'ا').replace(/ى/g, 'ي').replace(/ة/g, 'ه')
@@ -136,6 +145,9 @@ export function resolvePlace(
     const own = [city, nameOf(city)].map(normText).filter(Boolean);
     const others = otherLanguages ? allCityNames(city).slice(1).map(normText).filter(Boolean) : [];
     if (own.includes(q) || others.includes(q)) return { city, ...table[city] };
+    // An abbreviation typed without its mark, when it is long enough to be
+    // nothing else: ראשלצ is ראשל"צ. (Two bare letters — תא, כס — are not.)
+    if (q.length >= 4 && own.some((n) => n.includes('"') && n.replace('"', '') === q)) return { city, ...table[city] };
     if (allowPartial && q.length >= 2) {
       // The shortest name that starts with the query, in whichever language.
       for (const n of [...own, ...(q.length >= 3 ? others : [])]) {

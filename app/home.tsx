@@ -42,8 +42,8 @@ import {
 import { filterBoard, nearestCity } from '../lib/jobSearch';
 import { notify } from '../lib/notify';
 import { devicePosition } from '../lib/devicePosition';
-import { JobPhotosField } from '../lib/JobPhotos';
-import { resolvePlace, searchCleaners } from '../lib/search';
+import { JobPhotosField, jobPhotosOf } from '../lib/JobPhotos';
+import { normText, resolvePlace, searchCleaners } from '../lib/search';
 import {
   CITY_COORDS, CITY_KEYS_BY_LEN, REGION_CENTER, regionFromLat,
   cityNameOf, getCoordsForCleaner, getJobCoords, spreadStacked,
@@ -1683,7 +1683,14 @@ function PostJobModal({ visible, onClose, onPosted, editJob }: { visible: boolea
     const [y, m, d] = String(ej?.bookingDate || '').split('-').map(Number);
     return y && m && d ? new Date(y, m - 1, d) : null;
   })();
-  const ejHour = ej ? Number(String(ej.startTime || '').split(':')[0]) : NaN;
+  // With its minutes: a job posted on the website, or reposted, may start on
+  // the half hour, and an edit here saved 09:30 as 09:00. The stepper below
+  // moves whole hours and keeps them.
+  const ejHour = (() => {
+    const [h, m] = String(ej?.startTime || '').split(':').map(Number);
+    return ej && Number.isFinite(h) ? h + (Number.isFinite(m) ? m / 60 : 0) : NaN;
+  })();
+  const hhmm = (h: number) => `${String(Math.floor(h)).padStart(2, '0')}:${String(Math.round((h % 1) * 60)).padStart(2, '0')}`;
   const [types, setTypes]       = useState<string[]>(() =>
     !ej ? [] : Array.isArray(ej.serviceTypes) && ej.serviceTypes.length ? ej.serviceTypes : String(ej.serviceType || '').split(' + ').filter(Boolean));
   // ברירת מחדל: מסונכרן עם השעה הנוכחית (השעה הבאה), כדי שלא ייפול בעבר
@@ -1704,9 +1711,12 @@ function PostJobModal({ visible, onClose, onPosted, editJob }: { visible: boolea
   const [citySugg, setCitySugg] = useState<string[]>([]);
   // Chosen from the same row of amounts as an urgent request, not typed. The
   // free-text field took 0, 5 or 99999, and blank posted a job with no price.
-  const [budget, setBudget]     = useState(ej && Number(ej.pricePerHour) > 0 ? Number(ej.pricePerHour) : 80);
+  // A new job starts at ₪80. An edited one starts at its own price — and one
+  // posted without a price starts with none chosen, to be picked before saving:
+  // it used to come back as ₪80 without the client having chosen that.
+  const [budget, setBudget]     = useState(ej ? (Number(ej.pricePerHour) > 0 ? Number(ej.pricePerHour) : 0) : 80);
   const [notes, setNotes]       = useState<string>(ej?.notes || '');
-  const [photos, setPhotos]     = useState<string[]>(ej && Array.isArray(ej.photos) ? ej.photos : []);   // base64 (data URIs) — עד 3
+  const [photos, setPhotos]     = useState<string[]>(ej ? jobPhotosOf(ej.photos) : []);   // base64 (data URIs) — עד 3
   const [photoBusy, setPhotoBusy] = useState(false);   // a photo still being picked/compressed
   const [busy, setBusy]         = useState(false);
   const svcKeys = Object.keys(SERVICE_DESCRIPTIONS);
@@ -1748,9 +1758,11 @@ function PostJobModal({ visible, onClose, onPosted, editJob }: { visible: boolea
     const tOnly = new Date(n);    tOnly.setHours(0, 0, 0, 0);
     if (dOnly.getTime() < tOnly.getTime()) return true;
     if (dOnly.getTime() !== tOnly.getTime()) return false;
-    return hour <= n.getHours();
+    // With the minutes: an edited job may start on the half hour, and 10:30
+    // has passed at 10:40 though its hour has not.
+    return hour <= n.getHours() + n.getMinutes() / 60;
   })();
-  const valid = types.length > 0 && city.trim().length >= 2 && !isPastJob;
+  const valid = types.length > 0 && city.trim().length >= 2 && !isPastJob && budget > 0;
 
   const dateStr = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
 
@@ -1759,7 +1771,7 @@ function PostJobModal({ visible, onClose, onPosted, editJob }: { visible: boolea
     setBusy(true);
     try {
       const uid = auth.currentUser?.uid || '';
-      const startStr = `${String(hour).padStart(2, '0')}:00`;
+      const startStr = hhmm(hour);
       // מניעת פרסום כפול — כולל בקשה דחופה קיימת לאותו תאריך+שעה
       if (await hasClashingRequest(uid, dateStr, startStr, editJob?.id)) {
         setBusy(false);
@@ -1788,7 +1800,7 @@ function PostJobModal({ visible, onClose, onPosted, editJob }: { visible: boolea
         photos,
         // An edited job keeps its payment method (a repost may carry bit/paybox).
         payment: ej?.payment || 'cash', paymentStatus: `awaiting_${ej?.payment || 'cash'}`, status: 'pending',
-        bookingDate: dateStr, startTime: `${String(hour).padStart(2, '0')}:00`,
+        bookingDate: dateStr, startTime: startStr,
         recurring: 'once', recurringDates: [], createdAt: new Date().toISOString(),
       };
       // The phone too: the cleaner who takes the job reads it from here, not from
@@ -1867,7 +1879,7 @@ function PostJobModal({ visible, onClose, onPosted, editJob }: { visible: boolea
               <T style={{ fontSize: 14, fontWeight: '800', color: C.textDark, textAlign: 'right', marginBottom: 6 }}>{(t as any).timeLabel ?? 'שעה'}</T>
               <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: isPastJob ? '#FEF2F2' : C.white, borderRadius: 12, borderWidth: 1.5, borderColor: isPastJob ? '#DC2626' : C.blueBorder, paddingHorizontal: 8 }}>
                 <TouchableOpacity onPress={() => setHour(h => Math.max(6, h - 1))} style={{ padding: 8 }}><T style={{ fontSize: 20, color: C.blue }}>−</T></TouchableOpacity>
-                <T style={{ fontSize: 15, fontWeight: '800', color: isPastJob ? '#DC2626' : C.textDark }}>{String(hour).padStart(2, '0')}:00</T>
+                <T style={{ fontSize: 15, fontWeight: '800', color: isPastJob ? '#DC2626' : C.textDark }}>{hhmm(hour)}</T>
                 <TouchableOpacity onPress={() => setHour(h => Math.min(22, h + 1))} style={{ padding: 8 }}><T style={{ fontSize: 20, color: C.blue }}>+</T></TouchableOpacity>
               </View>
             </View>
@@ -1899,7 +1911,9 @@ function PostJobModal({ visible, onClose, onPosted, editJob }: { visible: boolea
                 </TouchableOpacity>
               ))}
             </View>
-            <T style={{ fontSize: 11, color: C.textSub, textAlign: 'right' }}>{(t as any).jobMaxPriceHint ?? 'נותני השירות יראו את הסכום הזה במודעה'}</T>
+            {budget > 0
+              ? <T style={{ fontSize: 11, color: C.textSub, textAlign: 'right' }}>{(t as any).jobMaxPriceHint ?? 'נותני השירות יראו את הסכום הזה במודעה'}</T>
+              : <T style={{ fontSize: 12, color: '#DC2626', fontWeight: '700', textAlign: 'right' }}>{(t as any).pickBudgetNote ?? 'בחר/י סכום מקסימלי לשעה'}</T>}
           </View>
 
           <T style={{ fontSize: 14, fontWeight: '800', color: C.textDark, textAlign: 'right' }}>{(t as any).propertyTypeLabel ?? 'סוג נכס'}</T>
@@ -2376,7 +2390,7 @@ function BookingModal({ cleaner, visible, onClose, onBookingCreated, prebookData
     cleaner?.availability, d.getDay(), hours, cleaner?.availabilitySet === true,
     {
       earliest: isTodayDate ? rawMinHour : 0,
-      fallback: { min: 7, max: MAX_BOOKING_HOUR },
+      fallback: { min: 7, max: MAX_BOOKING_HOUR, first: 9 },
       busy: busyWindowsOn(cleanerSlots ?? [], ymd(d)),
     },
   );
@@ -2390,9 +2404,12 @@ function BookingModal({ cleaner, visible, onClose, onBookingCreated, prebookData
   //     to her next working day that has a free hour — late in the evening
   //     too, which used to jump to "tomorrow" even when tomorrow was her day
   //     off. A day the client picked herself never moves.
-  //   • Each new day (or cleaner, or busy hours arriving): the first free hour.
-  //   • The job's length changed: if the chosen hour now runs into a booked
-  //     one, or past her day, the first free hour again.
+  //   • Each new day (or cleaner): the first free hour.
+  //   • Her busy hours arrived after the clock was already showing, or the
+  //     job's length changed: the hour on the clock stays if it is still free
+  //     — the client may have chosen it meanwhile, and on a slow connection it
+  //     was silently replaced — and moves to the first free hour only if it
+  //     now runs into a booked one, or past her day.
   //   • Otherwise an hour the range no longer holds is pulled back into it.
   const [advancedFor, setAdvancedFor] = useState('');
   if (cleanerKey && cleanerSlots !== null && advancedFor !== cleanerKey) {
@@ -2407,15 +2424,19 @@ function BookingModal({ cleaner, visible, onClose, onBookingCreated, prebookData
       }
     }
   }
-  const suggestKey = `${cleanerKey}|${ymd(bookingDate)}|${cleanerSlots === null ? 0 : 1}`;
+  const suggestKey = `${cleanerKey}|${ymd(bookingDate)}`;
+  const slotsIn = cleanerSlots !== null;
   const [suggestedFor, setSuggestedFor] = useState('');
+  const [suggestedWithSlots, setSuggestedWithSlots] = useState(false);
   const [checkedLen, setCheckedLen] = useState(hours);
   if (suggestedFor !== suggestKey) {
     setSuggestedFor(suggestKey);
+    setSuggestedWithSlots(slotsIn);
     setCheckedLen(hours);
     if (bookWindow) setStartHour(bookWindow.first);
-  } else if (checkedLen !== hours) {
+  } else if (checkedLen !== hours || (slotsIn && !suggestedWithSlots)) {
     setCheckedLen(hours);
+    setSuggestedWithSlots(slotsIn);
     const s0 = startHour * 60;
     const e0 = s0 + hours * 60;
     const clash = busyWindowsOn(cleanerSlots ?? [], ymd(bookingDate)).some(b => s0 < b.e && e0 > b.s);
@@ -3098,7 +3119,7 @@ function BookingModal({ cleaner, visible, onClose, onBookingCreated, prebookData
             <T style={s.fieldLabel}>🕐 {t.timeLabel}</T>
             {isToday && (
               <T style={{ fontSize: 12, color: '#EF4444', marginBottom: 4, textAlign: 'right' }}>
-                ⚠️ ניתן להזמין מ-{String(Math.floor(clockMin)).padStart(2,'0')}:{clockMin % 1 === 0.5 ? '30' : '00'} ומעלה
+                {((t as any).bookableFromNote ?? '⚠️ ניתן להזמין מ-{time} ומעלה').replace('{time}', `${String(Math.floor(clockMin)).padStart(2,'0')}:${clockMin % 1 === 0.5 ? '30' : '00'}`)}
               </T>
             )}
             <TimeWheelPicker value={startHour} onChange={setStartHour} minHour={clockMin} maxHour={clockMax} />
@@ -3943,11 +3964,22 @@ function QuickRebookModal({ visible, onClose, myBookings, allCleaners, onBook }:
   );
 }
 
+// The town a search names. Working it out normalises every name of every town
+// (about 1,650 strings), and the screen asked on each render while a search was
+// active — every snapshot, every keystroke elsewhere. The last answer is kept
+// for as long as the query, the language and the name rule stay the same.
+let lastSearchPlace: { key: string; place: ReturnType<typeof resolvePlace> } | null = null;
+function searchPlaceOf(query: string, lang: string, nameOf: (city: string) => string, wide: boolean) {
+  const key = `${lang}|${wide ? 1 : 0}|${query}`;
+  if (lastSearchPlace?.key !== key) lastSearchPlace = { key, place: resolvePlace(query, CITY_COORDS, nameOf, wide, wide) };
+  return lastSearchPlace.place;
+}
+
 // ─── Main screen ──────────────────────────────────────────────────────────────
 export default function HomeScreen() {
   const router   = useRouter();
   const navParams = useLocalSearchParams<{ openPostJob?: string; editJobId?: string }>();
-  const { t, setLang, flipSide } = useLanguage();
+  const { t, lang, setLang, flipSide } = useLanguage();
   const C = useAppColors();
   const s = createS(C);
   const ds = createDS(C);
@@ -4076,6 +4108,14 @@ export default function HomeScreen() {
   // תפקיד המשתמש
   const [myRole,         setMyRole]         = useState<'client' | 'cleaner' | null>(null);
   const [cleanerPendingCount, setCleanerPendingCount] = useState(0);
+  // "3 bookings…", and "1 booking…" for one — it read "1 bookings". Russian and
+  // Ukrainian have a third form, for 2–4.
+  const pendingBookingsLine = (n: number) => {
+    const tt = t as any;
+    if (n === 1 && tt.pendingBookingOne) return tt.pendingBookingOne;
+    const few = n % 10 >= 2 && n % 10 <= 4 && !(n % 100 >= 12 && n % 100 <= 14);
+    return `${n} ${few && tt.pendingBookingsFew ? tt.pendingBookingsFew : t.pendingBookingsMsg}`;
+  };
   const [cleanerPendingIds, setCleanerPendingIds] = useState<string[]>([]); // מזהי ההזמנות הממתינות לאישור
   const [cleanerBusy, setCleanerBusy] = useState<{ date: string; s: number; e: number }[]>([]); // חלונות תפוסים (הזמנות מאושרות)
   // מזהי הזמנות שהמנקה כבר ראה/סגר — נשמר במכשיר כדי שהבאנר לא יחזור אחרי צפייה/ניווט,
@@ -4143,18 +4183,24 @@ export default function HomeScreen() {
   const urgentScrollRef = useRef<ScrollView>(null);
   const [urgentOpen,      setUrgentOpen]      = useState(false);
   const [postJobOpen,     setPostJobOpen]     = useState(false);   // פרסום עבודה פתוחה (לקוח)
+  // The job being edited, and the key the form is mounted under. Both are set
+  // when a form is opened and left alone when it closes: clearing them on close
+  // changed the key under a modal that was still visible, unmounting it in the
+  // middle of its closing animation.
+  const [editJob, setEditJob] = useState<any>(null);
+  const [postJobKey, setPostJobKey] = useState('new');
+  const openNewPostJob = () => { setEditJob(null); setPostJobKey('new'); setPostJobOpen(true); };
   // הגעה מהפרופיל עם openPostJob=1 — פותח מיד את "ניקיון בזמן שלך".
   // הדגל נצרך פעם אחת כדי שחזרה למסך לא תפתח את הטופס שוב.
   const postJobParamUsedRef = useRef(false);
   useEffect(() => {
     if (navParams?.openPostJob === '1' && !postJobParamUsedRef.current) {
       postJobParamUsedRef.current = true;
-      setPostJobOpen(true);
+      openNewPostJob();
       router.setParams({ openPostJob: undefined });
     }
   }, [navParams?.openPostJob]);
   // הגעה מהפרופיל עם editJobId — "✏️ עריכה" על מודעה של הלקוח שעוד לא נלקחה.
-  const [editJob, setEditJob] = useState<any>(null);
   useEffect(() => {
     const id = navParams?.editJobId;
     if (!id) return;
@@ -4174,6 +4220,9 @@ export default function HomeScreen() {
         // the address and wipe the notes. Older jobs still carry them on top.
         const det = (await getDoc(doc(db, 'bookings', id, 'private', 'details'))).data() || {};
         setEditJob({ id: snap.id, ...d, address: det.address || d.address || '', notes: det.notes ?? d.notes ?? '' });
+        // A key of its own each time, so reopening the same job starts from the
+        // job again and not from changes that were abandoned.
+        setPostJobKey(`edit:${snap.id}:${Date.now()}`);
         setPostJobOpen(true);
       } catch (err) {
         logError('home:editJob', err);
@@ -4214,19 +4263,10 @@ export default function HomeScreen() {
   const [quickRebookOpen, setQuickRebookOpen] = useState(false);
 
 
-  // ── טען ברירות מחדל חכמות כשניקוי דחוף נפתח ─────────────────────────────
-  useEffect(() => {
-    if (!urgentOpen) return;
-    // טען כתובות שמורות + כתובת ראשית
-    getSavedAddresses().then(addrs => {
-      setUrgentSavedAddresses(addrs);
-      const primary = addrs.find(a => a.isPrimary) || addrs[0];
-      if (primary) setUrgentAddress(primary.address);
-    }).catch(() => {});
-    // אמצעי תשלום אחרון
-    SecureStore.getItemAsync('last_payment_method').then(pay => {
-      if (pay) setUrgentPayment(pay as any);
-    }).catch(() => {});
+  // היום, השעה והמשך שטופס חדש מתחיל מהם. גם כשהבקשה שבחוץ בוטלה או פגה
+  // והטופס חוזר מתחת לכרטיס ההמתנה: בלי זה הוא נשאר על היום והשעה של הבקשה
+  // הישנה — למשל "היום" אחרי השעה האחרונה, שהשליחה דוחה.
+  const urgentTimeDefaults = () => {
     // שעה הבאה הזמינה (עגול ל-30 דקות + 30 דקות קדימה)
     const now   = new Date();
     // חצי שעה קדימה, ולא לפני 07:00 — בפתיחה ב-00:10 זה מילא 01:00 ושלח.
@@ -4241,6 +4281,29 @@ export default function HomeScreen() {
       setUrgentHour(nextSlot / 60);
     }
     setUrgentHours(2);
+  };
+
+  // ── טען ברירות מחדל חכמות כשניקוי דחוף נפתח ─────────────────────────────
+  useEffect(() => {
+    if (!urgentOpen) return;
+    // בקשה כבר בחוץ: הטופס עדיין מחזיק את מה שנשלח, ו-✏️ מחזיר אותו לתיקון.
+    // האיפוס שלמטה רץ בכל פתיחה, ולכן ✏️ הציג "היום, השעה הקרובה, שעתיים"
+    // במקום מה שנשלח — ושליחה חוזרת שידרה שעה אחרת.
+    if (urgentWaiting) {
+      getSavedAddresses().then(setUrgentSavedAddresses).catch(() => {});
+      return;
+    }
+    // טען כתובות שמורות + כתובת ראשית
+    getSavedAddresses().then(addrs => {
+      setUrgentSavedAddresses(addrs);
+      const primary = addrs.find(a => a.isPrimary) || addrs[0];
+      if (primary) setUrgentAddress(primary.address);
+    }).catch(() => {});
+    // אמצעי תשלום אחרון
+    SecureStore.getItemAsync('last_payment_method').then(pay => {
+      if (pay) setUrgentPayment(pay as any);
+    }).catch(() => {});
+    urgentTimeDefaults();
   }, [urgentOpen]);
 
 
@@ -4507,6 +4570,10 @@ export default function HomeScreen() {
           } else if (d?.status === 'expired' || d?.status === 'cancelled') {
             setUrgentWaiting(false);
             setUrgentRequestId(null);
+            // The form comes back from under the waiting card: start it afresh
+            // — unless this is ✏️ withdrawing the request, which brings the
+            // form back as it was sent (handleEditUrgent).
+            if (!urgentEditBusy.current && urgentEditedId.current !== reqRef.id) urgentTimeDefaults();
             unsub();
             if (urgentUnsubRef.current === unsub) urgentUnsubRef.current = null;
           }
@@ -4525,16 +4592,22 @@ export default function HomeScreen() {
   // וחוזרים לטופס עם אותם פרטים, לתקן ולשלוח מחדש. מחדש ולא עדכון במקום: נותני
   // השירות קיבלו פוש על הפרטים הישנים, והבקשה המתוקנת צריכה להגיע אליהם כחדשה.
   // בטרנזקציה, כדי לא לבטל בקשה שנלקחה באותו רגע.
+  // A second tap on ✏️ — while the first is still running, or queued before the
+  // card disappears — found the request already cancelled by the first and
+  // announced "a provider already took it" over the reopened form.
+  const urgentEditBusy = useRef(false);
+  const urgentEditedId = useRef<string | null>(null);
   const handleEditUrgent = async () => {
-    if (!urgentRequestId) return;
+    if (!urgentRequestId || urgentEditBusy.current || urgentEditedId.current === urgentRequestId) return;
+    urgentEditBusy.current = true;
     const ref = doc(db, 'urgentRequests', urgentRequestId);
-    let photosBack: string[] = [];
+    let sent: any = null;
     try {
       await runTransaction(db, async (tx) => {
         const cur = await tx.get(ref);
         const d: any = cur.data();
         if (!cur.exists() || d?.status !== 'open') throw new Error('URGENT_TAKEN');
-        photosBack = Array.isArray(d?.photos) ? d.photos : [];
+        sent = d;
         tx.update(ref, { status: 'cancelled' });
       });
     } catch (err: any) {
@@ -4543,10 +4616,26 @@ export default function HomeScreen() {
         ? ((t as any).urgentEditTakenMsg ?? 'נותן שירות כבר לקח את הבקשה, ולכן אי אפשר לערוך אותה.')
         : ((t as any).genericError ?? 'שגיאה — נסה שוב'));
       return;
+    } finally {
+      urgentEditBusy.current = false;
     }
-    // The rest of the form still holds what was sent; the photos were cleared
-    // on sending, so they come back from the request.
-    setUrgentPhotos(photosBack);
+    urgentEditedId.current = urgentRequestId;
+    // The form comes back as it was sent, read from the request itself: the
+    // photos were cleared on sending, and the rest is the record of what the
+    // providers were told. (The address is in the private half; the form still
+    // holds it.)
+    const ymd = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    const tomorrow = new Date();
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    if (sent?.dateStr === ymd(new Date())) setUrgentDate('today');
+    else if (sent?.dateStr === ymd(tomorrow)) setUrgentDate('tomorrow');
+    const hm = /^(\d{1,2}):(\d{2})$/.exec(String(sent?.startTime ?? ''));
+    if (hm) setUrgentHour(Number(hm[1]) + (hm[2] === '30' ? 0.5 : 0));
+    if (Number(sent?.hours) > 0) setUrgentHours(Number(sent.hours));
+    if (typeof sent?.serviceType === 'string' && sent.serviceType) setUrgentServiceTypes(sent.serviceType.split(' + ').filter(Boolean));
+    if (typeof sent?.paymentMethod === 'string' && sent.paymentMethod) setUrgentPayment(sent.paymentMethod);
+    if (Number(sent?.maxPrice) > 0) setUrgentMaxPrice(Number(sent.maxPrice));
+    setUrgentPhotos(jobPhotosOf(sent?.photos));
     setUrgentWaiting(false);
     setUrgentRequestId(null);
     setUrgentFoundName('');
@@ -4558,6 +4647,7 @@ export default function HomeScreen() {
     setUrgentWaiting(false);
     setUrgentRequestId(null);
     setUrgentFoundName('');
+    urgentTimeDefaults();
   };
 
   // ── פופאפ אישור הזמנה ──────────────────────────────────────────────────────
@@ -4618,7 +4708,7 @@ export default function HomeScreen() {
       if (!when || isNaN(when.getTime()) || when.getTime() <= Date.now()) {
         markCancelledSeen(b?.id);
         setCancelledPopup(null);
-        setPostJobOpen(true);   // פותח את "ניקיון בזמן שלך" לבחירת מועד חדש
+        openNewPostJob();   // פותח את "ניקיון בזמן שלך" לבחירת מועד חדש
         return;
       }
       if (await hasClashingRequest(uid, dateStr, startTime)) {
@@ -4646,7 +4736,7 @@ export default function HomeScreen() {
         addrCity: cityFromAddress(b?.address || '', CITY_COORDS) || cityFromAddress(b?.addrCity || '', CITY_COORDS),
         payment: b?.payment || 'cash', paymentStatus: `awaiting_${b?.payment || 'cash'}`,
         total: b?.total ?? null, pricePerHour: b?.pricePerHour ?? null,
-        photos: Array.isArray(b?.photos) ? b.photos : [],
+        photos: jobPhotosOf(b?.photos),
         origin: 'open',
         status: 'pending', createdAt: new Date().toISOString(),
         recurring: 'once', recurringDates: [],
@@ -4727,17 +4817,24 @@ export default function HomeScreen() {
     setSearch(text);
     if (text.length < 1) { setSearchSugg([]); setShowSearchSugg(false); return; }
     const sq = text.toLowerCase();
-    // הצעות ערים — מתוך כל ערי הארץ (CITY_COORDS) + ערים של מנקים, תחילית קודמת
+    // הצעות ערים — מתוך כל ערי הארץ (CITY_COORDS) + ערים של מנקים, תחילית קודמת.
+    // העיר מוצעת בשם שלה בשפת המסך ונמצאת גם לפיו: קודם ההשוואה הייתה רק מול
+    // המפתח העברי, ולכן "Haifa" לא קיבל הצעה אף שהחיפוש עצמו מוצא אותה.
+    const nq = normText(text);
     const cleanerCities = ALL_CLEANERS.map(c => String(c.city || ''));
     const allCityNames = Array.from(new Set([...cleanerCities, ...Object.keys(CITY_COORDS)])).filter(Boolean);
-    const cityMatches = allCityNames.filter(c => c.toLowerCase().includes(sq));
+    const seenTown = new Set<string>();
+    const cityMatches = allCityNames
+      .map(c => ({ shown: cityNameOf(c) || c, keys: [normText(c), normText(cityNameOf(c))].filter(Boolean) }))
+      .filter(m => !!nq && m.keys.some(k => k.includes(nq)))
+      .filter(m => (seenTown.has(m.shown) ? false : (seenTown.add(m.shown), true)));
     // תחילית (מתחיל ב-) קודם, אחר כך הכלה — כך "ראשי תיבות" של עיר מקפיצים אותה ראשונה
     cityMatches.sort((a, b) => {
-      const ap = a.toLowerCase().startsWith(sq) ? 0 : 1;
-      const bp = b.toLowerCase().startsWith(sq) ? 0 : 1;
-      return ap !== bp ? ap - bp : a.localeCompare(b, 'he');
+      const ap = a.keys.some(k => k.startsWith(nq)) ? 0 : 1;
+      const bp = b.keys.some(k => k.startsWith(nq)) ? 0 : 1;
+      return ap !== bp ? ap - bp : a.shown.localeCompare(b.shown, lang);
     });
-    const cities = cityMatches.slice(0, 6).map(c => ({ label: c, icon: '📍' }));
+    const cities = cityMatches.slice(0, 6).map(m => ({ label: m.shown, icon: '📍' }));
     const names   = ALL_CLEANERS
       .filter(c => String(c.name || '').toLowerCase().includes(sq))
       .slice(0, 3)
@@ -4781,7 +4878,7 @@ export default function HomeScreen() {
     maxDistance: c.maxDistance,
   });
   const nameHit = !!searchQ && ALL_CLEANERS.some(c => String(c.name || '').toLowerCase().includes(searchQ.toLowerCase()));
-  const searchPlace = resolvePlace(searchQ, CITY_COORDS, cityNameOf, !nameHit, !nameHit);
+  const searchPlace = searchPlaceOf(searchQ, lang, cityNameOf, !nameHit);
   // מי מהנשארים אומר/ת את הטקסט בעצמו/ה — הם ראשונים במיון.
   const searchTextHit = new Set<any>();
   if (searchQ) {
@@ -5657,6 +5754,11 @@ export default function HomeScreen() {
         //
         // טעינה ראשונה — מסמנים את המצב הקיים כ"נראה" בלי להקפיץ פופאפים,
         // אחרת כל אישור/ביטול ישן היה קופץ מחדש בכל פתיחת מסך.
+        // A booking already past its confirmation was confirmed before this
+        // screen opened. Without this, a cleaner pressing "on my way" and then
+        // undoing it brought the booking back to `confirmed`, and the client
+        // was told "🎉 confirmed" about a booking approved hours earlier.
+        if (data.status === 'onway' || data.status === 'active' || data.status === 'done') seenConfirmedRef.current.add(d.id);
         if (initialLoad) {
           if (data.status === 'confirmed') seenConfirmedRef.current.add(d.id);
           if (data.status === 'cancelled') {
@@ -6045,7 +6147,7 @@ export default function HomeScreen() {
                 </TouchableOpacity>
               )}
               {myRole === 'client' && (
-                <TouchableOpacity onPress={() => setPostJobOpen(true)} activeOpacity={0.85} style={[s.urgentHeaderBtn, { backgroundColor: C.blue, flexShrink: 1 }]}>
+                <TouchableOpacity onPress={openNewPostJob} activeOpacity={0.85} style={[s.urgentHeaderBtn, { backgroundColor: C.blue, flexShrink: 1 }]}>
                   <T style={[s.urgentHeaderBtnText, s.headerBtnLabel]} numberOfLines={2} maxFontSizeMultiplier={1.2}>{stripEmoji((t as any).postJobHomeBtn ?? 'ניקיון בזמן שלך')}</T>
                 </TouchableOpacity>
               )}
@@ -6107,7 +6209,7 @@ export default function HomeScreen() {
               <TouchableOpacity style={{ flex: 1, flexDirection: 'row', alignItems: 'center', gap: 10 }} onPress={() => { markPendingSeen(); router.push('/profile'); }}>
                 <View style={{ flex: 1 }}>
                   <T style={{ color: '#fff', fontSize: 14, fontWeight: '900' }}>
-                    {cleanerPendingCount} {t.pendingBookingsMsg}
+                    {pendingBookingsLine(cleanerPendingCount)}
                   </T>
                   <T style={{ color: 'rgba(255,255,255,0.85)', fontSize: 12 }}>{t.tapToApprove}</T>
                 </View>
@@ -6383,9 +6485,9 @@ export default function HomeScreen() {
                       {!!area && <T style={s.jobRow}>📍 {area}{typeof j._distKm === 'number' ? `  ·  📏 ${j._distKm < 1 ? '<1' : Math.round(j._distKm)} ק"מ` : ''}</T>}
                       {!!j.clientName && <T style={s.jobRow}>👤 {j.clientName}</T>}
                       {!!j.notes && <T style={[s.jobRow, { color: C.textSub }]}>📝 {j.notes}</T>}
-                      {Array.isArray(j.photos) && j.photos.length > 0 && (
+                      {jobPhotosOf(j.photos).length > 0 && (
                         <View style={{ flexDirection: 'row-reverse', flexWrap: 'wrap', gap: 6, marginTop: 6 }}>
-                          {j.photos.map((uri: string, pi: number) => (
+                          {jobPhotosOf(j.photos).map((uri: string, pi: number) => (
                             <TouchableOpacity key={pi} onPress={() => setEnlargedPhoto(uri)}>
                               <Image source={{ uri }} style={{ width: 64, height: 64, borderRadius: 8 }} contentFit="cover" />
                             </TouchableOpacity>
@@ -6422,10 +6524,10 @@ export default function HomeScreen() {
       {/* Keyed: switching between editing a job and posting a new one starts
           from a clean form, not from the other one's fields. */}
       <PostJobModal
-        key={editJob?.id || 'new'}
+        key={postJobKey}
         visible={postJobOpen}
         editJob={editJob}
-        onClose={() => { setPostJobOpen(false); setEditJob(null); }}
+        onClose={() => setPostJobOpen(false)}
       />
 
       <CleanerProfile
@@ -6679,7 +6781,7 @@ export default function HomeScreen() {
               const svc = urgentPopupReq.serviceType
                 ? String(urgentPopupReq.serviceType).split(' + ').map((st: string) => t.types[st] || st).join(', ')
                 : '';
-              const pics: string[] = Array.isArray(urgentPopupReq.photos) ? urgentPopupReq.photos : [];
+              const pics: string[] = jobPhotosOf(urgentPopupReq.photos);
               return (
                 <>
                   <T style={{ fontSize: 15, color: C.textDark, lineHeight: 24, textAlign: 'right', marginBottom: pics.length ? 10 : 18 }}>

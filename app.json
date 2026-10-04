@@ -69,7 +69,27 @@
       ],
       "@react-native-community/datetimepicker",
       "expo-font",
-      "expo-audio",
+      [
+        "expo-audio",
+        {
+          "microphonePermission": "המיקרופון משמש להקלטת הודעות קוליות בצ'אט."
+        }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "cameraPermission": "המצלמה משמשת לצילום תמונת פרופיל ותמונות שתרצו לצרף להזמנה.",
+          "photosPermission": "הגלריה משמשת לבחירת תמונת פרופיל ותמונות שתרצו לצרף להזמנה או לשלוח בצ'אט."
+        }
+      ],
+      [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "המיקום משמש להצגת נותני שירות ועבודות בקרבתך, ולהתאמה ביניכם לפי מרחק.",
+          "locationAlwaysAndWhenInUsePermission": "המיקום משמש להצגת נותני שירות ועבודות בקרבתך, ולהתאמה ביניכם לפי מרחק.",
+          "locationAlwaysPermission": "המיקום משמש להצגת נותני שירות ועבודות בקרבתך, ולהתאמה ביניכם לפי מרחק."
+        }
+      ],
       "expo-asset",
       "expo-web-browser",
       "expo-image",

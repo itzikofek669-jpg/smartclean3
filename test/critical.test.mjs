@@ -8,7 +8,7 @@ import { resolveRole } from '../.tsbuild/resolveRole.mjs';
 import { mustVerifyEmail, VERIFY_REQUIRED_FROM } from '../.tsbuild/verifyRule.mjs';
 import { isAvailableNow, compareJobs } from '../.tsbuild/displayOrder.mjs';
 import { cityFromAddress } from '../.tsbuild/cityFromAddress.mjs';
-import { canRepost } from '../.tsbuild/bookingOrigin.mjs';
+import { canRepost, replacedByEdit } from '../.tsbuild/bookingOrigin.mjs';
 import { startDateOf, endDateOf, bookingHours, DEFAULT_BOOKING_HOURS } from '../.tsbuild/bookingSlot.mjs';
 import { readCalendarRemoval, extractPushData } from '../.tsbuild/calendarPush.mjs';
 import { isUrgentRequestLive, isUrgentRequestExpired, expiryOf, URGENT_FIRST_START_HOUR, URGENT_LAST_START_HOUR, hourOfTime, urgentStartAllowed, urgentTodayClosed, urgentFirstSlot } from '../.tsbuild/urgentRequest.mjs';
@@ -1324,8 +1324,46 @@ test('spellings that differ only in marks find the same town', () => {
   const heScreen = (c) => c;
   assert.equal(resolvePlace("Be'er Sheva", table, heScreen)?.city, 'באר שבע');
   assert.equal(resolvePlace('Beer Sheva', table, heScreen)?.city, 'באר שבע');
-  assert.equal(resolvePlace('תא', table, heScreen)?.city, 'ת"א');
+  // The abbreviation in any of its quote marks — and not its bare letters,
+  // which also sit inside "קריית אתא" and start "תאיר".
+  assert.equal(resolvePlace('ת"א', table, heScreen)?.city, 'ת"א');
+  assert.equal(resolvePlace('ת״א', table, heScreen)?.city, 'ת"א');
+  assert.equal(resolvePlace('ת”א', table, heScreen)?.city, 'ת"א');
+  assert.equal(resolvePlace('תא', table, heScreen), null);
+  assert.equal(resolvePlace("ת''א", table, heScreen)?.city, 'ת"א');      // two apostrophes for the mark
+  // A longer abbreviation without its mark is still itself; two letters are not.
+  assert.equal(resolvePlace('ראשלצ', { 'ראשל"צ': { lat: 31.97, lng: 34.79 } }, heScreen)?.city, 'ראשל"צ');
+  assert.equal(resolvePlace('כס', { 'כ"ס': { lat: 32.17, lng: 34.9 } }, heScreen), null);
+  assert.equal(textMatches({ city: 'קריית אתא' }, 'ת"א'), false);
+  assert.equal(textMatches({ city: 'ת״א' }, 'ת"א'), true);
+  assert.equal(normText('"הרצל"'), 'הרצל');                              // quoting a word is not an abbreviation
   assert.equal(normText('أم الفحم'), normText('ام الفحم'));
   assert.equal(normText('Césarée'), 'cesaree');
   assert.equal(normText("Кірʼят"), normText("Кір'ят"));
+});
+
+test('a provider with no working hours is offered from 07:00 and suggested 09:00', () => {
+  // The clock used to open at 09:00 for everyone. Reading it from her working
+  // hours moved it to the start of the general range — 07:00 — for every
+  // provider who never set hours, which is most of them.
+  const opts = { earliest: 0, fallback: { min: 7, max: 20, first: 9 } };
+  assert.deepEqual(bookableStarts(undefined, 3, 2, false, opts), { min: 7, max: 20, first: 9, allBusy: false, fromProfile: false });
+  // Today, later than nine: the next slot.
+  assert.equal(bookableStarts(undefined, 3, 2, false, { ...opts, earliest: 13.5 }).first, 13.5);
+  // Nine onwards taken: the free hours before it, rather than "fully booked".
+  assert.equal(bookableStarts(undefined, 3, 2, false, { ...opts, busy: [{ s: 540, e: 1320 }] }).first, 7);
+  // Her own hours are not touched by the general opening hour.
+  const week = { sun: { active: true, start: 7, end: 15 } };
+  assert.equal(bookableStarts(week, 0, 2, true, opts).first, 7);
+});
+
+test('only a job its client edited is hidden as "replaced"', () => {
+  assert.equal(replacedByEdit({ replacedBy: 'new1', status: 'cancelled', cleanerId: '' }), true);
+  // A provider can write the field on a job she holds; that must not make a
+  // live booking, or one she cancelled, vanish from the client's list.
+  assert.equal(replacedByEdit({ replacedBy: 'x', status: 'confirmed', cleanerId: 'c1' }), false);
+  assert.equal(replacedByEdit({ replacedBy: 'x', status: 'pending', cleanerId: '' }), false);
+  assert.equal(replacedByEdit({ replacedBy: 'x', status: 'cancelled', cleanerId: 'c1' }), false);
+  assert.equal(replacedByEdit({ status: 'cancelled', cleanerId: '' }), false);
+  assert.equal(replacedByEdit(null), false);
 });

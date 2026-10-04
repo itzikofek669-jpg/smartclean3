@@ -62,7 +62,7 @@ import { claimPhone, releasePhone } from '../lib/accountChecks';
 import { isUrgentRequestLive, isUrgentRequestExpired } from '../lib/urgentRequest';
 import { rejectionUpdate, occupiesCleanerTime, awaitsMyApproval, rejectionReleasesToBoard, busyFieldsOf } from '../lib/bookingActions';
 import { cityFromAddress } from '../lib/cityFromAddress';
-import { bookingOrigin } from '../lib/bookingOrigin';
+import { bookingOrigin, replacedByEdit } from '../lib/bookingOrigin';
 import { bookingBusyWindow, windowsOverlap, CITY_COORDS } from '../lib/jobUtils';
 import { releaseUrgentRequest } from '../lib/urgentRelease';
 
@@ -1183,7 +1183,7 @@ export default function ProfileScreen() {
       snap => {
         // A job the client edited was replaced by a new one (home.tsx PostJobModal);
         // listing the old one as "cancelled" would say they cancelled it.
-        const docs = snap.docs.map(d => ({ id: d.id, ...d.data() })).filter((b: any) => !b.replacedBy);
+        const docs = snap.docs.map(d => ({ id: d.id, ...d.data() })).filter((b: any) => !replacedByEdit(b));
         docs.sort((a: any, b: any) => (b.createdAt || '').localeCompare(a.createdAt || ''));
         setBookings(docs);
         // הכתובת המדויקת וההערות יושבות במסמך משנה פרטי — ראה lib/bookingDetails.
@@ -1859,7 +1859,10 @@ export default function ProfileScreen() {
     const label = b.status === 'active' ? t.startCleaningBtn : t.onWayBtn;
     Alert.alert(
       (t as any).undoProgressTitle ?? '↩️ ביטול הלחיצה',
-      ((t as any).undoProgressMsg ?? 'לבטל את "{step}"? ההזמנה תחזור למצב הקודם.').replace('{step}', String(label || '').replace(/^\S+\s+/, '')),
+      // The step by its name, without a leading emoji. Dropping "the first
+      // word" took the emoji off "🚗 אני בדרך" — and the first word off
+      // "התחל ניקיון", which has none: the question read 'לבטל את "ניקיון"?'.
+      ((t as any).undoProgressMsg ?? 'לבטל את "{step}"? ההזמנה תחזור למצב הקודם.').replace('{step}', String(label || '').replace(/^[^A-Za-z0-9\u00C0-\u024F\u0400-\u04FF\u0590-\u05FF\u0600-\u06FF\u0900-\u097F]+/, '')),
       [
         { text: t.cancel, style: 'cancel' },
         {
@@ -3448,7 +3451,7 @@ export default function ProfileScreen() {
               <T style={s.email}>📱 {userPhone}</T>
             )}
             <View style={s.roleBadge}>
-              <T style={s.roleBadgeText}>{isCleaner ? t.cleanerRole : t.clientRole}</T>
+              <T style={s.roleBadgeText} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8}>{isCleaner ? t.cleanerRole : t.clientRole}</T>
             </View>
             <TouchableOpacity style={s.editProfileBtn} onPress={openEditProfile}>
               <T style={s.editProfileBtnText}>{t.editProfileTitle}</T>

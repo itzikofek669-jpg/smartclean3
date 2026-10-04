@@ -884,12 +884,12 @@ export default function RegisterScreen() {
           <View style={s.roleRow}>
             <TouchableOpacity style={[s.roleBtn, role === 'client' && s.roleBtnActive]} onPress={() => setRole('client')}>
               <T style={s.roleIcon}>👤</T>
-              <T style={[s.roleLabel, role === 'client' && s.roleLabelActive]}>{t.clientLabel}</T>
+              <T style={[s.roleLabel, role === 'client' && s.roleLabelActive]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{t.clientLabel}</T>
               <T style={[s.roleDesc, role === 'client' && { color: C.blue }]}>{t.lookingForCleaner}</T>
             </TouchableOpacity>
             <TouchableOpacity style={[s.roleBtn, role === 'cleaner' && s.roleBtnActive]} onPress={() => setRole('cleaner')}>
               <T style={s.roleIcon}>✨</T>
-              <T style={[s.roleLabel, role === 'cleaner' && s.roleLabelActive]}>{t.cleanerLabel}</T>
+              <T style={[s.roleLabel, role === 'cleaner' && s.roleLabelActive]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{t.cleanerLabel}</T>
               <T style={[s.roleDesc, role === 'cleaner' && { color: C.blue }]}>{t.offeringService}</T>
             </TouchableOpacity>
           </View>

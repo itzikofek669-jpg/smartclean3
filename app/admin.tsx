@@ -20,6 +20,7 @@ import { demoModeStored, setDemoMode } from '../lib/demoMode';
 import { releaseUrgentRequest } from '../lib/urgentRelease';
 import { fetchPrivateProfile } from '../lib/privateProfile';
 import { broadcast } from '../lib/notify';
+import { replacedByEdit } from '../lib/bookingOrigin';
 
 // ─── Palette ──────────────────────────────────────────────────────────────────
 const C_DEFAULT = {
@@ -145,7 +146,9 @@ export default function AdminScreen() {
     });
     const unsubBookings = onSnapshot(
       query(collection(db, 'bookings'), orderBy('createdAt', 'desc'), limit(300)),
-      snap => setBookings(snap.docs.map(d => ({ id: d.id, ...d.data() })))
+      // Without the old copies of jobs their clients edited: an edit is not a
+      // cancellation, and each one counted as a cancelled booking here.
+      snap => setBookings(snap.docs.map(d => ({ id: d.id, ...d.data() })).filter((b: any) => !replacedByEdit(b)))
     );
     const unsubPromo = onSnapshot(collection(db, 'promoCodes'), snap => {
       setPromoCodes(snap.docs.map(d => ({ id: d.id, ...d.data() })));

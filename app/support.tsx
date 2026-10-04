@@ -52,6 +52,7 @@ interface BotContext {
   activeBooking: any | null;
   allBookings: any[];
   lastTopic?: string;   // זיכרון הקשר — נושא השיחה האחרון
+  fromButton?: boolean; // נלחץ כפתור תשובה מהירה, לא הוקלד
 }
 
 // ─── Chatbot Engine ───────────────────────────────────────────────────────────
@@ -154,11 +155,11 @@ const TOPICS: { topic: string; kw: string[] }[] = [
   { topic: 'מנקה',   kw: ['מנקה', 'נותן שירות', 'פרטי המנקה', 'פרטי נותן השירות', 'טלפון של המנקה', 'טלפון של נותן השירות', 'מי מגיע'] },
   { topic: 'תשלום',  kw: ['תשלום', 'לשלם', 'bit', 'ביט', 'paybox', 'פייבוקס', 'מזומן', 'העברה בנקאית', 'אשראי'] },
   { topic: 'ביטוח',  kw: ['ביטוח', 'נזק', 'אחריות', 'תביעה'] },
-  { topic: 'הזמנה',  kw: ['להזמין', 'הזמנה חדשה', 'לקבוע', 'להזמין מנקה', 'להזמין נותן שירות', 'דחוף'] },
+  { topic: 'הזמנה',  kw: ['להזמין', 'מזמינים', 'הזמנה חדשה', 'לקבוע', 'להזמין מנקה', 'להזמין נותן שירות', 'דחוף'] },
   { topic: 'זמינות', kw: ['זמינות', 'שעות', 'ימים', 'לוח זמנים'] },
   { topic: 'רווחים', kw: ['הרווחתי', 'רווח', 'הכנסה'] },
-  { topic: 'הרשמה',  kw: ['הרשמה', 'להירשם', 'להצטרף', 'משתמש חדש'] },
-  { topic: 'דירוג',  kw: ['דירוג', 'ביקורת', 'כוכב', 'לדרג', 'חוות דעת'] },
+  { topic: 'הרשמה',  kw: ['הרשמה', 'להירשם', 'נרשמים', 'להצטרף', 'משתמש חדש'] },
+  { topic: 'דירוג',  kw: ['דירוג', 'ביקורת', 'כוכב', 'לדרג', 'מדרגים', 'חוות דעת'] },
 ];
 function detectTopic(msg: string): string | undefined {
   let best: { topic: string; score: number } | null = null;
@@ -180,7 +181,9 @@ function getBotResponse(input: string, ctx: BotContext): BotResponse {
   const isCleaner = role === 'cleaner';
 
   // ── זיכרון הקשר: שאלת המשך גנרית → השלם מהנושא האחרון ─────────────────────
-  if (ctx.lastTopic && isFollowUp(msg)) {
+  // לא לכפתור: כפתור הוא שאלה שלמה. הנושא הקודם הודבק גם לפניו, ולכן "איך
+  // נרשמים?" או "איך מדרגים?" שנלחצו אחרי שאלת סטטוס קיבלו שוב את הסטטוס.
+  if (ctx.lastTopic && !ctx.fromButton && isFollowUp(msg)) {
     msg = ctx.lastTopic + ' ' + msg;
   }
 
@@ -320,7 +323,8 @@ function getClientResponse(msg: string, userName: string, activeBooking: any, al
   if (matchAny(msg, ['מקבלים תשלום', 'מקבל תשלום', 'לקבל תשלום', 'קבלת תשלום', 'איך מקבל', 'לקבל כסף', 'תשלום מלקוח', 'תשלום ממני', 'תשלום ממנקה', 'מנקה מקבל', 'נותן שירות מקבל'])) {
     return {
       text: `💳 קבלת תשלום מלקוחות:\n\n💵 מזומן — הלקוח משלם לך ישירות בסיום הניקוי\n📱 Bit — הלקוח שולח העברה מיידית לטלפון שלך\n💜 PayBox — הלקוח שולח תשלום דרך PayBox\n🏦 העברה בנקאית — הלקוח מעביר לחשבון שלך\n\n✅ A&M Clean לא גובה עמלה — 100% מהסכום הולך אליך!\n\n💡 שיטת התשלום נקבעת עם הלקוח בעת ההזמנה.`,
-      quickReplies: ['כמה הרווחתי?', 'עמלה', 'חזור לתפריט'],
+      // A client has no earnings to ask about: "כמה הרווחתי?" was offered here and answered by nothing.
+      quickReplies: ['עמלה', 'חזור לתפריט'],
     };
   }
 
@@ -1131,7 +1135,7 @@ export default function SupportScreen() {
   const contextRef = useRef(context);
   useEffect(() => { contextRef.current = context; }, [context]);
 
-  const handleSend = (text: string) => {
+  const handleSend = (text: string, fromButton = false) => {
     const trimmed = text.trim();
     if (!trimmed) return;
     setInput('');
@@ -1161,7 +1165,7 @@ export default function SupportScreen() {
         setTyping(false);
         pushBotMessage(
           '💳 קבלת תשלום מלקוחות:\n\n💵 מזומן — הלקוח משלם לך ישירות בסיום הניקוי\n📱 Bit — הלקוח שולח העברה מיידית לטלפון שלך\n💜 PayBox — הלקוח שולח תשלום דרך PayBox\n🏦 העברה בנקאית — הלקוח מעביר לחשבון שלך\n\n✅ A&M Clean לא גובה עמלה — 100% מהסכום הולך אליך!\n\n💡 שיטת התשלום נקבעת עם הלקוח בעת ההזמנה.',
-          ['כמה הרווחתי?', 'עמלה', 'חזור לתפריט']
+          contextRef.current.role === 'cleaner' ? ['כמה הרווחתי?', 'עמלה', 'חזור לתפריט'] : ['עמלה', 'חזור לתפריט']
         );
       }, 800);
       return;
@@ -1176,7 +1180,7 @@ export default function SupportScreen() {
         pushBotMessage('הפרופיל עדיין נטען. נסה שוב בעוד רגע.');
         return;
       }
-      const response = getBotResponse(trimmed, ctx);
+      const response = getBotResponse(trimmed, { ...ctx, fromButton });
       // שמור את נושא השיחה לזיכרון הקשר (לשאלות המשך)
       if (contextRef.current) contextRef.current.lastTopic = response.topic;
       pushBotMessage(response.text, response.quickReplies);
@@ -1225,7 +1229,7 @@ export default function SupportScreen() {
                 <TouchableOpacity
                   key={qr}
                   style={s.qrChip}
-                  onPress={() => handleSend(qr)}
+                  onPress={() => handleSend(qr, true)}
                 >
                   <T style={s.qrChipText}>{qr}</T>
                 </TouchableOpacity>

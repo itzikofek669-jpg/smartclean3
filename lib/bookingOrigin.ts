@@ -61,3 +61,20 @@ export function canRepost(b: BookingLike | null | undefined): boolean {
   // told they had already booked that hour.
   return bookingOrigin(b) === 'open';
 }
+
+/**
+ * Is this the old copy of a job its client edited?
+ *
+ * Editing a posted job replaces it: the old one is cancelled with `replacedBy`
+ * naming the new one. It is not a cancellation, and no list should show or
+ * count it as one — not the client's, not the admin's.
+ *
+ * `replacedBy` alone does not say so. The rules do not freeze the field, so a
+ * cleaner holding a job could write it and make a live booking vanish from its
+ * client's list. Only a cancelled job that nobody had taken is an edit.
+ */
+export function replacedByEdit(
+  b: { replacedBy?: unknown; status?: string; cleanerId?: string } | null | undefined,
+): boolean {
+  return !!b?.replacedBy && b.status === 'cancelled' && !b.cleanerId;
+}

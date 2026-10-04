@@ -273,15 +273,18 @@ export function busyWindowsOn(slots: unknown, date: string): DayWindow[] {
  *           range collides, and `allBusy` says so.
  *
  * With no working hours set at all (see workingHoursVerdict: 'unset') the
- * clock keeps the old general range, `fallback`. `null` when the day cannot
- * take this job: a day off, or less of her day left than the job needs.
+ * clock keeps the old general range, `fallback` — and opens where it always
+ * did, `fallback.first` (09:00), not at the range's first hour: 07:00 is on
+ * offer for someone who never set her hours, not the suggestion. `null` when
+ * the day cannot take this job: a day off, or less of her day left than the
+ * job needs.
  */
 export function bookableStarts(
   availability: unknown,
   day: number,
   hours: number,
   daysChosen: boolean,
-  opts: { earliest: number; fallback: { min: number; max: number }; busy?: DayWindow[] },
+  opts: { earliest: number; fallback: { min: number; max: number; first?: number }; busy?: DayWindow[] },
 ): { min: number; max: number; first: number; allBusy: boolean; fromProfile: boolean } | null {
   const up = (h: number) => Math.ceil(h * 2 - 1e-9) / 2;
   const down = (h: number) => Math.floor(h * 2 + 1e-9) / 2;
@@ -305,10 +308,15 @@ export function bookableStarts(
   if (!(max >= min)) return null;
 
   const busy = opts.busy ?? [];
-  for (let h = min; h <= max + 1e-9; h += 0.5) {
+  const free = (h: number) => {
     const s = h * 60;
     const e = s + len * 60;
-    if (!busy.some((b) => s < b.e && e > b.s)) return { min, max, first: h, allBusy: false, fromProfile };
-  }
-  return { min, max, first: min, allBusy: true, fromProfile };
+    return !busy.some((b) => s < b.e && e > b.s);
+  };
+  // Her own day is searched from its start. The general range from its usual
+  // opening hour, and only then the hours before it.
+  const from = fromProfile ? min : Math.min(max, Math.max(min, up(opts.fallback.first ?? min)));
+  for (let h = from; h <= max + 1e-9; h += 0.5) if (free(h)) return { min, max, first: h, allBusy: false, fromProfile };
+  for (let h = min; h < from - 1e-9; h += 0.5) if (free(h)) return { min, max, first: h, allBusy: false, fromProfile };
+  return { min, max, first: from, allBusy: true, fromProfile };
 }

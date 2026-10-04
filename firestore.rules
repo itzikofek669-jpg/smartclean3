@@ -43,6 +43,26 @@ service cloud.firestore {
         && get(/databases/$(database)/documents/users/$(uid())).data.get('role', '') == 'cleaner';
     }
 
+    // The photos a job or an urgent request may carry: at most three of the
+    // compressed pictures both products write (the app's lib/JobPhotos, the
+    // website's lib/imageCompress). Nothing checked the list, so a hand-written
+    // job could carry an address on somebody's server — every cleaner opening
+    // the board then called it, and was seen doing so — or megabytes of
+    // anything, downloaded by each of them.
+    function jobPhotoIsOurs(p) {
+      return p is string && p.size() <= 400000
+        && (p[0:23] == 'data:image/jpeg;base64,'
+            || p[0:22] == 'data:image/png;base64,'
+            || p[0:23] == 'data:image/webp;base64,');
+    }
+    function jobPhotosAreBounded(d) {
+      return !('photos' in d)
+        || (d.photos is list && d.photos.size() <= 3
+            && (d.photos.size() < 1 || jobPhotoIsOurs(d.photos[0]))
+            && (d.photos.size() < 2 || jobPhotoIsOurs(d.photos[1]))
+            && (d.photos.size() < 3 || jobPhotoIsOurs(d.photos[2])));
+    }
+
     // A verified address, not just a claimed one. Password sign-up accepts any
     // email and issues a token carrying it with email_verified false, so an admin
     // address with no Auth account behind it was anybody's to register — and with
@@ -536,6 +556,7 @@ service cloud.firestore {
         // was enforced by the clients alone: an older build — or anyone with a
         // console — could write them straight back onto the public document.
         && (request.resource.data.get('open', false) != true || !clientHalfOnTheBooking())
+        && jobPhotosAreBounded(request.resource.data)
 
       // A cleaner creating the booking that an urgent claim produces.
       //
@@ -649,7 +670,9 @@ service cloud.firestore {
       // match. Both are the cleaner's to record — endJob and "payment received"
       // are cleaner actions in both products — so only the cleaner may.
       function bookingSettlementByCleaner() {
-        return !changed().hasAny(['actualTotal', 'actualHours', 'paymentStatus', 'paidAt', 'finishedAt'])
+        // `onwayAt` and `startedAt` with them: the bill is worked out from when
+        // the job started, and a client could move that moment later.
+        return !changed().hasAny(['actualTotal', 'actualHours', 'paymentStatus', 'paidAt', 'finishedAt', 'onwayAt', 'startedAt'])
           || resource.data.get('cleanerId', '') == uid();
       }
       // What may be billed. The cleaner could write any figure at any time on a
@@ -728,6 +751,10 @@ service cloud.firestore {
 
       function bookingClientDataUnchanged() {
         return request.resource.data.get('address', '') == resource.data.get('address', '')
+          // The mark of a job its client edited (the old copy names the new
+          // one, and both products hide it). Free for a cleaner to write, it
+          // made a live booking vanish from its client's list.
+          && request.resource.data.get('replacedBy', '') == resource.data.get('replacedBy', '')
           && request.resource.data.get('addrStreet', '') == resource.data.get('addrStreet', '')
           && request.resource.data.get('addrCity', '') == resource.data.get('addrCity', '')
           && request.resource.data.get('addrFloor', '') == resource.data.get('addrFloor', '')
@@ -884,7 +911,8 @@ service cloud.firestore {
             && billingIsPlausible()
             && bookingRatingInRange()
             && clientStatusChangeIsAllowed()
-            && cleanerIsNotDestroyingABoardJob())
+            && cleanerIsNotDestroyingABoardJob()
+            && (!changed().hasAny(['photos']) || jobPhotosAreBounded(request.resource.data)))
         // Rating and settling a job that is already over.
         || (isParty() && bookingIsSettled() && onlyAfterTheJobFields()
             && bookingSettlementByCleaner() && billingIsPlausible()
@@ -1140,7 +1168,8 @@ service cloud.firestore {
         || (signedIn() && resource.data.get('status', '') == 'open');
 
       allow create: if signedIn() && callerNotBlocked()
-        && request.resource.data.get('clientUid', '') == uid();
+        && request.resource.data.get('clientUid', '') == uid()
+        && jobPhotosAreBounded(request.resource.data);
 
       // `allow update: if signedIn()` used to stand here, with the comment
       // "cleaners claim / clients edit" describing an intent the rule did not
@@ -1153,7 +1182,7 @@ service cloud.firestore {
       // the request outright.
       allow update: if isAdmin()
         // The owner edits their own request — but cannot hand it to anyone else.
-        || (urgentOwner() && urgentOwnerUnchanged())
+        || (urgentOwner() && urgentOwnerUnchanged() && jobPhotosAreBounded(request.resource.data))
         // A cleaner claims a request that is genuinely open, touching only the
         // claim fields, and may only claim it for themselves.
         || (signedIn() && callerIsCleaner() && callerNotBlocked() && urgentOwnerUnchanged() && onlyClaimFields()
