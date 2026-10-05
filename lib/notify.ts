@@ -65,7 +65,7 @@ export async function broadcast(title: string, body: string, uids: string[]): Pr
   // size before it trims, and a long text on top of 400 ids is refused.
   const t = title.trim().slice(0, 80);
   const b = body.trim().slice(0, 300);
-  const all = [...new Set(uids.filter(Boolean))];
+  const all = Array.from(new Set(uids.filter(Boolean)));
   const total = { sent: 0, skipped: 0 };
   for (let i = 0; i < all.length; i += BROADCAST_CHUNK) {
     const r = await notify({ event: 'admin_broadcast', title: t, body: b, recipients: all.slice(i, i + BROADCAST_CHUNK) });

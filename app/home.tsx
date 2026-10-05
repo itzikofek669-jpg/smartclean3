@@ -4328,10 +4328,18 @@ export default function HomeScreen() {
   const [urgentSavedAddresses, setUrgentSavedAddresses] = useState<SavedAddress[]>([]);
   // ✏️ מושך את הבקשה ושולח אותה מתוקנת. לנותני השירות זו אותה בקשה עם פרטים
   // אחרים, לא קריאה שנייה: מי שכבר קיבל עליה התראה לא מקבל עוד אחת — השינוי
-  // פשוט מופיע בבקשה. כאן נשמר, מרגע ה-✏️ ועד השליחה, מי כבר קיבל. גם אם
-  // הטופס נסגר ונפתח בינתיים: הבקשה הבאה בחצי השעה הקרובה היא הבקשה המתוקנת
-  // (liveUrgentEdit ב-lib/urgentRequest); אחר כך — בקשה חדשה.
+  // פשוט מופיע בבקשה. כאן נשמר, מרגע ה-✏️ ועד השליחה, מי כבר קיבל.
+  //
+  // רק עריכה מחזיקה פוש. ההקשר חי בדיוק מה-✏️ ועד שהטופס נסגר: בקשה שנשלחת
+  // מאותו טופס היא הבקשה המתוקנת, וכל בקשה אחרת — גם דקה אחרי שהטופס נסגר —
+  // היא בקשה חדשה שמצלצלת לכולם. גרסה קודמת החזיקה אותו חצי שעה גם אחרי
+  // סגירה, ולקוח שלחץ ✏️, סגר, ושלח בקשה חדשה — לא צלצל לאף אחד.
   const urgentEditCtx = useRef<UrgentEditContext | null>(null);
+  const urgentSheetOpen = useRef(false);
+  useEffect(() => {
+    urgentSheetOpen.current = urgentOpen;
+    if (!urgentOpen) urgentEditCtx.current = null;
+  }, [urgentOpen]);
 
   // ── הזמנות קודמות — חזרה על הזמנה קודמת ───────────────────────────────────
   const [quickRebookOpen, setQuickRebookOpen] = useState(false);
@@ -4713,7 +4721,9 @@ export default function HomeScreen() {
     urgentEditedId.current = urgentRequestId;
     // Whoever was alerted about this request is not alerted again when the
     // corrected one goes out.
-    urgentEditCtx.current = urgentEditContext(urgentRequestId, sent);
+    // Only if the form is still up: ✏️ answered after the sheet was closed
+    // belongs to no form, and must not hold back the next request's push.
+    urgentEditCtx.current = urgentSheetOpen.current ? urgentEditContext(urgentRequestId, sent) : null;
     // The form comes back as it was sent, read from the request itself: the
     // photos were cleared on sending, and the rest is the record of what the
     // providers were told. (The address is in the private half; the form still

@@ -1392,13 +1392,15 @@ test('an edited urgent request does not ring the cleaners it already rang', () =
   assert.deepEqual(urgentPushPlan(['a', 'a', 'b', 'c'], null, 2), { push: ['a', 'b'], alerted: ['a', 'b'] });
 });
 
-test('an ✏️ counts for its owner and for half an hour; a push that failed alerted nobody', () => {
+test('only an ✏️ in progress holds a push back; a push that failed alerted nobody', () => {
   const T0 = 1_800_000_000_000;
   const edit = urgentEditContext('req1', { clientUid: 'me', pushedCleaners: ['a'] }, T0);
-  // The form closed and opened again in between: still the corrected request.
+  // No ✏️, no holding back: a new request rings everyone, whoever was rung before.
+  assert.deepEqual(urgentPushPlan(['a', 'b'], liveUrgentEdit(null, 'me', T0)).push, ['a', 'b']);
+  // The corrected request, sent from the form ✏️ opened.
   assert.equal(liveUrgentEdit(edit, 'me', T0 + 5 * 60_000), edit);
   assert.equal(liveUrgentEdit(edit, 'me', T0 + URGENT_EDIT_WINDOW_MS), edit);
-  // Later, it is a new request — and never somebody else's.
+  // Hours later it is a new request — and never somebody else's.
   assert.equal(liveUrgentEdit(edit, 'me', T0 + URGENT_EDIT_WINDOW_MS + 1), null);
   assert.equal(liveUrgentEdit(edit, 'someone-else', T0 + 1000), null);
   assert.equal(liveUrgentEdit(edit, '', T0 + 1000), null);

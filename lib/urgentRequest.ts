@@ -168,8 +168,11 @@ export interface UrgentEditContext {
   at: number;
 }
 
-/** How long after ✏️ the next request sent still counts as the corrected one. */
-export const URGENT_EDIT_WINDOW_MS = 30 * 60 * 1000;
+/**
+ * The longest an ✏️ can stay in progress: the life of an urgent request. A
+ * backstop only — the forms themselves end the edit when they close.
+ */
+export const URGENT_EDIT_WINDOW_MS = 2 * 60 * 60 * 1000;
 
 const stringsOf = (v: unknown): string[] =>
   (Array.isArray(v) ? v : []).filter((x): x is string => typeof x === 'string' && !!x);
@@ -197,7 +200,7 @@ export function urgentEditContext(
 ): UrgentEditContext {
   const rung = Array.isArray(old?.pushedCleaners) ? stringsOf(old?.pushedCleaners) : stringsOf(old?.notifiedCleaners);
   return {
-    alerted: [...new Set([...stringsOf(old?.alertedBefore), ...rung])],
+    alerted: Array.from(new Set([...stringsOf(old?.alertedBefore), ...rung])),
     chain: [...stringsOf(old?.editChain), id].slice(-20),
     owner: typeof old?.clientUid === 'string' ? old.clientUid : '',
     at: now,
@@ -205,10 +208,12 @@ export function urgentEditContext(
 }
 
 /**
- * The ✏️ still in progress, if there is one: pressed by this account, within
- * the last half hour. The form may have been closed and opened again in
- * between — the next request sent is still the corrected one. After that, or
- * for anybody else signed in on the same device, a request is simply new.
+ * The ✏️ still in progress, if there is one — and it is the ONLY thing that
+ * holds a push back. A request is the corrected one when it is sent from the
+ * form ✏️ opened, in that sitting: each form drops the context when it closes,
+ * so anything sent afterwards is a new request and rings everyone. This adds
+ * the two checks a form cannot make for itself: the same account, and not
+ * hours later.
  */
 export function liveUrgentEdit(
   edit: UrgentEditContext | null | undefined,
@@ -233,9 +238,9 @@ export function urgentPushPlan(
   edit: UrgentEditContext | null | undefined,
   limit = 500,
 ): { push: string[]; alerted: string[] } {
-  const before = new Set(edit?.alerted ?? []);
-  const push = [...new Set(ring)].filter((uid) => !before.has(uid)).slice(0, limit);
-  return { push, alerted: [...before, ...push].slice(-2000) };
+  const before = Array.from(new Set(edit?.alerted ?? []));
+  const push = Array.from(new Set(ring)).filter((uid) => !before.includes(uid)).slice(0, limit);
+  return { push, alerted: before.concat(push).slice(-2000) };
 }
 
 /**
@@ -248,5 +253,5 @@ export function urgentAlertedAfter(
   edit: UrgentEditContext | null | undefined,
   sent: number,
 ): string[] {
-  return sent > 0 ? plan.alerted : [...new Set(edit?.alerted ?? [])];
+  return sent > 0 ? plan.alerted : Array.from(new Set(edit?.alerted ?? []));
 }
