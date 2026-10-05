@@ -4401,6 +4401,16 @@ const ADDED: Record<string, Record<string, string>> = {
   pickBudgetNote: { he: 'בחר/י סכום מקסימלי לשעה', en: 'Choose a maximum hourly rate', ru: 'Выберите максимальную цену за час', ar: 'اختر الحد الأقصى للسعر في الساعة', fr: 'Choisissez un tarif horaire maximum', hi: 'प्रति घंटा अधिकतम राशि चुनें', uk: 'Оберіть максимальну ціну за годину' },
   pendingBookingOne: { he: 'הזמנה אחת ממתינה לאישורך', en: '1 booking awaiting your approval', ru: '1 заказ ожидает подтверждения', ar: 'حجز واحد ينتظر موافقتك', fr: '1 réservation attend votre approbation', hi: '1 बुकिंग आपकी स्वीकृति की प्रतीक्षा में है', uk: '1 замовлення очікує підтвердження' },
   pendingBookingsFew: { ru: 'заказа ожидают подтверждения', uk: 'замовлення очікують підтвердження' },
+  myOpenJobsTitle: { he: 'המודעות שפרסמת', en: 'Your posted jobs', ru: 'Ваши объявления', ar: 'إعلاناتك المنشورة', fr: 'Vos annonces publiées', hi: 'आपके प्रकाशित विज्ञापन', uk: 'Ваші оголошення' },
+  myOpenJobsHint: {
+    he: 'אפשר לערוך מודעה כל עוד אף נותן שירות לא לקח אותה.',
+    en: 'A listing can be edited as long as no service provider has taken it.',
+    ru: 'Объявление можно изменить, пока его не взял ни один исполнитель.',
+    ar: 'يمكن تعديل الإعلان ما دام لم يأخذه أي مقدم خدمة.',
+    fr: 'Une annonce peut être modifiée tant qu’aucun prestataire ne l’a prise.',
+    hi: 'जब तक किसी सेवा प्रदाता ने विज्ञापन नहीं लिया है, उसे संपादित किया जा सकता है।',
+    uk: 'Оголошення можна змінити, доки його не взяв жоден виконавець.',
+  },
 };
 for (const [key, byLang] of Object.entries(ADDED)) {
   for (const [L, text] of Object.entries(byLang)) {

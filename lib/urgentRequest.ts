@@ -156,3 +156,97 @@ export function urgentFirstSlot(now: Date = new Date(), leadMinutes = 0): number
 export function urgentTodayClosed(now: Date = new Date(), leadMinutes = 0): boolean {
   return urgentFirstSlot(now, leadMinutes) > URGENT_LAST_START_HOUR;
 }
+
+/** What an edited request carries over from the one it replaces. */
+export interface UrgentEditContext {
+  /** Everyone who was already alerted about this request, in any of its versions. */
+  alerted: string[];
+  /** The ids this request has had, oldest first — the last one is the request being edited. */
+  chain: string[];
+  /** Whose request it is, and when ✏️ was pressed (see liveUrgentEdit). */
+  owner: string;
+  at: number;
+}
+
+/** How long after ✏️ the next request sent still counts as the corrected one. */
+export const URGENT_EDIT_WINDOW_MS = 30 * 60 * 1000;
+
+const stringsOf = (v: unknown): string[] =>
+  (Array.isArray(v) ? v : []).filter((x): x is string => typeof x === 'string' && !!x);
+
+/**
+ * Editing an urgent request withdraws it and sends a corrected one. To the
+ * cleaners it is the same request with different details, not a second call:
+ * whoever was alerted the first time is not alerted again — the change simply
+ * shows on the request. This reads, from the request being withdrawn, who that
+ * was and which request the corrected one continues.
+ *
+ * `pushedCleaners` is who was actually rung, and `alertedBefore` who had been
+ * rung for the versions before it — counted on its own too, in case the write
+ * that folds it into `pushedCleaners` never landed. A request sent before
+ * either field existed has only `notifiedCleaners`, everyone it reached; they
+ * stand in.
+ */
+export function urgentEditContext(
+  id: string,
+  old: {
+    pushedCleaners?: unknown; notifiedCleaners?: unknown; alertedBefore?: unknown;
+    editChain?: unknown; clientUid?: unknown;
+  } | null | undefined,
+  now: number = Date.now(),
+): UrgentEditContext {
+  const rung = Array.isArray(old?.pushedCleaners) ? stringsOf(old?.pushedCleaners) : stringsOf(old?.notifiedCleaners);
+  return {
+    alerted: [...new Set([...stringsOf(old?.alertedBefore), ...rung])],
+    chain: [...stringsOf(old?.editChain), id].slice(-20),
+    owner: typeof old?.clientUid === 'string' ? old.clientUid : '',
+    at: now,
+  };
+}
+
+/**
+ * The ✏️ still in progress, if there is one: pressed by this account, within
+ * the last half hour. The form may have been closed and opened again in
+ * between — the next request sent is still the corrected one. After that, or
+ * for anybody else signed in on the same device, a request is simply new.
+ */
+export function liveUrgentEdit(
+  edit: UrgentEditContext | null | undefined,
+  uid: string | null | undefined,
+  now: number = Date.now(),
+): UrgentEditContext | null {
+  if (!edit || !uid || edit.owner !== uid) return null;
+  const age = now - edit.at;
+  return age >= 0 && age <= URGENT_EDIT_WINDOW_MS ? edit : null;
+}
+
+/**
+ * Who to ring for a request, given who would be rung for a new one (`ring`)
+ * and — when it is an edit — who was alerted already.
+ *
+ *   push    — the cleaners to alert now: nobody twice, and at most `limit`
+ *             (what one call to the notification server carries).
+ *   alerted — everyone alerted so far, to store on the request for the next edit.
+ */
+export function urgentPushPlan(
+  ring: readonly string[],
+  edit: UrgentEditContext | null | undefined,
+  limit = 500,
+): { push: string[]; alerted: string[] } {
+  const before = new Set(edit?.alerted ?? []);
+  const push = [...new Set(ring)].filter((uid) => !before.has(uid)).slice(0, limit);
+  return { push, alerted: [...before, ...push].slice(-2000) };
+}
+
+/**
+ * Who counts as alerted once the push was attempted. The newly rung only when
+ * the server rang somebody (`sent`): a push that failed outright alerted no
+ * one, and the corrected request is then their first alert, not a repeat.
+ */
+export function urgentAlertedAfter(
+  plan: { push: string[]; alerted: string[] },
+  edit: UrgentEditContext | null | undefined,
+  sent: number,
+): string[] {
+  return sent > 0 ? plan.alerted : [...new Set(edit?.alerted ?? [])];
+}

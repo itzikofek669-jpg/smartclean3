@@ -52,7 +52,7 @@ import {
   stripEmoji, countWords, limitWords, buildFullAddress,
 } from '../lib/jobUtils';
 import { compareCleaners, compareJobs, isAvailableNow, rotationRank } from '../lib/displayOrder';
-import { isUrgentRequestLive, URGENT_FIRST_START_HOUR, URGENT_LAST_START_HOUR, urgentStartAllowed, urgentTodayClosed, urgentFirstSlot, hourOfTime } from '../lib/urgentRequest';
+import { isUrgentRequestLive, URGENT_FIRST_START_HOUR, URGENT_LAST_START_HOUR, urgentStartAllowed, urgentTodayClosed, urgentFirstSlot, hourOfTime, urgentEditContext, urgentPushPlan, urgentAlertedAfter, liveUrgentEdit, UrgentEditContext } from '../lib/urgentRequest';
 import { claimUpdate, occupiesCleanerTime, pendingSlotMissed, pendingSlotExpired, expiryUpdate, rejectionUpdate, isBoardJobOfferable, busySlotOf } from '../lib/bookingActions';
 import { resolveRole } from '../lib/resolveRole';
 import { MAP_STYLE_LIGHT, MAP_STYLE_DARK } from '../lib/mapStyle';
@@ -1672,7 +1672,13 @@ function MultiCalendarPicker({ selected, onChange, label }: {
 // transaction — because the rules freeze a posted job's price and hours
 // (bookingMoneyUnchanged) against tampering, and those are exactly what a
 // client wants to change. A job a cleaner took meanwhile is not touched.
-function PostJobModal({ visible, onClose, onPosted, editJob }: { visible: boolean; onClose: () => void; onPosted?: () => void; editJob?: any | null }) {
+function PostJobModal({ visible, onClose, onPosted, editJob, openJobs, onEditJob }: {
+  visible: boolean; onClose: () => void; onPosted?: () => void; editJob?: any | null;
+  /** The client's own jobs nobody has taken yet, listed here with an ✏️ each. */
+  openJobs?: any[];
+  /** Open one of them for editing; `fromForm` when this form is the one on screen. */
+  onEditJob?: (id: string, fromForm?: boolean) => void;
+}) {
   const { t } = useLanguage();
   const C = useAppColors();
   const insets = useSafeAreaInsets();
@@ -1827,9 +1833,16 @@ function PostJobModal({ visible, onClose, onPosted, editJob }: { visible: boolea
       upsertAddress(city.trim()).catch(() => {});   // שמור את הכתובת למילוי אוטומטי בפעם הבאה
       onPosted?.();
       onClose();
+      // ✏️ right here, where the client has just read the details back: the
+      // only edit button used to be on the booking's card in the profile.
+      const postedId = jobRef.id;
       Alert.alert('📢', editJob?.id
         ? ((t as any).jobEditedOk ?? 'המודעה עודכנה.')
-        : ((t as any).jobPostedOk ?? 'המודעה פורסמה, נותני שירות יוכלו לראות ולאשר הזמנה.\nאתה תקבל הודעה כשנותן שירות יאשר את ההזמנה.'));
+        : ((t as any).jobPostedOk ?? 'המודעה פורסמה, נותני שירות יוכלו לראות ולאשר הזמנה.\nאתה תקבל הודעה כשנותן שירות יאשר את ההזמנה.'),
+        onEditJob ? [
+          { text: `✏️ ${(t as any).editJobBtn ?? 'עריכת המודעה'}`, onPress: () => onEditJob(postedId) },
+          { text: t.closeBtn ?? 'סגור', style: 'cancel' },
+        ] : undefined);
       setTypes([]); setCity(''); setCitySugg([]); setBudget(80); setNotes(''); setPhotos([]);
     } catch (err: any) {
       if (err?.message === 'JOB_TAKEN') {
@@ -1855,6 +1868,36 @@ function PostJobModal({ visible, onClose, onPosted, editJob }: { visible: boolea
         <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'} keyboardVerticalOffset={0}>
         <ScrollView contentContainerStyle={{ padding: 16, gap: 14, paddingBottom: insets.bottom + 24 }} keyboardShouldPersistTaps="handled">
           <T style={{ fontSize: 13, color: C.textSub, textAlign: 'center' }}>{(t as any).postJobSub ?? 'כל נותן שירות מתאים יראה את העבודה ויוכל לקחת אותה'}</T>
+
+          {/* המודעות שהלקוח כבר פרסם ועוד לא נלקחו — עם ✏️ לכל אחת. בלי זה
+              כפתור העריכה היה רק בכרטיס ההזמנה בפרופיל, ומי שחזר לכאן כדי
+              לתקן מודעה מצא טופס ריק. */}
+          {!ej && (openJobs?.length ?? 0) > 0 && (
+            <View style={{ backgroundColor: C.white, borderRadius: 14, borderWidth: 1.5, borderColor: C.blueBorder, padding: 12, gap: 10 }}>
+              <T style={{ fontSize: 14, fontWeight: '800', color: C.textDark, textAlign: 'right' }}>📢 {(t as any).myOpenJobsTitle ?? 'המודעות שפרסמת'}</T>
+              {openJobs!.map(j => (
+                <View key={j.id} style={{ flexDirection: 'row-reverse', alignItems: 'center', gap: 10 }}>
+                  <View style={{ flex: 1 }}>
+                    <T style={{ fontSize: 13, fontWeight: '700', color: C.textDark, textAlign: 'right' }}>
+                      📅 {formatJobDate(String(j.bookingDate || ''))}{j.startTime ? ` ${(t as any).atHour ?? 'בשעה'} ${j.startTime}` : ''}
+                    </T>
+                    <T style={{ fontSize: 12, color: C.textSub, textAlign: 'right' }} numberOfLines={1}>
+                      {String(j.serviceType || '').split(' + ').filter(Boolean).map((st: string) => String(t.types[st] || st)).join(', ')}
+                      {j.addrCity ? ` · 📍 ${String((t.cities as any)?.[j.addrCity] || j.addrCity)}` : ''}
+                    </T>
+                  </View>
+                  <TouchableOpacity
+                    onPress={() => onEditJob?.(j.id, true)}
+                    accessibilityRole="button"
+                    style={{ paddingHorizontal: 12, paddingVertical: 8, borderRadius: 10, borderWidth: 1.5, borderColor: C.blue, backgroundColor: C.white }}
+                  >
+                    <T style={{ fontSize: 13, fontWeight: '800', color: C.blue }}>✏️ {(t as any).editShortBtn ?? 'עריכה'}</T>
+                  </TouchableOpacity>
+                </View>
+              ))}
+              <T style={{ fontSize: 11, color: C.textSub, textAlign: 'right' }}>{(t as any).myOpenJobsHint ?? 'אפשר לערוך מודעה כל עוד אף נותן שירות לא לקח אותה.'}</T>
+            </View>
+          )}
 
           <T style={{ fontSize: 14, fontWeight: '800', color: C.textDark, textAlign: 'right' }}>{(t as any).serviceTypeLabel ?? 'סוג ניקיון'}</T>
           <View style={{ flexDirection: 'row-reverse', flexWrap: 'wrap', gap: 8, justifyContent: 'center' }}>
@@ -4190,6 +4233,53 @@ export default function HomeScreen() {
   const [editJob, setEditJob] = useState<any>(null);
   const [postJobKey, setPostJobKey] = useState('new');
   const openNewPostJob = () => { setEditJob(null); setPostJobKey('new'); setPostJobOpen(true); };
+  // When the form last closed. A form opened for editing mounts under a new
+  // key, and that must not happen while the previous one is still sliding away.
+  const postJobClosedAt = useRef(0);
+  const closePostJob = () => { postJobClosedAt.current = Date.now(); setPostJobOpen(false); };
+  // The client's own jobs on the board that nobody has taken yet — what "ניקיון
+  // בזמן שלך" lists with an ✏️ beside each (set by the bookings listener below).
+  const [myOpenJobs, setMyOpenJobs] = useState<any[]>([]);
+  // ✏️ on a job of the client's own that nobody has taken: its details open in
+  // "ניקיון בזמן שלך". Reached from the profile's booking card, from the list
+  // inside the form, and from the message right after posting.
+  const editJobLoading = useRef(false);
+  const openEditJob = async (id: string, fromForm = false) => {
+    // One at a time: a second tap on ✏️ ran the whole thing twice, and the
+    // second run re-keyed the form the first had just opened.
+    if (editJobLoading.current) return;
+    editJobLoading.current = true;
+    try {
+      const snap = await getDoc(doc(db, 'bookings', id));
+      const d: any = snap.data();
+      if (!snap.exists() || d?.clientUid !== auth.currentUser?.uid) return;
+      if (d?.cleanerId || d?.open !== true || d?.status !== 'pending') {
+        Alert.alert('', (t as any).jobEditTakenMsg ?? 'נותן שירות כבר לקח את העבודה, ולכן אי אפשר לערוך אותה. אפשר לדבר איתו בצ\'אט או לבטל את ההזמנה.');
+        return;
+      }
+      // The street and the notes live in the private half. Read here, before
+      // the form opens, and NOT through fetchBookingDetails, which answers {}
+      // on failure: a form opened without them would save the city alone as
+      // the address and wipe the notes. Older jobs still carry them on top.
+      const det = (await getDoc(doc(db, 'bookings', id, 'private', 'details'))).data() || {};
+      // From the list inside the form: the form on screen closes only now,
+      // with the job in hand — on a slow connection it used to vanish first
+      // and leave nothing on screen while the job loaded.
+      if (fromForm) closePostJob();
+      const wait = postJobClosedAt.current + 450 - Date.now();
+      if (wait > 0) await new Promise(resolve => setTimeout(resolve, wait));
+      setEditJob({ id: snap.id, ...d, address: det.address || d.address || '', notes: det.notes ?? d.notes ?? '' });
+      // A key of its own each time, so reopening the same job starts from the
+      // job again and not from changes that were abandoned.
+      setPostJobKey(`edit:${snap.id}:${Date.now()}`);
+      setPostJobOpen(true);
+    } catch (err) {
+      logError('home:editJob', err);
+      Alert.alert(t.error, (t as any).jobEditLoadError ?? 'לא הצלחנו לטעון את פרטי המודעה — בדוק/י את החיבור ונסה/י שוב.');
+    } finally {
+      editJobLoading.current = false;
+    }
+  };
   // הגעה מהפרופיל עם openPostJob=1 — פותח מיד את "ניקיון בזמן שלך".
   // הדגל נצרך פעם אחת כדי שחזרה למסך לא תפתח את הטופס שוב.
   const postJobParamUsedRef = useRef(false);
@@ -4205,30 +4295,8 @@ export default function HomeScreen() {
     const id = navParams?.editJobId;
     if (!id) return;
     router.setParams({ editJobId: undefined });
-    (async () => {
-      try {
-        const snap = await getDoc(doc(db, 'bookings', id));
-        const d: any = snap.data();
-        if (!snap.exists() || d?.clientUid !== auth.currentUser?.uid) return;
-        if (d?.cleanerId || d?.open !== true || d?.status !== 'pending') {
-          Alert.alert('', (t as any).jobEditTakenMsg ?? 'נותן שירות כבר לקח את העבודה, ולכן אי אפשר לערוך אותה. אפשר לדבר איתו בצ\'אט או לבטל את ההזמנה.');
-          return;
-        }
-        // The street and the notes live in the private half. Read here, before
-        // the form opens, and NOT through fetchBookingDetails, which answers {}
-        // on failure: a form opened without them would save the city alone as
-        // the address and wipe the notes. Older jobs still carry them on top.
-        const det = (await getDoc(doc(db, 'bookings', id, 'private', 'details'))).data() || {};
-        setEditJob({ id: snap.id, ...d, address: det.address || d.address || '', notes: det.notes ?? d.notes ?? '' });
-        // A key of its own each time, so reopening the same job starts from the
-        // job again and not from changes that were abandoned.
-        setPostJobKey(`edit:${snap.id}:${Date.now()}`);
-        setPostJobOpen(true);
-      } catch (err) {
-        logError('home:editJob', err);
-        Alert.alert(t.error, (t as any).jobEditLoadError ?? 'לא הצלחנו לטעון את פרטי המודעה — בדוק/י את החיבור ונסה/י שוב.');
-      }
-    })();
+    // Everything it sets comes after its reads; nothing changes during the effect itself.
+    void Promise.resolve().then(() => openEditJob(id));
   }, [navParams?.editJobId]);
   const [urgentDate,      setUrgentDate]      = useState<'today'|'tomorrow'>('today');
   const [urgentHour,      setUrgentHour]      = useState(10);
@@ -4258,6 +4326,12 @@ export default function HomeScreen() {
   const [urgentRequestId, setUrgentRequestId] = useState<string|null>(null);
   const [urgentFoundName, setUrgentFoundName] = useState('');
   const [urgentSavedAddresses, setUrgentSavedAddresses] = useState<SavedAddress[]>([]);
+  // ✏️ מושך את הבקשה ושולח אותה מתוקנת. לנותני השירות זו אותה בקשה עם פרטים
+  // אחרים, לא קריאה שנייה: מי שכבר קיבל עליה התראה לא מקבל עוד אחת — השינוי
+  // פשוט מופיע בבקשה. כאן נשמר, מרגע ה-✏️ ועד השליחה, מי כבר קיבל. גם אם
+  // הטופס נסגר ונפתח בינתיים: הבקשה הבאה בחצי השעה הקרובה היא הבקשה המתוקנת
+  // (liveUrgentEdit ב-lib/urgentRequest); אחר כך — בקשה חדשה.
+  const urgentEditCtx = useRef<UrgentEditContext | null>(null);
 
   // ── הזמנות קודמות — חזרה על הזמנה קודמת ───────────────────────────────────
   const [quickRebookOpen, setQuickRebookOpen] = useState(false);
@@ -4375,6 +4449,7 @@ export default function HomeScreen() {
     try {
       const uid = auth.currentUser?.uid;
       if (!uid) return;
+      const editCtx = liveUrgentEdit(urgentEditCtx.current, uid);
       let clientName = 'לקוח';
       let clientLat = userCoords?.lat ?? 32.08;
       let clientLng = userCoords?.lng ?? 34.78;
@@ -4430,6 +4505,10 @@ export default function HomeScreen() {
         createdAt: new Date().toISOString(),
         expiresAt,
         notifiedCleaners: [],
+        // An edit of an earlier request: which one, the ids it has had (a push
+        // for an older version leads here — profile.tsx acceptReqId), and who
+        // was already alerted, so their app does not pop it up again either.
+        ...(editCtx ? { editOf: editCtx.chain[editCtx.chain.length - 1], editChain: editCtx.chain, alertedBefore: editCtx.alerted } : {}),
       });
       await reqBatch.commit();
       setUrgentRequestId(reqRef.id);
@@ -4524,11 +4603,22 @@ export default function HomeScreen() {
           ring.push(cd.id);
         }
 
-        await updateDoc(doc(db,'urgentRequests', reqRef.id), { notifiedCleaners: notified });
+        // בעריכה: רק מי שעוד לא קיבל התראה על הבקשה הזאת (lib/urgentRequest).
+        const plan = urgentPushPlan(ring, editCtx, 500);
+        const reqDoc = doc(db,'urgentRequests', reqRef.id);
+        // מי שכבר קיבל התראה בגרסאות הקודמות נרשם מיד; מי שמקבל עכשיו — רק
+        // אחרי שהשרת אישר שצלצל למישהו. פוש שנכשל לא "התריע" לאף אחד, ועריכה
+        // אחריו היא ההתראה הראשונה שלהם, לא חזרה.
+        await updateDoc(reqDoc, { notifiedCleaners: notified, pushedCleaners: urgentAlertedAfter(plan, editCtx, 0) });
         // הפוש עצמו — דרך שרת ההתראות, רק למי שעובד/ת ביום ובשעות האלה.
         // השרת קורא את הבקשה, בודק שהיא פתוחה ובחלון 07–22, ושהנמענים מנקים.
         // הוא מקבל עד 500 נמענים בבקשה (MAX_URGENT_RECIPIENTS ב-worker/notify.js).
-        if (ring.length) void notify({ event: 'urgent', requestId: reqRef.id, recipients: ring.slice(0, 500) });
+        // לא ממתינים לו: הלקוח לא מחכה שטלפונים יצלצלו.
+        if (plan.push.length) {
+          void notify({ event: 'urgent', requestId: reqRef.id, recipients: plan.push })
+            .then(r => (r.sent > 0 ? updateDoc(reqDoc, { pushedCleaners: plan.alerted }) : undefined))
+            .catch(err => logError('home:urgentPushed', err));
+        }
 
         if (notified.length === 0) {
           Alert.alert('', t.urgentNoCleaners);
@@ -4539,6 +4629,7 @@ export default function HomeScreen() {
         } // סוף else (אחרי 20:00 לא שולחים)
       } catch (err) { logError('home:write', err); }
 
+      urgentEditCtx.current = null;   // sent — whatever comes next is a new request
       setUrgentWaiting(true);
       setUrgentPhotos([]);   // already on the request; the next one starts without them
       setUrgentOpen(false); // סגור מודל מיד — חזור למסך הראשי
@@ -4620,6 +4711,9 @@ export default function HomeScreen() {
       urgentEditBusy.current = false;
     }
     urgentEditedId.current = urgentRequestId;
+    // Whoever was alerted about this request is not alerted again when the
+    // corrected one goes out.
+    urgentEditCtx.current = urgentEditContext(urgentRequestId, sent);
     // The form comes back as it was sent, read from the request itself: the
     // photos were cleared on sending, and the rest is the record of what the
     // providers were told. (The address is in the private half; the form still
@@ -5660,6 +5754,12 @@ export default function HomeScreen() {
       const newest = [...fresh].sort((a: any, b: any) => String(b.createdAt || '').localeCompare(String(a.createdAt || '')))[0];
       if (!newest) return;
       shownUrgentRef.current.add(newest.id); // סמן מיד — לא להקפיץ פעמיים
+      // בקשה שהלקוח ערך היא אותה בקשה עם פרטים אחרים: מי שכבר קיבל/ה עליה
+      // התראה רואה את השינוי בלוח, בלי חלון מסך-מלא נוסף.
+      {
+        const me = auth.currentUser?.uid;
+        if (me && Array.isArray(newest.alertedBefore) && newest.alertedBefore.includes(me)) return;
+      }
       // אותם סינונים שהפוש עובר, כדי שמנקה שלא עובדת ביום הזה, או רחוקה, או
       // יקרה מהתקרה, לא תקבל חלון מסך-מלא על עבודה שלא נשלחה אליה בפוש.
       {
@@ -5741,6 +5841,13 @@ export default function HomeScreen() {
     const lastHeld = new Map<string, boolean>();
     const unsub = onSnapshot(q, snap => {
       const missed: any[] = [];
+      // The client's jobs still waiting on the board, soonest first — the list
+      // "ניקיון בזמן שלך" shows with an ✏️ beside each.
+      setMyOpenJobs(snap.docs
+        .map(d => ({ id: d.id, ...(d.data() as any) }))
+        .filter((b: any) => b.open === true && !b.cleanerId && b.status === 'pending'
+          && new Date(`${b.bookingDate || ''}T${b.startTime || '23:59'}`).getTime() > Date.now())
+        .sort((a: any, b: any) => `${a.bookingDate} ${a.startTime}`.localeCompare(`${b.bookingDate} ${b.startTime}`)));
       // Bookings the client already reposted, from here or the website, need no
       // offer to repost them.
       const reposted = new Set(snap.docs.map(x => (x.data() as any)?.repostedFrom).filter(Boolean));
@@ -6527,7 +6634,9 @@ export default function HomeScreen() {
         key={postJobKey}
         visible={postJobOpen}
         editJob={editJob}
-        onClose={() => setPostJobOpen(false)}
+        openJobs={myOpenJobs}
+        onEditJob={(id, fromForm) => { void openEditJob(id, fromForm); }}
+        onClose={closePostJob}
       />
 
       <CleanerProfile

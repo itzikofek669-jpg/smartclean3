@@ -11,7 +11,7 @@ import { cityFromAddress } from '../.tsbuild/cityFromAddress.mjs';
 import { canRepost, replacedByEdit } from '../.tsbuild/bookingOrigin.mjs';
 import { startDateOf, endDateOf, bookingHours, DEFAULT_BOOKING_HOURS } from '../.tsbuild/bookingSlot.mjs';
 import { readCalendarRemoval, extractPushData } from '../.tsbuild/calendarPush.mjs';
-import { isUrgentRequestLive, isUrgentRequestExpired, expiryOf, URGENT_FIRST_START_HOUR, URGENT_LAST_START_HOUR, hourOfTime, urgentStartAllowed, urgentTodayClosed, urgentFirstSlot } from '../.tsbuild/urgentRequest.mjs';
+import { isUrgentRequestLive, isUrgentRequestExpired, expiryOf, URGENT_FIRST_START_HOUR, URGENT_LAST_START_HOUR, hourOfTime, urgentStartAllowed, urgentTodayClosed, urgentFirstSlot, urgentEditContext, urgentPushPlan, urgentAlertedAfter, liveUrgentEdit, URGENT_EDIT_WINDOW_MS } from '../.tsbuild/urgentRequest.mjs';
 import { splitFields, reconcile, pendingMove, publicCoord, privateKeysFor } from '../.tsbuild/profileFields.mjs';
 import { spreadStacked } from '../.tsbuild/jobUtils.mjs';
 import { matchJob, jobOnBoard, jobCityOf, nearestCity, filterBoard } from '../.tsbuild/jobSearch.mjs';
@@ -1366,4 +1366,47 @@ test('only a job its client edited is hidden as "replaced"', () => {
   assert.equal(replacedByEdit({ replacedBy: 'x', status: 'cancelled', cleanerId: 'c1' }), false);
   assert.equal(replacedByEdit({ status: 'cancelled', cleanerId: '' }), false);
   assert.equal(replacedByEdit(null), false);
+});
+
+test('an edited urgent request does not ring the cleaners it already rang', () => {
+  const T0 = 1_800_000_000_000;
+  // The first send: everyone who would be rung is rung.
+  const first = urgentPushPlan(['a', 'b', 'c'], null);
+  assert.deepEqual(first, { push: ['a', 'b', 'c'], alerted: ['a', 'b', 'c'] });
+  // ✏️ — the corrected request reaches a, b and a newcomer d. Only d is rung.
+  const edit = urgentEditContext('req1', { clientUid: 'me', pushedCleaners: first.alerted, notifiedCleaners: ['a', 'b', 'c', 'z'] }, T0);
+  assert.deepEqual(edit, { alerted: ['a', 'b', 'c'], chain: ['req1'], owner: 'me', at: T0 });
+  const second = urgentPushPlan(['a', 'b', 'd'], edit);
+  assert.deepEqual(second.push, ['d']);
+  assert.deepEqual(second.alerted, ['a', 'b', 'c', 'd']);
+  // Edited again: the chain grows, and still nobody is rung twice.
+  const edit2 = urgentEditContext('req2', { clientUid: 'me', pushedCleaners: second.alerted, editChain: ['req1'] }, T0);
+  assert.deepEqual(edit2.chain, ['req1', 'req2']);
+  assert.deepEqual(urgentPushPlan(['a', 'c', 'd'], edit2).push, []);
+  // The write that records who was rung never landed: who was alerted before still counts.
+  assert.deepEqual(urgentEditContext('req2', { clientUid: 'me', notifiedCleaners: [], alertedBefore: ['a', 'b'], editChain: ['req1'] }, T0).alerted, ['a', 'b']);
+  // A request sent by a build that did not record who was rung: everyone it reached stands in.
+  assert.deepEqual(urgentEditContext('old', { notifiedCleaners: ['a', 'b'] }, T0).alerted, ['a', 'b']);
+  assert.deepEqual(urgentEditContext('old', null, T0), { alerted: [], chain: ['old'], owner: '', at: T0 });
+  // One call carries a limited number, and a duplicate in the list is one cleaner.
+  assert.deepEqual(urgentPushPlan(['a', 'a', 'b', 'c'], null, 2), { push: ['a', 'b'], alerted: ['a', 'b'] });
+});
+
+test('an ✏️ counts for its owner and for half an hour; a push that failed alerted nobody', () => {
+  const T0 = 1_800_000_000_000;
+  const edit = urgentEditContext('req1', { clientUid: 'me', pushedCleaners: ['a'] }, T0);
+  // The form closed and opened again in between: still the corrected request.
+  assert.equal(liveUrgentEdit(edit, 'me', T0 + 5 * 60_000), edit);
+  assert.equal(liveUrgentEdit(edit, 'me', T0 + URGENT_EDIT_WINDOW_MS), edit);
+  // Later, it is a new request — and never somebody else's.
+  assert.equal(liveUrgentEdit(edit, 'me', T0 + URGENT_EDIT_WINDOW_MS + 1), null);
+  assert.equal(liveUrgentEdit(edit, 'someone-else', T0 + 1000), null);
+  assert.equal(liveUrgentEdit(edit, '', T0 + 1000), null);
+  assert.equal(liveUrgentEdit(null, 'me', T0), null);
+  assert.equal(liveUrgentEdit(edit, 'me', T0 - 1000), null);                 // a clock that went backwards
+  // Recorded as alerted only when the server rang somebody.
+  const plan = urgentPushPlan(['a', 'b'], edit);
+  assert.deepEqual(urgentAlertedAfter(plan, edit, 1), ['a', 'b']);
+  assert.deepEqual(urgentAlertedAfter(plan, edit, 0), ['a']);
+  assert.deepEqual(urgentAlertedAfter(urgentPushPlan(['x'], null), null, 0), []);
 });

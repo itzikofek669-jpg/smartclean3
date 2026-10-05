@@ -602,8 +602,26 @@ export default function ProfileScreen() {
     autoAcceptedRef.current = acceptReqId as string;
     (async () => {
       try {
-        const snap = await getDoc(doc(db, 'urgentRequests', acceptReqId as string));
+        // The push may be for a request its client has since edited: that one
+        // was withdrawn — and a withdrawn request is not readable here — and a
+        // corrected one, listing it in `editChain`, took its place. Same
+        // request, new details: the alert opens the current version.
+        let snap: any = null;
+        try { snap = await getDoc(doc(db, 'urgentRequests', acceptReqId as string)); } catch (_) { snap = null; }
+        if (!snap?.exists() || snap.data()?.status !== 'open') {
+          try {
+            // The open requests are few (each lives two hours) and this is the
+            // query every board already runs, so it needs no index of its own.
+            const open = await getDocs(query(collection(db, 'urgentRequests'), where('status', '==', 'open')));
+            const next = open.docs.find(d => {
+              const chain = (d.data() as any)?.editChain;
+              return Array.isArray(chain) && chain.includes(acceptReqId);
+            });
+            if (next) snap = next;
+          } catch (err) { logError('profile:urgentEdited', err); }
+        }
         setAcceptOverlay(false);
+        if (!snap) return;
         const data: any = snap.data();
         const st = data?.status;
         // הבקשה עדיין פתוחה — פותחים את פרטי ההזמנה (אישור/דחייה)
