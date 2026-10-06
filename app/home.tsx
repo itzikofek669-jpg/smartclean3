@@ -4617,7 +4617,11 @@ export default function HomeScreen() {
         // מי שכבר קיבל התראה בגרסאות הקודמות נרשם מיד; מי שמקבל עכשיו — רק
         // אחרי שהשרת אישר שצלצל למישהו. פוש שנכשל לא "התריע" לאף אחד, ועריכה
         // אחריו היא ההתראה הראשונה שלהם, לא חזרה.
-        await updateDoc(reqDoc, { notifiedCleaners: notified, pushedCleaners: urgentAlertedAfter(plan, editCtx, 0) });
+        // בנפרד מהפוש: זה רישום בלבד. כשהוא ישב באותו try, עדכון שנדחה היה
+        // מדלג גם על הפוש — הבקשה נשלחה, המסך עבר ל"ממתין", ואף טלפון לא צלצל.
+        try {
+          await updateDoc(reqDoc, { notifiedCleaners: notified, pushedCleaners: urgentAlertedAfter(plan, editCtx, 0) });
+        } catch (err) { logError('home:urgentNotified', err); }
         // הפוש עצמו — דרך שרת ההתראות, רק למי שעובד/ת ביום ובשעות האלה.
         // השרת קורא את הבקשה, בודק שהיא פתוחה ובחלון 07–22, ושהנמענים מנקים.
         // הוא מקבל עד 500 נמענים בבקשה (MAX_URGENT_RECIPIENTS ב-worker/notify.js).
