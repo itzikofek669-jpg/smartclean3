@@ -9,9 +9,9 @@ import { mustVerifyEmail, VERIFY_REQUIRED_FROM } from '../.tsbuild/verifyRule.mj
 import { isAvailableNow, compareJobs } from '../.tsbuild/displayOrder.mjs';
 import { cityFromAddress } from '../.tsbuild/cityFromAddress.mjs';
 import { canRepost, replacedByEdit } from '../.tsbuild/bookingOrigin.mjs';
-import { startDateOf, endDateOf, bookingHours, DEFAULT_BOOKING_HOURS } from '../.tsbuild/bookingSlot.mjs';
+import { startDateOf, endDateOf, bookingHours, DEFAULT_BOOKING_HOURS, sameDayOverlap, bookingHoldsHours } from '../.tsbuild/bookingSlot.mjs';
 import { readCalendarRemoval, extractPushData } from '../.tsbuild/calendarPush.mjs';
-import { isUrgentRequestLive, isUrgentRequestExpired, expiryOf, URGENT_FIRST_START_HOUR, URGENT_LAST_START_HOUR, hourOfTime, urgentStartAllowed, urgentTodayClosed, urgentFirstSlot, urgentEditContext, urgentPushPlan, urgentAlertedAfter, liveUrgentEdit, URGENT_EDIT_WINDOW_MS } from '../.tsbuild/urgentRequest.mjs';
+import { isUrgentRequestLive, isUrgentRequestExpired, expiryOf, URGENT_FIRST_START_HOUR, URGENT_LAST_START_HOUR, hourOfTime, urgentStartAllowed, urgentTodayClosed, urgentFirstSlot, urgentEditContext, urgentPushPlan, urgentAlertedAfter, liveUrgentEdit, URGENT_EDIT_WINDOW_MS, urgentAlertOutcome } from '../.tsbuild/urgentRequest.mjs';
 import { splitFields, reconcile, pendingMove, publicCoord, privateKeysFor } from '../.tsbuild/profileFields.mjs';
 import { spreadStacked } from '../.tsbuild/jobUtils.mjs';
 import { matchJob, jobOnBoard, jobCityOf, nearestCity, filterBoard } from '../.tsbuild/jobSearch.mjs';
@@ -1411,4 +1411,51 @@ test('only an ✏️ in progress holds a push back; a push that failed alerted n
   assert.deepEqual(urgentAlertedAfter(plan, edit, 1), ['a', 'b']);
   assert.deepEqual(urgentAlertedAfter(plan, edit, 0), ['a']);
   assert.deepEqual(urgentAlertedAfter(urgentPushPlan(['x'], null), null, 0), []);
+});
+
+test('a second cleaning on hours already asked for is a clash, not only the same starting minute', () => {
+  // The bug: an urgent request for 12:00–14:00 stopped another at 12:00 and
+  // nothing else — 12:30, 13:00 and 11:00 all went through.
+  assert.equal(sameDayOverlap('12:00', 2, '12:00', 2), true);
+  assert.equal(sameDayOverlap('12:30', 2, '12:00', 2), true);
+  assert.equal(sameDayOverlap('13:30', 1, '12:00', 2), true);
+  assert.equal(sameDayOverlap('11:00', 2, '12:00', 2), true);      // runs into it
+  assert.equal(sameDayOverlap('10:00', 6, '12:00', 1), true);      // swallows it
+  // Back to back is fine, either way round.
+  assert.equal(sameDayOverlap('14:00', 2, '12:00', 2), false);
+  assert.equal(sameDayOverlap('10:00', 2, '12:00', 2), false);
+  // A stored job that does not say how long it runs counts as two hours.
+  assert.equal(sameDayOverlap('13:00', 2, '12:00', undefined), true);
+  assert.equal(sameDayOverlap('14:00', 2, '12:00', undefined), false);
+  // A time that cannot be read: the old rule, the same text.
+  assert.equal(sameDayOverlap('noon', 2, 'noon', 2), true);
+  assert.equal(sameDayOverlap('12:00', 2, '', 2), false);
+  assert.equal(sameDayOverlap('', 2, '', 2), false);
+});
+
+test('the client is told what became of the alert', () => {
+  assert.equal(urgentAlertOutcome(3, null, 0), null);          // asked, no answer yet
+  assert.equal(urgentAlertOutcome(3, 2, 0), 'sent');
+  assert.equal(urgentAlertOutcome(3, 0, 0), 'failed');         // should have rung, and did not
+  assert.equal(urgentAlertOutcome(0, null, 0), 'off-hours');   // on their boards, nobody works then
+  assert.equal(urgentAlertOutcome(0, null, 2), 'edited');      // corrected, nobody new to ring
+  assert.equal(urgentAlertOutcome(1, 1, 2), 'sent');           // corrected, and a newcomer was rung
+  // Corrected, but nobody was rung the first time either: not "those alerted see the change".
+  assert.equal(urgentAlertOutcome(0, null, 0), 'off-hours');
+});
+
+test('a job that is over, or that nobody took before its time came, does not hold its hours', () => {
+  const now = new Date(2026, 9, 6, 10, 20);                    // 6 Oct 2026, 10:20
+  const at = (startTime, status) => ({ bookingDate: '2026-10-06', startTime, hours: 3, status });
+  // Posted for 10:00, nobody took it: at 10:20 it must not stop an urgent request for 11:00.
+  assert.equal(bookingHoldsHours(at('10:00', 'pending'), now), false);
+  // Still ahead: it holds.
+  assert.equal(bookingHoldsHours(at('12:00', 'pending'), now), true);
+  // Under way or agreed: it holds, started or not.
+  assert.equal(bookingHoldsHours(at('10:00', 'confirmed'), now), true);
+  assert.equal(bookingHoldsHours(at('10:00', 'active'), now), true);
+  // Over or called off: it does not.
+  for (const st of ['done', 'cancelled', 'expired', 'handled']) assert.equal(bookingHoldsHours(at('12:00', st), now), false);
+  // A pending booking whose time cannot be read is not assumed gone.
+  assert.equal(bookingHoldsHours({ bookingDate: '2026-10-06', startTime: '', status: 'pending' }, now), true);
 });

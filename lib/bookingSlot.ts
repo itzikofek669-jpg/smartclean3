@@ -82,3 +82,52 @@ export function endDateOf(b: BookingSlot): Date | null {
   end.setMinutes(end.getMinutes() + Math.round(bookingHours(b) * 60));
   return end;
 }
+
+/**
+ * Do two jobs on the same day share any time?
+ *
+ * A client could not ask for two cleanings that START at the same minute, and
+ * that was the whole guard: an urgent request for 12:00–14:00 did not stop
+ * another for 12:30, 13:00 or 11:00 — two cleaners sent to one home for the
+ * same hours. Any shared time counts now; one that ends exactly as the other
+ * starts does not.
+ *
+ * Times are "HH:mm" on one date, lengths in hours (bookingHours' default when
+ * missing). A time that cannot be read falls back to the old rule: the same
+ * text clashes.
+ */
+export function sameDayOverlap(aStart: unknown, aHours: unknown, bStart: unknown, bHours: unknown): boolean {
+  const minutes = (t: unknown): number | null => {
+    const m = /^(\d{1,2}):(\d{2})$/.exec(String(t ?? '').trim());
+    if (!m) return null;
+    const h = Number(m[1]);
+    const mi = Number(m[2]);
+    return h <= 24 && mi < 60 ? h * 60 + mi : null;
+  };
+  const a = minutes(aStart);
+  const b = minutes(bStart);
+  if (a === null || b === null) return String(aStart ?? '') !== '' && String(aStart) === String(bStart);
+  const aEnd = a + bookingHours({ hours: aHours as number }) * 60;
+  const bEnd = b + bookingHours({ hours: bHours as number }) * 60;
+  return a < bEnd && b < aEnd;
+}
+
+/**
+ * Does a stored booking still hold its hours against a new request from the
+ * same client?
+ *
+ * Not once it is over or called off. And not a `pending` one whose start has
+ * passed: nobody took it, or nobody answered, so nobody is coming — yet it
+ * stays `pending` for good (only the cleaner's device ever expires one, and
+ * never a job still open on the board). Counting it would stop its client
+ * asking for the hours it was meant for, with nothing on screen to explain why.
+ */
+export function bookingHoldsHours(b: BookingSlot & { status?: string }, now: Date = new Date()): boolean {
+  const status = String(b?.status ?? '');
+  if (status === 'cancelled' || status === 'expired' || status === 'done' || status === 'handled') return false;
+  if (status === 'pending') {
+    const start = startDateOf(b);
+    if (start && start.getTime() <= now.getTime()) return false;
+  }
+  return true;
+}

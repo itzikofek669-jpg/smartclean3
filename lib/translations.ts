@@ -4287,15 +4287,17 @@ for (const L of Object.keys(ALREADY_BOOKED_THEN)) {
   (translations as any)[L].alreadyBookedThenMsg = ALREADY_BOOKED_THEN[L];
 }
 
-// Shown when a client already has a job or an urgent request at that date+hour.
+// Shown when a client already has a job or an urgent request during those hours:
+// any shared time is refused (lib/bookingSlot sameDayOverlap), not only the same
+// starting minute.
 const JOB_DUP_MSG: Record<string, string> = {
-  he: 'כבר פרסמת/הזמנת ניקיון לתאריך ולשעה האלה — בחר/י שעה אחרת.',
-  en: 'You already have a cleaning booked for that date and time — pick another hour.',
-  ru: 'На эту дату и время у вас уже есть заказ — выберите другой час.',
-  ar: 'لديك بالفعل طلب تنظيف في هذا التاريخ والوقت — اختر ساعة أخرى.',
-  fr: 'Vous avez déjà un ménage réservé à cette date et heure — choisissez une autre heure.',
-  hi: 'उस तारीख और समय के लिए आपकी बुकिंग पहले से है — दूसरा समय चुनें।',
-  uk: 'На цю дату й час у вас уже є замовлення — оберіть іншу годину.',
+  he: 'כבר יש לך ניקיון שהוזמן לשעות האלה — בחר/י שעות אחרות.',
+  en: 'You already have a cleaning booked during those hours — pick another time.',
+  ru: 'На эти часы у вас уже есть заказ — выберите другое время.',
+  ar: 'لديك بالفعل طلب تنظيف في هذه الساعات — اختر وقتاً آخر.',
+  fr: 'Vous avez déjà un ménage réservé à ces heures — choisissez un autre horaire.',
+  hi: 'इन घंटों के लिए आपकी बुकिंग पहले से है — दूसरा समय चुनें।',
+  uk: 'На ці години у вас уже є замовлення — оберіть інший час.',
 };
 for (const L of Object.keys(JOB_DUP_MSG)) {
   (translations as any)[L].jobDupMsg = JOB_DUP_MSG[L];
@@ -4410,6 +4412,34 @@ const ADDED: Record<string, Record<string, string>> = {
     fr: 'Une annonce peut être modifiée tant qu’aucun prestataire ne l’a prise.',
     hi: 'जब तक किसी सेवा प्रदाता ने विज्ञापन नहीं लिया है, उसे संपादित किया जा सकता है।',
     uk: 'Оголошення можна змінити, доки його не взяв жоден виконавець.',
+  },
+  urgentAlertSent: { he: '🔔 התראה נשלחה לנותני שירות: {n}', en: '🔔 Alert sent to service providers: {n}', ru: '🔔 Уведомление отправлено исполнителям: {n}', ar: '🔔 تم إرسال تنبيه إلى مقدمي الخدمة: {n}', fr: '🔔 Alerte envoyée aux prestataires : {n}', hi: '🔔 सेवा प्रदाताओं को अलर्ट भेजा गया: {n}', uk: '🔔 Сповіщення надіслано виконавцям: {n}' },
+  urgentAlertEdited: {
+    he: 'הבקשה עודכנה. מי שכבר קיבל התראה רואה את השינוי, בלי התראה נוספת.',
+    en: 'The request was updated. Whoever was already alerted sees the change, with no second alert.',
+    ru: 'Запрос обновлён. Те, кто уже получил уведомление, видят изменение без повторного уведомления.',
+    ar: 'تم تحديث الطلب. من تلقّى التنبيه سابقاً يرى التغيير دون تنبيه إضافي.',
+    fr: 'La demande a été mise à jour. Ceux qui ont déjà été alertés voient le changement, sans nouvelle alerte.',
+    hi: 'अनुरोध अपडेट हो गया। जिन्हें पहले अलर्ट मिला था, वे बदलाव देख रहे हैं — दोबारा अलर्ट नहीं भेजा गया।',
+    uk: 'Запит оновлено. Ті, хто вже отримав сповіщення, бачать зміну без повторного сповіщення.',
+  },
+  urgentAlertOffHours: {
+    he: 'נותני השירות באזור לא עובדים בשעות האלה, ולכן לא נשלחה התראה לטלפון. הבקשה מופיעה אצלם בלוח.',
+    en: "The service providers in your area don't work at these hours, so no phone alert was sent. The request is on their board.",
+    ru: 'Исполнители поблизости не работают в эти часы, поэтому уведомление на телефон не отправлено. Запрос виден у них на доске.',
+    ar: 'مقدمو الخدمة في منطقتك لا يعملون في هذه الساعات، لذلك لم يُرسل تنبيه إلى الهاتف. الطلب يظهر لديهم في اللوحة.',
+    fr: 'Les prestataires de votre secteur ne travaillent pas à ces heures : aucune alerte n’a été envoyée sur leur téléphone. La demande apparaît sur leur tableau.',
+    hi: 'आपके क्षेत्र के सेवा प्रदाता इन घंटों में काम नहीं करते, इसलिए फ़ोन पर अलर्ट नहीं भेजा गया। अनुरोध उनके बोर्ड पर दिख रहा है।',
+    uk: 'Виконавці поблизу не працюють у ці години, тому сповіщення на телефон не надіслано. Запит видно в них на дошці.',
+  },
+  urgentAlertFailed: {
+    he: 'לא הצלחנו לשלוח התראה לטלפונים של נותני השירות. הבקשה מופיעה אצלם בלוח.',
+    en: "We couldn't send a phone alert to the service providers. The request is on their board.",
+    ru: 'Не удалось отправить уведомление на телефоны исполнителей. Запрос виден у них на доске.',
+    ar: 'تعذّر إرسال تنبيه إلى هواتف مقدمي الخدمة. الطلب يظهر لديهم في اللوحة.',
+    fr: 'Impossible d’envoyer une alerte sur le téléphone des prestataires. La demande apparaît sur leur tableau.',
+    hi: 'सेवा प्रदाताओं के फ़ोन पर अलर्ट नहीं भेजा जा सका। अनुरोध उनके बोर्ड पर दिख रहा है।',
+    uk: 'Не вдалося надіслати сповіщення на телефони виконавців. Запит видно в них на дошці.',
   },
 };
 for (const [key, byLang] of Object.entries(ADDED)) {

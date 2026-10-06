@@ -52,7 +52,8 @@ import {
   stripEmoji, countWords, limitWords, buildFullAddress,
 } from '../lib/jobUtils';
 import { compareCleaners, compareJobs, isAvailableNow, rotationRank } from '../lib/displayOrder';
-import { isUrgentRequestLive, URGENT_FIRST_START_HOUR, URGENT_LAST_START_HOUR, urgentStartAllowed, urgentTodayClosed, urgentFirstSlot, hourOfTime, urgentEditContext, urgentPushPlan, urgentAlertedAfter, liveUrgentEdit, UrgentEditContext } from '../lib/urgentRequest';
+import { isUrgentRequestLive, URGENT_FIRST_START_HOUR, URGENT_LAST_START_HOUR, urgentStartAllowed, urgentTodayClosed, urgentFirstSlot, hourOfTime, urgentEditContext, urgentPushPlan, urgentAlertedAfter, liveUrgentEdit, urgentAlertOutcome, UrgentEditContext } from '../lib/urgentRequest';
+import { sameDayOverlap, bookingHoldsHours } from '../lib/bookingSlot';
 import { claimUpdate, occupiesCleanerTime, pendingSlotMissed, pendingSlotExpired, expiryUpdate, rejectionUpdate, isBoardJobOfferable, busySlotOf } from '../lib/bookingActions';
 import { resolveRole } from '../lib/resolveRole';
 import { MAP_STYLE_LIGHT, MAP_STYLE_DARK } from '../lib/mapStyle';
@@ -490,16 +491,24 @@ export const JOB_NOTES_MAX_WORDS = 15;
  * legitimate booking.
  */
 // `exceptId`: the job being edited, which would otherwise clash with itself.
-async function hasClashingRequest(uid: string, dateStr: string, startTime: string, exceptId?: string): Promise<boolean> {
+async function hasClashingRequest(uid: string, dateStr: string, startTime: string, hours: number, exceptId?: string): Promise<boolean> {
   if (!uid || !dateStr || !startTime) return false;
-  const DEAD = ['cancelled', 'expired', 'done'];
   try {
     const [bk, ur] = await Promise.all([
       getDocs(query(collection(db, 'bookings'), where('clientUid', '==', uid), where('bookingDate', '==', dateStr))),
       getDocs(query(collection(db, 'urgentRequests'), where('clientUid', '==', uid), where('dateStr', '==', dateStr))),
     ]);
-    const clashes = (d: any) => !DEAD.includes(String(d?.status)) && String(d?.startTime) === startTime;
-    return bk.docs.some(d => d.id !== exceptId && clashes(d.data())) || ur.docs.some(d => clashes(d.data()));
+    // Any shared time, not only the same starting minute: a client with an
+    // urgent request out for 12:00–14:00 could send another for 12:30 or
+    // 13:00, and two cleaners were sent to one home (lib/bookingSlot).
+    const overlaps = (d: any) => sameDayOverlap(startTime, hours, d?.startTime, d?.hours);
+    const now = new Date();
+    // A booking holds its hours while it is live (lib/bookingSlot: not once it
+    // is over, and not a pending one nobody took before its time came). An
+    // urgent request only while it is open and has not lapsed: a taken one is
+    // held by the booking the claim made, which ends when the job does.
+    return bk.docs.some(d => d.id !== exceptId && bookingHoldsHours(d.data() as any, now) && overlaps(d.data()))
+      || ur.docs.some(d => String((d.data() as any)?.status) === 'open' && isUrgentRequestLive(d.data() as any, now) && overlaps(d.data()));
   } catch (_) {
     return false;
   }
@@ -1779,7 +1788,7 @@ function PostJobModal({ visible, onClose, onPosted, editJob, openJobs, onEditJob
       const uid = auth.currentUser?.uid || '';
       const startStr = hhmm(hour);
       // מניעת פרסום כפול — כולל בקשה דחופה קיימת לאותו תאריך+שעה
-      if (await hasClashingRequest(uid, dateStr, startStr, editJob?.id)) {
+      if (await hasClashingRequest(uid, dateStr, startStr, hours, editJob?.id)) {
         setBusy(false);
         Alert.alert('', (t as any).jobDupMsg ?? 'כבר פרסמת/הזמנת ניקיון לתאריך ולשעה האלה — בחר/י שעה אחרת.');
         return;
@@ -4335,6 +4344,10 @@ export default function HomeScreen() {
   // היא בקשה חדשה שמצלצלת לכולם. גרסה קודמת החזיקה אותו חצי שעה גם אחרי
   // סגירה, ולקוח שלחץ ✏️, סגר, ושלח בקשה חדשה — לא צלצל לאף אחד.
   const urgentEditCtx = useRef<UrgentEditContext | null>(null);
+  // מה קרה עם ההתראה של הבקשה שבחוץ: לכמה ביקשנו לצלצל, ולכמה השרת צלצל.
+  // מוצג בכרטיס ההמתנה — קודם המסך אמר "נשלחה" ולא אמר דבר על ההתראה, וכשאף
+  // טלפון לא צלצל (כי אף אחד לא עובד בשעה הזאת, למשל) זה נראה כמו תקלה.
+  const [urgentAlertInfo, setUrgentAlertInfo] = useState<{ id: string; asked: number; sent: number | null; before: number } | null>(null);
   const urgentSheetOpen = useRef(false);
   useEffect(() => {
     urgentSheetOpen.current = urgentOpen;
@@ -4476,7 +4489,7 @@ export default function HomeScreen() {
       const mm = urgentHour % 1 === 0.5 ? '30' : '00';
 
       // מניעת בקשה דחופה כפולה — כולל עבודה שכבר פורסמה לאותו תאריך+שעה
-      if (await hasClashingRequest(uid, dateStr, `${hh}:${mm}`)) {
+      if (await hasClashingRequest(uid, dateStr, `${hh}:${mm}`, urgentHours)) {
         setUrgentSending(false);
         Alert.alert('', (t as any).jobDupMsg ?? 'כבר פרסמת/הזמנת ניקיון לתאריך ולשעה האלה — בחר/י שעה אחרת.');
         return;
@@ -4622,13 +4635,17 @@ export default function HomeScreen() {
         try {
           await updateDoc(reqDoc, { notifiedCleaners: notified, pushedCleaners: urgentAlertedAfter(plan, editCtx, 0) });
         } catch (err) { logError('home:urgentNotified', err); }
+        setUrgentAlertInfo({ id: reqRef.id, asked: plan.push.length, sent: null, before: editCtx?.alerted.length ?? 0 });
         // הפוש עצמו — דרך שרת ההתראות, רק למי שעובד/ת ביום ובשעות האלה.
         // השרת קורא את הבקשה, בודק שהיא פתוחה ובחלון 07–22, ושהנמענים מנקים.
         // הוא מקבל עד 500 נמענים בבקשה (MAX_URGENT_RECIPIENTS ב-worker/notify.js).
         // לא ממתינים לו: הלקוח לא מחכה שטלפונים יצלצלו.
         if (plan.push.length) {
           void notify({ event: 'urgent', requestId: reqRef.id, recipients: plan.push })
-            .then(r => (r.sent > 0 ? updateDoc(reqDoc, { pushedCleaners: plan.alerted }) : undefined))
+            .then(r => {
+              setUrgentAlertInfo(cur => (cur && cur.id === reqRef.id ? { ...cur, sent: r.sent } : cur));
+              return r.sent > 0 ? updateDoc(reqDoc, { pushedCleaners: plan.alerted }) : undefined;
+            })
             .catch(err => logError('home:urgentPushed', err));
         }
 
@@ -4819,7 +4836,7 @@ export default function HomeScreen() {
         openNewPostJob();   // פותח את "ניקיון בזמן שלך" לבחירת מועד חדש
         return;
       }
-      if (await hasClashingRequest(uid, dateStr, startTime)) {
+      if (await hasClashingRequest(uid, dateStr, startTime, Number(b?.hours) || 2)) {
         Alert.alert('', (t as any).jobDupMsg ?? 'כבר פרסמת/הזמנת ניקיון לתאריך ולשעה האלה — בחר/י שעה אחרת.');
         return;
       }
@@ -7220,6 +7237,24 @@ export default function HomeScreen() {
               <View style={{ backgroundColor: C.white, borderRadius: 20, padding: 28, alignItems: 'center', gap: 14, borderWidth: 2, borderColor: '#7C3AED' }}>
                 <T style={{ fontSize: 48 }}>⏳</T>
                 <T style={{ fontSize: 18, fontWeight: '900', color: C.textDark, textAlign: 'center' }}>{t.urgentWaitingMsg}</T>
+                {/* What became of the alert: how many phones rang, or why none did. */}
+                {(() => {
+                  const info = urgentAlertInfo && urgentAlertInfo.id === urgentRequestId ? urgentAlertInfo : null;
+                  const outcome = info ? urgentAlertOutcome(info.asked, info.sent, info.before) : null;
+                  if (!info || !outcome) return null;
+                  const tt = t as any;
+                  const text = outcome === 'sent'
+                    ? String(tt.urgentAlertSent ?? '🔔 התראה נשלחה לנותני שירות: {n}').replace('{n}', String(info.sent))
+                    : outcome === 'edited'
+                      ? (tt.urgentAlertEdited ?? 'הבקשה עודכנה. מי שכבר קיבל התראה רואה את השינוי, בלי התראה נוספת.')
+                      : outcome === 'off-hours'
+                        ? (tt.urgentAlertOffHours ?? 'נותני השירות באזור לא עובדים בשעות האלה, ולכן לא נשלחה התראה לטלפון. הבקשה מופיעה אצלם בלוח.')
+                        : (tt.urgentAlertFailed ?? 'לא הצלחנו לשלוח התראה לטלפונים של נותני השירות. הבקשה מופיעה אצלם בלוח.');
+                  const good = outcome === 'sent' || outcome === 'edited';
+                  return (
+                    <T style={{ fontSize: 13, fontWeight: '700', lineHeight: 19, textAlign: 'center', color: good ? '#065F46' : '#B45309' }}>{text}</T>
+                  );
+                })()}
                 <TouchableOpacity
                   style={{ backgroundColor: '#EDE9FE', borderRadius: 12, paddingVertical: 12, paddingHorizontal: 28, marginTop: 6, borderWidth: 1, borderColor: '#DDD6FE' }}
                   onPress={handleEditUrgent}

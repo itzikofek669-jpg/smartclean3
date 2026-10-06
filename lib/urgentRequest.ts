@@ -255,3 +255,32 @@ export function urgentAlertedAfter(
 ): string[] {
   return sent > 0 ? plan.alerted : Array.from(new Set(edit?.alerted ?? []));
 }
+
+/**
+ * What to tell the client about the alert once a request is out — it used to
+ * say nothing, and "sent" on the screen with no phone ringing anywhere looked
+ * like a fault whatever the reason was.
+ *
+ *   'sent'      — the server rang `sent` phones.
+ *   'edited'    — a corrected request with nobody new to ring: whoever was
+ *                 alerted before sees the change, without a second alert.
+ *   'off-hours' — the request is on cleaners' boards, but none of them works
+ *                 at that hour, so no phone was rung. (Also a corrected
+ *                 request whose earlier versions rang nobody either.)
+ *   'failed'    — phones should have rung and none did (alerts switched off
+ *                 on them, or the server could not be reached).
+ *   null        — not known yet.
+ *
+ * `asked` is how many cleaners the server was asked to ring now, and
+ * `alertedBefore` how many were rung for earlier versions of the request (0
+ * for one that is not an edit).
+ */
+export function urgentAlertOutcome(
+  asked: number,
+  sent: number | null,
+  alertedBefore: number,
+): 'sent' | 'edited' | 'off-hours' | 'failed' | null {
+  if (!(asked > 0)) return alertedBefore > 0 ? 'edited' : 'off-hours';
+  if (sent === null) return null;
+  return sent > 0 ? 'sent' : 'failed';
+}
