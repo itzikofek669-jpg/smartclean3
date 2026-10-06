@@ -621,7 +621,13 @@ export default function ProfileScreen() {
           } catch (err) { logError('profile:urgentEdited', err); }
         }
         setAcceptOverlay(false);
-        if (!snap) return;
+        // Not readable (another cleaner holds it, or its client withdrew it) or
+        // deleted, and nothing took its place: say so. It used to clear the
+        // overlay and show nothing at all.
+        if (!snap || !snap.exists()) {
+          Alert.alert('⚡', (t as any).urgentAlreadyTakenInApp ?? 'ההזמנה הדחופה כבר נלקחה על ידי נותן שירות אחר/ת 🙂 הישאר/י זמין/ה — הבאה בדרך');
+          return;
+        }
         const data: any = snap.data();
         const st = data?.status;
         // הבקשה עדיין פתוחה — פותחים את פרטי ההזמנה (אישור/דחייה)
@@ -1082,7 +1088,10 @@ export default function ProfileScreen() {
         age:           Number(editAge) || null,
         citizenship:   editCitizenship.trim(),
         experience:    Number(editExperience) || 0,
-        maxDistance:   Number(editMaxDistance) || 10,
+        // Unset reads as 30 km everywhere else (the urgent alert, the board);
+        // saving the profile with the field empty used to store 10 and quietly
+        // cut the cleaner out of everything further away.
+        maxDistance:   Number(editMaxDistance) > 0 ? Number(editMaxDistance) : 30,
         // Canonical order on the way out, so two cleaners who ticked the same
         // boxes in a different sequence store the identical array.
         languages:     normalizeLanguages(editLanguages),
@@ -2525,7 +2534,11 @@ export default function ProfileScreen() {
         // כשהיא שלה. מועתקת מילה במילה — החוקים בודקים שזה תואם.
         if (!req.address) await copyUrgentDetails(bookingRef.id, req.id);
       } catch (txErr: any) {
-        if (txErr?.message === 'TAKEN') {
+        // A refusal is "taken" too: once another cleaner holds the request the
+        // rules no longer let this one read it, so the transaction's own read
+        // is denied before its check can run — and the cleaner was shown a
+        // generic error over a form she could retry for ever.
+        if (txErr?.message === 'TAKEN' || txErr?.code === 'permission-denied') {
           CONFIRM_SENT.delete(req.id);
           Alert.alert('', t.urgentAlreadyTaken);
           setPendingConfirmBooking(null);
@@ -2778,7 +2791,7 @@ export default function ProfileScreen() {
         {!forCleaner && b.open === true && !b.cleanerId && b.status === 'pending' && (
           <TouchableOpacity
             style={[s.undoBtn, { marginTop: 10 }]}
-            onPress={() => router.push({ pathname: '/home', params: { editJobId: b.id } })}
+            onPress={() => router.replace({ pathname: '/home', params: { editJobId: b.id } })}
           >
             <T style={[s.undoBtnText, { color: C.blue }]}>✏️ {(t as any).editJobBtn ?? 'עריכת המודעה'}</T>
           </TouchableOpacity>
@@ -2848,7 +2861,7 @@ export default function ProfileScreen() {
           </TouchableOpacity>
         )}
         {/* Payment received button */}
-        {forCleaner && b.paymentStatus && b.paymentStatus !== 'paid' && (
+        {forCleaner && b.paymentStatus && b.paymentStatus !== 'paid' && b.status !== 'pending' && (
           <TouchableOpacity
             style={{ marginTop: 8, backgroundColor: '#10B981', borderRadius: 10, padding: 10, alignItems: 'center' }}
             onPress={() => handlePaymentReceived(b)}
@@ -3530,7 +3543,7 @@ export default function ProfileScreen() {
               הוא זמין גם כאן. פותח את אותו מסך "ניקיון בזמן שלך". */}
           {!isCleaner && (
             <TouchableOpacity
-              onPress={() => router.push({ pathname: '/home', params: { openPostJob: '1' } })}
+              onPress={() => router.replace({ pathname: '/home', params: { openPostJob: '1' } })}
               activeOpacity={0.85}
               style={{ backgroundColor: C.blue, borderRadius: 14, paddingVertical: 14, alignItems: 'center', marginBottom: 14, elevation: 3, shadowColor: '#000', shadowOpacity: 0.15, shadowRadius: 6, shadowOffset: { width: 0, height: 3 } }}
             >
@@ -3638,6 +3651,16 @@ export default function ProfileScreen() {
                 <>
                   <T style={[s.sectionTitle, { color: '#4C1D95', textAlign: 'center' }]}>⚡ {t.urgentTabLabel} ({urgentRequests.length})</T>
                   {urgentRequests.map((req: any) => {
+                    // The day, worked out from the request's date. It printed the
+                    // word stored when the request was sent, so one sent at 23:30
+                    // for "tomorrow" still read "tomorrow" after midnight.
+                    const urgentDayLabel = (r: any) => {
+                      const ymd = (ms: number) => { const x = new Date(ms); return `${x.getFullYear()}-${String(x.getMonth() + 1).padStart(2, '0')}-${String(x.getDate()).padStart(2, '0')}`; };
+                      if (r.dateStr === ymd(nowMs)) return t.urgentToday;
+                      if (r.dateStr === ymd(nowMs + 86400000)) return t.urgentTomorrow;
+                      const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(r.dateStr || ''));
+                      return m ? `${m[3]}/${m[2]}` : (r.date === 'today' ? t.urgentToday : t.urgentTomorrow);
+                    };
                     const expiresIn = Math.max(0, Math.ceil((new Date(req.expiresAt).getTime() - nowMs) / 60000));
                     const receivedAt = req.createdAt
                       ? new Date(req.createdAt).toLocaleTimeString(LOCALE_MAP[lang] || 'he-IL', { hour: '2-digit', minute: '2-digit' })
@@ -3654,7 +3677,7 @@ export default function ProfileScreen() {
                         <T style={{ fontSize: 14, color: C.textDark, fontWeight: '700' }}>👤 {req.clientName}</T>
                         <T style={{ fontSize: 13, color: C.textDark }}>📍 {req.address || req.addrCity}</T>
                         <View style={{ flexDirection: 'row', gap: 12 }}>
-                          <T style={{ fontSize: 12, color: C.textSub }}>📅 {req.date === 'today' ? t.urgentToday : t.urgentTomorrow} {req.startTime}</T>
+                          <T style={{ fontSize: 12, color: C.textSub }}>📅 {urgentDayLabel(req)} {req.startTime}</T>
                           <T style={{ fontSize: 12, color: C.textSub }}>⏱️ {req.hours} {t.hoursUnit}</T>
                           <T style={{ fontSize: 12, color: C.textSub }}>₪{req.total}</T>
                         </View>
@@ -4566,7 +4589,7 @@ export default function ProfileScreen() {
                 </View>
                 <View style={{ flex: 1 }}>
                   <T style={ep.label}>{t.maxDistanceLabel}</T>
-                  <TextInput style={ep.input} value={editMaxDistance} onChangeText={setEditMaxDistance} placeholder="10" keyboardType="number-pad" placeholderTextColor={C.textSub} textAlign="center" />
+                  <TextInput style={ep.input} value={editMaxDistance} onChangeText={setEditMaxDistance} placeholder="30" keyboardType="number-pad" placeholderTextColor={C.textSub} textAlign="center" />
                 </View>
               </View>
 

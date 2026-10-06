@@ -1442,6 +1442,13 @@ test('the client is told what became of the alert', () => {
   assert.equal(urgentAlertOutcome(1, 1, 2), 'sent');           // corrected, and a newcomer was rung
   // Corrected, but nobody was rung the first time either: not "those alerted see the change".
   assert.equal(urgentAlertOutcome(0, null, 0), 'off-hours');
+  // None of those asked has a phone registered for alerts — not the same as a failed send.
+  assert.equal(urgentAlertOutcome(2, 0, 0, 2), 'no-device');
+  assert.equal(urgentAlertOutcome(2, 0, 0, 1), 'failed');
+  assert.equal(urgentAlertOutcome(2, 1, 0, 1), 'sent');
+  // Corrected, the one newcomer could not be rung: those alerted before still see the change.
+  assert.equal(urgentAlertOutcome(1, 0, 3, 1), 'edited');
+  assert.equal(urgentAlertOutcome(1, 0, 3, 0), 'edited');
 });
 
 test('a job that is over, or that nobody took before its time came, does not hold its hours', () => {

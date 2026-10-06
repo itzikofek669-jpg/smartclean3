@@ -267,20 +267,28 @@ export function urgentAlertedAfter(
  *   'off-hours' — the request is on cleaners' boards, but none of them works
  *                 at that hour, so no phone was rung. (Also a corrected
  *                 request whose earlier versions rang nobody either.)
- *   'failed'    — phones should have rung and none did (alerts switched off
- *                 on them, or the server could not be reached).
+ *   'no-device' — every cleaner asked for has no phone registered for alerts,
+ *                 or has switched them off (`skipped` covers them all).
+ *   'failed'    — phones should have rung and none did, for any other reason
+ *                 (the server could not be reached, or refused).
  *   null        — not known yet.
  *
- * `asked` is how many cleaners the server was asked to ring now, and
- * `alertedBefore` how many were rung for earlier versions of the request (0
- * for one that is not an edit).
+ * `asked` is how many cleaners the server was asked to ring now, `skipped`
+ * how many of them it reported having no device to ring, and `alertedBefore`
+ * how many were rung for earlier versions of the request (0 for one that is
+ * not an edit).
  */
 export function urgentAlertOutcome(
   asked: number,
   sent: number | null,
   alertedBefore: number,
-): 'sent' | 'edited' | 'off-hours' | 'failed' | null {
+  skipped = 0,
+): 'sent' | 'edited' | 'off-hours' | 'no-device' | 'failed' | null {
   if (!(asked > 0)) return alertedBefore > 0 ? 'edited' : 'off-hours';
   if (sent === null) return null;
-  return sent > 0 ? 'sent' : 'failed';
+  if (sent > 0) return 'sent';
+  // A corrected request whose newcomers could not be rung: the cleaners who
+  // were alerted before still see the change, which is what matters to say.
+  if (alertedBefore > 0) return 'edited';
+  return skipped >= asked ? 'no-device' : 'failed';
 }

@@ -4441,6 +4441,24 @@ const ADDED: Record<string, Record<string, string>> = {
     hi: 'सेवा प्रदाताओं के फ़ोन पर अलर्ट नहीं भेजा जा सका। अनुरोध उनके बोर्ड पर दिख रहा है।',
     uk: 'Не вдалося надіслати сповіщення на телефони виконавців. Запит видно в них на дошці.',
   },
+  urgentAlertNoDevice: {
+    he: 'לנותני השירות שנמצאו אין התראות פעילות בטלפון. הבקשה מופיעה אצלם בלוח.',
+    en: 'The service providers we found have no phone alerts switched on. The request is on their board.',
+    ru: 'У найденных исполнителей уведомления на телефоне отключены. Запрос виден у них на доске.',
+    ar: 'مقدمو الخدمة الذين وجدناهم ليست لديهم تنبيهات مفعّلة على الهاتف. الطلب يظهر لديهم في اللوحة.',
+    fr: 'Les prestataires trouvés n’ont pas d’alertes activées sur leur téléphone. La demande apparaît sur leur tableau.',
+    hi: 'मिले हुए सेवा प्रदाताओं के फ़ोन पर अलर्ट चालू नहीं हैं। अनुरोध उनके बोर्ड पर दिख रहा है।',
+    uk: 'У знайдених виконавців сповіщення на телефоні вимкнені. Запит видно в них на дошці.',
+  },
+  urgentEditAbandoned: {
+    he: 'הבקשה הקודמת בוטלה ולא נשלחה מחדש. כדי להזמין ניקוי דחוף, שלח/י בקשה חדשה.',
+    en: 'The previous request was cancelled and has not been sent again. To order an urgent cleaning, send a new request.',
+    ru: 'Предыдущий запрос отменён и не отправлен заново. Чтобы заказать срочную уборку, отправьте новый запрос.',
+    ar: 'تم إلغاء الطلب السابق ولم يُرسل من جديد. لطلب تنظيف عاجل، أرسل طلباً جديداً.',
+    fr: 'La demande précédente a été annulée et n’a pas été renvoyée. Pour commander un ménage urgent, envoyez une nouvelle demande.',
+    hi: 'पिछला अनुरोध रद्द हो गया और दोबारा नहीं भेजा गया। तत्काल सफाई के लिए नया अनुरोध भेजें।',
+    uk: 'Попередній запит скасовано й не надіслано повторно. Щоб замовити термінове прибирання, надішліть новий запит.',
+  },
 };
 for (const [key, byLang] of Object.entries(ADDED)) {
   for (const [L, text] of Object.entries(byLang)) {

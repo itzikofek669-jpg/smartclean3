@@ -548,8 +548,12 @@ service cloud.firestore {
         // type error and every budget-less post was denied.
         && (request.resource.data.get('total', 0) == null
             || request.resource.data.get('total', 0) >= 0)
+        // …nor the progress stamps: the bill is worked out from `startedAt`,
+        // which only the cleaner may write once the booking exists — and a
+        // client could simply create the booking with one already on it.
         && !request.resource.data.keys().hasAny([
-          'actualTotal', 'actualHours', 'paidAt', 'finishedAt', 'cleanerRating'
+          'actualTotal', 'actualHours', 'paidAt', 'finishedAt', 'cleanerRating',
+          'onwayAt', 'startedAt'
         ])
         // A job on the board is readable by every signed-in account, and the
         // split that moved the street, flat, notes and phone to private/details

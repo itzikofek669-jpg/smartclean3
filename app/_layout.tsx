@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useRef } from 'react';
-import { Platform, View, StyleSheet, Alert, LogBox } from 'react-native';
+import { AppState, Platform, View, StyleSheet, Alert, LogBox } from 'react-native';
 import { Stack, useRouter, useSegments } from 'expo-router';
 import { onAuthStateChanged, signOut } from 'firebase/auth';
 import * as Notifications from 'expo-notifications';
@@ -78,7 +78,7 @@ if (Platform.OS === 'android') {
 }
 
 // ── רישום push token ושמירה ב-Firestore ──────────────────────────────────────
-async function registerPushToken(uid: string, waitedForProfile = false) {
+async function registerPushToken(uid: string, waitedForProfile = false, quiet = false) {
   // Remote push was removed from Expo Go on ANDROID in SDK 53 —
   // getExpoPushTokenAsync throws there. On iOS Expo Go still supports it:
   // expo-notifications only logs a warning (see its warnOfExpoGoPushUsage, which
@@ -109,7 +109,7 @@ async function registerPushToken(uid: string, waitedForProfile = false) {
         const off = onSnapshot(doc(db, 'users', uid), (s) => { if (s.exists()) finish(); }, finish);
         const timer = setTimeout(finish, 120_000);
       });
-      return registerPushToken(uid, true);
+      return registerPushToken(uid, true, quiet);
     }
     if (meSnap?.exists() && meSnap.data()?.pushOptOut === true) {
       // The calendar task is independent of whether this device wants push
@@ -121,7 +121,9 @@ async function registerPushToken(uid: string, waitedForProfile = false) {
     }
     const { status: existing } = await Notifications.getPermissionsAsync();
     let finalStatus = existing;
-    if (existing !== 'granted') {
+    // `quiet` is the refresh on coming back to the app: it never raises the
+    // system prompt, it only re-registers a phone that already has permission.
+    if (existing !== 'granted' && !quiet) {
       const { status } = await Notifications.requestPermissionsAsync();
       finalStatus = status;
     }
@@ -153,7 +155,7 @@ async function registerPushToken(uid: string, waitedForProfile = false) {
       const ref = doc(db, 'users', uid);
       const cur = await tx.get(ref);
       if (!cur.exists() || cur.data()?.pushOptOut === true) return false;
-      tx.update(ref, { pushToken: token });
+      if (cur.data()?.pushToken !== token) tx.update(ref, { pushToken: token });
       return true;
     });
     // And the private copy the notification server reads — see
@@ -162,8 +164,13 @@ async function registerPushToken(uid: string, waitedForProfile = false) {
     // refused, and inside the transaction it took the profile write down with
     // it, so the device stopped registering at all.
     if (wrote) {
-      await setDoc(pushTokenRef(uid), pushTokenDoc(token))
-        .catch(err => logError('layout:pushTokenPrivate', err));
+      // Written only when it is not already this phone's token: this now runs
+      // every time the app comes back to the front.
+      const mine = await getDoc(pushTokenRef(uid)).catch(() => null);
+      if (!mine?.exists() || mine.data()?.token !== token) {
+        await setDoc(pushTokenRef(uid), pushTokenDoc(token))
+          .catch(err => logError('layout:pushTokenPrivate', err));
+      }
     }
 
     // Only once a token exists: the background task has nothing to receive
@@ -231,6 +238,25 @@ export default function RootLayout() {
   // rather than with anyone doing anything.
   const [authUser, setAuthUser] = useState<import('firebase/auth').User | null>(null);
   const pushRegisteredFor = useRef<string | null>(null);
+  // An account holds ONE push token, and this phone wrote its own only at
+  // sign-in or launch. Sign in to the same account on another phone and that
+  // one's token replaces it; sign out there and the token is cleared — and this
+  // phone, still running, got no alert again until the app was killed and
+  // reopened. A provider waiting for urgent jobs is exactly who that hits. So
+  // coming back to the app registers again (quietly, and at most every ten
+  // minutes): whichever phone the provider is actually holding gets the alerts.
+  const pushRefreshedAt = useRef(0);
+  useEffect(() => {
+    const sub = AppState.addEventListener('change', (state) => {
+      if (state !== 'active') return;
+      const uid = auth.currentUser?.uid;
+      if (!uid || pushRegisteredFor.current !== uid) return;
+      if (Date.now() - pushRefreshedAt.current < 10 * 60 * 1000) return;
+      pushRefreshedAt.current = Date.now();
+      void registerPushToken(uid, false, true);
+    });
+    return () => sub.remove();
+  }, []);
 
   useEffect(() => {
     // אין כאן יותר ניתוק של חשבון שלא אומת. ניתוק בפתיחת האפליקציה הוא בדיוק

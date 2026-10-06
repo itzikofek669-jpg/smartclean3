@@ -52,7 +52,7 @@ import {
   stripEmoji, countWords, limitWords, buildFullAddress,
 } from '../lib/jobUtils';
 import { compareCleaners, compareJobs, isAvailableNow, rotationRank } from '../lib/displayOrder';
-import { isUrgentRequestLive, URGENT_FIRST_START_HOUR, URGENT_LAST_START_HOUR, urgentStartAllowed, urgentTodayClosed, urgentFirstSlot, hourOfTime, urgentEditContext, urgentPushPlan, urgentAlertedAfter, liveUrgentEdit, urgentAlertOutcome, UrgentEditContext } from '../lib/urgentRequest';
+import { isUrgentRequestLive, URGENT_FIRST_START_HOUR, URGENT_LAST_START_HOUR, urgentStartAllowed, urgentTodayClosed, urgentFirstSlot, hourOfTime, urgentEditContext, urgentPushPlan, urgentAlertedAfter, liveUrgentEdit, urgentAlertOutcome, expiryOf, slotOf, UrgentEditContext } from '../lib/urgentRequest';
 import { sameDayOverlap, bookingHoldsHours } from '../lib/bookingSlot';
 import { claimUpdate, occupiesCleanerTime, pendingSlotMissed, pendingSlotExpired, expiryUpdate, rejectionUpdate, isBoardJobOfferable, busySlotOf } from '../lib/bookingActions';
 import { resolveRole } from '../lib/resolveRole';
@@ -509,7 +509,11 @@ async function hasClashingRequest(uid: string, dateStr: string, startTime: strin
     // held by the booking the claim made, which ends when the job does.
     return bk.docs.some(d => d.id !== exceptId && bookingHoldsHours(d.data() as any, now) && overlaps(d.data()))
       || ur.docs.some(d => String((d.data() as any)?.status) === 'open' && isUrgentRequestLive(d.data() as any, now) && overlaps(d.data()));
-  } catch (_) {
+  } catch (err) {
+    // Fails open on purpose — a read that did not answer must not stop a
+    // client ordering — but not silently: without this the guard could be off
+    // for everyone and nothing would say so.
+    logError('home:hasClashingRequest', err);
     return false;
   }
 }
@@ -2534,6 +2538,16 @@ function BookingModal({ cleaner, visible, onClose, onBookingCreated, prebookData
     }
     const address = buildFullAddress(addrCity, addrStreet, addrFloor, addrApt, addrPrivate);
 
+    // ── ולידציה: אמצעי תשלום שנותן השירות מקבל ───────────────────────────
+    // הטופס זוכר את אמצעי התשלום מהפעם הקודמת — אולי כזה שנותן השירות הזה לא
+    // מציע. אז אף כפתור לא דלק, וההזמנה נשמרה בכל זאת עם אמצעי שאי אפשר לשלם בו.
+    {
+      const offered: string[] = Array.isArray(cleaner?.payment) ? cleaner.payment : [];
+      if (offered.length > 0 && !offered.includes(payment)) {
+        return Alert.alert(t.error, (t as any).selectPaymentMethod ?? 'בחר/י אמצעי תשלום');
+      }
+    }
+
     // ── ולידציה: חובה לבחור סוג ניקיון ──────────────────────────────────
     if (serviceTypes.length === 0) {
       return Alert.alert(t.error, (t as any).selectServiceTypeMulti ?? 'יש לבחור סוג ניקיון');
@@ -2576,32 +2590,19 @@ function BookingModal({ cleaner, visible, onClose, onBookingCreated, prebookData
     // כדי שלחיצה כפולה מהירה לא תיצור שתי הזמנות
     bookingLock.current = true;
 
-    // ── ולידציה: אין חפיפת הזמנות ────────────────────────────────────────
+    // ── ולידציה: ללקוח אין כבר ניקיון בשעות האלה ─────────────────────────
+    // אותו שומר של "ניקיון בזמן שלך" ושל ניקוי דחוף (hasClashingRequest). קודם
+    // הייתה כאן בדיקה משלה: היא לא ראתה בקשה דחופה פתוחה — אפשר היה להזמין
+    // נותן שירות ישירות על שעות של בקשה דחופה שכבר בחוץ — היא ספרה גם הזמנה
+    // שפגה או שאף אחד לא ענה עליה עד שעברה שעתה, וההודעה שלה האשימה את נותן
+    // השירות ("כבר תפוס") כשהחפיפה היא של הלקוח עצמו.
     {
-      const clientUid = auth.currentUser?.uid || '';
-      const newStart = selectedDateTime;
-      const newEnd   = new Date(newStart.getTime() + hours * 3600000);
-      const bookingDateStr = localDateStr;
-      try {
-        const existingSnap = await getDocs(query(
-          collection(db, 'bookings'),
-          where('clientUid', '==', clientUid),
-          where('bookingDate', '==', bookingDateStr),
-        ));
-        const hasOverlap = existingSnap.docs.some(d => {
-          const ex = d.data();
-          if (['cancelled', 'done'].includes(ex.status)) return false;
-          const [eh, em] = (ex.startTime || '00:00').split(':').map(Number);
-          const exStart = new Date(bookingDate);
-          exStart.setHours(eh, em, 0, 0);
-          const exEnd = new Date(exStart.getTime() + (ex.hours || 1) * 3600000);
-          return newStart < exEnd && newEnd > exStart;
-        });
-        if (hasOverlap) {
-          bookingLock.current = false;
-          return Alert.alert('❌ ' + t.overlapTitle, t.overlapMsg);
-        }
-      } catch (_) {}
+      const pad = (n: number) => String(n).padStart(2, '0');
+      const myStart = `${pad(selectedDateTime.getHours())}:${pad(selectedDateTime.getMinutes())}`;
+      if (await hasClashingRequest(auth.currentUser?.uid || '', localDateStr, myStart, hours)) {
+        bookingLock.current = false;
+        return Alert.alert('❌ ' + t.overlapTitle, (t as any).jobDupMsg ?? 'כבר יש לך ניקיון שהוזמן לשעות האלה — בחר/י שעות אחרות.');
+      }
     }
 
     // ── ולידציה: בדיקת חפיפה מצד המנקה ──────────────────────────────────
@@ -2752,9 +2753,9 @@ function BookingModal({ cleaner, visible, onClose, onBookingCreated, prebookData
       try {
          
         const Notifs = require('expo-notifications');
-        Notifs.setNotificationHandler({
-          handleNotification: async () => ({ shouldShowAlert: true, shouldPlaySound: true, shouldSetBadge: false }),
-        });
+        // The handler stays the app's own (app/_layout.tsx). One was installed
+        // here on every booking, replacing it for the rest of the session — and
+        // with it the rules about chat messages and the open conversation.
         const { status } = await Notifs.requestPermissionsAsync();
         if (status === 'granted') {
           const reminderDate = new Date(bookingDate);
@@ -2906,6 +2907,11 @@ function BookingModal({ cleaner, visible, onClose, onBookingCreated, prebookData
     setServiceTypes([]); setShowSuccess(false); setBookedDetails(null);
     setAnnouncedBooking(null);
     setShowWaiting(false); setPendingBookingId(null);
+    // The listener on the booking just left goes with it. Left running, an
+    // answer that arrived later set the "confirmed" screen on this hidden
+    // form, and it then came up for whatever was booked next. The home
+    // screen's own popup announces the answer from here on.
+    if (unsubBookingRef.current) { unsubBookingRef.current(); unsubBookingRef.current = null; }
     setInlineChatOpen(false); setInlineChatMsgs([]); setInlineChatText('');
     prevInlineMsgCount.current = 0;
     if (inlineChatUnsubRef.current) { inlineChatUnsubRef.current(); inlineChatUnsubRef.current = null; }
@@ -2935,7 +2941,7 @@ function BookingModal({ cleaner, visible, onClose, onBookingCreated, prebookData
   // ── מסך המתנה לאישור ──
   if (showWaiting && bookedDetails) {
     return (
-      <Modal visible={visible} animationType="slide" presentationStyle="pageSheet" onRequestClose={handleCancelPending}>
+      <Modal visible={visible} animationType="slide" presentationStyle="pageSheet" onRequestClose={handleClose}>
         <SafeAreaView style={{ flex: 1, backgroundColor: '#FFF7ED' }}>
           <ScrollView style={{ flex: 1 }} contentContainerStyle={{ flexGrow: 1, alignItems: 'center', justifyContent: 'center', padding: 16, gap: 12 }}>
 
@@ -4120,7 +4126,12 @@ export default function HomeScreen() {
   // שעון מתקתק, לא Date.now() בתוך רנדור. ראה lib/useNow.
   const nowMs = useNow();
   const urgentUnsubRef = useRef<null | (() => void)>(null);
-  useEffect(() => () => { urgentUnsubRef.current?.(); urgentUnsubRef.current = null; }, []);
+  const urgentExpiryTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const urgentSendingNow = useRef(false);   // a request is on its way out right now
+  useEffect(() => () => {
+    urgentUnsubRef.current?.(); urgentUnsubRef.current = null;
+    if (urgentExpiryTimer.current) { clearTimeout(urgentExpiryTimer.current); urgentExpiryTimer.current = null; }
+  }, []);
 
   const staticCleanerOrder = React.useMemo(
     () => [...CLEANERS].sort((a, b) => rotationRank(String(a.id)) - rotationRank(String(b.id))),
@@ -4344,10 +4355,31 @@ export default function HomeScreen() {
   // היא בקשה חדשה שמצלצלת לכולם. גרסה קודמת החזיקה אותו חצי שעה גם אחרי
   // סגירה, ולקוח שלחץ ✏️, סגר, ושלח בקשה חדשה — לא צלצל לאף אחד.
   const urgentEditCtx = useRef<UrgentEditContext | null>(null);
+  // A second tap on ✏️ — while the first is still running, or queued before the
+  // card disappears — found the request already cancelled by the first and
+  // announced "a provider already took it" over the reopened form. (Declared
+  // here, ahead of the listener that reads them.)
+  const urgentEditBusy = useRef(false);
+  const urgentEditedId = useRef<string | null>(null);
   // מה קרה עם ההתראה של הבקשה שבחוץ: לכמה ביקשנו לצלצל, ולכמה השרת צלצל.
   // מוצג בכרטיס ההמתנה — קודם המסך אמר "נשלחה" ולא אמר דבר על ההתראה, וכשאף
   // טלפון לא צלצל (כי אף אחד לא עובד בשעה הזאת, למשל) זה נראה כמו תקלה.
-  const [urgentAlertInfo, setUrgentAlertInfo] = useState<{ id: string; asked: number; sent: number | null; before: number } | null>(null);
+  const [urgentAlertInfo, setUrgentAlertInfo] = useState<{ id: string; asked: number; sent: number | null; skipped: number; before: number } | null>(null);
+  const urgentAlertText = (outcome: NonNullable<ReturnType<typeof urgentAlertOutcome>>, sent: number | null) => {
+    const tt = t as any;
+    return outcome === 'sent' ? String(tt.urgentAlertSent ?? '🔔 התראה נשלחה לנותני שירות: {n}').replace('{n}', String(sent ?? 0))
+      : outcome === 'edited' ? (tt.urgentAlertEdited ?? 'הבקשה עודכנה. מי שכבר קיבל התראה רואה את השינוי, בלי התראה נוספת.')
+      : outcome === 'off-hours' ? (tt.urgentAlertOffHours ?? 'נותני השירות באזור לא עובדים בשעות האלה, ולכן לא נשלחה התראה לטלפון. הבקשה מופיעה אצלם בלוח.')
+      : outcome === 'no-device' ? (tt.urgentAlertNoDevice ?? 'לנותני השירות שנמצאו אין התראות פעילות בטלפון. הבקשה מופיעה אצלם בלוח.')
+      : (tt.urgentAlertFailed ?? 'לא הצלחנו לשלוח התראה לטלפונים של נותני השירות. הבקשה מופיעה אצלם בלוח.');
+  };
+  // The card with this line sits inside the sheet that sending closes, so when
+  // no phone was rung the client is told outright — a moment later, once the
+  // sheet has gone.
+  const announceUrgentAlert = (outcome: ReturnType<typeof urgentAlertOutcome>) => {
+    if (outcome !== 'off-hours' && outcome !== 'failed' && outcome !== 'no-device') return;
+    setTimeout(() => Alert.alert('', urgentAlertText(outcome, 0)), 600);
+  };
   const urgentSheetOpen = useRef(false);
   useEffect(() => {
     urgentSheetOpen.current = urgentOpen;
@@ -4376,6 +4408,124 @@ export default function HomeScreen() {
       setUrgentHour(nextSlot / 60);
     }
     setUrgentHours(2);
+  };
+
+  // בקשה שנגמרה — פגה, בוטלה או נמשכה לעריכה — נמחקת, החלק הפרטי (כתובת
+  // וטלפון) קודם: אחרי שהבקשה עצמה איננה, החוקים כבר לא יודעים של מי הוא. כך
+  // עושים האתר וה"ניקוי" שבפרופיל; ביטול ו-✏️ כאן רק סימנו `cancelled` והשאירו
+  // את המסמך ואת הכתובת לתמיד. רק בקשה שעדיין פתוחה (או שכבר סומנה כגמורה):
+  // נבדק בטרנזקציה, כדי לא לדרוס בקשה שנותן שירות לקח בינתיים.
+  const removeUrgentRequest = async (id: string) => {
+    const ref = doc(db, 'urgentRequests', id);
+    try {
+      await runTransaction(db, async (tx) => {
+        const cur = await tx.get(ref);
+        if (!cur.exists()) return;
+        const st = String((cur.data() as any)?.status ?? '');
+        if (st !== 'open' && st !== 'cancelled' && st !== 'expired') return;
+        tx.delete(urgentDetailsRef(id));
+        tx.delete(ref);
+      });
+    } catch (err) { logError('home:urgentRemove', err); }
+  };
+
+  // ── המאזין לבקשה שבחוץ ────────────────────────────────────────────────────
+  // אחד, לשני המקרים: אחרי שליחה, ואחרי שהאפליקציה נפתחה מחדש כשבקשה עוד פתוחה.
+  // הוא נשמר ב-ref ומנותק גם בעזיבת המסך: מאזין שנשאר חי קרא setState על עץ
+  // שכבר אינו מורכב, ואחרי התנתקות השאילתה גם נדחית ע"י החוקים.
+  const watchUrgentRequest = (id: string) => {
+    urgentUnsubRef.current?.();
+    if (urgentExpiryTimer.current) { clearTimeout(urgentExpiryTimer.current); urgentExpiryTimer.current = null; }
+    // `unsub`, not whatever the ref holds by then: if another request has been
+    // sent in between, the ref points at THAT listener, and this one must not
+    // tear it down.
+    const stop = () => {
+      unsub();
+      if (urgentUnsubRef.current !== unsub) return;
+      urgentUnsubRef.current = null;
+      if (urgentExpiryTimer.current) { clearTimeout(urgentExpiryTimer.current); urgentExpiryTimer.current = null; }
+    };
+    const unsub = onSnapshot(
+      doc(db, 'urgentRequests', id),
+      snap => {
+        const d: any = snap.data();
+        if (d?.status === 'taken') {
+          // No Alert here. A cleaner taking the request in this app confirms the
+          // booking in the same transaction, so the client got the "booking
+          // confirmed" popup and then a second "cleaner found!" popup on top of
+          // it. Taken on the website, the booking is still pending, and "found"
+          // was premature. The confirmed popup is the one announcement; the card
+          // shows the name while the sheet is open.
+          setUrgentFoundName(d.takenByName || '');
+          setUrgentWaiting(false);
+          stop();
+        } else if (!snap.exists() || d?.status === 'expired' || d?.status === 'cancelled') {
+          // Gone — deleted counts too (the website and the profile's sweep
+          // delete a lapsed request; the card used to wait on it for ever).
+          setUrgentWaiting(false);
+          setUrgentRequestId(null);
+          // The form comes back from under the waiting card: start it afresh
+          // — unless this is ✏️ withdrawing the request, which brings the
+          // form back as it was sent (handleEditUrgent).
+          if (!urgentEditBusy.current && urgentEditedId.current !== id) urgentTimeDefaults();
+          stop();
+        } else if (d?.status === 'open' && urgentUnsubRef.current === unsub && !urgentExpiryTimer.current) {
+          // Nobody took it and its time is up — its two hours, or the hour it
+          // asked for, whichever comes first (isUrgentRequestLive stops showing
+          // it at either). It stops waiting then, not whenever something else
+          // next happens to touch the document.
+          const ends = [expiryOf(d), slotOf(d)].filter((x): x is number => x !== null);
+          if (ends.length) {
+            urgentExpiryTimer.current = setTimeout(() => {
+              urgentExpiryTimer.current = null;
+              if (urgentUnsubRef.current !== unsub) return;
+              void removeUrgentRequest(id);
+            }, Math.max(0, Math.min(...ends) - Date.now()) + 1000);
+          }
+        }
+      },
+      err => {
+        logError('home:urgentWatch', err);
+        if (urgentUnsubRef.current === unsub) urgentUnsubRef.current = null;
+      },
+    );
+    urgentUnsubRef.current = unsub;
+  };
+
+  // בקשה שנשלחה לפני שהאפליקציה נסגרה עדיין פתוחה — והמסך שכח אותה: בלי כרטיס
+  // המתנה, בלי ✏️ ובלי ביטול, בזמן שהיא ממשיכה לחכות לנותן שירות וחוסמת את
+  // השעות שלה לכל בקשה אחרת. כאן היא חוזרת למסך.
+  useEffect(() => {
+    if (myRole !== 'client') return;
+    const uid = auth.currentUser?.uid;
+    if (!uid) return;
+    let alive = true;
+    getDocs(query(collection(db, 'urgentRequests'), where('clientUid', '==', uid), where('status', '==', 'open')))
+      .then(snap => {
+        if (!alive || urgentUnsubRef.current || urgentSendingNow.current) return;   // one being sent, or sent meanwhile
+        const now = new Date();
+        const live = snap.docs
+          .map(d => ({ id: d.id, ...(d.data() as any) }))
+          .filter(r => isUrgentRequestLive(r, now))
+          .sort((a, b) => String(b.createdAt || '').localeCompare(String(a.createdAt || '')))[0];
+        if (!live) return;
+        setUrgentRequestId(live.id);
+        setUrgentWaiting(true);
+        watchUrgentRequest(live.id);
+      })
+      .catch(err => logError('home:urgentRestore', err));
+    return () => { alive = false; };
+  }, [myRole]);
+
+  // Every way the sheet closes except sending. ✏️ withdraws the request before
+  // anything is sent in its place, so closing the form then leaves the client
+  // with no request out — and nothing used to say so.
+  const closeUrgentSheet = () => {
+    if (urgentEditCtx.current && !urgentWaiting && !urgentSendingNow.current) {
+      Alert.alert('', (t as any).urgentEditAbandoned ?? 'הבקשה הקודמת בוטלה ולא נשלחה מחדש. כדי להזמין ניקוי דחוף, שלח/י בקשה חדשה.');
+    }
+    if (!urgentWaiting) setUrgentFoundName('');
+    setUrgentOpen(false);
   };
 
   // ── טען ברירות מחדל חכמות כשניקוי דחוף נפתח ─────────────────────────────
@@ -4413,7 +4563,7 @@ export default function HomeScreen() {
       if (booking)       { setBooking(null);         return true; }
       if (chatWith)      { setChatWith(null);        return true; }
       if (filterVisible) { setFilterVisible(false); return true; }
-      if (urgentOpen)       { setUrgentOpen(false);       return true; }
+      if (urgentOpen)       { closeUrgentSheet();         return true; }
       if (quickRebookOpen)  { setQuickRebookOpen(false);  return true; }
       if (photoViewerOpen)  { setPhotoViewerOpen(false);   return true; }
       if (reportOpen)    { setReportOpen(false);    return true; }
@@ -4467,13 +4617,27 @@ export default function HomeScreen() {
     ).catch(() => {});
     SecureStore.setItemAsync('last_payment_method', urgentPayment).catch(() => {});
     setUrgentSending(true);
+    urgentSendingNow.current = true;
     try {
       const uid = auth.currentUser?.uid;
-      if (!uid) return;
+      if (!uid) { urgentSendingNow.current = false; setUrgentSending(false); return; }
       const editCtx = liveUrgentEdit(urgentEditCtx.current, uid);
       let clientName = 'לקוח';
-      let clientLat = userCoords?.lat ?? 32.08;
-      let clientLng = userCoords?.lng ?? 34.78;
+      // Where the JOB is, not where the phone is. The request was placed at the
+      // phone's GPS fix — or at a fixed point in Tel Aviv when location was off
+      // — and the address the client typed was ignored: ordering from the
+      // office for a home in another town alerted the cleaners around the
+      // office, and none near the home. The town in the address decides; the
+      // phone's own position is used only when it is in that town (it is then
+      // the more exact of the two), or when the address names no known town.
+      const jobCity = cityFromAddress(urgentAddress, CITY_COORDS);
+      const jobTown = jobCity ? CITY_COORDS[jobCity] : undefined;
+      const jobAt: { lat: number; lng: number } | null = jobTown && userCoords
+        ? (getDistanceKm(userCoords.lat, userCoords.lng, jobTown.lat, jobTown.lng) <= 15 ? userCoords : jobTown)
+        : (jobTown ?? userCoords ?? null);
+      const clientLat = jobAt?.lat ?? 32.08;
+      const clientLng = jobAt?.lng ?? 34.78;
+      setUrgentFoundName('');   // a new request: the last one's "found" card is over
       try {
         const snap = await getDoc(doc(db, 'users', uid));
         clientName = snap.data()?.name || 'לקוח';
@@ -4490,7 +4654,7 @@ export default function HomeScreen() {
 
       // מניעת בקשה דחופה כפולה — כולל עבודה שכבר פורסמה לאותו תאריך+שעה
       if (await hasClashingRequest(uid, dateStr, `${hh}:${mm}`, urgentHours)) {
-        setUrgentSending(false);
+        urgentSendingNow.current = false; setUrgentSending(false);
         Alert.alert('', (t as any).jobDupMsg ?? 'כבר פרסמת/הזמנת ניקיון לתאריך ולשעה האלה — בחר/י שעה אחרת.');
         return;
       }
@@ -4510,7 +4674,9 @@ export default function HomeScreen() {
         // The city alone, as the website writes it: the booking a claim makes
         // copies it, and without it every urgent booking had no city at all.
         addrCity: cityFromAddress(urgentAddress, CITY_COORDS),
-        lat: publicCoord(clientLat), lng: publicCoord(clientLng),
+        // No position at all (no known town, no GPS): none is written, rather
+        // than a made-up one that puts the job in the wrong place on every board.
+        ...(jobAt ? { lat: publicCoord(clientLat), lng: publicCoord(clientLng) } : {}),
         date: urgentDate, dateStr,
         startTime: `${hh}:${mm}`,
         hours: urgentHours,
@@ -4540,13 +4706,13 @@ export default function HomeScreen() {
         if (nowHour >= 24) { // לעולם לא — ההגבלה בוטלה
           await updateDoc(doc(db,'urgentRequests', reqRef.id), { status: 'expired' });
           Alert.alert(t.urgentAfterHoursTitle, '');
-          setUrgentSending(false);
+          urgentSendingNow.current = false; setUrgentSending(false);
           return;
         } else {
         const cleanersSnap = await getDocs(query(collection(db,'users'), where('role','==','cleaner')));
         const notified: string[] = [];
         const ring: string[] = []; // מתוך notified — מי שגם עובד/ת בשעות האלה
-        const noLocation = !userCoords; // אין מיקום — שלח לכולם
+        const noLocation = !jobAt; // אין מיקום — שלח לכולם
 
         // ── מנקים שכבר תפוסים בניקיון אחר בשעות החופפות לדחוף — לא נשלח להם פוש ──
         const urgentStart = new Date(`${dateStr}T${hh}:${mm}`);
@@ -4635,7 +4801,9 @@ export default function HomeScreen() {
         try {
           await updateDoc(reqDoc, { notifiedCleaners: notified, pushedCleaners: urgentAlertedAfter(plan, editCtx, 0) });
         } catch (err) { logError('home:urgentNotified', err); }
-        setUrgentAlertInfo({ id: reqRef.id, asked: plan.push.length, sent: null, before: editCtx?.alerted.length ?? 0 });
+        const alertedBefore = editCtx?.alerted.length ?? 0;
+        setUrgentAlertInfo({ id: reqRef.id, asked: plan.push.length, sent: null, skipped: 0, before: alertedBefore });
+        if (notified.length > 0) announceUrgentAlert(urgentAlertOutcome(plan.push.length, null, alertedBefore));
         // הפוש עצמו — דרך שרת ההתראות, רק למי שעובד/ת ביום ובשעות האלה.
         // השרת קורא את הבקשה, בודק שהיא פתוחה ובחלון 07–22, ושהנמענים מנקים.
         // הוא מקבל עד 500 נמענים בבקשה (MAX_URGENT_RECIPIENTS ב-worker/notify.js).
@@ -4643,7 +4811,8 @@ export default function HomeScreen() {
         if (plan.push.length) {
           void notify({ event: 'urgent', requestId: reqRef.id, recipients: plan.push })
             .then(r => {
-              setUrgentAlertInfo(cur => (cur && cur.id === reqRef.id ? { ...cur, sent: r.sent } : cur));
+              setUrgentAlertInfo(cur => (cur && cur.id === reqRef.id ? { ...cur, sent: r.sent, skipped: r.skipped } : cur));
+              announceUrgentAlert(urgentAlertOutcome(plan.push.length, r.sent, alertedBefore, r.skipped));
               return r.sent > 0 ? updateDoc(reqDoc, { pushedCleaners: plan.alerted }) : undefined;
             })
             .catch(err => logError('home:urgentPushed', err));
@@ -4652,11 +4821,17 @@ export default function HomeScreen() {
         if (notified.length === 0) {
           Alert.alert('', t.urgentNoCleaners);
           await updateDoc(doc(db,'urgentRequests', reqRef.id), { status: 'expired' });
-          setUrgentSending(false);
+          urgentSendingNow.current = false; setUrgentSending(false);
           return;
         }
         } // סוף else (אחרי 20:00 לא שולחים)
-      } catch (err) { logError('home:write', err); }
+      } catch (err) {
+        logError('home:write', err);
+        // The request is out, but who to ring was never worked out: say that
+        // no alert went, instead of a waiting card that implies one did.
+        setUrgentAlertInfo(cur => (cur && cur.id === reqRef.id ? cur : { id: reqRef.id, asked: 1, sent: 0, skipped: 0, before: 0 }));
+        announceUrgentAlert('failed');
+      }
 
       urgentEditCtx.current = null;   // sent — whatever comes next is a new request
       setUrgentWaiting(true);
@@ -4667,44 +4842,9 @@ export default function HomeScreen() {
       // בקשה ויצא לפני שמנקה ענתה השאיר מאזין חי, שקרא setState על עץ שכבר
       // אינו מורכב ופתח Alert מעל מסך אחר. אחרי התנתקות השאילתה גם נדחית
       // ע"י החוקים, ובלי onError הדחייה הזאת בלתי נראית.
-      urgentUnsubRef.current?.();
-      const unsub = onSnapshot(
-        doc(db,'urgentRequests', reqRef.id),
-        snap => {
-          const d = snap.data();
-          // `unsub`, not whatever the ref holds now: if the client posted a
-          // second request in between, the ref points at THAT listener and
-          // this one would tear down the wrong one and leak itself.
-          if (d?.status === 'taken') {
-            setUrgentFoundName(d.takenByName || '');
-            setUrgentWaiting(false);
-            unsub();
-            if (urgentUnsubRef.current === unsub) urgentUnsubRef.current = null;
-            // No Alert here. A cleaner taking the request in this app confirms the
-            // booking in the same transaction, so the client got the "booking
-            // confirmed" popup and then a second "cleaner found!" popup on top of
-            // it, after the job was already approved. Taken on the website, the
-            // booking is still pending, and "found" was premature. The confirmed
-            // popup is the one announcement; the card above shows the name while
-            // this screen is open.
-          } else if (d?.status === 'expired' || d?.status === 'cancelled') {
-            setUrgentWaiting(false);
-            setUrgentRequestId(null);
-            // The form comes back from under the waiting card: start it afresh
-            // — unless this is ✏️ withdrawing the request, which brings the
-            // form back as it was sent (handleEditUrgent).
-            if (!urgentEditBusy.current && urgentEditedId.current !== reqRef.id) urgentTimeDefaults();
-            unsub();
-            if (urgentUnsubRef.current === unsub) urgentUnsubRef.current = null;
-          }
-        },
-        err => {
-          logError('home:urgentWatch', err);
-          if (urgentUnsubRef.current === unsub) urgentUnsubRef.current = null;
-        },
-      );
-      urgentUnsubRef.current = unsub;
+      watchUrgentRequest(reqRef.id);
     } catch (_) {}
+    urgentSendingNow.current = false;
     setUrgentSending(false);
   };
 
@@ -4712,16 +4852,17 @@ export default function HomeScreen() {
   // וחוזרים לטופס עם אותם פרטים, לתקן ולשלוח מחדש. מחדש ולא עדכון במקום: נותני
   // השירות קיבלו פוש על הפרטים הישנים, והבקשה המתוקנת צריכה להגיע אליהם כחדשה.
   // בטרנזקציה, כדי לא לבטל בקשה שנלקחה באותו רגע.
-  // A second tap on ✏️ — while the first is still running, or queued before the
-  // card disappears — found the request already cancelled by the first and
-  // announced "a provider already took it" over the reopened form.
-  const urgentEditBusy = useRef(false);
-  const urgentEditedId = useRef<string | null>(null);
   const handleEditUrgent = async () => {
     if (!urgentRequestId || urgentEditBusy.current || urgentEditedId.current === urgentRequestId) return;
     urgentEditBusy.current = true;
     const ref = doc(db, 'urgentRequests', urgentRequestId);
     let sent: any = null;
+    // The address is in the request's private half. Read before the request is
+    // withdrawn: the form holds it only if it is the form that sent it — after
+    // the app was reopened it does not, and ✏️ came back with an empty address.
+    const sentAddress = await getDoc(urgentDetailsRef(urgentRequestId))
+      .then(d => String((d.data() as any)?.address ?? ''))
+      .catch(() => '');
     try {
       await runTransaction(db, async (tx) => {
         const cur = await tx.get(ref);
@@ -4760,7 +4901,10 @@ export default function HomeScreen() {
     if (typeof sent?.serviceType === 'string' && sent.serviceType) setUrgentServiceTypes(sent.serviceType.split(' + ').filter(Boolean));
     if (typeof sent?.paymentMethod === 'string' && sent.paymentMethod) setUrgentPayment(sent.paymentMethod);
     if (Number(sent?.maxPrice) > 0) setUrgentMaxPrice(Number(sent.maxPrice));
+    if (sentAddress) setUrgentAddress(sentAddress);
     setUrgentPhotos(jobPhotosOf(sent?.photos));
+    // Withdrawn and read: the document and its private half go (removeUrgentRequest).
+    void removeUrgentRequest(urgentRequestId);
     setUrgentWaiting(false);
     setUrgentRequestId(null);
     setUrgentFoundName('');
@@ -4768,7 +4912,9 @@ export default function HomeScreen() {
 
   const handleCancelUrgent = async () => {
     if (!urgentRequestId) return;
-    try { await updateDoc(doc(db,'urgentRequests',urgentRequestId), { status: 'cancelled' }); } catch(_) {}
+    const id = urgentRequestId;
+    try { await updateDoc(doc(db,'urgentRequests', id), { status: 'cancelled' }); } catch(_) {}
+    void removeUrgentRequest(id);
     setUrgentWaiting(false);
     setUrgentRequestId(null);
     setUrgentFoundName('');
@@ -5403,8 +5549,11 @@ export default function HomeScreen() {
           const end = new Date(b.bookingDate + 'T' + b.startTime);
           if (isNaN(end.getTime())) return false;
           end.setHours(end.getHours() + (Number(b.hours) || 1));
+          // עבודה שנותן השירות כבר בדרך אליה או באמצעה מקבלת שלוש שעות חסד:
+          // הוא זה שסוגר אותה (ומחשב את התשלום). ראה pastEnd למטה.
+          const grace = (b.status === 'active' || b.status === 'onway') ? 3 * 3600000 : 0;
           // רק הזמנות שהסתיימו לאחרונה (עד 3 ימים) — מונע "מפולת" ביקורות מנתוני בדיקה ישנים
-          return end < nowD && end > new Date(nowD.getTime() - 3 * 86400000);
+          return end.getTime() + grace < nowD.getTime() && end > new Date(nowD.getTime() - 3 * 86400000);
         };
         const pending = bks.filter((b: any) => {
           if (b.cleanerRating) return false;            // כבר דורג
@@ -5450,8 +5599,14 @@ export default function HomeScreen() {
       if (isNaN(end.getTime())) return false;
       end.setHours(end.getHours() + (Number(b.hours) || 1));
       const now = new Date();
+      // A job the provider is on the way to, or in the middle of, gets three
+      // hours' grace. This phone used to mark it done the minute its hours were
+      // up: a provider who started at 10:40 on a 10:00–12:00 job lost the
+      // "finished" button at 12:05 — and with it the bill worked out from when
+      // the work really started, the payment sheet and the next recurring visit.
+      const grace = (b.status === 'active' || b.status === 'onway') ? 3 * 3600000 : 0;
       // רק הזמנות שהסתיימו לאחרונה (עד 3 ימים) — מונע "מפולת" ביקורות מנתוני בדיקה ישנים
-      return end < now && end > new Date(now.getTime() - 3 * 86400000);
+      return end.getTime() + grace < now.getTime() && end > new Date(now.getTime() - 3 * 86400000);
     };
     const unsub = onSnapshot(qDone, async snap => {
       const all = snap.docs.map(d => ({ id: d.id, ...d.data() } as any));
@@ -5743,6 +5898,13 @@ export default function HomeScreen() {
         // connection was reported as the job having been taken, so a cleaner on
         // a weak signal was told to give up on a job that is still open. Only
         // the check inside the transaction knows it was taken.
+        // …and a refusal is that too: once another cleaner holds the job, the
+        // rules no longer let this one read it, so the transaction's own read
+        // is denied before its check can run. That is "taken", not an error.
+        if ((err as any)?.code === 'permission-denied') {
+          Alert.alert('', (t as any).jobTakenMsg ?? 'העבודה כבר נתפסה על ידי נותן שירות אחר');
+          return;
+        }
         logError('home:claimJob', err);
         Alert.alert(t.error, (t as any).jobClaimError ?? 'שגיאה בתפיסת העבודה — נסה שוב');
         return;
@@ -5779,52 +5941,57 @@ export default function HomeScreen() {
         urgentInitedRef.current = true;
         return;
       }
-      // רק בקשות חדשות ממש (שעוד לא הוצגו)
-      const fresh = reqs.filter((r: any) => !shownUrgentRef.current.has(r.id));
+      // רק בקשות חדשות ממש (שעוד לא הוצגו). כולן מסומנות מיד — לא להקפיץ פעמיים —
+      // ונבדקות מהחדשה לישנה: קודם נבדקה רק החדשה ביותר, וכשהיא סוננה (רחוקה,
+      // מחוץ לשעות) האחרות לא הוצגו ולא סומנו, וקפצו רק בעדכון אקראי מאוחר יותר.
+      const fresh = reqs
+        .filter((r: any) => !shownUrgentRef.current.has(r.id))
+        .sort((a: any, b: any) => String(b.createdAt || '').localeCompare(String(a.createdAt || '')));
       if (fresh.length === 0) return;
-      const newest = [...fresh].sort((a: any, b: any) => String(b.createdAt || '').localeCompare(String(a.createdAt || '')))[0];
-      if (!newest) return;
-      shownUrgentRef.current.add(newest.id); // סמן מיד — לא להקפיץ פעמיים
-      // בקשה שהלקוח ערך היא אותה בקשה עם פרטים אחרים: מי שכבר קיבל/ה עליה
-      // התראה רואה את השינוי בלוח, בלי חלון מסך-מלא נוסף.
-      {
-        const me = auth.currentUser?.uid;
-        if (me && Array.isArray(newest.alertedBefore) && newest.alertedBefore.includes(me)) return;
-      }
+      fresh.forEach((r: any) => shownUrgentRef.current.add(r.id));
+      const uid = auth.currentUser?.uid;
+      const me = myUrgentProfileRef.current;
       // אותם סינונים שהפוש עובר, כדי שמנקה שלא עובדת ביום הזה, או רחוקה, או
       // יקרה מהתקרה, לא תקבל חלון מסך-מלא על עבודה שלא נשלחה אליה בפוש.
-      {
-        const me = myUrgentProfileRef.current;
-        const start = hourOfTime(newest.startTime);
-        if (newest.dateStr && Number.isFinite(start)) {
-          if (!urgentStartAllowed(start)) return;
-          const [yy, mo, dd] = String(newest.dateStr).split('-').map(Number);
+      const forMe = (r: any) => {
+        // בקשה שהלקוח ערך היא אותה בקשה עם פרטים אחרים: מי שכבר קיבל/ה עליה
+        // התראה רואה את השינוי בלוח, בלי חלון מסך-מלא נוסף.
+        if (uid && Array.isArray(r.alertedBefore) && r.alertedBefore.includes(uid)) return false;
+        const start = hourOfTime(r.startTime);
+        if (r.dateStr && Number.isFinite(start)) {
+          if (!urgentStartAllowed(start)) return false;
+          const [yy, mo, dd] = String(r.dateStr).split('-').map(Number);
           const day = new Date(yy, (mo || 1) - 1, dd || 1).getDay();
-          if (!worksAt(me.availability, day, start, Number(newest.hours) || 2, me.availabilitySet)) return;
+          if (!worksAt(me.availability, day, start, Number(r.hours) || 2, me.availabilitySet)) return false;
         }
-        if (me.coords && typeof newest.lat === 'number' && typeof newest.lng === 'number'
-            && getDistanceKm(me.coords.lat, me.coords.lng, newest.lat, newest.lng) > me.maxKm) return;
-        const ceiling = Number(newest.maxPrice || 0);
-        if (me.price > 0 && ceiling > 0 && me.price > ceiling) return;
-      }
-      const uid = auth.currentUser?.uid;
-      if (!uid || !newest.dateStr || !newest.startTime) { setUrgentPopupReq(newest); return; }
-      try {
-        const us = new Date(`${newest.dateStr}T${newest.startTime}`);
-        const ue = new Date(us.getTime() + (Number(newest.hours) || 1) * 3600000);
-        const bsnap = await getDocs(query(collection(db, 'bookings'), where('cleanerId', '==', uid), where('bookingDate', '==', newest.dateStr)));
+        if (me.coords && typeof r.lat === 'number' && typeof r.lng === 'number'
+            && getDistanceKm(me.coords.lat, me.coords.lng, r.lat, r.lng) > me.maxKm) return false;
+        const ceiling = Number(r.maxPrice || 0);
+        if (me.price > 0 && ceiling > 0 && me.price > ceiling) return false;
+        return true;
+      };
+      for (const req of fresh.filter(forMe)) {
+        if (!uid || !req.dateStr || !req.startTime) { setUrgentPopupReq(req); return; }
         let skip = false;
-        bsnap.docs.forEach(d => {
-          const b: any = d.data();
-          if (b.urgentRequestId === newest.id) { skip = true; return; } // כבר תפסתי את הבקשה הזו
-          if (['cancelled', 'done'].includes(b.status) || !b.startTime) return;
-          const [bh, bm] = String(b.startTime).split(':').map(Number);
-          const bs = new Date(us); bs.setHours(bh || 0, bm || 0, 0, 0);
-          const be = new Date(bs.getTime() + (Number(b.hours) || 1) * 3600000);
-          if (us < be && ue > bs) skip = true; // תפוס בשעה חופפת
-        });
-        if (!skip) setUrgentPopupReq(newest);
-      } catch (_) { setUrgentPopupReq(newest); }
+        try {
+          const us = new Date(`${req.dateStr}T${req.startTime}`);
+          const ue = new Date(us.getTime() + (Number(req.hours) || 1) * 3600000);
+          const bsnap = await getDocs(query(collection(db, 'bookings'), where('cleanerId', '==', uid), where('bookingDate', '==', req.dateStr)));
+          bsnap.docs.forEach(d => {
+            const b: any = d.data();
+            if (b.urgentRequestId === req.id) { skip = true; return; } // כבר תפסתי את הבקשה הזו
+            // "תפוס" כמו בלוח ובפוש (occupiesCleanerTime): הזמנה ישירה שעוד לא
+            // נענתה, או שפגה, לא מחזיקה את השעה. קודם כל הזמנה שלא בוטלה או
+            // הסתיימה הסתירה את החלון, והבקשה הופיעה בלוח בלי שום התראה.
+            if (!occupiesCleanerTime(b) || !b.startTime) return;
+            const [bh, bm] = String(b.startTime).split(':').map(Number);
+            const bs = new Date(us); bs.setHours(bh || 0, bm || 0, 0, 0);
+            const be = new Date(bs.getTime() + (Number(b.hours) || 1) * 3600000);
+            if (us < be && ue > bs) skip = true; // תפוס בשעה חופפת
+          });
+        } catch (_) { skip = false; }
+        if (!skip) { setUrgentPopupReq(req); return; }
+      }
     }, () => {});
     return () => unsub();
   }, [myRole]);
@@ -7216,12 +7383,12 @@ export default function HomeScreen() {
       )}
 
       {/* ── מודל ניקוי דחוף ── */}
-      <Modal visible={urgentOpen} animationType="slide" presentationStyle="pageSheet" onRequestClose={() => setUrgentOpen(false)}>
+      <Modal visible={urgentOpen} animationType="slide" presentationStyle="pageSheet" onRequestClose={closeUrgentSheet}>
         <SafeAreaView style={{ flex: 1, backgroundColor: C.bluePale }}>
           {/* Header */}
           <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: '#7C3AED', padding: 16 }}>
             {!urgentWaiting && !urgentFoundName ? (
-              <TouchableOpacity onPress={() => setUrgentOpen(false)} style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: 'rgba(255,255,255,0.25)', alignItems: 'center', justifyContent: 'center' }}>
+              <TouchableOpacity onPress={closeUrgentSheet} style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: 'rgba(255,255,255,0.25)', alignItems: 'center', justifyContent: 'center' }}>
                 <T style={{ color: C.white, fontSize: 18, fontWeight: '700' }}>✕</T>
               </TouchableOpacity>
             ) : <View style={{ width: 36 }} />}
@@ -7240,16 +7407,9 @@ export default function HomeScreen() {
                 {/* What became of the alert: how many phones rang, or why none did. */}
                 {(() => {
                   const info = urgentAlertInfo && urgentAlertInfo.id === urgentRequestId ? urgentAlertInfo : null;
-                  const outcome = info ? urgentAlertOutcome(info.asked, info.sent, info.before) : null;
+                  const outcome = info ? urgentAlertOutcome(info.asked, info.sent, info.before, info.skipped) : null;
                   if (!info || !outcome) return null;
-                  const tt = t as any;
-                  const text = outcome === 'sent'
-                    ? String(tt.urgentAlertSent ?? '🔔 התראה נשלחה לנותני שירות: {n}').replace('{n}', String(info.sent))
-                    : outcome === 'edited'
-                      ? (tt.urgentAlertEdited ?? 'הבקשה עודכנה. מי שכבר קיבל התראה רואה את השינוי, בלי התראה נוספת.')
-                      : outcome === 'off-hours'
-                        ? (tt.urgentAlertOffHours ?? 'נותני השירות באזור לא עובדים בשעות האלה, ולכן לא נשלחה התראה לטלפון. הבקשה מופיעה אצלם בלוח.')
-                        : (tt.urgentAlertFailed ?? 'לא הצלחנו לשלוח התראה לטלפונים של נותני השירות. הבקשה מופיעה אצלם בלוח.');
+                  const text = urgentAlertText(outcome, info.sent);
                   const good = outcome === 'sent' || outcome === 'edited';
                   return (
                     <T style={{ fontSize: 13, fontWeight: '700', lineHeight: 19, textAlign: 'center', color: good ? '#065F46' : '#B45309' }}>{text}</T>
@@ -7427,7 +7587,7 @@ export default function HomeScreen() {
                 {/* סה"כ */}
                 <View style={{ backgroundColor: '#EDE9FE', borderRadius: 12, padding: 12, flexDirection: 'row-reverse', justifyContent: 'space-between', alignItems: 'center' }}>
                   <T style={{ fontSize: 14, color: '#5B21B6' }}>{t.estimatedTotal}</T>
-                  <T style={{ fontSize: 20, fontWeight: '900', color: '#7C3AED' }}>₪{urgentHours * 80}</T>
+                  <T style={{ fontSize: 20, fontWeight: '900', color: '#7C3AED' }}>₪{urgentHours * urgentMaxPrice}</T>
                 </View>
 
                 {/* כפתור שליחה — חסום עד שכל השדות מלאים */}
