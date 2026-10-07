@@ -14,7 +14,8 @@ import {
   doc, getDoc, setDoc, updateDoc, addDoc, deleteDoc, deleteField,
   collection, query, where, getDocs, orderBy, arrayRemove, arrayUnion, onSnapshot, runTransaction, writeBatch,
 } from 'firebase/firestore';
-import { pushTokenRef, pushTokenDoc } from '../lib/pushTokenStore';
+import { pushTokenRef } from '../lib/pushTokenStore';
+import { turnPushOn, pushPermission } from '../lib/pushSwitch';
 import { auth, db } from '../lib/firebase';
 import {
   getSavedAddresses, upsertAddress, setPrimaryAddress, deleteAddressById,
@@ -49,8 +50,6 @@ import { Lang } from '../lib/translations';
 import AccessibilityModal from '../lib/AccessibilityModal';
 import { MaterialIcons } from '@expo/vector-icons';
 import { TAB_BAR_CONTENT_HEIGHT } from '../lib/BottomTabBar';
-import * as Notifications from 'expo-notifications';
-import Constants from 'expo-constants';
 import { addBookingToCalendar, removeBookingFromCalendar, calendarSyncMessage } from '../lib/calendarSync';
 import { logError } from '../lib/logError';
 import { notify } from '../lib/notify';
@@ -1156,7 +1155,11 @@ export default function ProfileScreen() {
           setUserRole(d.role        || '');
           // כיבוי מפורש גובר על קיום הטוקן: pushOptOut הוא מה ש-registerPushToken
           // מכבד, אז זה מה שהכפתור חייב להציג.
-          setHasPushToken(d.pushOptOut === true ? false : !!d.pushToken);
+          // …וגם לא "מופעל" כשההרשאה חסומה במכשיר: המסך הראשי כבר מזהיר שההתראות
+          // כבויות, והכרטיס כאן הציג "✅ מופעל" עם כפתור כיבוי בלבד.
+          const stored = d.pushOptOut === true ? false : !!d.pushToken;
+          if (stored) pushPermission().then(ok => setHasPushToken(ok !== false)).catch(() => setHasPushToken(true));
+          else setHasPushToken(false);
           // Legacy documents still carry the photo inline; current ones keep it
           // in `userPhotos/{uid}`, so fall through to a fetch when there's
           // nothing inline. Without the fallback the profile screen shows an
@@ -2371,87 +2374,65 @@ export default function ProfileScreen() {
   };
 
   const handleTogglePush = async () => {
-    if (!uid) { Alert.alert('שגיאה', 'לא מחובר'); return; }
+    if (!uid) { Alert.alert(t.error, 'לא מחובר'); return; }
+    const tt = t as any;
+    if (hasPushToken) {
+      // ── כיבוי — רק אחרי שאלה ──────────────────────────────────────────────
+      // לחיצה אחת על הכפתור האדום כיבתה את ההתראות, בלי שאלה ובלי שום סימן
+      // אחר כך: השרת מדלג על חשבון כבוי, אז עבודות דחופות המשיכו לקפוץ בתוך
+      // האפליקציה — והטלפון לא צלצל ברגע שהיא נסגרה. שואלים, ואומרים מה המחיר.
+      Alert.alert(
+        tt.pushOffConfirmTitle ?? '🔕 לכבות התראות פוש?',
+        (userRole === 'cleaner' ? tt.pushOffConfirmCleaner : tt.pushOffConfirmClient)
+          ?? 'בלי התראות הטלפון לא יצלצל כשהאפליקציה סגורה.',
+        [
+          { text: t.cancel, style: 'cancel' },
+          { text: tt.pushOffConfirmBtn ?? 'כן, לכבות', style: 'destructive', onPress: () => { void switchPushOff(); } },
+        ],
+      );
+      return;
+    }
+    // ── הפעלה — lib/pushSwitch, משותף עם האזהרה במסך הראשי ───────────────────
     setPushToggleLoading(true);
     try {
-      if (hasPushToken) {
-        // ── כיבוי ─────────────────────────────────────────────────────────────
-        // pushOptOut ולא רק מחיקת הטוקן: הכיבוי נגע רק ב-Firestore, בעוד
-        // registerPushToken בודק את הרשאת ה-OS — שעדיין granted — ומושך טוקן
-        // חדש וכותב אותו בחזרה בכל עלייה של האפליקציה ובכל שינוי אימות.
-        // ההתראות חזרו, והכפתור המשיך להציג "כבוי". לא הייתה שום דרך לכבות
-        // התראות מתוך האפליקציה.
-        await updateDoc(doc(db, 'users', uid), { pushToken: '', pushOptOut: true });
-        // והעותק הפרטי — שרת ההתראות קורא ממנו. ראה lib/pushTokenStore.
-        await deleteDoc(pushTokenRef(uid)).catch(err => logError('profile:pushTokenDelete', err));
-        setHasPushToken(false);
+      const res = await turnPushOn(uid);
+      if (res === 'on') {
+        setHasPushToken(true);
+      } else if (res === 'denied') {
+        Alert.alert(
+          t.notifSectionTitle,
+          tt.pushBlockedMsg ?? 'יש לאפשר התראות בהגדרות המכשיר.',
+          [
+            { text: t.cancel, style: 'cancel' },
+            { text: tt.openSettingsBtn ?? 'פתח הגדרות', onPress: () => { Linking.openSettings().catch(() => {}); } },
+          ],
+        );
+      } else if (res === 'expo-go') {
+        Alert.alert('⚠️ גרסת פיתוח', 'Push Notifications אינם זמינים ב-Expo Go.\nהם יפעלו לאחר בניית ה-APK הסופי.');
       } else {
-        // ── הפעלה ─────────────────────────────────────────────────────────────
-        // 1. בדוק/בקש הרשאה
-        let finalStatus = 'undetermined';
-        try {
-          const { status: existing } = await Notifications.getPermissionsAsync();
-          finalStatus = existing;
-          if (existing !== 'granted') {
-            const { status } = await Notifications.requestPermissionsAsync();
-            finalStatus = status;
-          }
-        } catch (_) { finalStatus = 'denied'; }
-
-        if (finalStatus !== 'granted') {
-          Alert.alert(
-            '🔔 הפעלת התראות',
-            'יש לאפשר התראות בהגדרות המכשיר.',
-            [
-              { text: 'ביטול', style: 'cancel' },
-              { text: 'פתח הגדרות', onPress: () => {
-                try { Linking.openSettings(); } catch (_) {}
-              }},
-            ]
-          );
-          setPushToggleLoading(false);
-          return;
-        }
-
-        // 2. קבל טוקן
-        let token = '';
-        try {
-          const projectId =
-            Constants.expoConfig?.extra?.eas?.projectId ??
-            (Constants as any).easConfig?.projectId ??
-            Constants.expoConfig?.slug ?? '';
-          // Android Expo Go has no remote push since SDK 53 and throws; iOS
-          // Expo Go still has it. This skipped Expo Go on both, so on an
-          // iPhone the button never asked and always said "no token".
-          if (Constants.appOwnership === 'expo' && Platform.OS === 'android') {
-            throw new Error('expo-go-android');
-          }
-          if (projectId) {
-            const td = await Notifications.getExpoPushTokenAsync({ projectId });
-            token = td?.data ?? '';
-          }
-        } catch (_) {
-          // Expo Go — לא ניתן לקבל טוקן
-          Alert.alert(
-            '⚠️ גרסת פיתוח',
-            'Push Notifications אינם זמינים ב-Expo Go.\nהם יפעלו לאחר בניית ה-APK הסופי.',
-          );
-          setPushToggleLoading(false);
-          return;
-        }
-
-        if (token) {
-          // pushOptOut נמחק כאן, אחרת registerPushToken ימשיך לצאת מוקדם
-          // והטוקן שנכתב עכשיו לא יתחדש אף פעם.
-          await updateDoc(doc(db, 'users', uid), { pushToken: token, pushOptOut: false });
-          await setDoc(pushTokenRef(uid), pushTokenDoc(token)).catch(err => logError('profile:pushTokenWrite', err));
-          setHasPushToken(true);
-        } else {
-          Alert.alert('שגיאה', 'לא ניתן לקבל טוקן להתראות.');
-        }
+        Alert.alert(t.error, tt.pushNoTokenMsg ?? 'לא ניתן לקבל טוקן להתראות.');
       }
     } catch (e: any) {
-      Alert.alert('שגיאה', e?.message || 'פעולה נכשלה');
+      Alert.alert(t.error, e?.message || 'פעולה נכשלה');
+    }
+    setPushToggleLoading(false);
+  };
+
+  const switchPushOff = async () => {
+    if (!uid) return;
+    setPushToggleLoading(true);
+    try {
+      // pushOptOut ולא רק מחיקת הטוקן: הכיבוי נגע רק ב-Firestore, בעוד
+      // registerPushToken בודק את הרשאת ה-OS — שעדיין granted — ומושך טוקן
+      // חדש וכותב אותו בחזרה בכל עלייה של האפליקציה ובכל שינוי אימות.
+      // ההתראות חזרו, והכפתור המשיך להציג "כבוי". לא הייתה שום דרך לכבות
+      // התראות מתוך האפליקציה.
+      await updateDoc(doc(db, 'users', uid), { pushToken: '', pushOptOut: true });
+      // והעותק הפרטי — שרת ההתראות קורא ממנו. ראה lib/pushTokenStore.
+      await deleteDoc(pushTokenRef(uid)).catch(err => logError('profile:pushTokenDelete', err));
+      setHasPushToken(false);
+    } catch (e: any) {
+      Alert.alert(t.error, e?.message || 'פעולה נכשלה');
     }
     setPushToggleLoading(false);
   };

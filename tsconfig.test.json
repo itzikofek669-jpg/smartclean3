@@ -24,6 +24,7 @@
     "lib/cleanerTraits.ts",
     "lib/cityNames.ts",
     "lib/jobSearch.ts",
-    "lib/search.ts"
+    "lib/search.ts",
+    "lib/pushState.ts"
   ]
 }

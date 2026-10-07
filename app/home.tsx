@@ -1,12 +1,14 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { signOutOfDevice } from '../lib/signOutDevice';
+import { pushSilence } from '../lib/pushState';
+import { turnPushOn, pushPermission } from '../lib/pushSwitch';
 import * as NavigationBar from 'expo-navigation-bar';
 import { useSafeAreaInsets , SafeAreaView as SafeAreaViewCtx } from 'react-native-safe-area-context';
 import {
   View, Text, StyleSheet, FlatList, TouchableOpacity,
   TextInput, ScrollView, Modal, SafeAreaView, StatusBar,
   Alert, Dimensions, Animated, Platform, Linking, Switch,
-  KeyboardAvoidingView, ActivityIndicator, BackHandler, Keyboard,
+  KeyboardAvoidingView, ActivityIndicator, BackHandler, Keyboard, AppState,
 } from 'react-native';
 import { useAnimatedValue, useAnimatedValues } from '../lib/useAnimatedValue';
 import { useNow } from '../lib/useNow';
@@ -4191,6 +4193,16 @@ export default function HomeScreen() {
   const myUrgentProfileRef = useRef<{ availability: unknown; availabilitySet: boolean; coords: { lat: number; lng: number } | null; maxKm: number; price: number }>(
     { availability: undefined, availabilitySet: false, coords: null, maxKm: 30, price: 0 },
   );
+  // למה הטלפון של נותן/ת השירות לא יצלצל, אם לא (lib/pushState): כיבוי בפרופיל
+  // מגיע מהמסמך שלה, וההרשאה — מהמערכת, בכל חזרה לאפליקציה.
+  const [pushOptedOut, setPushOptedOut] = useState(false);
+  const [pushPermitted, setPushPermitted] = useState<boolean | null>(null);
+  const [pushUnregistered, setPushUnregistered] = useState(false);   // הרישום כאן נכשל — אין טוקן
+  const [pushTurningOn, setPushTurningOn] = useState(false);
+  // אותם ערכים למאזינים שמוקמים פעם אחת, ונעילה לרישום אחד בכל רגע.
+  const pushOptedOutRef = useRef(false);
+  const pushPermittedRef = useRef<boolean | null>(null);
+  const pushBusy = useRef(false);
   const [newBookingFlash, setNewBookingFlash] = useState(false);
   const [newBookingId, setNewBookingId] = useState('');   // מזהה ההזמנה הממתינה — לניווט ישיר לאישור
   const [newBookingModal, setNewBookingModal] = useState<any>(null);   // פופ הזמנה חדשה מפורט (סוג/תשלום/סכום/צ'אט)
@@ -5398,6 +5410,9 @@ export default function HomeScreen() {
         // אלה נקראים בכל עדכון ולא רק בהקמה: עריכת המרחק או הכתובת בפרופיל
         // צריכה להשתקף בלוח העבודות מיד, בלי לצאת ולהיכנס למסך.
         if (role === 'cleaner') {
+          pushOptedOutRef.current = data.pushOptOut === true;
+          setPushOptedOut(data.pushOptOut === true);
+          if (data.pushToken) setPushUnregistered(false);   // יש טוקן — הטלפון רשום
           setMyMaxKm(Number(data.maxDistance) > 0 ? Number(data.maxDistance) : 30);
           let coords: { lat: number; lng: number } | null = null;
           try { coords = getCoordsForCleaner(data); setMyCleanerCoords(coords); } catch (_) {}
@@ -5922,6 +5937,76 @@ export default function HomeScreen() {
       Alert.alert(t.error, (t as any).jobClaimError ?? 'שגיאה בתפיסת העבודה — נסה שוב');
     } finally {
       claimingRef.current = false;
+    }
+  };
+
+  // ── נותן/ת שירות שהטלפון שלו/ה לא יצלצל ───────────────────────────────────
+  // כיבוי בפרופיל מגיע עם המסמך (למעלה); ההרשאה במערכת נבדקת כאן, ושוב בכל
+  // חזרה לאפליקציה — משם חוזרים אחרי ששינו אותה בהגדרות הטלפון, וגם אחרי
+  // שענו לשאלת ההרשאה הראשונה.
+  useEffect(() => {
+    if (myRole !== 'cleaner') return;
+    let live = true;
+    const check = () => {
+      pushPermission().then(ok => {
+        if (!live) return;
+        const was = pushPermittedRef.current;
+        pushPermittedRef.current = ok;
+        setPushPermitted(ok);
+        // ההרשאה חזרה (אושרה בהגדרות הטלפון, או בשאלה של המערכת): רושמים את
+        // הטלפון עכשיו. בלי זה האזהרה נעלמה והטלפון נשאר בלי טוקן — הרישום
+        // השקט ב-_layout רץ לכל היותר פעם בעשר דקות. לא למי שכיבה בעצמו/ה:
+        // הרישום מוחק את הכיבוי, וזו החלטה שלו/ה.
+        const uid = auth.currentUser?.uid;
+        if (was === false && ok === true && uid && !pushOptedOutRef.current && !pushBusy.current) {
+          pushBusy.current = true;
+          turnPushOn(uid)
+            .then(res => { if (live) setPushUnregistered(res !== 'on'); })
+            .catch(err => { logError('home:pushReturn', err); if (live) setPushUnregistered(true); })
+            .then(() => { pushBusy.current = false; });
+        }
+      }).catch(() => {});
+    };
+    check();
+    const sub = AppState.addEventListener('change', state => { if (state === 'active') check(); });
+    return () => { live = false; sub.remove(); };
+  }, [myRole]);
+
+  const handleTurnPushOn = async () => {
+    const uid = auth.currentUser?.uid;
+    if (!uid || pushBusy.current) return;
+    const tt = t as any;
+    pushBusy.current = true;
+    setPushTurningOn(true);
+    let res: Awaited<ReturnType<typeof turnPushOn>> | 'error' = 'error';
+    try { res = await turnPushOn(uid); } catch (err) { logError('home:pushOn', err); }
+    pushBusy.current = false;
+    setPushTurningOn(false);
+    if (res === 'on') {
+      pushOptedOutRef.current = false;
+      pushPermittedRef.current = true;
+      setPushOptedOut(false);
+      setPushPermitted(true);
+      setPushUnregistered(false);
+    } else if (res === 'denied') {
+      pushPermittedRef.current = false;
+      setPushPermitted(false);
+      Alert.alert(
+        t.notifSectionTitle,
+        tt.pushBlockedMsg ?? 'יש לאפשר התראות בהגדרות המכשיר.',
+        [
+          { text: t.cancel, style: 'cancel' },
+          { text: tt.openSettingsBtn ?? 'פתח הגדרות', onPress: () => { Linking.openSettings().catch(() => {}); } },
+        ],
+      );
+    } else if (res === 'expo-go') {
+      Alert.alert('⚠️ גרסת פיתוח', 'Push Notifications אינם זמינים ב-Expo Go.\nהם יפעלו לאחר בניית ה-APK הסופי.');
+    } else {
+      // ההרשאה קיימת (אחרת התשובה הייתה 'denied'), ורק הרישום נכשל: האזהרה
+      // נשארת, כדי שיהיה על מה להקיש שוב.
+      if (res === 'no-token') { pushPermittedRef.current = true; setPushPermitted(true); }
+      setPushUnregistered(true);
+      Alert.alert(t.error, tt.pushNoTokenMsg ?? 'לא ניתן לקבל טוקן להתראות.');
     }
   };
 
@@ -6502,6 +6587,27 @@ export default function HomeScreen() {
                 <T style={{ color: 'rgba(255,255,255,0.85)', fontSize: 12 }}>{t.tapToViewAndApprove}</T>
               </View>
               <T style={{ fontSize: 20 }}>←</T>
+            </TouchableOpacity>
+          )}
+
+          {/* נותן/ת שירות שההתראות אצלו/ה כבויות (lib/pushState). בלי זה לא היה
+              שום סימן: עבודות דחופות המשיכו לקפוץ כשהאפליקציה פתוחה, והטלפון
+              שתק ברגע שנסגרה. הקשה מפעילה מכאן, בלי לחפש את הכפתור בפרופיל. */}
+          {myRole === 'cleaner' && pushSilence(pushOptedOut, pushPermitted, pushUnregistered) && (
+            <TouchableOpacity
+              style={{ backgroundColor: '#DC2626', borderRadius: 14, padding: 14, marginBottom: 8, flexDirection: 'row', alignItems: 'center', gap: 10, opacity: pushTurningOn ? 0.7 : 1 }}
+              onPress={handleTurnPushOn}
+              disabled={pushTurningOn}
+              activeOpacity={0.88}
+            >
+              <T style={{ fontSize: 28 }}>🔕</T>
+              <View style={{ flex: 1 }}>
+                <T style={{ color: '#fff', fontSize: 15, fontWeight: '900' }}>{(t as any).pushOffBannerTitle ?? 'ההתראות אצלך כבויות'}</T>
+                <T style={{ color: 'rgba(255,255,255,0.9)', fontSize: 12 }}>{(t as any).pushOffBannerSub ?? 'עבודות דחופות והזמנות חדשות לא יצלצלו כשהאפליקציה סגורה. הקש/י כדי להפעיל.'}</T>
+              </View>
+              {pushTurningOn
+                ? <ActivityIndicator size="small" color="#fff" />
+                : <T style={{ fontSize: 20, color: '#fff' }}>←</T>}
             </TouchableOpacity>
           )}
 

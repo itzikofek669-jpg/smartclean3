@@ -14,6 +14,7 @@ import { readCalendarRemoval, extractPushData } from '../.tsbuild/calendarPush.m
 import { isUrgentRequestLive, isUrgentRequestExpired, expiryOf, URGENT_FIRST_START_HOUR, URGENT_LAST_START_HOUR, hourOfTime, urgentStartAllowed, urgentTodayClosed, urgentFirstSlot, urgentEditContext, urgentPushPlan, urgentAlertedAfter, liveUrgentEdit, URGENT_EDIT_WINDOW_MS, urgentAlertOutcome } from '../.tsbuild/urgentRequest.mjs';
 import { splitFields, reconcile, pendingMove, publicCoord, privateKeysFor } from '../.tsbuild/profileFields.mjs';
 import { spreadStacked } from '../.tsbuild/jobUtils.mjs';
+import { pushSilence } from '../.tsbuild/pushState.mjs';
 import { matchJob, jobOnBoard, jobCityOf, nearestCity, filterBoard } from '../.tsbuild/jobSearch.mjs';
 import { normText, resolvePlace, textMatches, servesPlace, searchCleaners } from '../.tsbuild/search.mjs';
 import { CITY_NAMES, cityNamesFor } from '../.tsbuild/cityNames.mjs';
@@ -1465,4 +1466,40 @@ test('a job that is over, or that nobody took before its time came, does not hol
   for (const st of ['done', 'cancelled', 'expired', 'handled']) assert.equal(bookingHoldsHours(at('12:00', st), now), false);
   // A pending booking whose time cannot be read is not assumed gone.
   assert.equal(bookingHoldsHours({ bookingDate: '2026-10-06', startTime: '', status: 'pending' }, now), true);
+});
+
+test('alerts are not switched off by one tap, and a provider is told while they are off', () => {
+  // The bug: one tap on the profile's red button wrote pushOptOut. The
+  // notification server skips such an account, so urgent jobs still popped up
+  // while the app was open and no phone rang once it was closed — with nothing
+  // on any screen to say why. The owner's own test accounts sat like that.
+  assert.equal(pushSilence(true, true), 'opted-out');
+  assert.equal(pushSilence(true, null), 'opted-out');
+  assert.equal(pushSilence(false, false), 'blocked');          // refused in the phone's settings
+  assert.equal(pushSilence(undefined, false), 'blocked');
+  // The system has not answered yet: that is not a warning.
+  assert.equal(pushSilence(undefined, null), null);
+  assert.equal(pushSilence(false, true), null);
+  // Only the flag itself switches alerts off, as the server reads it.
+  assert.equal(pushSilence('true', true), null);
+  // Allowed, but registering this phone just failed: still silent, still said.
+  assert.equal(pushSilence(false, true, true), 'unregistered');
+  assert.equal(pushSilence(true, true, true), 'opted-out');
+  assert.equal(pushSilence(false, false, true), 'blocked');
+
+  const read = (f) => readFileSync(new URL(`../${f}`, import.meta.url), 'utf8');
+  const profile = read('app/profile.tsx');
+  const tap = profile.slice(profile.indexOf('const handleTogglePush'), profile.indexOf('const switchPushOff'));
+  // The switch-off happens in one place only: behind the question's own button.
+  assert.match(tap, /style: 'destructive', onPress: \(\) => \{ void switchPushOff\(\); \}/, 'switching off asks first');
+  assert.equal(tap.split('switchPushOff(').length - 1, 1, 'nothing else on the tap switches off');
+  assert.ok(!tap.includes('pushOptOut: true'), 'the tap itself does not write the opt-out');
+  // …and nowhere else in the app writes the opt-out at all.
+  const sources = execFileSync('git', ['ls-files', '--cached', '--others', '--exclude-standard', 'app', 'lib'], { encoding: 'utf8' })
+    .split('\n').filter((f) => /\.tsx?$/.test(f));
+  const writers = sources.filter((f) => /pushOptOut:\s*true/.test(read(f).replace(/^\s*(\/\/|\*).*$/gm, '')));
+  assert.deepEqual(writers, ['app/profile.tsx']);
+  const home = read('app/home.tsx');
+  assert.ok(home.includes('setPushOptedOut(data.pushOptOut === true);'), 'the home screen reads the switch off the profile');
+  assert.match(home, /\{myRole === 'cleaner' && pushSilence\(pushOptedOut, pushPermitted, pushUnregistered\) && \(/, 'and warns the provider while alerts are off');
 });
