@@ -172,7 +172,28 @@ export function rejectionUpdate(b: ClaimableBooking, now: Date = new Date()) {
     status: 'cancelled',
     cancelledBy: 'cleaner',
     cancelledAt: now.toISOString(),
+    // What it was when she called it off. `pending` means she never said yes:
+    // a rejection, and the client is told that — not that a cleaning they had
+    // was cancelled (declinedByCleaner).
+    cancelledFrom: String(b?.status ?? ''),
   };
+}
+
+/**
+ * Did the cleaner turn this booking down without ever approving it?
+ *
+ * Both end as `cancelled` by the cleaner, and the client was told the same
+ * thing for both: "your booking was cancelled". For a request nobody had
+ * agreed to that is the wrong word — nothing was cancelled, it was declined.
+ *
+ * Only what the cancelling write recorded counts. A booking called off by a
+ * build older than `cancelledFrom` has no such record, and reads as cancelled,
+ * as it always did.
+ */
+export function declinedByCleaner(
+  b: { status?: string; cancelledBy?: string; cancelledFrom?: string } | null | undefined,
+): boolean {
+  return b?.status === 'cancelled' && b?.cancelledBy === 'cleaner' && b?.cancelledFrom === 'pending';
 }
 
 /**

@@ -56,7 +56,7 @@ import {
 import { compareCleaners, compareJobs, isAvailableNow, rotationRank } from '../lib/displayOrder';
 import { isUrgentRequestLive, URGENT_FIRST_START_HOUR, URGENT_LAST_START_HOUR, urgentStartAllowed, urgentTodayClosed, urgentFirstSlot, hourOfTime, urgentEditContext, urgentPushPlan, urgentAlertedAfter, liveUrgentEdit, urgentAlertOutcome, expiryOf, slotOf, urgentBackOut, UrgentEditContext } from '../lib/urgentRequest';
 import { sameDayOverlap, bookingHoldsHours } from '../lib/bookingSlot';
-import { claimUpdate, occupiesCleanerTime, pendingSlotMissed, pendingSlotExpired, expiryUpdate, rejectionUpdate, isBoardJobOfferable, busySlotOf } from '../lib/bookingActions';
+import { claimUpdate, occupiesCleanerTime, pendingSlotMissed, pendingSlotExpired, expiryUpdate, rejectionUpdate, isBoardJobOfferable, busySlotOf, declinedByCleaner } from '../lib/bookingActions';
 import { resolveRole } from '../lib/resolveRole';
 import { MAP_STYLE_LIGHT, MAP_STYLE_DARK } from '../lib/mapStyle';
 import { useTheme } from '../lib/ThemeContext';
@@ -5011,6 +5011,14 @@ export default function HomeScreen() {
     const out = cancelledRequest && cancelledRequest.key === cancelledKey ? cancelledRequest.out : undefined;
     const notice = cancelledNotice(cancelledPopup, out);
     if (notice === 'repost') return tt.bookingCancelledPopupSub ?? 'נותן השירות ביטל את ההזמנה. אפשר לפרסם אותה מחדש ונותני שירות אחרים באזור יוכלו לקחת אותה.';
+    // Turned down before it was ever approved: "declined", not "cancelled"
+    // (lib/bookingActions declinedByCleaner). A board job is never here — a
+    // pending one goes back to the board instead of ending.
+    if (declinedByCleaner(cancelledPopup)) {
+      if (notice === 'reposted') return tt.bookingRejectedPopupReposted ?? 'נותן השירות דחה את ההזמנה. היא פורסמה מחדש, ונותני שירות אחרים באזור יוכלו לקחת אותה.';
+      if (notice === 'plain') return tt.bookingRejectedPopupPlain ?? 'נותן השירות דחה את ההזמנה. אפשר להזמין נותן שירות אחר.';
+      return tt.bookingRejectedPopupBase ?? 'נותן השירות דחה את ההזמנה.';
+    }
     if (notice === 'reposted') return tt.bookingCancelledPopupReposted ?? 'נותן השירות ביטל את ההזמנה. היא פורסמה מחדש, ונותני שירות אחרים באזור יוכלו לקחת אותה.';
     if (notice === 'plain') return tt.bookingCancelledPopupPlain ?? 'נותן השירות ביטל את ההזמנה. אפשר להזמין נותן שירות אחר.';
     return tt.bookingCancelledPopupBase ?? 'נותן השירות ביטל את ההזמנה.';
@@ -5458,10 +5466,12 @@ export default function HomeScreen() {
 
         // אלה נקראים בכל עדכון ולא רק בהקמה: עריכת המרחק או הכתובת בפרופיל
         // צריכה להשתקף בלוח העבודות מיד, בלי לצאת ולהיכנס למסך.
+        // לשני התפקידים: גם לקוח שההתראות אצלו כבויות לא שומע על אישור, ביטול
+        // או הודעה — והבאנר היה רק לנותני שירות.
+        pushOptedOutRef.current = data.pushOptOut === true;
+        setPushOptedOut(data.pushOptOut === true);
+        if (data.pushToken) setPushUnregistered(false);   // יש טוקן — הטלפון רשום
         if (role === 'cleaner') {
-          pushOptedOutRef.current = data.pushOptOut === true;
-          setPushOptedOut(data.pushOptOut === true);
-          if (data.pushToken) setPushUnregistered(false);   // יש טוקן — הטלפון רשום
           setMyMaxKm(Number(data.maxDistance) > 0 ? Number(data.maxDistance) : 30);
           let coords: { lat: number; lng: number } | null = null;
           try { coords = getCoordsForCleaner(data); setMyCleanerCoords(coords); } catch (_) {}
@@ -5989,12 +5999,12 @@ export default function HomeScreen() {
     }
   };
 
-  // ── נותן/ת שירות שהטלפון שלו/ה לא יצלצל ───────────────────────────────────
+  // ── מי שהטלפון שלו/ה לא יצלצל — נותן/ת שירות או לקוח/ה ──────────────────────
   // כיבוי בפרופיל מגיע עם המסמך (למעלה); ההרשאה במערכת נבדקת כאן, ושוב בכל
   // חזרה לאפליקציה — משם חוזרים אחרי ששינו אותה בהגדרות הטלפון, וגם אחרי
   // שענו לשאלת ההרשאה הראשונה.
   useEffect(() => {
-    if (myRole !== 'cleaner') return;
+    if (!myRole) return;
     let live = true;
     const check = () => {
       pushPermission().then(ok => {
@@ -6639,10 +6649,11 @@ export default function HomeScreen() {
             </TouchableOpacity>
           )}
 
-          {/* נותן/ת שירות שההתראות אצלו/ה כבויות (lib/pushState). בלי זה לא היה
-              שום סימן: עבודות דחופות המשיכו לקפוץ כשהאפליקציה פתוחה, והטלפון
-              שתק ברגע שנסגרה. הקשה מפעילה מכאן, בלי לחפש את הכפתור בפרופיל. */}
-          {myRole === 'cleaner' && pushSilence(pushOptedOut, pushPermitted, pushUnregistered) && (
+          {/* מי שההתראות אצלו/ה כבויות (lib/pushState). בלי זה לא היה שום סימן:
+              עבודות דחופות המשיכו לקפוץ כשהאפליקציה פתוחה, והטלפון שתק ברגע
+              שנסגרה. הקשה מפעילה מכאן, בלי לחפש את הכפתור בפרופיל. גם ללקוח:
+              בלי התראות הוא לא שומע שנותן השירות אישר, ביטל או כתב לו. */}
+          {!!myRole && pushSilence(pushOptedOut, pushPermitted, pushUnregistered) && (
             <TouchableOpacity
               style={{ backgroundColor: '#DC2626', borderRadius: 14, padding: 14, marginBottom: 8, flexDirection: 'row', alignItems: 'center', gap: 10, opacity: pushTurningOn ? 0.7 : 1 }}
               onPress={handleTurnPushOn}
@@ -6652,7 +6663,11 @@ export default function HomeScreen() {
               <T style={{ fontSize: 28 }}>🔕</T>
               <View style={{ flex: 1 }}>
                 <T style={{ color: '#fff', fontSize: 15, fontWeight: '900' }}>{(t as any).pushOffBannerTitle ?? 'ההתראות אצלך כבויות'}</T>
-                <T style={{ color: 'rgba(255,255,255,0.9)', fontSize: 12 }}>{(t as any).pushOffBannerSub ?? 'עבודות דחופות והזמנות חדשות לא יצלצלו כשהאפליקציה סגורה. הקש/י כדי להפעיל.'}</T>
+                <T style={{ color: 'rgba(255,255,255,0.9)', fontSize: 12 }}>
+                  {myRole === 'cleaner'
+                    ? ((t as any).pushOffBannerSub ?? 'עבודות דחופות והזמנות חדשות לא יצלצלו כשהאפליקציה סגורה. הקש/י כדי להפעיל.')
+                    : ((t as any).pushOffBannerSubClient ?? 'לא תקבל/י הודעה כשנותן שירות מאשר, מבטל או כותב לך כשהאפליקציה סגורה. הקש/י כדי להפעיל.')}
+                </T>
               </View>
               {pushTurningOn
                 ? <ActivityIndicator size="small" color="#fff" />
@@ -7439,7 +7454,9 @@ export default function HomeScreen() {
               <Text style={{ fontSize: 40 }}>❌</Text>
             </View>
             <Text style={{ fontSize: 22, fontWeight: '900', color: '#991B1B', textAlign: 'center' }}>
-              {(t as any).bookingCancelledPopupTitle ?? 'ההזמנה בוטלה'}
+              {declinedByCleaner(cancelledPopup)
+                ? ((t as any).bookingRejectedPopupTitle ?? 'ההזמנה נדחתה')
+                : ((t as any).bookingCancelledPopupTitle ?? 'ההזמנה בוטלה')}
             </Text>
             <Text style={{ fontSize: 14, color: '#6B7280', textAlign: 'center', lineHeight: 22 }}>
               {cancelledSub}

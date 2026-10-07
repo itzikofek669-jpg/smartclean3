@@ -20,7 +20,7 @@ import { matchJob, jobOnBoard, jobCityOf, nearestCity, filterBoard } from '../.t
 import { normText, resolvePlace, textMatches, servesPlace, searchCleaners } from '../.tsbuild/search.mjs';
 import { CITY_NAMES, cityNamesFor } from '../.tsbuild/cityNames.mjs';
 import { workingHoursVerdict, workDaysFromAvailability, normalizeAvailability, worksAt, bookableStarts, busyWindowsOn } from '../.tsbuild/cleanerTraits.mjs';
-import { claimUpdate, rejectionUpdate, rejectionReleasesToBoard, awaitsMyApproval, occupiesCleanerTime, busyWindowOf, busyFieldsOf, pendingSlotMissed, isBoardJobOfferable, pendingSlotExpired, expiryUpdate } from '../.tsbuild/bookingActions.mjs';
+import { declinedByCleaner, claimUpdate, rejectionUpdate, rejectionReleasesToBoard, awaitsMyApproval, occupiesCleanerTime, busyWindowOf, busyFieldsOf, pendingSlotMissed, isBoardJobOfferable, pendingSlotExpired, expiryUpdate } from '../.tsbuild/bookingActions.mjs';
 
 // Every case here is a bug that reached a real user. They are regression tests,
 // not coverage: each one failed in production before it was written.
@@ -351,6 +351,40 @@ test('rejecting a booking addressed to me cancels it', () => {
   assert.equal(u.status, 'cancelled');
   assert.equal(u.cancelledBy, 'cleaner');
   assert.ok(u.cancelledAt);
+});
+
+test('turning a booking down is told apart from cancelling one that was approved', () => {
+  // The bug: both end as cancelled by the cleaner, and the client was told
+  // "your booking was cancelled" for a request nobody had ever agreed to.
+  const declined = { ...directed(), ...rejectionUpdate(directed()) };
+  assert.equal(declined.cancelledFrom, 'pending');
+  assert.equal(declinedByCleaner(declined), true);
+  // Approved first, then called off: that is a cancellation.
+  for (const status of ['confirmed', 'onway']) {
+    const was = { ...directed(), status };
+    const off = { ...was, ...rejectionUpdate(was) };
+    assert.equal(off.cancelledFrom, status);
+    assert.equal(declinedByCleaner(off), false);
+  }
+  // Called off by a build that recorded nothing: cancelled, as it always read.
+  assert.equal(declinedByCleaner({ status: 'cancelled', cancelledBy: 'cleaner' }), false);
+  // The client's own cancellation is never "declined", whatever it carries.
+  assert.equal(declinedByCleaner({ status: 'cancelled', cancelledBy: 'client', cancelledFrom: 'pending' }), false);
+  assert.equal(declinedByCleaner({ status: 'pending', cancelledBy: 'cleaner', cancelledFrom: 'pending' }), false);
+  assert.equal(declinedByCleaner(null), false);
+  // A job put back on the board is not cancelled at all, and carries no such mark.
+  assert.equal('cancelledFrom' in rejectionUpdate(posted({ open: false, cleanerId: 'k1' })), false);
+
+  // The popup's title and sentence follow it, in every language.
+  const home = readFileSync(new URL('../app/home.tsx', import.meta.url), 'utf8');
+  assert.match(home, /\{declinedByCleaner\(cancelledPopup\)\s+\? \(\(t as any\)\.bookingRejectedPopupTitle \?\?/);
+  assert.match(home, /if \(declinedByCleaner\(cancelledPopup\)\) \{\s+if \(notice === 'reposted'\) return tt\.bookingRejectedPopupReposted \?\?/);
+  const dict = readFileSync(new URL('../lib/translations.ts', import.meta.url), 'utf8');
+  const popup = dict.slice(dict.indexOf('const CANCELLED_POPUP'), dict.indexOf('for (const L of Object.keys(CANCELLED_POPUP))'));
+  for (const field of ['rejTitle', 'rejBase', 'rejReposted', 'rejPlain']) {
+    assert.equal(popup.split(`\n    ${field}: `).length - 1, 7, `${field} in seven languages`);
+    assert.ok(dict.includes(`.bookingRejectedPopup${field.slice(3)} = c.${field};`), `${field} is wired`);
+  }
 });
 
 test('the two rejections are told apart by origin, not by guesswork', () => {
@@ -1518,7 +1552,23 @@ test('alerts are not switched off by one tap, and a provider is told while they 
   assert.deepEqual(writers, ['app/profile.tsx']);
   const home = read('app/home.tsx');
   assert.ok(home.includes('setPushOptedOut(data.pushOptOut === true);'), 'the home screen reads the switch off the profile');
-  assert.match(home, /\{myRole === 'cleaner' && pushSilence\(pushOptedOut, pushPermitted, pushUnregistered\) && \(/, 'and warns the provider while alerts are off');
+  // …for a client as well as a provider: a client with alerts off was not told
+  // that a booking was approved or called off, and had no banner saying why.
+  assert.match(home, /\{!!myRole && pushSilence\(pushOptedOut, pushPermitted, pushUnregistered\) && \(/, 'and warns whoever is signed in while alerts are off');
+  assert.ok(home.includes('(t as any).pushOffBannerSubClient ??'), 'with the client\'s own wording');
+  // The switch is read off the profile for either role — before the block that
+  // is the provider's alone. Inside it, a client with alerts off got no banner.
+  assert.match(
+    home,
+    /setPushOptedOut\(data\.pushOptOut === true\);\n\s+if \(data\.pushToken\) setPushUnregistered\(false\);[^\n]*\n\s+if \(role === 'cleaner'\) \{/,
+    'read for both roles, ahead of the provider-only block',
+  );
+  const dictAll = readFileSync(new URL('../lib/translations.ts', import.meta.url), 'utf8');
+  const clientSub = dictAll.slice(dictAll.indexOf('  pushOffBannerSubClient: {'), dictAll.indexOf('  pushBlockedMsg: {'));
+  for (const lang of ['he', 'en', 'ru', 'ar', 'fr', 'hi', 'uk']) {
+    assert.match(clientSub, new RegExp(`\\n    ${lang}: '`), `the client's banner text in ${lang}`);
+  }
+  assert.ok(!/if \(myRole !== 'cleaner'\) return;\s+let live = true;\s+const check = \(\) => \{\s+pushPermission\(\)/.test(home), 'the permission is watched for both roles');
 });
 
 test('the client is told a cancelled booking was posted again only when it was', () => {

@@ -4200,13 +4200,17 @@ for (const L of Object.keys(URGENT_LEGEND)) {
 // booking whose request is out again, `plain` one with nothing to post again,
 // `base` an urgent one not seen out again yet — see lib/bookingOrigin
 // cancelledNotice.
-const CANCELLED_POPUP: Record<string, { title: string; base: string; sub: string; reposted: string; plain: string; repost: string; ok: string; err: string }> = {
+const CANCELLED_POPUP: Record<string, { title: string; base: string; sub: string; reposted: string; plain: string; rejTitle: string; rejBase: string; rejReposted: string; rejPlain: string; repost: string; ok: string; err: string }> = {
   he: {
     title: 'ההזמנה בוטלה',
     base: 'נותן השירות ביטל את ההזמנה.',
     sub: 'נותן השירות ביטל את ההזמנה. אפשר לפרסם אותה מחדש ונותני שירות אחרים באזור יוכלו לקחת אותה.',
     reposted: 'נותן השירות ביטל את ההזמנה. היא פורסמה מחדש, ונותני שירות אחרים באזור יוכלו לקחת אותה.',
     plain: 'נותן השירות ביטל את ההזמנה. אפשר להזמין נותן שירות אחר.',
+    rejTitle: 'ההזמנה נדחתה',
+    rejBase: 'נותן השירות דחה את ההזמנה.',
+    rejReposted: 'נותן השירות דחה את ההזמנה. היא פורסמה מחדש, ונותני שירות אחרים באזור יוכלו לקחת אותה.',
+    rejPlain: 'נותן השירות דחה את ההזמנה. אפשר להזמין נותן שירות אחר.',
     repost: 'פרסם מחדש וחפש נותן שירות אחר',
     ok: 'ההזמנה פורסמה מחדש — נותני שירות באזור שלך יראו אותה',
     err: 'הפרסום מחדש נכשל — נסה/י שוב',
@@ -4217,6 +4221,10 @@ const CANCELLED_POPUP: Record<string, { title: string; base: string; sub: string
     sub: 'The service provider cancelled this booking. You can re-post it so other service providers nearby can take it.',
     reposted: 'The service provider cancelled this booking. It has been posted again, and other service providers nearby can take it.',
     plain: 'The service provider cancelled this booking. You can book another service provider.',
+    rejTitle: 'Booking declined',
+    rejBase: 'The service provider declined this booking.',
+    rejReposted: 'The service provider declined this booking. It has been posted again, and other service providers nearby can take it.',
+    rejPlain: 'The service provider declined this booking. You can book another service provider.',
     repost: 'Re-post and find another service provider',
     ok: 'Re-posted — service providers in your area will see it',
     err: 'Re-posting failed — please try again',
@@ -4227,6 +4235,10 @@ const CANCELLED_POPUP: Record<string, { title: string; base: string; sub: string
     sub: 'Исполнитель отменил заказ. Можно опубликовать его снова, и другие исполнители поблизости смогут его взять.',
     reposted: 'Исполнитель отменил заказ. Он опубликован снова, и другие исполнители поблизости смогут его взять.',
     plain: 'Исполнитель отменил заказ. Вы можете выбрать другого исполнителя.',
+    rejTitle: 'Заказ отклонён',
+    rejBase: 'Исполнитель отклонил заказ.',
+    rejReposted: 'Исполнитель отклонил заказ. Он опубликован снова, и другие исполнители поблизости смогут его взять.',
+    rejPlain: 'Исполнитель отклонил заказ. Вы можете выбрать другого исполнителя.',
     repost: 'Опубликовать снова и найти другого',
     ok: 'Опубликовано снова — исполнители поблизости это увидят',
     err: 'Не удалось опубликовать — попробуйте ещё раз',
@@ -4237,6 +4249,10 @@ const CANCELLED_POPUP: Record<string, { title: string; base: string; sub: string
     sub: 'ألغى مقدم الخدمة الحجز. يمكنك نشره من جديد ليأخذه مقدم خدمة آخر في منطقتك.',
     reposted: 'ألغى مقدم الخدمة الحجز. تم نشره من جديد، ويمكن لمقدمي خدمة آخرين في منطقتك أخذه.',
     plain: 'ألغى مقدم الخدمة الحجز. يمكنك حجز مقدم خدمة آخر.',
+    rejTitle: 'تم رفض الحجز',
+    rejBase: 'رفض مقدم الخدمة الحجز.',
+    rejReposted: 'رفض مقدم الخدمة الحجز. تم نشره من جديد، ويمكن لمقدمي خدمة آخرين في منطقتك أخذه.',
+    rejPlain: 'رفض مقدم الخدمة الحجز. يمكنك حجز مقدم خدمة آخر.',
     repost: 'انشر من جديد وابحث عن مقدم خدمة آخر',
     ok: 'تم النشر من جديد — سيراه مقدمو الخدمة في منطقتك',
     err: 'فشل النشر من جديد — حاول مرة أخرى',
@@ -4247,6 +4263,10 @@ const CANCELLED_POPUP: Record<string, { title: string; base: string; sub: string
     sub: 'Le prestataire a annulé. Vous pouvez la republier pour qu’un autre prestataire près de chez vous la prenne.',
     reposted: 'Le prestataire a annulé. La demande a été republiée, et d’autres prestataires près de chez vous peuvent la prendre.',
     plain: 'Le prestataire a annulé. Vous pouvez réserver un autre prestataire.',
+    rejTitle: 'Réservation refusée',
+    rejBase: 'Le prestataire a refusé.',
+    rejReposted: 'Le prestataire a refusé. La demande a été republiée, et d’autres prestataires près de chez vous peuvent la prendre.',
+    rejPlain: 'Le prestataire a refusé. Vous pouvez réserver un autre prestataire.',
     repost: 'Republier et trouver un autre prestataire',
     ok: 'Republiée — les prestataires de votre secteur la verront',
     err: 'Échec de la republication — réessayez',
@@ -4257,6 +4277,10 @@ const CANCELLED_POPUP: Record<string, { title: string; base: string; sub: string
     sub: 'सेवा प्रदाता ने बुकिंग रद्द कर दी। आप इसे दोबारा पोस्ट कर सकते हैं ताकि आस-पास के अन्य सेवा प्रदाता इसे ले सकें।',
     reposted: 'सेवा प्रदाता ने बुकिंग रद्द कर दी। इसे दोबारा पोस्ट कर दिया गया है, और आस-पास के अन्य सेवा प्रदाता इसे ले सकते हैं।',
     plain: 'सेवा प्रदाता ने बुकिंग रद्द कर दी। आप किसी अन्य सेवा प्रदाता को बुक कर सकते हैं।',
+    rejTitle: 'बुकिंग अस्वीकृत',
+    rejBase: 'सेवा प्रदाता ने बुकिंग अस्वीकार कर दी।',
+    rejReposted: 'सेवा प्रदाता ने बुकिंग अस्वीकार कर दी। इसे दोबारा पोस्ट कर दिया गया है, और आस-पास के अन्य सेवा प्रदाता इसे ले सकते हैं।',
+    rejPlain: 'सेवा प्रदाता ने बुकिंग अस्वीकार कर दी। आप किसी अन्य सेवा प्रदाता को बुक कर सकते हैं।',
     repost: 'दोबारा पोस्ट करें और दूसरा सेवा प्रदाता खोजें',
     ok: 'दोबारा पोस्ट हो गया — आपके क्षेत्र के सेवा प्रदाता इसे देखेंगे',
     err: 'दोबारा पोस्ट करना विफल — फिर से कोशिश करें',
@@ -4267,6 +4291,10 @@ const CANCELLED_POPUP: Record<string, { title: string; base: string; sub: string
     sub: 'Виконавець скасував замовлення. Можна опублікувати його знову, і інші виконавці поруч зможуть його взяти.',
     reposted: 'Виконавець скасував замовлення. Його опубліковано знову, і інші виконавці поруч зможуть його взяти.',
     plain: 'Виконавець скасував замовлення. Ви можете обрати іншого виконавця.',
+    rejTitle: 'Замовлення відхилено',
+    rejBase: 'Виконавець відхилив замовлення.',
+    rejReposted: 'Виконавець відхилив замовлення. Його опубліковано знову, і інші виконавці поруч зможуть його взяти.',
+    rejPlain: 'Виконавець відхилив замовлення. Ви можете обрати іншого виконавця.',
     repost: 'Опублікувати знову та знайти іншого',
     ok: 'Опубліковано знову — виконавці поруч це побачать',
     err: 'Не вдалося опублікувати — спробуйте ще раз',
@@ -4279,6 +4307,10 @@ for (const L of Object.keys(CANCELLED_POPUP)) {
   (translations as any)[L].bookingCancelledPopupBase = c.base;
   (translations as any)[L].bookingCancelledPopupReposted = c.reposted;
   (translations as any)[L].bookingCancelledPopupPlain = c.plain;
+  (translations as any)[L].bookingRejectedPopupTitle = c.rejTitle;
+  (translations as any)[L].bookingRejectedPopupBase = c.rejBase;
+  (translations as any)[L].bookingRejectedPopupReposted = c.rejReposted;
+  (translations as any)[L].bookingRejectedPopupPlain = c.rejPlain;
   (translations as any)[L].repostBtn = c.repost;
   (translations as any)[L].repostOkMsg = c.ok;
   (translations as any)[L].repostErrMsg = c.err;
@@ -4534,6 +4566,15 @@ const ADDED: Record<string, Record<string, string>> = {
     fr: 'Les missions urgentes et les nouvelles réservations ne sonneront pas quand l’application est fermée. Appuyez pour activer.',
     hi: 'ऐप बंद होने पर तत्काल काम और नई बुकिंग नहीं बजेंगी। चालू करने के लिए टैप करें।',
     uk: 'Телефон не сповістить про термінові й нові замовлення, поки застосунок закритий. Натисніть, щоб увімкнути.',
+  },
+  pushOffBannerSubClient: {
+    he: 'לא תקבל/י הודעה כשנותן שירות מאשר, מבטל או כותב לך כשהאפליקציה סגורה. הקש/י כדי להפעיל.',
+    en: 'You will not be told when a service provider confirms, cancels or writes to you while the app is closed. Tap to turn on.',
+    ru: 'Телефон не сообщит, когда исполнитель подтвердит или отменит заказ либо напишет вам, пока приложение закрыто. Нажмите, чтобы включить.',
+    ar: 'لن ينبّهك الهاتف عندما يؤكّد مقدّم الخدمة أو يلغي أو يراسلك والتطبيق مغلق. اضغط للتفعيل.',
+    fr: 'Votre téléphone ne vous préviendra pas quand un prestataire confirme, annule ou vous écrit lorsque l’application est fermée. Appuyez pour activer.',
+    hi: 'ऐप बंद होने पर जब सेवा प्रदाता पुष्टि करे, रद्द करे या आपको लिखे तो फ़ोन नहीं बताएगा। चालू करने के लिए टैप करें।',
+    uk: 'Телефон не повідомить, коли виконавець підтвердить чи скасує замовлення або напише вам, поки застосунок закритий. Натисніть, щоб увімкнути.',
   },
   pushBlockedMsg: {
     he: 'ההתראות חסומות בהגדרות המכשיר. יש לאפשר אותן שם עבור האפליקציה.',
