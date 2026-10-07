@@ -292,3 +292,26 @@ export function urgentAlertOutcome(
   if (alertedBefore > 0) return 'edited';
   return skipped >= asked ? 'no-device' : 'failed';
 }
+
+/**
+ * Is a request its cleaner walked away from out again, for others to take?
+ *
+ * A cleaner who rejects or cancels an urgent booking puts its request back to
+ * `open` with a fresh window (the app's lib/urgentRelease, the website's
+ * cleanerActions). The client's "your booking was cancelled" notice says it
+ * was posted again — but only when it was:
+ *
+ *   true  — open and still live: it is on the other cleaners' boards.
+ *   false — over: cancelled, expired, deleted, or its hour has gone.
+ *   null  — still held (`taken`). The release is a second write, after the
+ *           cancellation that raises the notice, and may not have landed yet —
+ *           or another cleaner has taken it already. Nothing to announce.
+ */
+export function urgentBackOut(
+  r: (ExpirableRequest & { status?: string | null }) | null | undefined,
+  now: Date = new Date(),
+): boolean | null {
+  if (!r) return false;
+  if (r.status === 'taken') return null;
+  return r.status === 'open' && isUrgentRequestLive(r, now);
+}

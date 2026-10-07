@@ -78,3 +78,35 @@ export function replacedByEdit(
 ): boolean {
   return !!b?.replacedBy && b.status === 'cancelled' && !b.cleanerId;
 }
+
+/**
+ * What a client is told after the cleaner pulled out of a booking.
+ *
+ * The notice used to say "you can post it again" whatever the booking was —
+ * also under an urgent booking, which has no such button because its request
+ * has already gone back out by itself, and under a direct one, which has
+ * nothing to post.
+ *
+ *   'repost'   — a board job: it can be posted again, and the button is there.
+ *   'reposted' — an urgent booking whose request is out again: other cleaners
+ *                can take it, and the client has nothing to do.
+ *   'plain'    — nothing went back out: a direct booking, or an urgent one
+ *                whose request is over. The client books somebody else.
+ *   'pending'  — an urgent booking whose request has not been seen out again
+ *                (yet): only that the booking was cancelled.
+ *
+ * `requestOut` is urgentBackOut() of the request the booking came from;
+ * undefined while that has not been read.
+ */
+export type CancelledNotice = 'repost' | 'reposted' | 'plain' | 'pending';
+
+export function cancelledNotice(
+  b: BookingLike | null | undefined,
+  requestOut?: boolean | null,
+): CancelledNotice {
+  const origin = bookingOrigin(b);
+  if (origin === 'open') return 'repost';
+  if (origin !== 'urgent') return 'plain';
+  if (requestOut === true) return 'reposted';
+  return requestOut === false ? 'plain' : 'pending';
+}

@@ -8,7 +8,8 @@ import { resolveRole } from '../.tsbuild/resolveRole.mjs';
 import { mustVerifyEmail, VERIFY_REQUIRED_FROM } from '../.tsbuild/verifyRule.mjs';
 import { isAvailableNow, compareJobs } from '../.tsbuild/displayOrder.mjs';
 import { cityFromAddress } from '../.tsbuild/cityFromAddress.mjs';
-import { canRepost, replacedByEdit } from '../.tsbuild/bookingOrigin.mjs';
+import { canRepost, replacedByEdit, cancelledNotice } from '../.tsbuild/bookingOrigin.mjs';
+import { urgentBackOut } from '../.tsbuild/urgentRequest.mjs';
 import { startDateOf, endDateOf, bookingHours, DEFAULT_BOOKING_HOURS, sameDayOverlap, bookingHoldsHours } from '../.tsbuild/bookingSlot.mjs';
 import { readCalendarRemoval, extractPushData } from '../.tsbuild/calendarPush.mjs';
 import { isUrgentRequestLive, isUrgentRequestExpired, expiryOf, URGENT_FIRST_START_HOUR, URGENT_LAST_START_HOUR, hourOfTime, urgentStartAllowed, urgentTodayClosed, urgentFirstSlot, urgentEditContext, urgentPushPlan, urgentAlertedAfter, liveUrgentEdit, URGENT_EDIT_WINDOW_MS, urgentAlertOutcome } from '../.tsbuild/urgentRequest.mjs';
@@ -1502,4 +1503,59 @@ test('alerts are not switched off by one tap, and a provider is told while they 
   const home = read('app/home.tsx');
   assert.ok(home.includes('setPushOptedOut(data.pushOptOut === true);'), 'the home screen reads the switch off the profile');
   assert.match(home, /\{myRole === 'cleaner' && pushSilence\(pushOptedOut, pushPermitted, pushUnregistered\) && \(/, 'and warns the provider while alerts are off');
+});
+
+test('the client is told a cancelled booking was posted again only when it was', () => {
+  // The bug: the "your provider cancelled" popup always read "you can post it
+  // again" — also under an urgent booking, which has no such button because its
+  // request had already gone back out by itself, and under a direct booking,
+  // which has nothing to post.
+  const now = new Date(2026, 9, 7, 14, 39);                    // 7 Oct 2026, 14:39
+  const req = (status, extra = {}) => ({ status, dateStr: '2026-10-07', startTime: '17:00', expiresAt: new Date(2026, 9, 7, 17, 0).toISOString(), ...extra });
+  // Back on the boards: open, inside its window, its hour still ahead.
+  assert.equal(urgentBackOut(req('open'), now), true);
+  // Still held — the release has not landed yet, or someone else has it: nothing to announce.
+  assert.equal(urgentBackOut(req('taken'), now), null);
+  // Over, whichever way.
+  assert.equal(urgentBackOut(req('cancelled'), now), false);
+  assert.equal(urgentBackOut(req('expired'), now), false);
+  assert.equal(urgentBackOut(null, now), false);               // deleted
+  assert.equal(urgentBackOut(req('open', { expiresAt: new Date(2026, 9, 7, 14, 0).toISOString() }), now), false);
+  assert.equal(urgentBackOut(req('open', { startTime: '14:00' }), now), false);   // its hour has gone
+
+  const urgent = { origin: 'urgent', status: 'cancelled', cancelledBy: 'cleaner' };
+  assert.equal(cancelledNotice(urgent, true), 'reposted');
+  assert.equal(cancelledNotice(urgent, null), 'pending');      // say only that it was cancelled
+  assert.equal(cancelledNotice(urgent, undefined), 'pending'); // not read yet
+  assert.equal(cancelledNotice(urgent, false), 'plain');
+  // A board job is offered the button; nothing about its request can change that.
+  assert.equal(cancelledNotice({ origin: 'open' }, true), 'repost');
+  assert.equal(cancelledNotice({ origin: 'open' }), 'repost');
+  // A direct booking has nothing to post, whatever is passed.
+  assert.equal(cancelledNotice({ origin: 'direct' }, true), 'plain');
+  assert.equal(cancelledNotice({}, undefined), 'plain');
+  // The offer and the button always go together.
+  for (const b of [urgent, { origin: 'open' }, { origin: 'direct' }, {}]) {
+    assert.equal(cancelledNotice(b, true) === 'repost', canRepost(b));
+  }
+
+  // The popup takes its sentence from the rule, not from one fixed text — and
+  // each answer has its own sentence.
+  const home = readFileSync(new URL('../app/home.tsx', import.meta.url), 'utf8');
+  assert.ok(home.includes('const notice = cancelledNotice(cancelledPopup, out);'));
+  assert.ok(home.includes('{cancelledSub}'));
+  assert.match(home, /if \(notice === 'repost'\) return tt\.bookingCancelledPopupSub \?\?/);
+  assert.match(home, /if \(notice === 'reposted'\) return tt\.bookingCancelledPopupReposted \?\?/);
+  assert.match(home, /if \(notice === 'plain'\) return tt\.bookingCancelledPopupPlain \?\?/);
+  assert.match(home, /return tt\.bookingCancelledPopupBase \?\?/);
+  assert.equal(home.split('bookingCancelledPopupSub').length - 1, 1, 'the repost sentence appears once, under the rule');
+  // …in every language: a missing one falls back to Hebrew without a word.
+  const dict = readFileSync(new URL('../lib/translations.ts', import.meta.url), 'utf8');
+  const popup = dict.slice(dict.indexOf('const CANCELLED_POPUP'), dict.indexOf('for (const L of Object.keys(CANCELLED_POPUP))'));
+  for (const field of ['title', 'base', 'sub', 'reposted', 'plain', 'repost']) {
+    assert.equal(popup.split(`\n    ${field}: `).length - 1, 7, `${field} in seven languages`);
+  }
+  for (const key of ['Base', 'Reposted', 'Plain']) {
+    assert.ok(dict.includes(`.bookingCancelledPopup${key} = c.${key.toLowerCase()};`), `${key} is wired`);
+  }
 });

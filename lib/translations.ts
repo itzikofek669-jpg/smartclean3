@@ -4196,52 +4196,77 @@ for (const L of Object.keys(URGENT_LEGEND)) {
 
 // Client-facing popup when the CLEANER cancels a booking they'd already
 // confirmed, plus the offer to re-post the same job to other cleaners.
-const CANCELLED_POPUP: Record<string, { title: string; sub: string; repost: string; ok: string; err: string }> = {
+// `sub` goes with the repost button (a board job). `reposted` is an urgent
+// booking whose request is out again, `plain` one with nothing to post again,
+// `base` an urgent one not seen out again yet — see lib/bookingOrigin
+// cancelledNotice.
+const CANCELLED_POPUP: Record<string, { title: string; base: string; sub: string; reposted: string; plain: string; repost: string; ok: string; err: string }> = {
   he: {
     title: 'ההזמנה בוטלה',
+    base: 'נותן השירות ביטל את ההזמנה.',
     sub: 'נותן השירות ביטל את ההזמנה. אפשר לפרסם אותה מחדש ונותני שירות אחרים באזור יוכלו לקחת אותה.',
+    reposted: 'נותן השירות ביטל את ההזמנה. היא פורסמה מחדש, ונותני שירות אחרים באזור יוכלו לקחת אותה.',
+    plain: 'נותן השירות ביטל את ההזמנה. אפשר להזמין נותן שירות אחר.',
     repost: 'פרסם מחדש וחפש נותן שירות אחר',
     ok: 'ההזמנה פורסמה מחדש — נותני שירות באזור שלך יראו אותה',
     err: 'הפרסום מחדש נכשל — נסה/י שוב',
   },
   en: {
     title: 'Booking cancelled',
+    base: 'The service provider cancelled this booking.',
     sub: 'The service provider cancelled this booking. You can re-post it so other service providers nearby can take it.',
+    reposted: 'The service provider cancelled this booking. It has been posted again, and other service providers nearby can take it.',
+    plain: 'The service provider cancelled this booking. You can book another service provider.',
     repost: 'Re-post and find another service provider',
     ok: 'Re-posted — service providers in your area will see it',
     err: 'Re-posting failed — please try again',
   },
   ru: {
     title: 'Заказ отменён',
+    base: 'Исполнитель отменил заказ.',
     sub: 'Исполнитель отменил заказ. Можно опубликовать его снова, и другие исполнители поблизости смогут его взять.',
+    reposted: 'Исполнитель отменил заказ. Он опубликован снова, и другие исполнители поблизости смогут его взять.',
+    plain: 'Исполнитель отменил заказ. Вы можете выбрать другого исполнителя.',
     repost: 'Опубликовать снова и найти другого',
     ok: 'Опубликовано снова — исполнители поблизости это увидят',
     err: 'Не удалось опубликовать — попробуйте ещё раз',
   },
   ar: {
     title: 'تم إلغاء الحجز',
+    base: 'ألغى مقدم الخدمة الحجز.',
     sub: 'ألغى مقدم الخدمة الحجز. يمكنك نشره من جديد ليأخذه مقدم خدمة آخر في منطقتك.',
+    reposted: 'ألغى مقدم الخدمة الحجز. تم نشره من جديد، ويمكن لمقدمي خدمة آخرين في منطقتك أخذه.',
+    plain: 'ألغى مقدم الخدمة الحجز. يمكنك حجز مقدم خدمة آخر.',
     repost: 'انشر من جديد وابحث عن مقدم خدمة آخر',
     ok: 'تم النشر من جديد — سيراه مقدمو الخدمة في منطقتك',
     err: 'فشل النشر من جديد — حاول مرة أخرى',
   },
   fr: {
     title: 'Réservation annulée',
+    base: 'Le prestataire a annulé.',
     sub: 'Le prestataire a annulé. Vous pouvez la republier pour qu’un autre prestataire près de chez vous la prenne.',
+    reposted: 'Le prestataire a annulé. La demande a été republiée, et d’autres prestataires près de chez vous peuvent la prendre.',
+    plain: 'Le prestataire a annulé. Vous pouvez réserver un autre prestataire.',
     repost: 'Republier et trouver un autre prestataire',
     ok: 'Republiée — les prestataires de votre secteur la verront',
     err: 'Échec de la republication — réessayez',
   },
   hi: {
     title: 'बुकिंग रद्द हो गई',
+    base: 'सेवा प्रदाता ने बुकिंग रद्द कर दी।',
     sub: 'सेवा प्रदाता ने बुकिंग रद्द कर दी। आप इसे दोबारा पोस्ट कर सकते हैं ताकि आस-पास के अन्य सेवा प्रदाता इसे ले सकें।',
+    reposted: 'सेवा प्रदाता ने बुकिंग रद्द कर दी। इसे दोबारा पोस्ट कर दिया गया है, और आस-पास के अन्य सेवा प्रदाता इसे ले सकते हैं।',
+    plain: 'सेवा प्रदाता ने बुकिंग रद्द कर दी। आप किसी अन्य सेवा प्रदाता को बुक कर सकते हैं।',
     repost: 'दोबारा पोस्ट करें और दूसरा सेवा प्रदाता खोजें',
     ok: 'दोबारा पोस्ट हो गया — आपके क्षेत्र के सेवा प्रदाता इसे देखेंगे',
     err: 'दोबारा पोस्ट करना विफल — फिर से कोशिश करें',
   },
   uk: {
     title: 'Замовлення скасовано',
+    base: 'Виконавець скасував замовлення.',
     sub: 'Виконавець скасував замовлення. Можна опублікувати його знову, і інші виконавці поруч зможуть його взяти.',
+    reposted: 'Виконавець скасував замовлення. Його опубліковано знову, і інші виконавці поруч зможуть його взяти.',
+    plain: 'Виконавець скасував замовлення. Ви можете обрати іншого виконавця.',
     repost: 'Опублікувати знову та знайти іншого',
     ok: 'Опубліковано знову — виконавці поруч це побачать',
     err: 'Не вдалося опублікувати — спробуйте ще раз',
@@ -4251,6 +4276,9 @@ for (const L of Object.keys(CANCELLED_POPUP)) {
   const c = CANCELLED_POPUP[L];
   (translations as any)[L].bookingCancelledPopupTitle = c.title;
   (translations as any)[L].bookingCancelledPopupSub = c.sub;
+  (translations as any)[L].bookingCancelledPopupBase = c.base;
+  (translations as any)[L].bookingCancelledPopupReposted = c.reposted;
+  (translations as any)[L].bookingCancelledPopupPlain = c.plain;
   (translations as any)[L].repostBtn = c.repost;
   (translations as any)[L].repostOkMsg = c.ok;
   (translations as any)[L].repostErrMsg = c.err;

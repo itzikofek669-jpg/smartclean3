@@ -35,7 +35,7 @@ import { resolvePhoto } from '../lib/photos';
 import { useAvatar } from '../lib/useAvatar';
 import { fetchPortfolio } from '../lib/portfolio';
 import { demoCleanersEnabled } from '../lib/demoMode';
-import { canRepost, bookingOrigin } from '../lib/bookingOrigin';
+import { canRepost, bookingOrigin, cancelledNotice } from '../lib/bookingOrigin';
 import { cityFromAddress } from '../lib/cityFromAddress';
 import {
   LANGUAGE_FLAGS, groupConsecutiveDays, normalizeLanguages, workDaysFromAvailability,
@@ -54,7 +54,7 @@ import {
   stripEmoji, countWords, limitWords, buildFullAddress,
 } from '../lib/jobUtils';
 import { compareCleaners, compareJobs, isAvailableNow, rotationRank } from '../lib/displayOrder';
-import { isUrgentRequestLive, URGENT_FIRST_START_HOUR, URGENT_LAST_START_HOUR, urgentStartAllowed, urgentTodayClosed, urgentFirstSlot, hourOfTime, urgentEditContext, urgentPushPlan, urgentAlertedAfter, liveUrgentEdit, urgentAlertOutcome, expiryOf, slotOf, UrgentEditContext } from '../lib/urgentRequest';
+import { isUrgentRequestLive, URGENT_FIRST_START_HOUR, URGENT_LAST_START_HOUR, urgentStartAllowed, urgentTodayClosed, urgentFirstSlot, hourOfTime, urgentEditContext, urgentPushPlan, urgentAlertedAfter, liveUrgentEdit, urgentAlertOutcome, expiryOf, slotOf, urgentBackOut, UrgentEditContext } from '../lib/urgentRequest';
 import { sameDayOverlap, bookingHoldsHours } from '../lib/bookingSlot';
 import { claimUpdate, occupiesCleanerTime, pendingSlotMissed, pendingSlotExpired, expiryUpdate, rejectionUpdate, isBoardJobOfferable, busySlotOf } from '../lib/bookingActions';
 import { resolveRole } from '../lib/resolveRole';
@@ -4966,6 +4966,55 @@ export default function HomeScreen() {
       .catch(() => {});
     return () => { live = false; };
   }, [cancelledPopup]);
+  // An urgent booking's request goes back out by itself when the cleaner walks
+  // away (lib/urgentRelease) — a second write, a moment after the cancellation
+  // that raised this popup. It is watched while the popup is up, so the popup
+  // says "posted again" once that is so, and not before (lib/urgentRequest
+  // urgentBackOut). The waiting card comes back with it: the request was out
+  // again with nothing on this screen to show, cancel or ✏️ it by, while it
+  // held its hours against any new request the client tried to send.
+  const [cancelledRequest, setCancelledRequest] = useState<{ key: string; out: boolean | null } | null>(null);
+  const cancelledReqId: string = cancelledPopup && bookingOrigin(cancelledPopup) === 'urgent'
+    ? String(cancelledPopup.urgentRequestId || '') : '';
+  // By booking as well as request: a request taken again and cancelled again
+  // raises a second popup, and what was read for the first is not its answer.
+  const cancelledKey = cancelledReqId ? `${cancelledPopup?.id ?? ''}|${cancelledReqId}` : '';
+  useEffect(() => {
+    if (!cancelledKey || !cancelledReqId) return;
+    const unsub = onSnapshot(
+      doc(db, 'urgentRequests', cancelledReqId),
+      snap => {
+        const out = urgentBackOut(snap.exists() ? (snap.data() as any) : null);
+        setCancelledRequest({ key: cancelledKey, out });
+        // Not over a request already on screen, one being sent, or the form of
+        // an ✏️ in progress — the card would cover it.
+        if (out === true && !urgentUnsubRef.current && !urgentSendingNow.current && !urgentEditCtx.current) {
+          setUrgentFoundName('');   // the cleaner it named has just walked away
+          setUrgentRequestId(cancelledReqId);
+          setUrgentWaiting(true);
+          watchUrgentRequest(cancelledReqId);
+        }
+      },
+      err => {
+        // Refused: the request is gone (the rules read a document that is not
+        // there as a refusal). Nothing is out, then.
+        logError('home:cancelledRequest', err);
+        setCancelledRequest({ key: cancelledKey, out: false });
+      },
+    );
+    return () => unsub();
+    // watchUrgentRequest reads only refs and state setters.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [cancelledKey, cancelledReqId]);
+  const cancelledSub = (() => {
+    const tt = t as any;
+    const out = cancelledRequest && cancelledRequest.key === cancelledKey ? cancelledRequest.out : undefined;
+    const notice = cancelledNotice(cancelledPopup, out);
+    if (notice === 'repost') return tt.bookingCancelledPopupSub ?? 'נותן השירות ביטל את ההזמנה. אפשר לפרסם אותה מחדש ונותני שירות אחרים באזור יוכלו לקחת אותה.';
+    if (notice === 'reposted') return tt.bookingCancelledPopupReposted ?? 'נותן השירות ביטל את ההזמנה. היא פורסמה מחדש, ונותני שירות אחרים באזור יוכלו לקחת אותה.';
+    if (notice === 'plain') return tt.bookingCancelledPopupPlain ?? 'נותן השירות ביטל את ההזמנה. אפשר להזמין נותן שירות אחר.';
+    return tt.bookingCancelledPopupBase ?? 'נותן השירות ביטל את ההזמנה.';
+  })();
   const [reposting, setReposting] = useState(false);
   const seenCancelledRef = useRef<Set<string>>(new Set());
 
@@ -7393,7 +7442,7 @@ export default function HomeScreen() {
               {(t as any).bookingCancelledPopupTitle ?? 'ההזמנה בוטלה'}
             </Text>
             <Text style={{ fontSize: 14, color: '#6B7280', textAlign: 'center', lineHeight: 22 }}>
-              {(t as any).bookingCancelledPopupSub ?? 'נותן השירות ביטל את ההזמנה. אפשר לפרסם אותה מחדש ונותני שירות אחרים באזור יוכלו לקחת אותה.'}
+              {cancelledSub}
             </Text>
 
             {/* כל פרטי ההזמנה שבוטלה */}
