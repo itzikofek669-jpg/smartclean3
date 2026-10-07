@@ -925,7 +925,21 @@ test('an urgent push skips a cleaner who does not work then', () => {
   assert.equal(worksAt(week, FRI, 10, 2), false);         // a day she switched off
   assert.equal(worksAt(week, SAT, 10, 2), false);         // a day she never set
   assert.equal(worksAt(week, SUN, 7, 2), false);          // starts before she does
-  assert.equal(worksAt(week, SUN, 16, 2), false);         // would run past 17:00
+  assert.equal(worksAt(week, SUN, 8.5, 2), false);        // …even by half an hour
+  // A job that starts inside her day rings her although it would run past the
+  // end of it. It had to fit whole, and with every profile ending at 18:00 and
+  // an urgent job two hours long by default, a request sent after 16:00 rang
+  // nobody — under a list showing those providers available that minute.
+  assert.equal(worksAt(week, SUN, 16, 2), true);
+  assert.equal(worksAt(week, SUN, 16.5, 3), true);
+  // From the first minute of her day, however long the job.
+  assert.equal(worksAt(week, SUN, 9, 2), true);
+  assert.equal(worksAt(week, SUN, 9, 9), true);
+  // Her day is over when the job starts: not rung.
+  assert.equal(worksAt(week, SUN, 17, 2), false);
+  assert.equal(worksAt(week, SUN, 19, 2), false);
+  // A direct booking must still fit her hours whole.
+  assert.equal(workingHoursVerdict(week, SUN, 16, 2).verdict, 'outside-hours');
 });
 
 test('an urgent push skips a cleaner who switched every day off', () => {
@@ -1106,7 +1120,9 @@ test('an urgent cleaning cannot start before 07:00 either', () => {
   assert.equal(hourOfTime('9:30'), 9.5);
   assert.ok(Number.isNaN(hourOfTime('22:00:00')));
   // The oldest availability shape, a bare `true`, is 09:00–18:00.
-  assert.equal(worksAt({ sun: true }, 0, 17, 2), false);
+  assert.equal(worksAt({ sun: true }, 0, 18, 2), false);
+  assert.equal(worksAt({ sun: true }, 0, 8.5, 2), false);
+  assert.equal(worksAt({ sun: true }, 0, 17, 2), true);   // starts inside 09:00–18:00
   assert.equal(worksAt({ sun: true }, 0, 10, 2), true);
 });
 

@@ -200,6 +200,18 @@ export function workingHoursVerdict(
  * This decides ALERTS only — the push, and the app's in-app urgent popup. The
  * request still reaches her board either way: declining to ring someone's
  * phone is not the same as hiding work from her.
+ *
+ * A job that STARTS inside her day rings her, even when it would run past the
+ * end of it. It used to have to fit whole — and almost every profile carries
+ * the hours it was registered with, ending at 18:00, while an urgent job is
+ * two hours unless the client changes it, from the next half hour at the
+ * earliest. So from four in the afternoon an urgent request rang nobody: the
+ * client was told "the providers nearby do not work at these hours" under a
+ * list showing them available that minute.
+ * Whether to stay late for a job is hers to decide; she cannot decide about a
+ * job her phone never told her of. A job starting when her day is over, or
+ * before it begins, still does not ring. (A direct booking must still fit her
+ * hours whole — that is workingHoursVerdict, and it is unchanged.)
  */
 export function worksAt(
   availability: unknown,
@@ -208,8 +220,10 @@ export function worksAt(
   hours: number,
   daysChosen = false,
 ): boolean {
-  const { verdict } = workingHoursVerdict(availability, day, startHour, hours, daysChosen);
-  return verdict !== 'day-off' && verdict !== 'outside-hours';
+  const v = workingHoursVerdict(availability, day, startHour, hours, daysChosen);
+  if (v.verdict === 'day-off') return false;
+  if (v.verdict !== 'outside-hours') return true;
+  return startHour >= (v.start ?? 0) && startHour < (v.end ?? 0);
 }
 
 /** Minutes from midnight of one day; `s < e`, and `e` may run past 1440. */
