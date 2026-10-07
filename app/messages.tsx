@@ -70,7 +70,7 @@ function createS(c: AppColors) {
 }
 
 // ─── Inline Chat Modal ────────────────────────────────────────────────────────
-function InlineChatModal({ chatId, otherUid, otherName, visible, onClose }: any) {
+function InlineChatModal({ chatId, otherUid, otherName, visible, onClose, onDecided }: any) {
   const { t, flipSide } = useLanguage();
   const C = useAppColors();
   const cs = createCS(C);
@@ -199,6 +199,9 @@ function InlineChatModal({ chatId, otherUid, otherName, visible, onClose }: any)
         notifyClient(b, false, released).catch(err => logError('messages:notifyReject', err));
       }
       setPendingBooking(null);
+      // Decided, either way: nothing is left to do in this conversation, and
+      // she goes back to the main screen (the screen below decides how).
+      onDecided?.();
     } catch (err) {
       logError('messages:decide', err);
       Alert.alert(t.error, (t as any).genericError ?? 'שגיאה');
@@ -223,8 +226,8 @@ function InlineChatModal({ chatId, otherUid, otherName, visible, onClose }: any)
   const myUid                         = auth.currentUser?.uid || '';
 
   // גלילה לסוף הצ'אט כשהמקלדת נפתחת — שההודעה האחרונה תמיד גלויה.
-  // kbOpen מצמצם את כרטיס ההזמנה הממתינה לשורה אחת: הוא יושב אחרי ההודעה
-  // האחרונה, ובמלואו, עם מקלדת פתוחה, הוא לקח את רוב מה שנשאר מהמסך.
+  // kbOpen מצמצם את כרטיס ההזמנה הממתינה לשורה אחת: במלואו, עם מקלדת פתוחה,
+  // הוא לקח את רוב מה שנשאר מהמסך.
   const [kbOpen, setKbOpen] = useState(false);
   useEffect(() => {
     const show = Keyboard.addListener('keyboardDidShow', () => {
@@ -551,6 +554,110 @@ function InlineChatModal({ chatId, otherUid, otherName, visible, onClose }: any)
         )}
 
         <KeyboardAvoidingView style={{ flex: 1 }} behavior="padding">
+          {/* ─── אישור/דחייה של הזמנה ממתינה ─── */}
+          {/* At the top of the page, under the header and above the thread,
+              where it stays while the messages scroll — as on the website. It
+              sat after the last message, and a long conversation put the
+              details and the two buttons a scroll away. (Before that it was
+              docked under the input, where it pushed the typing row up into
+              the middle of the screen.) One line while the keyboard is up. */}
+          {pendingBooking && (
+            <View style={{ marginHorizontal: 12, marginTop: 8, backgroundColor: '#FFF7ED', borderRadius: 16, borderWidth: 1.5, borderColor: '#FED7AA', padding: 10, gap: 8 }}>
+              <T style={{ fontSize: 13, fontWeight: '900', color: '#92400E', textAlign: 'center' }}>
+                📥 {(t as any).pendingApprovalBar ?? 'הזמנה ממתינה לאישורך'}
+              </T>
+              {/* The whole job, in the chat, above the two buttons. This bar used to
+                  show a date and nothing else — the cleaner had to leave the chat to
+                  see where, how long, for how much, and what the client wrote, which
+                  is the entire basis for approving or rejecting. Same fields as the
+                  approval modal on the profile screen. */}
+              {(() => {
+                const b = pendingBooking;
+                const [y, mo, dd] = String(b.bookingDate || '').split('-').map(Number);
+                const [h, mi] = String(b.startTime || '').split(':').map(Number);
+                const verdict = myHours && y && mo && dd && Number.isFinite(h)
+                  ? workingHoursVerdict(myHours.availability, new Date(y, mo - 1, dd).getDay(), h + (mi || 0) / 60, Number(b.hours) || 2, myHours.set).verdict
+                  : 'unset';
+                const offHours = verdict === 'day-off' || verdict === 'outside-hours'
+                  ? <T style={{ fontSize: 12.5, fontWeight: '800', color: '#DC2626', textAlign: 'right' }}>{(t as any).offHoursBookingWarn ?? '⚠️ ההזמנה מחוץ לימים או לשעות העבודה שסימנת'}</T>
+                  : null;
+                // One line while typing, so the conversation keeps the screen.
+                if (kbOpen) {
+                  return (
+                    <View style={{ gap: 2 }}>
+                      <T style={{ fontSize: 13, fontWeight: '800', color: '#1C1917', textAlign: 'right' }} numberOfLines={1}>
+                        👤 {b.clientName || '—'} · 📅 {b.bookingDate || '—'} {b.startTime || ''} · ₪{b.total ?? '—'}
+                      </T>
+                      {offHours}
+                    </View>
+                  );
+                }
+                const svc = (Array.isArray(b.serviceTypes) && b.serviceTypes.length
+                  ? b.serviceTypes
+                  : (b.serviceType ? String(b.serviceType).split(' + ') : []))
+                  .map((st: string) => (t as any).types?.[st] || st).join(', ');
+                const pay = b.payment === 'bit' ? t.payBit
+                  : b.payment === 'cash' ? t.payCash
+                  : b.payment === 'paybox' ? t.payPaybox
+                  : b.payment === 'bank' ? t.payBank
+                  : b.payment === 'card' ? (t as any).payCard
+                  : b.payment;
+                const PAY_ICON: Record<string, string> = { bit: '📱', cash: '💵', paybox: '🅿️', bank: '🏦' };
+                return (
+                  <View style={{ backgroundColor: '#fff', borderRadius: 12, borderWidth: 1, borderColor: '#FED7AA', paddingHorizontal: 10, paddingVertical: 6, gap: 1 }}>
+                    <View style={{ flexDirection: 'row-reverse', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <T style={{ fontSize: 14, fontWeight: '900', color: '#1C1917' }}>👤 {b.clientName || '—'}</T>
+                      <T style={{ fontSize: 15, fontWeight: '900', color: '#1D4ED8' }}>₪{b.total ?? '—'}</T>
+                    </View>
+                    {!!svc && <T style={{ fontSize: 13, color: '#1C1917', textAlign: 'right' }}>🧽 {svc}</T>}
+                    <T style={{ fontSize: 13, color: '#44403C', textAlign: 'right' }}>
+                      📅 {b.bookingDate || '—'}  🕐 {b.startTime || '--:--'}  ⏱️ {b.hours ?? '—'} {t.hoursUnit}{pay ? `  ${PAY_ICON[b.payment] || '💳'} ${pay}` : ''}
+                    </T>
+                    <T style={{ fontSize: 13, color: '#1C1917', textAlign: 'right' }} numberOfLines={2}>
+                      📍 {b.address || b.addrCity || '—'}
+                    </T>
+                    {!!b.notes && (
+                      <T style={{ fontSize: 13, color: '#44403C', textAlign: 'right' }} numberOfLines={2}>📝 {b.notes}</T>
+                    )}
+                    {offHours}
+                  </View>
+                );
+              })()}
+              <View style={{ flexDirection: 'row', gap: 10 }}>
+                <TouchableOpacity
+                  disabled={deciding}
+                  accessibilityRole="button"
+                  accessibilityLabel={t.approveBookingBtn}
+                  style={{ flex: 1, backgroundColor: deciding ? '#9CA3AF' : '#16A34A', borderRadius: 12, paddingVertical: 11, alignItems: 'center' }}
+                  onPress={() => decide(true)}
+                >
+                  <T style={{ fontSize: 14, fontWeight: '900', color: '#fff' }}>{t.approveBookingBtn}</T>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  disabled={deciding}
+                  accessibilityRole="button"
+                  accessibilityLabel={t.rejectBtn}
+                  style={{ flex: 1, backgroundColor: '#FEE2E2', borderRadius: 12, paddingVertical: 11, alignItems: 'center', borderWidth: 1.5, borderColor: '#FCA5A5', opacity: deciding ? 0.6 : 1 }}
+                  onPress={() => {
+                    // עבודה מהלוח חוזרת ללוח ולא נמחקת — ההודעה אומרת מה יקרה.
+                    const backToBoard = rejectionReleasesToBoard(pendingBooking);
+                    Alert.alert(
+                      t.cancelConfirmTitle,
+                      backToBoard
+                        ? ((t as any).releaseToBoardMsg ?? 'העבודה תחזור ללוח ונותני שירות אחרים יוכלו לקחת אותה.')
+                        : t.cancelConfirmMsg,
+                      [
+                        { text: t.cancelKeepBooking, style: 'cancel' },
+                        { text: t.cancelConfirmBtn, style: 'destructive', onPress: () => decide(false) },
+                      ],
+                    );
+                  }}
+                >
+                  <T style={{ fontSize: 14, fontWeight: '900', color: '#EF4444' }}>{t.rejectBtn}</T>
+                </TouchableOpacity>
+              </View>
+            </View>
+          )}
           <ScrollView
             ref={scrollRef}
             style={{ flex: 1 }}
@@ -618,107 +725,6 @@ function InlineChatModal({ chatId, otherUid, otherName, visible, onClose }: any)
                 </TouchableOpacity>
               );
             })}
-            {/* ─── אישור/דחייה של הזמנה ממתינה ─── */}
-            {/* In the conversation, after the last message — not a bar docked
-                under the input. Docked, it took the bottom third of the screen
-                and pushed the typing row up into the middle of it. */}
-            {pendingBooking && (
-              <View style={{ alignSelf: 'stretch', marginTop: 6, backgroundColor: '#FFF7ED', borderRadius: 16, borderWidth: 1.5, borderColor: '#FED7AA', padding: 10, gap: 8 }}>
-                <T style={{ fontSize: 13, fontWeight: '900', color: '#92400E', textAlign: 'center' }}>
-                  📥 {(t as any).pendingApprovalBar ?? 'הזמנה ממתינה לאישורך'}
-                </T>
-                {/* The whole job, in the chat, above the two buttons. This bar used to
-                    show a date and nothing else — the cleaner had to leave the chat to
-                    see where, how long, for how much, and what the client wrote, which
-                    is the entire basis for approving or rejecting. Same fields as the
-                    approval modal on the profile screen. */}
-                {(() => {
-                  const b = pendingBooking;
-                  const [y, mo, dd] = String(b.bookingDate || '').split('-').map(Number);
-                  const [h, mi] = String(b.startTime || '').split(':').map(Number);
-                  const verdict = myHours && y && mo && dd && Number.isFinite(h)
-                    ? workingHoursVerdict(myHours.availability, new Date(y, mo - 1, dd).getDay(), h + (mi || 0) / 60, Number(b.hours) || 2, myHours.set).verdict
-                    : 'unset';
-                  const offHours = verdict === 'day-off' || verdict === 'outside-hours'
-                    ? <T style={{ fontSize: 12.5, fontWeight: '800', color: '#DC2626', textAlign: 'right' }}>{(t as any).offHoursBookingWarn ?? '⚠️ ההזמנה מחוץ לימים או לשעות העבודה שסימנת'}</T>
-                    : null;
-                  // One line while typing, so the conversation keeps the screen.
-                  if (kbOpen) {
-                    return (
-                      <View style={{ gap: 2 }}>
-                        <T style={{ fontSize: 13, fontWeight: '800', color: '#1C1917', textAlign: 'right' }} numberOfLines={1}>
-                          👤 {b.clientName || '—'} · 📅 {b.bookingDate || '—'} {b.startTime || ''} · ₪{b.total ?? '—'}
-                        </T>
-                        {offHours}
-                      </View>
-                    );
-                  }
-                  const svc = (Array.isArray(b.serviceTypes) && b.serviceTypes.length
-                    ? b.serviceTypes
-                    : (b.serviceType ? String(b.serviceType).split(' + ') : []))
-                    .map((st: string) => (t as any).types?.[st] || st).join(', ');
-                  const pay = b.payment === 'bit' ? t.payBit
-                    : b.payment === 'cash' ? t.payCash
-                    : b.payment === 'paybox' ? t.payPaybox
-                    : b.payment === 'bank' ? t.payBank
-                    : b.payment === 'card' ? (t as any).payCard
-                    : b.payment;
-                  const PAY_ICON: Record<string, string> = { bit: '📱', cash: '💵', paybox: '🅿️', bank: '🏦' };
-                  return (
-                    <View style={{ backgroundColor: '#fff', borderRadius: 12, borderWidth: 1, borderColor: '#FED7AA', paddingHorizontal: 10, paddingVertical: 6, gap: 1 }}>
-                      <View style={{ flexDirection: 'row-reverse', justifyContent: 'space-between', alignItems: 'center' }}>
-                        <T style={{ fontSize: 14, fontWeight: '900', color: '#1C1917' }}>👤 {b.clientName || '—'}</T>
-                        <T style={{ fontSize: 15, fontWeight: '900', color: '#1D4ED8' }}>₪{b.total ?? '—'}</T>
-                      </View>
-                      {!!svc && <T style={{ fontSize: 13, color: '#1C1917', textAlign: 'right' }}>🧽 {svc}</T>}
-                      <T style={{ fontSize: 13, color: '#44403C', textAlign: 'right' }}>
-                        📅 {b.bookingDate || '—'}  🕐 {b.startTime || '--:--'}  ⏱️ {b.hours ?? '—'} {t.hoursUnit}{pay ? `  ${PAY_ICON[b.payment] || '💳'} ${pay}` : ''}
-                      </T>
-                      <T style={{ fontSize: 13, color: '#1C1917', textAlign: 'right' }} numberOfLines={2}>
-                        📍 {b.address || b.addrCity || '—'}
-                      </T>
-                      {!!b.notes && (
-                        <T style={{ fontSize: 13, color: '#44403C', textAlign: 'right' }} numberOfLines={2}>📝 {b.notes}</T>
-                      )}
-                      {offHours}
-                    </View>
-                  );
-                })()}
-                <View style={{ flexDirection: 'row', gap: 10 }}>
-                  <TouchableOpacity
-                    disabled={deciding}
-                    accessibilityRole="button"
-                    accessibilityLabel={t.approveBookingBtn}
-                    style={{ flex: 1, backgroundColor: deciding ? '#9CA3AF' : '#16A34A', borderRadius: 12, paddingVertical: 11, alignItems: 'center' }}
-                    onPress={() => decide(true)}
-                  >
-                    <T style={{ fontSize: 14, fontWeight: '900', color: '#fff' }}>{t.approveBookingBtn}</T>
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    disabled={deciding}
-                    accessibilityRole="button"
-                    accessibilityLabel={t.rejectBtn}
-                    style={{ flex: 1, backgroundColor: '#FEE2E2', borderRadius: 12, paddingVertical: 11, alignItems: 'center', borderWidth: 1.5, borderColor: '#FCA5A5', opacity: deciding ? 0.6 : 1 }}
-                    onPress={() => {
-                      // עבודה מהלוח חוזרת ללוח ולא נמחקת — ההודעה אומרת מה יקרה.
-                      const backToBoard = rejectionReleasesToBoard(pendingBooking);
-                      Alert.alert(
-                        t.cancelConfirmTitle,
-                        backToBoard
-                          ? ((t as any).releaseToBoardMsg ?? 'העבודה תחזור ללוח ונותני שירות אחרים יוכלו לקחת אותה.')
-                          : t.cancelConfirmMsg,
-                        [
-                          { text: t.cancelKeepBooking, style: 'cancel' },
-                          { text: t.cancelConfirmBtn, style: 'destructive', onPress: () => decide(false) },
-                        ],
-                      );
-                    }}
-                  >
-                    <T style={{ fontSize: 14, fontWeight: '900', color: '#EF4444' }}>{t.rejectBtn}</T>
-                  </TouchableOpacity>
-                </View>
-              </View>
-            )}
           </ScrollView>
 
           {/* ── שורת כתיבה / מחיקה ── */}
@@ -1090,6 +1096,12 @@ export default function MessagesScreen() {
         otherName={activeOtherName}
         visible={!!activeChatId}
         onClose={() => setActiveChatId('')}
+        // Approved or rejected from the chat: out of the chat and back to the
+        // main screen, as on the website. dismissTo goes back to the home screen
+        // already under this one rather than stacking a second copy of it. Only
+        // once the chat's sheet has slid away: leaving a screen while its Modal
+        // is still up can strand the sheet on iOS.
+        onDecided={() => { setActiveChatId(''); setTimeout(() => router.dismissTo('/home'), 350); }}
       />
 
     </SafeAreaView>

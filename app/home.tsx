@@ -5980,7 +5980,7 @@ export default function HomeScreen() {
       // התראה ללקוח: "מנקה לקח את ההזמנה" — לא "אושר". התפיסה מורידה מהלוח
       // ומשאירה את ההזמנה ממתינה לאישור המנקה, בדיוק כמו בשני המסלולים האחרים.
       void notify({ event: 'booking_claimed', bookingId: job.id });
-      Alert.alert('✅', (t as any).jobClaimedOk ?? 'תפסת את העבודה. היא לא תוצג יותר לנותני שירות אחרים — אשר או דחה אותה בתחתית הצ\'אט.');
+      Alert.alert('✅', (t as any).jobClaimedOk ?? 'תפסת את העבודה! נפתח צ\'אט עם הלקוח');
       openClientChat(job.clientUid, job.clientName);
     } catch (e) {
       Alert.alert(t.error, (t as any).jobClaimError ?? 'שגיאה בתפיסת העבודה — נסה שוב');
