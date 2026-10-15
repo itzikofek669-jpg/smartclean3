@@ -133,6 +133,7 @@ const SERVICE_TYPES = [
   { key: 'ניקיון אחרי אירוע',       icon: '🎉' },
   { key: 'מחסן ועליית גג',          icon: '📦' },
   { key: 'סידורי בגדים וארונות',    icon: '👔' },
+  { key: 'ניקוי חדר מדרגות',       icon: '🪜' },
 ];
 
 const PAYMENT_OPTS = [
