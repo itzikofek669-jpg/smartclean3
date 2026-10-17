@@ -6761,6 +6761,8 @@ export default function HomeScreen() {
             customMapStyle={themeDark ? MAP_STYLE_DARK : MAP_STYLE_LIGHT}
             userInterfaceStyle={themeDark ? 'dark' : 'light'}
             initialRegion={REGION_DEFAULTS.all} showsUserLocation={false} showsMyLocationButton={false} onRegionChangeComplete={setMapRegion}
+            // No +/− buttons, as on the website: Android draws Google's by default; a pinch zooms.
+            zoomControlEnabled={false}
             // A tap on the map itself, not on a pin, lets go of the picked job.
             onPress={(e: any) => { if (e?.nativeEvent?.action !== 'marker-press') setSelectedJobId(null); }}>
             {nearbyMode && userCoords && (
