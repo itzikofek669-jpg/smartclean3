@@ -4056,7 +4056,8 @@ export default function HomeScreen() {
   const flatListRef = useRef<FlatList>(null);
   const handleSelectCleaner = React.useCallback((id: string) => setSelected(prev => prev === id ? null : id), []);
   const [enlargedPhoto, setEnlargedPhoto] = useState<string | null>(null);
-  // The cleaner's board legend, behind the "הסבר" button beside the search.
+  // The "הסבר" window beside the search — the board legend, or for a client
+  // what urgent, on-your-schedule and the cleaner cards are.
   const [boardHelpOpen, setBoardHelpOpen] = useState(false);
   const handleShowOnMap = React.useCallback((c: any) => {
     if (mapRef.current && c?.lat && c?.lng) {
@@ -6704,10 +6705,11 @@ export default function HomeScreen() {
           )}
 
           <View style={{ zIndex: 999, elevation: 999 }}>
-            {/* The cleaner's "הסבר" sits beside the search, as on the website;
-                the board's legend lives behind it instead of over the jobs. */}
+            {/* "הסבר" beside the search, as on the website: for a cleaner the
+                board's legend (instead of a box over the jobs), for a client what
+                the header's buttons and the cleaner cards are. */}
             <View style={{ flexDirection: flipSide ? 'row-reverse' : 'row', alignItems: 'center', gap: 8 }}>
-            {myRole === 'cleaner' && (
+            {!!myRole && (
               <TouchableOpacity onPress={() => setBoardHelpOpen(true)} style={s.boardHelpBtn} accessibilityRole="button">
                 <T style={s.boardHelpBtnText}>{(t as any).boardHelpBtn ?? 'הסבר'}</T>
               </TouchableOpacity>
@@ -7068,17 +7070,32 @@ export default function HomeScreen() {
               <View style={{ backgroundColor: C.blue, paddingHorizontal: 16, paddingVertical: 12 }}>
                 <T style={{ fontSize: 15, fontWeight: '900', color: '#fff', textAlign: 'center' }}>{(t as any).boardHelpBtn ?? 'הסבר'}</T>
               </View>
-              <View style={{ padding: 16, gap: 10 }}>
-                <T style={{ fontSize: 14, fontWeight: '800', color: '#5B21B6', textAlign: 'center', lineHeight: 22 }}>
-                  ⚡ {(t as any).urgentLegend ?? 'הזמנות במסגרת סגולה הן הזמנות דחופות מהיום למחר באזור שלך'}
-                </T>
-                <T style={{ fontSize: 14, fontWeight: '800', color: C.blue, textAlign: 'center', lineHeight: 22 }}>
-                  📅 {(t as any).boardLegendRegular ?? 'ניקיונות בלי מסגרת הם הזמנות שלקוחות פרסמו מראש לתאריך שבחרו — מי שלוחץ ראשון "קח את העבודה" מקבל אותן, ומאשר בצ\'אט עם הלקוח'}
-                </T>
-                <T style={{ fontSize: 14, fontWeight: '800', color: '#047857', textAlign: 'center', lineHeight: 22 }}>
-                  📩 {(t as any).directBookingNote ?? 'לקוחות יכולים להזמין אותך גם ישירות — תקבל התראה, צ\'אט וחלון אישור'}
-                </T>
-              </View>
+              {myRole === 'cleaner' ? (
+                <View style={{ padding: 16, gap: 10 }}>
+                  <T style={{ fontSize: 14, fontWeight: '800', color: '#5B21B6', textAlign: 'center', lineHeight: 22 }}>
+                    ⚡ {(t as any).urgentLegend ?? 'הזמנות במסגרת סגולה הן הזמנות דחופות מהיום למחר באזור שלך'}
+                  </T>
+                  <T style={{ fontSize: 14, fontWeight: '800', color: C.blue, textAlign: 'center', lineHeight: 22 }}>
+                    📅 {(t as any).boardLegendRegular ?? 'ניקיונות בלי מסגרת הם הזמנות שלקוחות פרסמו מראש לתאריך שבחרו — מי שלוחץ ראשון "קח את העבודה" מקבל אותן, ומאשר בצ\'אט עם הלקוח'}
+                  </T>
+                  <T style={{ fontSize: 14, fontWeight: '800', color: '#047857', textAlign: 'center', lineHeight: 22 }}>
+                    📩 {(t as any).directBookingNote ?? 'לקוחות יכולים להזמין אותך גם ישירות — תקבל התראה, צ\'אט וחלון אישור'}
+                  </T>
+                </View>
+              ) : (
+                <ScrollView style={{ maxHeight: 420 }} contentContainerStyle={{ padding: 16, gap: 14 }}>
+                  {([
+                    ['⚡ ' + stripEmoji(t.urgentBtn), '#6D28D9', (t as any).helpUrgent ?? 'ניקיון להיום או למחר. הבקשה נשלחת לכל נותני השירות הפנויים ברדיוס 30 ק"מ — הראשון שמאשר לוקח אותה, ונפתח איתו צ\'אט.'],
+                    ['📅 ' + stripEmoji((t as any).postJobHomeBtn ?? 'ניקיון בזמן שלך'), C.blue, (t as any).helpPostJob ?? 'מפרסמים ניקיון לתאריך ולשעה שנוחים לכם. נותני השירות המתאימים באזור רואים אותו ויכולים לקחת אותו, ומי שלוקח מתאם איתכם בצ\'אט.'],
+                    ['🧹 ' + ((t as any).helpCleanersTitle ?? 'נותני השירות ברשימה'), '#047857', (t as any).helpCleaners ?? 'כל כרטיס הוא נותן שירות באזור שלכם: מחיר לשעה, עיר וסוגי ניקיון. נקודה ירוקה — פנוי עכשיו. לחיצה על כרטיס פותחת הזמנה ישירה, צ\'אט ופרופיל, ולחיצה על סוג ניקיון מראה מה כלול בו.'],
+                  ] as [string, string, string][]).map(([title, colour, body]) => (
+                    <View key={title} style={{ gap: 3 }}>
+                      <T style={{ fontSize: 15, fontWeight: '900', color: colour, textAlign: 'center' }}>{title}</T>
+                      <T style={{ fontSize: 13.5, color: C.textDark, textAlign: 'center', lineHeight: 21 }}>{body}</T>
+                    </View>
+                  ))}
+                </ScrollView>
+              )}
               <TouchableOpacity style={{ margin: 12, marginTop: 4, borderRadius: 12, paddingVertical: 10, alignItems: 'center', backgroundColor: C.blue }} onPress={() => setBoardHelpOpen(false)}>
                 <T style={{ fontSize: 14, fontWeight: '800', color: '#fff' }}>{t.closeBtn}</T>
               </TouchableOpacity>
