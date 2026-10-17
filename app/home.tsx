@@ -7938,8 +7938,9 @@ function createS(c: AppColors) {
   nearbyBtnTextActive: { color: c.blue },
   searchWrap:      { flexDirection: 'row', alignItems: 'center', backgroundColor: '#F1F6FC', borderWidth: 1, borderColor: '#E1EAF5', borderRadius: 14, paddingHorizontal: 12, height: 42, gap: 8 },
   searchInput:     { flex: 1, fontSize: 13, color: c.textDark, padding: 0 },
-  boardHelpBtn:    { backgroundColor: '#EEF4FB', borderRadius: 14, height: 42, paddingHorizontal: 12, alignItems: 'center', justifyContent: 'center' },
-  boardHelpBtnText:{ fontSize: 14, fontWeight: '800', color: c.blueDark },
+  // Solid blue, so it stands out beside the search (as on the website).
+  boardHelpBtn:    { backgroundColor: c.blue, borderRadius: 14, height: 42, paddingHorizontal: 14, alignItems: 'center', justifyContent: 'center', elevation: 3, shadowColor: '#185FA5', shadowOpacity: 0.3, shadowRadius: 8, shadowOffset: { width: 0, height: 3 } },
+  boardHelpBtnText:{ fontSize: 14, fontWeight: '900', color: '#fff' },
   searchDropdown:  { position: 'absolute', top: 44, left: 0, right: 0, backgroundColor: c.white, borderRadius: 14, elevation: 12, shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.18, shadowRadius: 10, zIndex: 9999, overflow: 'hidden' },
   searchSuggItem:  { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 14, paddingVertical: 11 },
   searchSuggText:  { flex: 1, fontSize: 14, color: c.textDark, textAlign: 'right', fontWeight: '500' },
