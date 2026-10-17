@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { signOutOfDevice } from '../lib/signOutDevice';
 import { pushSilence } from '../lib/pushState';
 import { turnPushOn, pushPermission } from '../lib/pushSwitch';
@@ -4181,6 +4182,23 @@ export default function HomeScreen() {
 
   // תפקיד המשתמש
   const [myRole,         setMyRole]         = useState<'client' | 'cleaner' | null>(null);
+  // First time on the home screen, per role, it opens once by itself — as on
+  // the website. Only once the role is known, and marked when it opens.
+  useEffect(() => {
+    if (!myRole) return;
+    const key = `am-help-seen-${myRole}`;
+    let alive = true;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    AsyncStorage.getItem(key).then((seen) => {
+      if (!alive || seen) return;
+      timer = setTimeout(() => {
+        if (!alive) return;
+        setBoardHelpOpen(true);
+        AsyncStorage.setItem(key, '1').catch(() => {});
+      }, 800);
+    }).catch(() => {});
+    return () => { alive = false; if (timer) clearTimeout(timer); };
+  }, [myRole]);
   const [cleanerPendingCount, setCleanerPendingCount] = useState(0);
   // "3 bookings…", and "1 booking…" for one — it read "1 bookings". Russian and
   // Ukrainian have a third form, for 2–4.
@@ -7085,15 +7103,18 @@ export default function HomeScreen() {
               ) : (
                 <ScrollView style={{ maxHeight: 420 }} contentContainerStyle={{ padding: 16, gap: 14 }}>
                   {([
-                    [stripEmoji(t.urgentBtn), '#6D28D9', (t as any).helpUrgent ?? 'ניקיון להיום או למחר. הבקשה נשלחת לכל נותני השירות הזמינים ברדיוס 30 ק"מ, והראשון שמאשר מגיע אליכם.'],
-                    [stripEmoji((t as any).postJobHomeBtn ?? 'ניקיון בזמן שלך'), C.blue, (t as any).helpPostJob ?? 'בוחרים תאריך ושעה, והבקשה מתפרסמת לכל נותני השירות באזור — בלי לבחור נותן שירות מראש. מי שלוקח אותה מתאם איתכם בצ\'אט.'],
-                    [(t as any).helpCleanersTitle ?? 'נותני השירות ברשימה', '#047857', (t as any).helpCleaners ?? 'עוברים בין נותני השירות באזור ובוחרים את המתאים לכם. נקודה ירוקה מסמנת מי פנוי עכשיו, ולחיצה על כרטיס פותחת הזמנה ישירה, צ\'אט ופרופיל.'],
+                    [stripEmoji(t.urgentBtn), '#6D28D9', (t as any).helpUrgent ?? 'צריכים ניקיון היום או מחר? הבקשה נשלחת לכל נותני השירות הזמינים ברדיוס 30 ק"מ, והראשון שמאשר מגיע אליכם. עם האישור נפתח צ\'אט לתיאום.'],
+                    [stripEmoji((t as any).postJobHomeBtn ?? 'ניקיון בזמן שלך'), C.blue, (t as any).helpPostJob ?? 'מתכננים ניקיון מראש? בוחרים תאריך ושעה, והבקשה מתפרסמת לכל נותני השירות באזור — בלי צורך לבחור מראש נותן שירות מסוים. מי שלוקח את העבודה מתאם איתכם בצ\'אט.'],
+                    [(t as any).helpCleanersTitle ?? 'נותני השירות ברשימה', '#047857', (t as any).helpCleaners ?? 'כאן בוחרים בעצמכם את נותן השירות שהכי מתאים לכם. כל כרטיס מציג מחיר לשעה, עיר וסוגי ניקיון, ונקודה ירוקה מסמנת מי פנוי עכשיו. מהכרטיס אפשר להזמין ישירות — ונותן השירות מאשר את ההזמנה — או לפתוח צ\'אט ופרופיל.'],
                   ] as [string, string, string][]).map(([title, colour, body]) => (
                     <View key={title} style={{ gap: 3 }}>
                       <T style={{ fontSize: 15, fontWeight: '900', color: colour, textAlign: 'center' }}>{title}</T>
                       <T style={{ fontSize: 13.5, color: C.textDark, textAlign: 'center', lineHeight: 21 }}>{body}</T>
                     </View>
                   ))}
+                  <T style={{ fontSize: 12.5, color: C.textSub, textAlign: 'center', lineHeight: 19 }}>
+                    {(t as any).helpPayment ?? 'התשלום ישירות לנותן השירות, באחת הדרכים שמופיעות בכרטיס שלו.'}
+                  </T>
                 </ScrollView>
               )}
               <TouchableOpacity style={{ margin: 12, marginTop: 4, borderRadius: 12, paddingVertical: 10, alignItems: 'center', backgroundColor: C.blue }} onPress={() => setBoardHelpOpen(false)}>
