@@ -7070,6 +7070,9 @@ export default function HomeScreen() {
                 <T style={{ fontSize: 14, fontWeight: '800', color: '#5B21B6', textAlign: 'center', lineHeight: 22 }}>
                   ⚡ {(t as any).urgentLegend ?? 'הזמנות במסגרת סגולה הן הזמנות דחופות מהיום למחר באזור שלך'}
                 </T>
+                <T style={{ fontSize: 14, fontWeight: '800', color: C.blue, textAlign: 'center', lineHeight: 22 }}>
+                  📅 {(t as any).boardLegendRegular ?? 'ניקיונות בלי מסגרת הם הזמנות שלקוחות פרסמו מראש לתאריך שבחרו — מי שלוחץ ראשון "קח את העבודה" מקבל אותן, ומאשר בצ\'אט עם הלקוח'}
+                </T>
                 <T style={{ fontSize: 14, fontWeight: '800', color: '#047857', textAlign: 'center', lineHeight: 22 }}>
                   📩 {(t as any).directBookingNote ?? 'לקוחות יכולים להזמין אותך גם ישירות — תקבל התראה, צ\'אט וחלון אישור'}
                 </T>
