@@ -4056,6 +4056,8 @@ export default function HomeScreen() {
   const flatListRef = useRef<FlatList>(null);
   const handleSelectCleaner = React.useCallback((id: string) => setSelected(prev => prev === id ? null : id), []);
   const [enlargedPhoto, setEnlargedPhoto] = useState<string | null>(null);
+  // The cleaner's board legend, behind the "הסבר" button beside the search.
+  const [boardHelpOpen, setBoardHelpOpen] = useState(false);
   const handleShowOnMap = React.useCallback((c: any) => {
     if (mapRef.current && c?.lat && c?.lng) {
       mapRef.current.animateToRegion({ latitude: c.lat, longitude: c.lng, latitudeDelta: 0.04, longitudeDelta: 0.04 }, 500);
@@ -6702,7 +6704,15 @@ export default function HomeScreen() {
           )}
 
           <View style={{ zIndex: 999, elevation: 999 }}>
-            <View style={[s.searchWrap, flipSide && { flexDirection: 'row-reverse' }]}>
+            {/* The cleaner's "הסבר" sits beside the search, as on the website;
+                the board's legend lives behind it instead of over the jobs. */}
+            <View style={{ flexDirection: flipSide ? 'row-reverse' : 'row', alignItems: 'center', gap: 8 }}>
+            {myRole === 'cleaner' && (
+              <TouchableOpacity onPress={() => setBoardHelpOpen(true)} style={s.boardHelpBtn} accessibilityRole="button">
+                <T style={s.boardHelpBtnText}>{(t as any).boardHelpBtn ?? 'הסבר'}</T>
+              </TouchableOpacity>
+            )}
+            <View style={[s.searchWrap, { flex: 1 }, flipSide && { flexDirection: 'row-reverse' }]}>
               <T style={{ fontSize: 14, color: C.textSub }}>🔍</T>
               <TextInput
                 style={s.searchInput}
@@ -6722,6 +6732,7 @@ export default function HomeScreen() {
                   <T style={{ color: C.textSub, fontSize: 16 }}>✕</T>
                 </TouchableOpacity>
               )}
+            </View>
             </View>
             {showSearchSugg && searchSugg.length > 0 && (
               <View style={s.searchDropdown}>
@@ -6854,23 +6865,9 @@ export default function HomeScreen() {
           }}
           ListHeaderComponent={myRole === 'cleaner' ? (
             <View style={{ marginBottom: 6 }}>
-              <T style={{ fontSize: 18, fontWeight: '900', color: C.textDark, textAlign: 'right' }}>🧹 {(t as any).jobBoardTitle ?? 'ניקיונות שמחכות לך'}</T>
-              {/* מקרא הלוח — שתי שורות קצרות ומקבילות בבלוק אחד: מה הסגול אומר,
-                  ושהמנקה מקבל גם הזמנות ישירות מלקוחות (לא רק מהלוח). */}
-              <View style={{ marginTop: 6, backgroundColor: C.bluePale, borderRadius: 10, paddingVertical: 8, paddingHorizontal: 10, gap: 6, borderWidth: 1, borderColor: C.blueBorder }}>
-                <View style={{ flexDirection: 'row-reverse', alignItems: 'flex-start', gap: 6 }}>
-                  <T style={{ fontSize: 13 }}>⚡</T>
-                  <T style={{ fontSize: 12.5, fontWeight: '800', color: '#5B21B6', textAlign: 'right', flex: 1 }}>
-                    {(t as any).urgentLegend ?? 'הזמנות במסגרת סגולה הן הזמנות דחופות מהיום למחר באזור שלך'}
-                  </T>
-                </View>
-                <View style={{ flexDirection: 'row-reverse', alignItems: 'flex-start', gap: 6 }}>
-                  <T style={{ fontSize: 13 }}>📩</T>
-                  <T style={{ fontSize: 12.5, fontWeight: '800', color: '#047857', textAlign: 'right', flex: 1 }}>
-                    {(t as any).directBookingNote ?? 'לקוחות יכולים להזמין אותך גם ישירות — תקבל התראה, צ\'אט וחלון אישור'}
-                  </T>
-                </View>
-              </View>
+              <T style={{ fontSize: 18, fontWeight: '900', color: C.textDark, textAlign: 'right' }}>{(t as any).jobBoardTitle ?? 'ניקיונות שמחכות לך'}</T>
+              {/* The legend (what purple means, direct bookings) is behind the
+                  "הסבר" button beside the search now. */}
             </View>
           ) : myRole === 'client' ? (
             myBookings.length > 0 ? (
@@ -6933,7 +6930,7 @@ export default function HomeScreen() {
           renderItem={myRole === 'cleaner'
             ? ({ item: j }: any) => {
                 const svcKeys: string[] = j.serviceTypes || (j.serviceType ? [j.serviceType] : []);
-                const svc = svcKeys.map(k => String(t.types[k] || k).replace(/[\u{1F000}-\u{1FFFF}\u{2600}-\u{27BF}\u{2B00}-\u{2BFF}\u{FE0F}\u{200D}]/gu, '').trim()).filter(Boolean).join(', ');
+                const svc = svcKeys.map(k => String(t.types[k] || k).replace(/[\u{1F000}-\u{1FFFF}\u{2600}-\u{27BF}\u{2B00}-\u{2BFF}\u{FE0F}\u{200D}]/gu, '').trim()).filter(Boolean).join(' + ');
                 const dateStr = j.bookingDate || j.dateStr || '';
                 const timeStr = j.startTime || '';
                 const propType = j.isPrivateHouse ? ((t as any).privateHouseLabel ?? 'בית פרטי') : ((t as any).aptBuildingLabel ?? 'דירה');
@@ -6950,24 +6947,42 @@ export default function HomeScreen() {
                     // Picked on the map: ringed in the pin's colour and a little larger.
                     isPicked && { borderColor: JOB_SELECTED, borderWidth: 3, transform: [{ scale: 1.03 }], shadowColor: JOB_SELECTED, shadowOpacity: 0.45, shadowRadius: 10, elevation: 8, marginVertical: 4 },
                   ]}>
-                    {isUrgent && (
-                      <View style={{ alignSelf: 'flex-end', backgroundColor: '#7C3AED', borderRadius: 8, paddingHorizontal: 9, paddingVertical: 3, marginBottom: 8 }}>
-                        <T style={{ color: '#fff', fontSize: 11.5, fontWeight: '900' }}>⚡ {(t as any).urgentBadge ?? 'דחוף'}</T>
+                    {/* The website's compact card (Ofek's pick): only the service
+                        and the total are bold, the urgent badge rides beside the
+                        title, the facts are light-blue tags in two short lines —
+                        date, hours, property; then place and client — and the
+                        buttons are low. The lavender urgent card stays here. */}
+                    <View style={{ flexDirection: 'row-reverse', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+                      <View style={{ flexDirection: 'row-reverse', alignItems: 'center', gap: 6, flexShrink: 1 }}>
+                        <T style={s.jobTitle}>{svc || ((t as any).defaultServiceName ?? 'ניקיון')}</T>
+                        {isUrgent && (
+                          <View style={s.jobUrgentBadge}>
+                            <T style={s.jobUrgentBadgeText}>⚡ {(t as any).urgentBadge ?? 'דחוף'}</T>
+                          </View>
+                        )}
                       </View>
-                    )}
-                    <View style={{ flexDirection: 'row-reverse', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
-                      <T style={[s.jobTitle, isUrgent && { color: '#5B21B6' }]}>{isUrgent ? '🚨 ' : '🧹 '}{svc || ((t as any).defaultServiceName ?? 'ניקיון')}</T>
                       {price != null && <T style={[s.jobPrice, isUrgent && { color: '#6D28D9' }]}>{(t as any).totalShort ?? 'סה"כ'} ₪{price}</T>}
                     </View>
-                    <TouchableOpacity activeOpacity={0.7} style={{ gap: 4, marginBottom: 10 }} onPress={() => { setSelectedJobId(j._id); showJobOnMap(j); }}>
-                      {!!dateStr && <T style={s.jobRow}>📅 {formatJobDate(dateStr)}{timeStr ? ` ${(t as any).atHour ?? 'בשעה'} ${timeStr}` : ''}</T>}
-                      {!!j.hours && <T style={s.jobRow}>⏱️ {j.hours} {(t as any).hoursUnit ?? 'שעות'}</T>}
-                      <T style={s.jobRow}>🏠 {propType}</T>
-                      {!!area && <T style={s.jobRow}>📍 {area}{typeof j._distKm === 'number' ? `  ·  📏 ${j._distKm < 1 ? '<1' : Math.round(j._distKm)} ק"מ` : ''}</T>}
-                      {!!j.clientName && <T style={s.jobRow}>👤 {j.clientName}</T>}
-                      {!!j.notes && <T style={[s.jobRow, { color: C.textSub }]}>📝 {j.notes}</T>}
+                    <TouchableOpacity activeOpacity={0.7} style={{ marginTop: 7, gap: 5 }} onPress={() => { setSelectedJobId(j._id); showJobOnMap(j); }}>
+                      <View style={s.jobFactRow}>
+                        {!!dateStr && <View style={s.jobFact}><T style={s.jobFactText}>📅 {formatJobDate(dateStr).replace(/\/\d{4}$/, '')}{timeStr ? ` · ${timeStr}` : ''}</T></View>}
+                        {!!j.hours && <View style={s.jobFact}><T style={s.jobFactText}>⏱️ {j.hours} {(t as any).hoursUnit ?? 'שעות'}</T></View>}
+                        {/* Not for an urgent request: its form never asks. */}
+                        {!isUrgent && <View style={s.jobFact}><T style={s.jobFactText}>🏠 {propType}</T></View>}
+                      </View>
+                      {(!!area || typeof j._distKm === 'number' || !!j.clientName) && (
+                        <View style={s.jobFactRow}>
+                          {(!!area || typeof j._distKm === 'number') && (
+                            <View style={s.jobFact}>
+                              <T style={s.jobFactText}>📍 {[area, typeof j._distKm === 'number' ? `${j._distKm < 1 ? '<1' : Math.round(j._distKm)} ק"מ` : ''].filter(Boolean).join(' · ')}</T>
+                            </View>
+                          )}
+                          {!!j.clientName && <View style={s.jobFact}><T style={s.jobFactText}>👤 {j.clientName}</T></View>}
+                        </View>
+                      )}
+                      {!!j.notes && <T style={s.jobNote}>📝 {j.notes}</T>}
                       {jobPhotosOf(j.photos).length > 0 && (
-                        <View style={{ flexDirection: 'row-reverse', flexWrap: 'wrap', gap: 6, marginTop: 6 }}>
+                        <View style={{ flexDirection: 'row-reverse', flexWrap: 'wrap', gap: 6, marginTop: 2 }}>
                           {jobPhotosOf(j.photos).map((uri: string, pi: number) => (
                             <TouchableOpacity key={pi} onPress={() => setEnlargedPhoto(uri)}>
                               <Image source={{ uri }} style={{ width: 64, height: 64, borderRadius: 8 }} contentFit="cover" />
@@ -6976,15 +6991,15 @@ export default function HomeScreen() {
                         </View>
                       )}
                     </TouchableOpacity>
-                    <View style={{ flexDirection: 'row-reverse', gap: 8 }}>
+                    <View style={{ flexDirection: 'row-reverse', gap: 6, marginTop: 9 }}>
                       <TouchableOpacity style={[s.jobBtn, s.jobBtnPrimary]} onPress={() => claimJob(j)}>
-                        <T style={s.jobBtnPrimaryText}>✅ {(t as any).claimJobBtn ?? 'קח את העבודה'}</T>
+                        <T style={s.jobBtnPrimaryText} numberOfLines={1}>{(t as any).claimJobBtn ?? 'קח את העבודה'}</T>
                       </TouchableOpacity>
                       <TouchableOpacity style={[s.jobBtn, s.jobBtnGhost]} onPress={() => openClientChat(j.clientUid, j.clientName)}>
-                        <T style={s.jobBtnGhostText}>💬 {(t as any).chatBeforeBtn ?? 'צ\'אט עם הלקוח'}</T>
+                        <T style={s.jobBtnGhostText} numberOfLines={1}>{(t as any).chatBeforeBtn ?? 'צ\'אט עם הלקוח'}</T>
                       </TouchableOpacity>
-                      <TouchableOpacity style={[s.jobBtn, s.jobBtnGhost, { flex: 0, paddingHorizontal: 12 }]} onPress={() => setHiddenJobIds(prev => new Set(prev).add(j._id))}>
-                        <T style={s.jobBtnGhostText}>✕</T>
+                      <TouchableOpacity style={[s.jobBtn, s.jobBtnDismiss]} onPress={() => setHiddenJobIds(prev => new Set(prev).add(j._id))} accessibilityLabel="הסתר">
+                        <T style={s.jobBtnDismissText}>✕</T>
                       </TouchableOpacity>
                     </View>
                   </View>
@@ -7043,6 +7058,30 @@ export default function HomeScreen() {
       <AccessibilityModal visible={a11yOpen} onClose={() => setA11yOpen(false)} />
 
       {/* מציג תמונת מנקה במסך מלא */}
+      {/* The board legend — drawn like the service detail (lib/ServiceInfoBtn). */}
+      <Modal visible={boardHelpOpen} transparent animationType="fade" onRequestClose={() => setBoardHelpOpen(false)}>
+        <TouchableOpacity style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center', padding: 24 }} activeOpacity={1} onPress={() => setBoardHelpOpen(false)}>
+          <TouchableOpacity activeOpacity={1}>
+            <View style={{ width: 300, borderRadius: 18, overflow: 'hidden', borderWidth: 1, borderColor: C.blueBorder, backgroundColor: C.white }}>
+              <View style={{ backgroundColor: C.blue, paddingHorizontal: 16, paddingVertical: 12 }}>
+                <T style={{ fontSize: 15, fontWeight: '900', color: '#fff', textAlign: 'center' }}>{(t as any).boardHelpBtn ?? 'הסבר'}</T>
+              </View>
+              <View style={{ padding: 16, gap: 10 }}>
+                <T style={{ fontSize: 14, fontWeight: '800', color: '#5B21B6', textAlign: 'center', lineHeight: 22 }}>
+                  ⚡ {(t as any).urgentLegend ?? 'הזמנות במסגרת סגולה הן הזמנות דחופות מהיום למחר באזור שלך'}
+                </T>
+                <T style={{ fontSize: 14, fontWeight: '800', color: '#047857', textAlign: 'center', lineHeight: 22 }}>
+                  📩 {(t as any).directBookingNote ?? 'לקוחות יכולים להזמין אותך גם ישירות — תקבל התראה, צ\'אט וחלון אישור'}
+                </T>
+              </View>
+              <TouchableOpacity style={{ margin: 12, marginTop: 4, borderRadius: 12, paddingVertical: 10, alignItems: 'center', backgroundColor: C.blue }} onPress={() => setBoardHelpOpen(false)}>
+                <T style={{ fontSize: 14, fontWeight: '800', color: '#fff' }}>{t.closeBtn}</T>
+              </TouchableOpacity>
+            </View>
+          </TouchableOpacity>
+        </TouchableOpacity>
+      </Modal>
+
       <Modal visible={!!enlargedPhoto} transparent animationType="fade" onRequestClose={() => setEnlargedPhoto(null)}>
         <TouchableOpacity style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.95)', alignItems: 'center', justifyContent: 'center' }} activeOpacity={1} onPress={() => setEnlargedPhoto(null)}>
           <TouchableOpacity style={{ position: 'absolute', top: 50, right: 20, backgroundColor: 'rgba(255,255,255,0.2)', borderRadius: 20, padding: 10, zIndex: 10 }} onPress={() => setEnlargedPhoto(null)}>
@@ -7899,6 +7938,8 @@ function createS(c: AppColors) {
   nearbyBtnTextActive: { color: c.blue },
   searchWrap:      { flexDirection: 'row', alignItems: 'center', backgroundColor: '#F1F6FC', borderWidth: 1, borderColor: '#E1EAF5', borderRadius: 14, paddingHorizontal: 12, height: 42, gap: 8 },
   searchInput:     { flex: 1, fontSize: 13, color: c.textDark, padding: 0 },
+  boardHelpBtn:    { backgroundColor: '#EEF4FB', borderRadius: 14, height: 42, paddingHorizontal: 12, alignItems: 'center', justifyContent: 'center' },
+  boardHelpBtnText:{ fontSize: 14, fontWeight: '800', color: c.blueDark },
   searchDropdown:  { position: 'absolute', top: 44, left: 0, right: 0, backgroundColor: c.white, borderRadius: 14, elevation: 12, shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.18, shadowRadius: 10, zIndex: 9999, overflow: 'hidden' },
   searchSuggItem:  { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 14, paddingVertical: 11 },
   searchSuggText:  { flex: 1, fontSize: 14, color: c.textDark, textAlign: 'right', fontWeight: '500' },
@@ -7912,15 +7953,24 @@ function createS(c: AppColors) {
   map:          { flex: 1 },
   list:         { flex: 1 },
   // ── לוח עבודות (מנקה) ──
-  jobCard:          { backgroundColor: c.white, borderRadius: 16, padding: 14, borderWidth: 1, borderColor: c.blueBorder, elevation: 2, shadowColor: '#000', shadowOpacity: 0.06, shadowRadius: 6, shadowOffset: { width: 0, height: 2 } },
-  jobTitle:         { fontSize: 15, fontWeight: '900', color: c.textDark, flex: 1, textAlign: 'right' },
-  jobPrice:         { fontSize: 16, fontWeight: '900', color: c.blue },
-  jobRow:           { fontSize: 13, color: c.textDark, textAlign: 'right' },
-  jobBtn:           { flex: 1, borderRadius: 12, paddingVertical: 11, alignItems: 'center', justifyContent: 'center' },
+  // The cleaner's job card — the website's compact phone card. Colours from the
+  // palette, so high-contrast mode keeps working.
+  jobCard:          { backgroundColor: c.white, borderRadius: 14, paddingHorizontal: 12, paddingVertical: 10, borderWidth: 1, borderColor: c.blueBorder, elevation: 2, shadowColor: '#185FA5', shadowOpacity: 0.07, shadowRadius: 8, shadowOffset: { width: 0, height: 2 } },
+  jobTitle:         { fontSize: 15, fontWeight: '800', color: c.textDark, textAlign: 'right', flexShrink: 1 },
+  jobPrice:         { fontSize: 15.5, fontWeight: '800', color: c.blue },
+  jobUrgentBadge:   { backgroundColor: '#7C3AED', borderRadius: 7, paddingHorizontal: 8, paddingVertical: 2 },
+  jobUrgentBadgeText: { color: '#fff', fontSize: 11, fontWeight: '900' },
+  jobFactRow:       { flexDirection: 'row-reverse', flexWrap: 'wrap', gap: 5 },
+  jobFact:          { backgroundColor: c.blueLight, borderRadius: 8, paddingHorizontal: 8, paddingVertical: 3 },
+  jobFactText:      { fontSize: 12.5, fontWeight: '600', color: c.blue, lineHeight: 16 },
+  jobNote:          { fontSize: 13, color: c.textSub, textAlign: 'right', lineHeight: 19 },
+  jobBtn:           { flex: 1, borderRadius: 10, height: 34, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 6 },
   jobBtnPrimary:    { backgroundColor: c.green },
   jobBtnPrimaryText:{ color: '#fff', fontWeight: '800', fontSize: 13 },
-  jobBtnGhost:      { backgroundColor: c.blueLight, borderWidth: 1, borderColor: c.blueBorder },
+  jobBtnGhost:      { backgroundColor: c.white, borderWidth: 1.5, borderColor: c.blueBorder },
   jobBtnGhostText:  { color: c.blue, fontWeight: '800', fontSize: 13 },
+  jobBtnDismiss:    { flex: 0, width: 34, paddingHorizontal: 0, backgroundColor: c.grayBg },
+  jobBtnDismissText:{ color: c.textSub, fontWeight: '800', fontSize: 15 },
   pinHead:      { alignItems: 'center', justifyContent: 'center', borderWidth: 2.5, borderColor: c.white, elevation: 6, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.3, shadowRadius: 3 },
   pinTail:      { width: 0, height: 0, borderLeftWidth: 7, borderRightWidth: 7, borderTopWidth: 10, borderLeftColor: 'transparent', borderRightColor: 'transparent', marginTop: -1 },
   pinText:      { color: c.white, fontWeight: '900', fontSize: 10 },
