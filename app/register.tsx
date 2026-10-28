@@ -22,10 +22,10 @@ import {
   validatePhone, validateAge, validateDistance, validatePrice, normalizePhone,
 } from '../lib/validate';
 import { useLanguage, T, useAppColors, AppColors } from '../lib/LanguageContext';
+import BackIcon from '../lib/BackIcon';
 import { Lang } from '../lib/translations';
 import { TERMS_BY_LANG } from '../lib/terms';
 import ServiceInfoBtn from '../lib/ServiceInfoBtn';
-import { MaterialIcons } from '@expo/vector-icons';
 import { logError } from '../lib/logError';
 import { devicePosition } from '../lib/devicePosition';
 import { claimPhone } from '../lib/accountChecks';
@@ -863,7 +863,7 @@ export default function RegisterScreen() {
 
         <View style={s.hero}>
           <TouchableOpacity style={s.backBtn} onPress={() => router.back()}>
-            <MaterialIcons name="arrow-back" size={28} color={C.blue} />
+            <BackIcon size={28} color={C.blue} />
           </TouchableOpacity>
           <RNImage
             source={require('../assets/images/logo-ui.png')}

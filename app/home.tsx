@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import BackIcon from '../lib/BackIcon';
 import { signOutOfDevice } from '../lib/signOutDevice';
 import { pushSilence } from '../lib/pushState';
 import { turnPushOn, pushPermission } from '../lib/pushSwitch';
@@ -1097,7 +1098,7 @@ function CleanerProfile({ cleaner, visible, onClose, onBook, onChat, initialShow
     <Modal visible={visible} animationType="slide" presentationStyle="pageSheet" onRequestClose={onClose}>
       <SafeAreaView style={{ flex: 1, backgroundColor: C.bluePale }}>
         <View style={s.profileHeader}>
-          <TouchableOpacity accessibilityRole="button" accessibilityLabel="חזור" onPress={onClose} style={s.closeBtn}><MaterialIcons name="arrow-back" size={24} color={C.white} /></TouchableOpacity>
+          <TouchableOpacity accessibilityRole="button" accessibilityLabel="חזור" onPress={onClose} style={s.closeBtn}><BackIcon size={24} color={C.white} /></TouchableOpacity>
           <T style={s.profileHeaderTitle}>{t.cleanerProfileTitle}</T>
           <View style={{ width: 36 }} />
         </View>

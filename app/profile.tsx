@@ -45,6 +45,7 @@ import * as FileSystem from 'expo-file-system/legacy';
 // expo-audio — הקלטה והשמעה של הודעות קוליות (SDK 54, מחליף את expo-av)
 import { useAudioRecorder, createAudioPlayer, RecordingPresets, setAudioModeAsync, AudioModule } from 'expo-audio';
 import { useLanguage, T, useAppColors, AppColors } from '../lib/LanguageContext';
+import BackIcon from '../lib/BackIcon';
 import ServiceInfoBtn from '../lib/ServiceInfoBtn';
 import { Lang } from '../lib/translations';
 import AccessibilityModal from '../lib/AccessibilityModal';
@@ -2946,7 +2947,7 @@ export default function ProfileScreen() {
 
       <View style={[s.header, { paddingTop: (Platform.OS === 'ios' ? insets.top : (StatusBar.currentHeight || 0)) + 12 }, flipSide && { flexDirection: 'row-reverse' }]}>
         <TouchableOpacity onPress={() => { if (router.canGoBack()) router.back(); else router.replace('/home'); }} style={s.backBtn}>
-          <MaterialIcons name="arrow-back" size={30} color="#FFFFFF" />
+          <BackIcon size={30} color="#FFFFFF" />
         </TouchableOpacity>
         <T style={s.headerTitle}>{t.myProfileTitle}</T>
         <TouchableOpacity
@@ -4242,7 +4243,7 @@ export default function ProfileScreen() {
           <View style={{ backgroundColor: C.blue, paddingTop: insets.top }}>
             <View style={s.header}>
               <TouchableOpacity onPress={() => { setChatOpen(false); if (chatUnsubRef.current) chatUnsubRef.current(); }} style={s.backBtn}>
-                <MaterialIcons name="arrow-back" size={24} color={C.white} />
+                <BackIcon size={24} color={C.white} />
               </TouchableOpacity>
               <T style={s.headerTitle}>💬 {chatClientName}</T>
               <View style={{ width: 36 }} />

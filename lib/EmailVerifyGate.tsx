@@ -7,6 +7,7 @@ import { doc, setDoc } from 'firebase/firestore';
 import { auth, db } from './firebase';
 import { mustVerifyEmail, sendVerificationEmail } from './emailVerification';
 import { useLanguage, T, useAppColors } from './LanguageContext';
+import { BACK_ARROW } from './BackIcon';
 import { logError } from './logError';
 
 /**
@@ -26,7 +27,7 @@ import { logError } from './logError';
  * שמאפשר לשלוח את המייל שוב ולהיכנס ישר פנימה ברגע שהכתובת מאומתת.
  */
 export default function EmailVerifyGate() {
-  const { t, lang } = useLanguage();
+  const { t, lang, isRTL } = useLanguage();
   const C = useAppColors();
   const [user, setUser] = useState<User | null>(auth.currentUser);
   const [blocked, setBlocked] = useState(false);
@@ -174,7 +175,7 @@ export default function EmailVerifyGate() {
           — and the address is taken, so registering again with the real one is
           refused too. */}
       <TouchableOpacity style={s.linkBtn} onPress={leave}>
-        <T style={[s.linkText, { color: C.blue }]}>{tt.backToLogin || '← חזרה להתחברות'}</T>
+        <T style={[s.linkText, { color: C.blue }]}>{BACK_ARROW(isRTL)} {tt.backToLogin || 'חזרה להתחברות'}</T>
       </TouchableOpacity>
     </View>
   );

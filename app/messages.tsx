@@ -28,6 +28,7 @@ import * as FileSystem from 'expo-file-system/legacy';
 import { readVoiceNote } from '../lib/voiceNotes';
 import { Image } from 'expo-image';
 import { useLanguage, T, useAppColors, AppColors } from '../lib/LanguageContext';
+import BackIcon from '../lib/BackIcon';
 import { MaterialIcons } from '@expo/vector-icons';
 
 // expo-audio — הקלטה והשמעה של הודעות קוליות (SDK 54, מחליף את expo-av)
@@ -42,6 +43,10 @@ function createCS(c: AppColors) {
     bubble:      { maxWidth: '80%', padding: 12, borderRadius: 16 },
     bubbleMe:    { backgroundColor: c.white, borderWidth: 1, borderColor: c.blueBorder },
     bubbleOther: { backgroundColor: c.blue },
+    // ה-✕ לצד בועה שלי. קטן ושקט יותר מזה שבשורת שיחה — הוא חוזר ליד כל
+    // בועה בשיחה, ולכן אסור שייקרא כחלק מהמילים. כמו באתר (.bubble-del).
+    bubbleDel:     { width: 20, height: 20, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
+    bubbleDelText: { color: '#B6C6D6', fontSize: 11, fontWeight: '700', lineHeight: 13 },
     inputRow:    { flexDirection: 'row', gap: 8, padding: 12, backgroundColor: c.white, borderTopWidth: 1, borderColor: c.blueBorder },
     input:       { flex: 1, backgroundColor: c.bluePale, borderRadius: 10, padding: 10, fontSize: 14, color: c.textDark, borderWidth: 1, borderColor: c.blueBorder },
     sendBtn:     { width: 42, height: 42, backgroundColor: c.blue, borderRadius: 21, alignItems: 'center', justifyContent: 'center' },
@@ -66,6 +71,10 @@ function createS(c: AppColors) {
     convName:    { fontSize: 15, fontWeight: '700', color: c.textDark, textAlign: 'right' },
     convLast:    { fontSize: 12, color: c.textSub, marginTop: 3, textAlign: 'right' },
     convTime:    { fontSize: 11, color: c.textSub },
+    // ה-✕ שמסתיר שיחה. שקט, כי כל שאר השורה פותחת אותה — הוא לא אמור
+    // להתחרות בשם ובשורה האחרונה. כמו באתר (.conv-del).
+    convDel:     { width: 28, height: 28, borderRadius: 14, backgroundColor: '#F3F6FA', alignItems: 'center', justifyContent: 'center' },
+    convDelText: { color: '#9AAFC4', fontSize: 13, fontWeight: '700', lineHeight: 15 },
   });
 }
 
@@ -79,6 +88,8 @@ function InlineChatModal({ chatId, otherUid, otherName, visible, onClose, onDeci
   const [selectedMsgs, setSelectedMsgs] = useState<Set<string>>(new Set());
   const [msgSelecting, setMsgSelecting] = useState(false);
   const [deleting, setDeleting]       = useState(false);
+  // ההודעה שנמחקת כרגע, כדי שה-✕ שלה לא ייענה פעמיים.
+  const [removingMsg, setRemovingMsg] = useState('');
   const [isRecording, setIsRecording] = useState(false);
   const [playingId, setPlayingId]     = useState<string | null>(null);
   const [viewerUri, setViewerUri]     = useState<string | null>(null);
@@ -483,7 +494,23 @@ function InlineChatModal({ chatId, otherUid, otherName, visible, onClose, onDeci
     setSelectedMsgs(new Set());
   };
 
-  // מחיקת ההודעות הנבחרות
+  // ✕ על בועה שלי — מוחק מיד, בלי לשאול (כמו באתר). רק שלי נושאות אחד:
+  // החוקים מסרבים למחוק הודעות של הצד השני, שהן הראיה שלפיה נשפטת תלונה.
+  const removeOneMsg = async (m: any) => {
+    if (!m?.id || removingMsg) return;
+    setRemovingMsg(m.id);
+    try {
+      await deleteDoc(doc(db, 'chats', chatId, 'messages', m.id));
+      // התצוגה המקדימה בלבד — לא lastMessageAt, כדי שלא ייקרא אצל הצד השני
+      // כהודעה חדשה. אותו שיקול כמו במחיקה המרובה למטה.
+      const remaining = messages.filter(x => x.id !== m.id);
+      const last = remaining[remaining.length - 1];
+      await updateDoc(doc(db, 'chats', chatId), { lastMessage: last?.text || '' });
+    } catch (err) { logError('messages:deleteOne', err); }
+    setRemovingMsg('');
+  };
+
+  // מחיקת ההודעות הנבחרות — כאן כן שואלים, כי נמחקות כמה בבת אחת.
   const deleteSelected = async () => {
     if (selectedMsgs.size === 0) return;
     Alert.alert(
@@ -546,7 +573,7 @@ function InlineChatModal({ chatId, otherUid, otherName, visible, onClose, onDeci
         ) : (
           <View style={[cs.header, flipSide && { flexDirection: 'row-reverse' }]}>
             <TouchableOpacity accessibilityRole="button" accessibilityLabel="חזור" onPress={onClose} style={cs.closeBtn}>
-              <MaterialIcons name="arrow-back" size={24} color={C.white} />
+              <BackIcon size={24} color={C.white} />
             </TouchableOpacity>
             <T style={cs.headerTitle}>{t.chatWithPrefix}{otherName}</T>
             <View style={{ width: 36 }} />
@@ -695,33 +722,57 @@ function InlineChatModal({ chatId, otherUid, otherName, visible, onClose, onDeci
                       {isSelected && <T style={{ color: '#fff', fontSize: 11, fontWeight: '900' }}>✓</T>}
                     </View>
                   )}
-                  {m.type === 'image' ? (
-                    <TouchableOpacity onPress={() => { const u = m.imageBase64 || m.imageUrl; if (u) setViewerUri(u); }} activeOpacity={0.85}>
-                      <Image
-                        source={{ uri: m.imageBase64 || m.imageUrl }}
-                        style={{ width: 200, height: 150, borderRadius: 12, borderWidth: 1, borderColor: C.blueBorder }}
-                        contentFit="cover"
-                      />
-                    </TouchableOpacity>
-                  ) : m.type === 'audio' ? (
-                    <TouchableOpacity
-                      style={[
-                        cs.bubble,
-                        isMe ? cs.bubbleMe : cs.bubbleOther,
-                        { flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 10 },
-                      ]}
-                      onPress={() => playAudio(m.audioBase64, m.audioUrl, m.id)}
-                    >
-                      <T style={{ fontSize: 22 }}>{playingId === m.id ? '⏸' : '▶️'}</T>
-                      <T style={{ color: isMe ? C.textDark : C.white, fontSize: 13 }}>
-                        🎤 {playingId === m.id ? 'מנגן...' : 'הודעה קולית'}
-                      </T>
-                    </TouchableOpacity>
-                  ) : (
-                    <View style={[cs.bubble, isMe ? cs.bubbleMe : cs.bubbleOther]}>
-                      <T style={{ color: isMe ? C.textDark : C.white, fontSize: 14 }}>{m.text}</T>
-                    </View>
-                  )}
+                  {/* שורה פנימית, כדי שה-✕ ישב לצד הבועה ולא מעליה. הבועה
+                      שלי נצמדת לימין, אז ה-✕ נופל משמאלה — הצד הפנימי.
+                      stretch ולא רוחב לפי תוכן: ל-cs.bubble יש maxWidth של
+                      80%, והאחוז נמדד מול ההורה — שורה ברוחב תוכן הייתה
+                      מכווצת הודעות ארוכות. justifyContent ממקם את הצמד. */}
+                  <View style={{
+                    flexDirection: 'row', alignItems: 'center', gap: 6,
+                    alignSelf: 'stretch', justifyContent: isMe ? 'flex-end' : 'flex-start',
+                  }}>
+                    {isMe && !msgSelecting && (
+                      <TouchableOpacity
+                        onPress={() => removeOneMsg(m)}
+                        disabled={removingMsg === m.id}
+                        hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                        accessibilityRole="button"
+                        accessibilityLabel={t.deleteMsgAria}
+                        style={cs.bubbleDel}
+                      >
+                        {removingMsg === m.id
+                          ? <ActivityIndicator size="small" color="#B6C6D6" />
+                          : <T style={cs.bubbleDelText}>✕</T>}
+                      </TouchableOpacity>
+                    )}
+                    {m.type === 'image' ? (
+                      <TouchableOpacity onPress={() => { const u = m.imageBase64 || m.imageUrl; if (u) setViewerUri(u); }} activeOpacity={0.85}>
+                        <Image
+                          source={{ uri: m.imageBase64 || m.imageUrl }}
+                          style={{ width: 200, height: 150, borderRadius: 12, borderWidth: 1, borderColor: C.blueBorder }}
+                          contentFit="cover"
+                        />
+                      </TouchableOpacity>
+                    ) : m.type === 'audio' ? (
+                      <TouchableOpacity
+                        style={[
+                          cs.bubble,
+                          isMe ? cs.bubbleMe : cs.bubbleOther,
+                          { flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 10 },
+                        ]}
+                        onPress={() => playAudio(m.audioBase64, m.audioUrl, m.id)}
+                      >
+                        <T style={{ fontSize: 22 }}>{playingId === m.id ? '⏸' : '▶️'}</T>
+                        <T style={{ color: isMe ? C.textDark : C.white, fontSize: 13 }}>
+                          🎤 {playingId === m.id ? 'מנגן...' : 'הודעה קולית'}
+                        </T>
+                      </TouchableOpacity>
+                    ) : (
+                      <View style={[cs.bubble, isMe ? cs.bubbleMe : cs.bubbleOther]}>
+                        <T style={{ color: isMe ? C.textDark : C.white, fontSize: 14 }}>{m.text}</T>
+                      </View>
+                    )}
+                  </View>
                 </TouchableOpacity>
               );
             })}
@@ -827,6 +878,8 @@ export default function MessagesScreen() {
   const [convSelecting,    setConvSelecting]    = useState(false);
   const [selectedConvs,    setSelectedConvs]    = useState<Set<string>>(new Set());
   const [convDeleting,     setConvDeleting]     = useState(false);
+  // השיחה שמוסתרת כרגע, כדי שה-✕ שלה לא ייענה פעמיים.
+  const [removingConv,     setRemovingConv]     = useState('');
 
   useEffect(() => {
     const sub = BackHandler.addEventListener('hardwareBackPress', () => {
@@ -925,6 +978,28 @@ export default function MessagesScreen() {
     setSelectedConvs(new Set());
   };
 
+  // מסתירים, לא מוחקים. Firestore לא מדורג, אז מחיקת מסמך השיחה השאירה כל
+  // הודעה חיה תחתיו — וחוק הקריאה נגזר ממזהה השיחה, לא מהמסמך — ומכיוון
+  // שהמזהה דטרמיניסטי, ההודעה הבאה שנשלחה החזירה את כל ההיסטוריה. ומסמך
+  // השיחה משותף, אז המחיקה העלימה אותה גם אצל הצד השני. אותו פתרון כמו באתר.
+  // unreadBy גם: שיחה מוסתרת עם הודעות שלא נקראו השאירה badge תקוע, כי אי
+  // אפשר לפתוח אותה כדי לסמן כנקרא.
+  const hideConvs = (ids: string[]) => Promise.all(
+    ids.map(id => updateDoc(doc(db, 'chats', id), { deletedFor: arrayUnion(uid), unreadBy: arrayRemove(uid) })),
+  );
+
+  // ✕ על שורה — מסתיר מיד, בלי לשאול. שיחה שהוסתרה בטעות חוזרת מעצמה ברגע
+  // שהצד השני כותב, ולכן אין פה מה לאשר. כמו באתר.
+  const removeConv = async (chatId: string) => {
+    if (removingConv) return;
+    setRemovingConv(chatId);
+    try { await hideConvs([chatId]); }
+    catch (err) { logError('messages:hideConversation', err); }
+    setRemovingConv('');
+  };
+
+  // מחיקה מרובה מתוך מצב הבחירה — כאן כן שואלים, כי המספר הוא מה שכדאי
+  // לקרוא לפני שכמה שיחות נעלמות בבת אחת.
   const deleteSelectedConvs = () => {
     if (selectedConvs.size === 0) return;
     Alert.alert(
@@ -936,19 +1011,8 @@ export default function MessagesScreen() {
           text: t.portfolioDeleteBtn, style: 'destructive',
           onPress: async () => {
             setConvDeleting(true);
-            try {
-              // מסתירים, לא מוחקים. Firestore לא מדורג, אז מחיקת מסמך השיחה
-              // השאירה כל הודעה חיה תחתיו — וחוק הקריאה נגזר ממזהה השיחה, לא
-              // מהמסמך — ומכיוון שהמזהה דטרמיניסטי, ההודעה הבאה שנשלחה החזירה
-              // את כל ההיסטוריה. ומסמך השיחה משותף, אז המחיקה העלימה אותה גם
-              // אצל הצד השני. אותו פתרון כמו באתר.
-              await Promise.all(
-                [...selectedConvs].map(id =>
-                  // unreadBy גם: שיחה מוסתרת עם הודעות שלא נקראו השאירה badge
-                  // תקוע, כי אי אפשר לפתוח אותה כדי לסמן כנקרא.
-                  updateDoc(doc(db, 'chats', id), { deletedFor: arrayUnion(uid), unreadBy: arrayRemove(uid) }))
-              );
-            } catch (err) { logError('messages:hideConversations', err); }
+            try { await hideConvs([...selectedConvs]); }
+            catch (err) { logError('messages:hideConversations', err); }
             setConvDeleting(false);
             cancelConvSelection();
           },
@@ -993,7 +1057,7 @@ export default function MessagesScreen() {
       ) : (
         <View style={[s.header, { paddingTop: (Platform.OS === 'ios' ? insets.top : (StatusBar.currentHeight || 0)) + 12 }, flipSide && { flexDirection: 'row-reverse' }]}>
           <TouchableOpacity onPress={() => { if (router.canGoBack()) router.back(); else router.replace('/home'); }} style={s.backBtn}>
-            <MaterialIcons name="arrow-back" size={24} color={C.white} />
+            <BackIcon size={24} color={C.white} />
           </TouchableOpacity>
           <T style={s.headerTitle}>{t.messagesTitle}</T>
           <View style={{ width: 36 }} />
@@ -1067,6 +1131,22 @@ export default function MessagesScreen() {
                     <T style={s.convLast} numberOfLines={1}>{item.lastMessage}</T>
                   </View>
                   <T style={s.convTime}>{fmtTime(item.lastMessageAt)}</T>
+                  {/* ה-✕ נעלם במצב בחירה: שתי דרכים למחוק את אותה שורה בבת
+                      אחת זו מלכודת. hitSlop כי הכפתור קטן בכוונה. */}
+                  {!convSelecting && (
+                    <TouchableOpacity
+                      onPress={() => removeConv(item.chatId)}
+                      disabled={removingConv === item.chatId}
+                      hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                      accessibilityRole="button"
+                      accessibilityLabel={t.deleteConvAria}
+                      style={s.convDel}
+                    >
+                      {removingConv === item.chatId
+                        ? <ActivityIndicator size="small" color="#94A3B8" />
+                        : <T style={s.convDelText}>✕</T>}
+                    </TouchableOpacity>
+                  )}
                 </TouchableOpacity>
               );
             }}
