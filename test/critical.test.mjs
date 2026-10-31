@@ -16,6 +16,7 @@ import { isUrgentRequestLive, isUrgentRequestExpired, expiryOf, URGENT_FIRST_STA
 import { splitFields, reconcile, pendingMove, publicCoord, privateKeysFor } from '../.tsbuild/profileFields.mjs';
 import { spreadStacked } from '../.tsbuild/jobUtils.mjs';
 import { pushSilence } from '../.tsbuild/pushState.mjs';
+import { hasBookedACleaner, rebookableBookings, prefillFromBooking } from '../.tsbuild/rebookList.mjs';
 import { matchJob, jobOnBoard, jobCityOf, nearestCity, filterBoard } from '../.tsbuild/jobSearch.mjs';
 import { normText, resolvePlace, textMatches, servesPlace, searchCleaners } from '../.tsbuild/search.mjs';
 import { CITY_NAMES, cityNamesFor } from '../.tsbuild/cityNames.mjs';
@@ -1624,4 +1625,72 @@ test('the client is told a cancelled booking was posted again only when it was',
   for (const key of ['Base', 'Reposted', 'Plain']) {
     assert.ok(dict.includes(`.bookingCancelledPopup${key} = c.${key.toLowerCase()};`), `${key} is wired`);
   }
+});
+
+test('the past-bookings banner waits for a first booking, then never leaves', () => {
+  // A client who had only posted a job counted as having booked, and the banner
+  // went with the list. The flag on the profile cannot stop being true.
+  assert.equal(hasBookedACleaner(undefined, []), false, 'a new client sees nothing');
+  assert.equal(hasBookedACleaner(false, [{ status: 'pending', cleanerId: '' }]), false, 'a posted job with nobody on it is not a booking');
+  assert.equal(hasBookedACleaner(undefined, [{ status: 'done', cleanerId: 'c1' }]), true, 'booked before the flag existed');
+  assert.equal(hasBookedACleaner(true, []), true, 'the list emptied and the banner stayed');
+  assert.equal(hasBookedACleaner('true', []), false, 'only the real flag counts');
+  assert.equal(hasBookedACleaner(undefined, [{ status: 'pending', cleanerId: 'c1', origin: 'open' }]), false,
+    'a board job a cleaner claimed and has not approved: she can still turn it down');
+  assert.equal(hasBookedACleaner(undefined, [{ status: 'confirmed', cleanerId: 'c1', origin: 'open' }]), true, 'approved, it counts');
+  assert.equal(hasBookedACleaner(undefined, [{ status: 'pending', cleanerId: 'c1', origin: 'direct' }]), true, 'a client who picked a cleaner has booked');
+
+  const home = readFileSync(new URL('../app/home.tsx', import.meta.url), 'utf8');
+  assert.match(home, /myRole === 'client' && hasBooked \?/, 'the banner hangs on it');
+  assert.ok(!home.includes('זמין לאחר הזמנה ראשונה'), 'and nothing stands in for it before the first booking');
+  assert.ok(!home.includes('myBookings.length > 0 ?'), 'the list no longer decides');
+  assert.match(home, /await bookingBatch\.commit\(\);\n\s+void markHasBooked\(clientUid\);/, 'written by the first booking');
+});
+
+test('past bookings offer only what can be booked again', () => {
+  const list = [
+    { id: 'a', status: 'done', cleanerId: 'c1' },
+    { id: 'b', status: 'pending', cleanerId: '' },                       // on the board, nobody took it
+    { id: 'c', status: 'cancelled', cleanerId: 'c1' },
+    { id: 'd', status: 'confirmed', cleanerId: 'c2', hiddenFromRebook: true },
+    { id: 'e', status: 'active', cleanerId: 'c3' },
+    { id: 'f', status: 'pending', cleanerId: 'c4' },
+  ];
+  assert.deepEqual(rebookableBookings(list, new Set()).map((b) => b.id), ['a', 'e', 'f']);
+  assert.deepEqual(rebookableBookings(list, new Set(['e'])).map((b) => b.id), ['a', 'f'], 'removed a moment ago');
+  const many = Array.from({ length: 12 }, (_, i) => ({ id: String(i), status: 'done', cleanerId: 'c' }));
+  assert.equal(rebookableBookings(many, new Set()).length, 10, 'the ten newest');
+});
+
+test('a repeated booking opens on its own address and nothing else', () => {
+  // A website booking carries a city and one line of free text. The form took the
+  // city and lost the street; a later fix kept the street and left the client's
+  // primary address in the floor and flat, which made a place that does not exist.
+  assert.deepEqual(prefillFromBooking({ address: 'הרצל 10, תל אביב', addrCity: 'תל אביב', addrStreet: '' }),
+    { city: 'תל אביב', street: 'הרצל 10', floor: '', apt: '', isPrivate: false }, 'ends in its city');
+  assert.deepEqual(prefillFromBooking({ address: 'רקפת 27 חריש, קומה 5, דירה 20', addrCity: 'חיפה' }),
+    { city: '', street: 'רקפת 27 חריש, קומה 5, דירה 20', floor: '', apt: '', isPrivate: false },
+    'the cleaner\'s town is not appended, and "דירה 20" is not a city');
+  assert.deepEqual(prefillFromBooking({ address: 'חריש', addrCity: 'חריש' }),
+    { city: '', street: 'חריש', floor: '', apt: '', isPrivate: false }, 'a city alone is not doubled');
+  assert.deepEqual(prefillFromBooking({ addrCity: 'חריש', addrStreet: 'רקפת 27', addrFloor: '5', addrApt: '20' }),
+    { city: 'חריש', street: 'רקפת 27', floor: '5', apt: '20', isPrivate: false }, 'structured fields stand');
+  assert.deepEqual(prefillFromBooking({ addrCity: 'חריש' }),
+    { city: 'חריש', street: '', floor: '', apt: '', isPrivate: false }, 'no street known: nothing borrowed');
+
+  const home = readFileSync(new URL('../app/home.tsx', import.meta.url), 'utf8');
+  for (const set of ['setAddrCity(known.city)', 'setAddrStreet(known.street)', 'setAddrFloor(known.floor)', 'setAddrApt(known.apt)', 'setAddrPrivate(known.isPrivate)']) {
+    assert.ok(home.includes(set), `${set}: a field left alone keeps the primary address`);
+  }
+  assert.ok(home.indexOf('const known = prefillFromBooking(prebookData)') < home.indexOf('getSavedAddresses().then(addrs => {\n      setSavedAddresses(addrs);\n\n      if (prebookData)'),
+    'filled before the saved addresses are awaited');
+});
+
+test('past bookings never say "not found" or "none" before the answer has arrived', () => {
+  const home = readFileSync(new URL('../app/home.tsx', import.meta.url), 'utf8');
+  assert.match(home, /Alert\.alert\('', cleanersReady \? t\.cleanerNotFound : t\.rebookLoadError\)/);
+  assert.match(home, /pastBookings\.length === 0 && bookingsState !== 'ready'/);
+  assert.match(home, /setBookingsState\(snap\.metadata\.fromCache \? 'failed' : 'ready'\)/, 'an empty answer from the cache is no answer');
+  assert.match(home, /doc\(db, 'bookings', b\.id, 'private', 'details'\)\)\)\.data\(\);\n\s+if \(!stillOpen\.current\) return;\n\s+onClose\(\);/,
+    'the street is read before the form opens, and not for a screen already closed');
 });

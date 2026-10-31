@@ -14,6 +14,8 @@ import {
 } from 'react-native';
 import { useAnimatedValue, useAnimatedValues } from '../lib/useAnimatedValue';
 import { useNow } from '../lib/useNow';
+import { markHasBooked } from '../lib/firstBooking';
+import { hasBookedACleaner, rebookableBookings, prefillFromBooking } from '../lib/rebookList';
 import { withBookingDetails, migrateOpenJobDetails, fetchBookingDetails, urgentDetailsRef } from '../lib/bookingDetails';
 import { fetchOwnProfile, migrateProfile, ownPhone, publicCoord } from '../lib/privateProfile';
 
@@ -2344,30 +2346,28 @@ function BookingModal({ cleaner, visible, onClose, onBookingCreated, prebookData
 
   // ── Load saved addresses + primary ───────────────────────────────────────
   useEffect(() => {
+    // הזמנה חוזרת: הכתובת שלה נכנסת מיד, בלי לחכות לכתובות השמורות — עד אז הטופס
+    // הציג את הכתובת הראשית, ואפשר היה להזמין אליה. היא נחשבת מלאה כפי שהייתה
+    // (מצב סיכום), כדי שלא יידרשו קומה ודירה לכתובת שכבר כוללת אותן.
+    if (prebookData) {
+      const known = prefillFromBooking(prebookData);
+      setSelectedAddrId('');
+      setAddrCity(known.city);
+      setAddrStreet(known.street);
+      setAddrFloor(known.floor);
+      setAddrApt(known.apt);
+      setAddrPrivate(known.isPrivate);
+      setAddrEditMode(!known.street && !known.city);
+    }
     getSavedAddresses().then(addrs => {
       setSavedAddresses(addrs);
 
       if (prebookData) {
-        // הזמנה חוזרת — מלא מהנתונים הקיימים בהזמנה
-        if (prebookData.addrCity || prebookData.addrStreet) {
-          setAddrCity(prebookData.addrCity || '');
-          setAddrStreet(prebookData.addrStreet || '');
-          setAddrFloor(prebookData.addrFloor || '');
-          setAddrApt(prebookData.addrApt || '');
-          setAddrPrivate(prebookData.addrPrivate || false);
-          setSelectedAddrId('');
-        } else if (prebookData.address) {
-          // הזמנה ישנה ללא שדות מבניים — נחפש בכתובות שמורות
-          const matched = addrs.find(a => a.address === prebookData.address);
-          if (matched) {
-            fillFromSaved(matched);
-          } else {
-            // fallback — רחוב הוא כל מה שלפני הפסיק האחרון, עיר — מה שאחריו
-            const parts = prebookData.address.split(', ');
-            setAddrCity(parts.length > 1 ? parts[parts.length - 1] : '');
-            setAddrStreet(parts.length > 1 ? parts.slice(0, -1).join(', ') : prebookData.address);
-          }
-        }
+        // הזמנה ללא שדות מבניים — אם היא אחת הכתובות השמורות, הפירוט שלה ידוע
+        const matched = !prebookData.addrStreet && prebookData.address
+          ? addrs.find(a => a.address === prebookData.address)
+          : undefined;
+        if (matched) fillFromSaved(matched);
       } else {
         const primary = addrs.find(a => a.isPrimary) || addrs[0];
         if (primary) { fillFromSaved(primary); setAddrEditMode(false); }
@@ -2698,6 +2698,7 @@ function BookingModal({ cleaner, visible, onClose, onBookingCreated, prebookData
       const clientPhone = await ownPhone(clientUid);
       bookingBatch.set(doc(db, 'bookings', bookingRef.id, 'private', 'details'), { address, addrStreet, addrFloor, addrApt, phone: clientPhone });
       await bookingBatch.commit();
+      void markHasBooked(clientUid);
 
       // ── שמור bookingId והאזן לשינוי סטטוס ───────────────────────────────
       setPendingBookingId(bookingRef.id);
@@ -2705,9 +2706,12 @@ function BookingModal({ cleaner, visible, onClose, onBookingCreated, prebookData
       bookingLock.current = false;
       // עדכן existingBookings כדי שבדיקת חפיפה תעבוד מיידית
       onBookingCreated?.(cleaner.id, {
-        id: bookingRef.id, status: 'pending', cleanerName: cleaner.name,
+        id: bookingRef.id, status: 'pending', cleanerId: cleaner.id, cleanerName: cleaner.name,
         busyFrom: busyFromISO, busyUntil: busyUntilISO, hours,
         startTime: `${startHH}:${startMM}`,
+        bookingDate: `${bookingDate.getFullYear()}-${String(bookingDate.getMonth()+1).padStart(2,'0')}-${String(bookingDate.getDate()).padStart(2,'0')}`,
+        serviceType: serviceTypes.join(' + '), total, createdAt: new Date().toISOString(),
+        address, addrCity, addrStreet, addrFloor, addrApt, addrPrivate,
       });
 
       // ── האזן לשינוי סטטוס (אישור מנקה) ──────────────────────────────────
@@ -3903,12 +3907,15 @@ function CleanerCardInner({ cleaner, isSel, onSelect, onProfile, onBook, onChat,
 const CleanerCard = React.memo(CleanerCardInner);
 
 // ─── Quick Rebook Modal ───────────────────────────────────────────────────────
-function QuickRebookModal({ visible, onClose, myBookings, allCleaners, onBook }: {
+function QuickRebookModal({ visible, onClose, myBookings, bookingsState, allCleaners, cleanersReady, onBook, onHistory }: {
   visible: boolean;
   onClose: () => void;
   myBookings: any[];
+  bookingsState: 'loading' | 'ready' | 'failed';
   allCleaners: any[];
+  cleanersReady: boolean;
   onBook: (cleaner: any, prevBooking: any) => void;
+  onHistory: () => void;
 }) {
   const { t } = useLanguage();
   const C = useAppColors();
@@ -3918,22 +3925,34 @@ function QuickRebookModal({ visible, onClose, myBookings, allCleaners, onBook }:
   // מזהים של הזמנות שהוסתרו מקומית (לפני עדכון Firestore)
   const [hiddenIds, setHiddenIds] = useState<Set<string>>(new Set());
 
-  const pastBookings = myBookings
-    .filter((b: any) =>
-      ['done', 'confirmed', 'active', 'pending'].includes(b.status) &&
-      !b.hiddenFromRebook &&
-      !hiddenIds.has(b.id)
-    )
-    .slice(0, 10);
+  const pastBookings = rebookableBookings(myBookings, hiddenIds);
 
-  const handleRebook = (b: any) => {
+  // The banner stands on a stored flag, so this screen can open before the lists
+  // have arrived. "Not found" is said only once the cleaners have loaded, and the
+  // street is read here rather than taken from the row: it arrives after the
+  // booking (private/details), and the form keeps what it opens with.
+  const rebooking = useRef(false);
+  const stillOpen = useRef(visible);
+  stillOpen.current = visible;
+  const handleRebook = async (b: any) => {
+    if (rebooking.current) return;
     const cleaner = allCleaners.find((c: any) => c.id === b.cleanerId || c.uid === b.cleanerId);
     if (!cleaner) {
-      Alert.alert('', t.cleanerNotFound);
+      Alert.alert('', cleanersReady ? t.cleanerNotFound : t.rebookLoadError);
       return;
     }
-    onClose();
-    onBook(cleaner, b);
+    rebooking.current = true;
+    try {
+      const details = (await getDoc(doc(db, 'bookings', b.id, 'private', 'details'))).data();
+      if (!stillOpen.current) return;
+      onClose();
+      onBook(cleaner, details ? { ...b, ...details } : b);
+    } catch (err) {
+      logError('home:rebook', err);
+      Alert.alert('', t.rebookLoadError);
+    } finally {
+      rebooking.current = false;
+    }
   };
 
   const handleDelete = (b: any) => {
@@ -3970,13 +3989,23 @@ function QuickRebookModal({ visible, onClose, myBookings, allCleaners, onBook }:
         </View>
 
         <ScrollView contentContainerStyle={{ padding: 20, gap: 14, paddingBottom: insets.bottom + 24 }}>
-          {pastBookings.length === 0 ? (
+          {pastBookings.length === 0 && bookingsState !== 'ready' ? (
+            /* Not arrived yet, or could not be read: neither is "no bookings". */
+            <View style={{ alignItems: 'center', paddingVertical: 60, gap: 14 }}>
+              {bookingsState === 'loading'
+                ? <ActivityIndicator color={C.blue} />
+                : <T style={{ fontSize: 14, color: C.textSub, textAlign: 'center', lineHeight: 22 }}>{t.loadBookingsError}</T>}
+            </View>
+          ) : pastBookings.length === 0 ? (
             <View style={{ alignItems: 'center', paddingVertical: 60, gap: 14 }}>
               <T style={{ fontSize: 52 }}>📋</T>
               <T style={{ fontSize: 18, fontWeight: '800', color: C.textDark, textAlign: 'center' }}>{t.noPrevBookings}</T>
-              <T style={{ fontSize: 14, color: C.textSub, textAlign: 'center', lineHeight: 22 }}>
-                לאחר הזמנה ראשונה תוכל/י לחזור עליה בלחיצה אחת — אותו נותן שירות, אותה כתובת.
-              </T>
+              <T style={{ fontSize: 14, color: C.textSub, textAlign: 'center', lineHeight: 22 }}>{t.noPrevBookingsSub}</T>
+              {/* A client whose bookings were all cancelled still has the banner,
+                  and this is their way back to who worked for them. */}
+              <TouchableOpacity accessibilityRole="button" onPress={onHistory} style={{ borderRadius: 12, borderWidth: 1.5, borderColor: C.blue, paddingHorizontal: 18, paddingVertical: 10 }}>
+                <T style={{ fontSize: 14, fontWeight: '800', color: C.blue }}>{t.historyTitle}</T>
+              </TouchableOpacity>
             </View>
           ) : (
             <>
@@ -4267,6 +4296,17 @@ export default function HomeScreen() {
 
   // Recurring rebook
   const [myBookings,     setMyBookings]     = useState<any[]>([]);
+  // Read off the profile, next to the role — see lib/firstBooking.
+  const [bookingsState, setBookingsState] = useState<'loading' | 'ready' | 'failed'>('loading');
+  const [profileHasBooked, setProfileHasBooked] = useState(false);
+  const hasBooked = hasBookedACleaner(profileHasBooked, myBookings);
+  // Clients who booked before the flag existed: their bookings say so, so mark
+  // them, or the banner would go on depending on a list for them alone. The role
+  // arrives with the flag, in the same snapshot, so a client here has been read.
+  useEffect(() => {
+    const uid = auth.currentUser?.uid;
+    if (myRole === 'client' && uid && !profileHasBooked && hasBooked) void markHasBooked(uid);
+  }, [myRole, profileHasBooked, hasBooked]);
   const [pendingCleanerIds, setPendingCleanerIds] = useState<Set<string>>(new Set());
   const [rebookAlert,    setRebookAlert]    = useState<any | null>(null);
 
@@ -5491,6 +5531,7 @@ export default function HomeScreen() {
         const role = resolveRole({ exists: snap.exists(), data });
         if (!role) return;                       // ראה lib/resolveRole
         setMyRole(role);
+        setProfileHasBooked(data.hasBooked === true);
 
         // אלה נקראים בכל עדכון ולא רק בהקמה: עריכת המרחק או הכתובת בפרופיל
         // צריכה להשתקף בלוח העבודות מיד, בלי לצאת ולהיכנס למסך.
@@ -5633,6 +5674,9 @@ export default function HomeScreen() {
         const bks = snap.docs.map(d => ({ id: d.id, ...d.data() }));
         bks.sort((a: any, b: any) => (b.createdAt || '').localeCompare(a.createdAt || ''));
         setMyBookings(bks);
+        // Offline this does not fail: it answers empty from the cache, and runs
+        // only once, so "ready" would say "no bookings" for the rest of the visit.
+        setBookingsState(snap.metadata.fromCache ? 'failed' : 'ready');
         // הכתובות יושבות ב-private/details, ו"הזמן שוב" ממלא מהן את הטופס.
         withBookingDetails(bks as any).then((full: any) => setMyBookings(full)).catch(() => {});
         // סמן מנקים עם הזמנה ממתינה/מאושרת
@@ -5680,7 +5724,10 @@ export default function HomeScreen() {
           setPendingReviewBooking(pending[0]);
           setShowMandatoryReview(true);
         }
-      }).catch(() => {});
+      }).catch(err => {
+        logError('home:myBookings', err);
+        setBookingsState(st => (st === 'ready' ? st : 'failed'));
+      });
     return () => {
       unsubUserDoc();
       if (cleanerPendingUnsubRef.current) cleanerPendingUnsubRef.current();
@@ -6892,8 +6939,9 @@ export default function HomeScreen() {
               {/* The legend (what purple means, direct bookings) is behind the
                   "הסבר" button beside the search now. */}
             </View>
-          ) : myRole === 'client' ? (
-            myBookings.length > 0 ? (
+          ) : myRole === 'client' && hasBooked ? (
+            /* Nothing at all before the first booking, then always: a stored
+               flag, not the list, so it cannot go away. See lib/rebookList. */
               <TouchableOpacity
                 onPress={() => setQuickRebookOpen(true)}
                 style={{ borderRadius: 16, marginBottom: 4, overflow: 'hidden', elevation: 4, shadowColor: '#1E6FB8', shadowOpacity: 0.35, shadowRadius: 8, shadowOffset: { width: 0, height: 3 } }}
@@ -6908,19 +6956,6 @@ export default function HomeScreen() {
                   <T style={{ color: 'rgba(255,255,255,0.75)', fontSize: 20 }}>›</T>
                 </LinearGradient>
               </TouchableOpacity>
-            ) : (
-              <View
-                style={{ backgroundColor: '#E8F1FB', borderRadius: 16, padding: 14, marginBottom: 4, flexDirection: 'row', alignItems: 'center', gap: 12, borderWidth: 1.5, borderColor: '#C7DEF5' }}
-              >
-                <T style={{ fontSize: 26 }}>♻️</T>
-                <View style={{ flex: 1 }}>
-                  <T style={{ color: '#1E5FA8', fontSize: 13, fontWeight: '800' }}>{t.prevBookingsShort}</T>
-                  <T style={{ color: '#2E7BC4', fontSize: 11, marginTop: 2, lineHeight: 16 }}>
-                    זמין לאחר הזמנה ראשונה — לחוויה מהירה ונוחה 😊
-                  </T>
-                </View>
-              </View>
-            )
           ) : null}
           ListEmptyComponent={myRole === 'cleaner' ? (
             <View style={{ alignItems: 'center', marginTop: 50, paddingHorizontal: 24 }}>
@@ -7142,8 +7177,11 @@ export default function HomeScreen() {
         visible={quickRebookOpen}
         onClose={() => setQuickRebookOpen(false)}
         myBookings={myBookings}
+        bookingsState={bookingsState}
         allCleaners={[...staticCleanerOrder, ...realCleaners]}
+        cleanersReady={realCleaners.length > 0}
         onBook={(cleaner, prevB) => { setQuickRebookOpen(false); setPrebookData(prevB || null); setBooking(cleaner); }}
+        onHistory={() => { setQuickRebookOpen(false); router.push({ pathname: '/profile', params: { section: 'history' } }); }}
       />
 
       <Toast msg={toastMsg} visible={toastVisible} type={toastType} />
