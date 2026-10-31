@@ -568,7 +568,7 @@ export default function RegisterScreen() {
   const fphone    = phone.replace(/[-\s]/g, '');
   const missName  = submitAttempted && !name.trim();
   const missEmail = submitAttempted && !email.trim();
-  const missPass  = submitAttempted && password.length < 6;
+  const missPass  = submitAttempted && !!validatePassword(password);
   const missPhone = submitAttempted && !/^0\d{8,9}$/.test(fphone);
   const missTerms = submitAttempted && !termsOk;
   const missAge   = submitAttempted && !ageOk;
@@ -579,7 +579,7 @@ export default function RegisterScreen() {
 
   const handleRegister = async () => {
     setSubmitAttempted(true);
-    if (!name.trim() || !email.trim() || password.length < 6)
+    if (!name.trim() || !email.trim() || password.length < 8)
       return Alert.alert(t.error, t.regErrFillFields);
     if (!phone.trim() || !/^0\d{8,9}$/.test(phone.replace(/[-\s]/g, '')))
       return Alert.alert(t.error, t.regErrPhone);

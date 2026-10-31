@@ -1706,3 +1706,20 @@ test('deleting asks nothing: not a message, not a chat, not a past booking', () 
   assert.ok(!body(home, 'const handleDelete = async', '<Modal visible={visible}').includes('Alert.alert'), 'a past booking');
   assert.ok(!home.includes("'הסרת הזמנה'"), 'the question itself is gone');
 });
+
+test('the password hint states the rule the form enforces', () => {
+  // The form required 8 characters with a letter and a digit, and the field said
+  // "at least 6": a client typed 6 and was refused with no idea why.
+  const dict = readFileSync(new URL('../lib/translations.ts', import.meta.url), 'utf8');
+  const uk = readFileSync(new URL('../lib/ukData.ts', import.meta.url), 'utf8');
+  const hints = [...dict.matchAll(/\b(?:passwordHint|regErrFillFields):\s*'((?:[^'\\]|\\.)*)'/g)].map((m) => m[1]);
+  assert.equal(hints.length, 12, 'both strings in six languages');
+  for (const h of hints) assert.ok(h.includes('8') && !h.includes('6'), h);
+  for (const key of ['passwordHint', 'regErrFillFields']) {
+    const v = uk.match(new RegExp(`"${key}": "([^"]*)"`))?.[1] ?? '';
+    assert.ok(v.includes('8') && !v.includes('6'), `uk ${key}: ${v}`);
+  }
+  const reg = readFileSync(new URL('../app/register.tsx', import.meta.url), 'utf8');
+  assert.ok(!/password\.length < 6/.test(reg), 'and the screen does not stop at 6 itself');
+});
+
