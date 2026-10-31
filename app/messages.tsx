@@ -510,35 +510,23 @@ function InlineChatModal({ chatId, otherUid, otherName, visible, onClose, onDeci
     setRemovingMsg('');
   };
 
-  // מחיקת ההודעות הנבחרות — כאן כן שואלים, כי נמחקות כמה בבת אחת.
+  // מחיקת ההודעות הנבחרות — מיד, בלי לשאול (החלטה של אופק, כמו ה-✕ על בועה).
   const deleteSelected = async () => {
-    if (selectedMsgs.size === 0) return;
-    Alert.alert(
-      `מחק ${selectedMsgs.size} הודעות`,
-      'הפעולה אינה הפיכה.',
-      [
-        { text: 'ביטול', style: 'cancel' },
-        {
-          text: 'מחק', style: 'destructive',
-          onPress: async () => {
-            setDeleting(true);
-            try {
-              await Promise.all(
-                [...selectedMsgs].map(id => deleteDoc(doc(db, 'chats', chatId, 'messages', id)))
-              );
-              // עדכן lastMessage אם נמחקה האחרונה
-              const remaining = messages.filter(m => !selectedMsgs.has(m.id));
-              const last = remaining[remaining.length - 1];
-              // התצוגה המקדימה בלבד. החזרת lastMessageAt אחורה נקראה אצל הצד השני
-              // כחותמת שהשתנתה בשיחה לא נקראה — התראת "הודעה חדשה" על מחיקה.
-              await updateDoc(doc(db, 'chats', chatId), { lastMessage: last?.text || '' });
-            } catch (_) {}
-            setDeleting(false);
-            cancelSelection();
-          },
-        },
-      ]
-    );
+    if (selectedMsgs.size === 0 || deleting) return;
+    setDeleting(true);
+    try {
+      await Promise.all(
+        [...selectedMsgs].map(id => deleteDoc(doc(db, 'chats', chatId, 'messages', id)))
+      );
+      // עדכן lastMessage אם נמחקה האחרונה
+      const remaining = messages.filter(m => !selectedMsgs.has(m.id));
+      const last = remaining[remaining.length - 1];
+      // התצוגה המקדימה בלבד. החזרת lastMessageAt אחורה נקראה אצל הצד השני
+      // כחותמת שהשתנתה בשיחה לא נקראה — התראת "הודעה חדשה" על מחיקה.
+      await updateDoc(doc(db, 'chats', chatId), { lastMessage: last?.text || '' });
+    } catch (err) { logError('messages:deleteSelected', err); }
+    setDeleting(false);
+    cancelSelection();
   };
 
   useEffect(() => {
@@ -998,27 +986,14 @@ export default function MessagesScreen() {
     setRemovingConv('');
   };
 
-  // מחיקה מרובה מתוך מצב הבחירה — כאן כן שואלים, כי המספר הוא מה שכדאי
-  // לקרוא לפני שכמה שיחות נעלמות בבת אחת.
-  const deleteSelectedConvs = () => {
-    if (selectedConvs.size === 0) return;
-    Alert.alert(
-      t.deleteConvsTitle,
-      t.deleteConvsMsg,
-      [
-        { text: t.cancel, style: 'cancel' },
-        {
-          text: t.portfolioDeleteBtn, style: 'destructive',
-          onPress: async () => {
-            setConvDeleting(true);
-            try { await hideConvs([...selectedConvs]); }
-            catch (err) { logError('messages:hideConversations', err); }
-            setConvDeleting(false);
-            cancelConvSelection();
-          },
-        },
-      ]
-    );
+  // מחיקה מרובה מתוך מצב הבחירה — מיד, בלי לשאול, כמו ה-✕ על שורה.
+  const deleteSelectedConvs = async () => {
+    if (selectedConvs.size === 0 || convDeleting) return;
+    setConvDeleting(true);
+    try { await hideConvs([...selectedConvs]); }
+    catch (err) { logError('messages:hideConversations', err); }
+    setConvDeleting(false);
+    cancelConvSelection();
   };
 
   const fmtTime = (iso: string) => {

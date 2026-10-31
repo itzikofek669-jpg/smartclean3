@@ -1694,3 +1694,15 @@ test('past bookings never say "not found" or "none" before the answer has arrive
   assert.match(home, /doc\(db, 'bookings', b\.id, 'private', 'details'\)\)\)\.data\(\);\n\s+if \(!stillOpen\.current\) return;\n\s+onClose\(\);/,
     'the street is read before the form opens, and not for a screen already closed');
 });
+
+test('deleting asks nothing: not a message, not a chat, not a past booking', () => {
+  // Ofek's call. Only the single ✕ went straight through; selecting several, and
+  // the ✕ on a past booking, each stopped to ask.
+  const chat = readFileSync(new URL('../app/messages.tsx', import.meta.url), 'utf8');
+  const home = readFileSync(new URL('../app/home.tsx', import.meta.url), 'utf8');
+  const body = (src, name, end) => { const a = src.indexOf(name); assert.ok(a >= 0, name); return src.slice(a, src.indexOf(end, a)); };
+  assert.ok(!body(chat, 'const deleteSelected = async', 'useEffect(').includes('Alert.alert'), 'several messages');
+  assert.ok(!body(chat, 'const deleteSelectedConvs = async', 'const fmtTime').includes('Alert.alert'), 'several chats');
+  assert.ok(!body(home, 'const handleDelete = async', '<Modal visible={visible}').includes('Alert.alert'), 'a past booking');
+  assert.ok(!home.includes("'הסרת הזמנה'"), 'the question itself is gone');
+});

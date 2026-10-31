@@ -3955,25 +3955,14 @@ function QuickRebookModal({ visible, onClose, myBookings, bookingsState, allClea
     }
   };
 
-  const handleDelete = (b: any) => {
-    Alert.alert(
-      'הסרת הזמנה',
-      `להסיר את ההזמנה עם ${b.cleanerName} מהרשימה?`,
-      [
-        { text: 'ביטול', style: 'cancel' },
-        {
-          text: 'הסר', style: 'destructive',
-          onPress: async () => {
-            // הסתר מיידית בממשק
-            setHiddenIds(prev => new Set(prev).add(b.id));
-            // שמור ב-Firestore
-            try {
-              await updateDoc(doc(db, 'bookings', b.id), { hiddenFromRebook: true });
-            } catch (err) { logError('home:write', err); }
-          },
-        },
-      ]
-    );
+  // ✕ מוריד מהרשימה מיד, בלי לשאול, כמו באתר. ההזמנה עצמה נשארת בהיסטוריה.
+  const handleDelete = async (b: any) => {
+    // הסתר מיידית בממשק
+    setHiddenIds(prev => new Set(prev).add(b.id));
+    // שמור ב-Firestore
+    try {
+      await updateDoc(doc(db, 'bookings', b.id), { hiddenFromRebook: true });
+    } catch (err) { logError('home:write', err); }
   };
 
   return (
