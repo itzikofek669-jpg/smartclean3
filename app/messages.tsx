@@ -26,6 +26,7 @@ import * as ImagePicker from 'expo-image-picker';
 import * as ImageManipulator from 'expo-image-manipulator';
 import * as FileSystem from 'expo-file-system/legacy';
 import { readVoiceNote } from '../lib/voiceNotes';
+import { voiceFileName } from '../lib/voiceFile';
 import { Image } from 'expo-image';
 import { useLanguage, T, useAppColors, AppColors } from '../lib/LanguageContext';
 import BackIcon from '../lib/BackIcon';
@@ -43,13 +44,10 @@ function createCS(c: AppColors) {
     bubble:      { maxWidth: '80%', padding: 12, borderRadius: 16 },
     bubbleMe:    { backgroundColor: c.white, borderWidth: 1, borderColor: c.blueBorder },
     bubbleOther: { backgroundColor: c.blue },
-    // ה-✕ לצד בועה שלי. קטן ושקט יותר מזה שבשורת שיחה — הוא חוזר ליד כל
-    // בועה בשיחה, ולכן אסור שייקרא כחלק מהמילים. כמו באתר (.bubble-del).
-    bubbleDel:     { width: 20, height: 20, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
-    bubbleDelText: { color: '#B6C6D6', fontSize: 11, fontWeight: '700', lineHeight: 13 },
     inputRow:    { flexDirection: 'row', gap: 8, padding: 12, backgroundColor: c.white, borderTopWidth: 1, borderColor: c.blueBorder },
     input:       { flex: 1, backgroundColor: c.bluePale, borderRadius: 10, padding: 10, fontSize: 14, color: c.textDark, borderWidth: 1, borderColor: c.blueBorder },
-    sendBtn:     { width: 42, height: 42, backgroundColor: c.blue, borderRadius: 21, alignItems: 'center', justifyContent: 'center' },
+    sendBtn:     { height: 42, paddingHorizontal: 14, backgroundColor: c.blue, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
+    sendBtnText: { fontSize: 14, fontWeight: '800', color: c.white },
   });
 }
 
@@ -83,13 +81,12 @@ function InlineChatModal({ chatId, otherUid, otherName, visible, onClose, onDeci
   const { t, flipSide } = useLanguage();
   const C = useAppColors();
   const cs = createCS(C);
+  const insets = useSafeAreaInsets();
   const [messages, setMessages]       = useState<any[]>([]);
   const [text, setText]               = useState('');
   const [selectedMsgs, setSelectedMsgs] = useState<Set<string>>(new Set());
   const [msgSelecting, setMsgSelecting] = useState(false);
   const [deleting, setDeleting]       = useState(false);
-  // ההודעה שנמחקת כרגע, כדי שה-✕ שלה לא ייענה פעמיים.
-  const [removingMsg, setRemovingMsg] = useState('');
   const [isRecording, setIsRecording] = useState(false);
   const [playingId, setPlayingId]     = useState<string | null>(null);
   const [viewerUri, setViewerUri]     = useState<string | null>(null);
@@ -438,7 +435,7 @@ function InlineChatModal({ chatId, otherUid, otherName, visible, onClose, onDeci
       // data URI → כתוב לקובץ זמני להשמעה אמינה ב-Android
       if (src.startsWith('data:')) {
         const base64 = src.substring(src.indexOf(',') + 1);
-        const path = (FileSystem.cacheDirectory || '') + `voice_${msgId}.m4a`;
+        const path = (FileSystem.cacheDirectory || '') + voiceFileName(src, msgId);
         await FileSystem.writeAsStringAsync(path, base64, { encoding: 'base64' as any });
         playSrc = path;
       }
@@ -494,23 +491,7 @@ function InlineChatModal({ chatId, otherUid, otherName, visible, onClose, onDeci
     setSelectedMsgs(new Set());
   };
 
-  // ✕ על בועה שלי — מוחק מיד, בלי לשאול (כמו באתר). רק שלי נושאות אחד:
-  // החוקים מסרבים למחוק הודעות של הצד השני, שהן הראיה שלפיה נשפטת תלונה.
-  const removeOneMsg = async (m: any) => {
-    if (!m?.id || removingMsg) return;
-    setRemovingMsg(m.id);
-    try {
-      await deleteDoc(doc(db, 'chats', chatId, 'messages', m.id));
-      // התצוגה המקדימה בלבד — לא lastMessageAt, כדי שלא ייקרא אצל הצד השני
-      // כהודעה חדשה. אותו שיקול כמו במחיקה המרובה למטה.
-      const remaining = messages.filter(x => x.id !== m.id);
-      const last = remaining[remaining.length - 1];
-      await updateDoc(doc(db, 'chats', chatId), { lastMessage: last?.text || '' });
-    } catch (err) { logError('messages:deleteOne', err); }
-    setRemovingMsg('');
-  };
-
-  // מחיקת ההודעות הנבחרות — מיד, בלי לשאול (החלטה של אופק, כמו ה-✕ על בועה).
+  // מחיקת ההודעות הנבחרות — מיד, בלי לשאול (החלטה של אופק, כמו ה-✕ על שורת שיחה).
   const deleteSelected = async () => {
     if (selectedMsgs.size === 0 || deleting) return;
     setDeleting(true);
@@ -568,7 +549,9 @@ function InlineChatModal({ chatId, otherUid, otherName, visible, onClose, onDeci
           </View>
         )}
 
-        <KeyboardAvoidingView style={{ flex: 1 }} behavior="padding">
+        {/* באייפון ה-pageSheet מתחיל מתחת לשורת המצב, ו-KeyboardAvoidingView לא
+            יודע את זה: בלי ההיסט המקלדת כיסתה את שורת הכתיבה ואת כפתור השליחה. */}
+        <KeyboardAvoidingView style={{ flex: 1 }} behavior="padding" keyboardVerticalOffset={Platform.OS === 'ios' ? insets.top : 0}>
           {/* ─── אישור/דחייה של הזמנה ממתינה ─── */}
           {/* At the top of the page, under the header and above the thread,
               where it stays while the messages scroll — as on the website. It
@@ -710,57 +693,33 @@ function InlineChatModal({ chatId, otherUid, otherName, visible, onClose, onDeci
                       {isSelected && <T style={{ color: '#fff', fontSize: 11, fontWeight: '900' }}>✓</T>}
                     </View>
                   )}
-                  {/* שורה פנימית, כדי שה-✕ ישב לצד הבועה ולא מעליה. הבועה
-                      שלי נצמדת לימין, אז ה-✕ נופל משמאלה — הצד הפנימי.
-                      stretch ולא רוחב לפי תוכן: ל-cs.bubble יש maxWidth של
-                      80%, והאחוז נמדד מול ההורה — שורה ברוחב תוכן הייתה
-                      מכווצת הודעות ארוכות. justifyContent ממקם את הצמד. */}
-                  <View style={{
-                    flexDirection: 'row', alignItems: 'center', gap: 6,
-                    alignSelf: 'stretch', justifyContent: isMe ? 'flex-end' : 'flex-start',
-                  }}>
-                    {isMe && !msgSelecting && (
-                      <TouchableOpacity
-                        onPress={() => removeOneMsg(m)}
-                        disabled={removingMsg === m.id}
-                        hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-                        accessibilityRole="button"
-                        accessibilityLabel={t.deleteMsgAria}
-                        style={cs.bubbleDel}
-                      >
-                        {removingMsg === m.id
-                          ? <ActivityIndicator size="small" color="#B6C6D6" />
-                          : <T style={cs.bubbleDelText}>✕</T>}
-                      </TouchableOpacity>
-                    )}
-                    {m.type === 'image' ? (
-                      <TouchableOpacity onPress={() => { const u = m.imageBase64 || m.imageUrl; if (u) setViewerUri(u); }} activeOpacity={0.85}>
-                        <Image
-                          source={{ uri: m.imageBase64 || m.imageUrl }}
-                          style={{ width: 200, height: 150, borderRadius: 12, borderWidth: 1, borderColor: C.blueBorder }}
-                          contentFit="cover"
-                        />
-                      </TouchableOpacity>
-                    ) : m.type === 'audio' ? (
-                      <TouchableOpacity
-                        style={[
-                          cs.bubble,
-                          isMe ? cs.bubbleMe : cs.bubbleOther,
-                          { flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 10 },
-                        ]}
-                        onPress={() => playAudio(m.audioBase64, m.audioUrl, m.id)}
-                      >
-                        <T style={{ fontSize: 22 }}>{playingId === m.id ? '⏸' : '▶️'}</T>
-                        <T style={{ color: isMe ? C.textDark : C.white, fontSize: 13 }}>
-                          🎤 {playingId === m.id ? 'מנגן...' : 'הודעה קולית'}
-                        </T>
-                      </TouchableOpacity>
-                    ) : (
-                      <View style={[cs.bubble, isMe ? cs.bubbleMe : cs.bubbleOther]}>
-                        <T style={{ color: isMe ? C.textDark : C.white, fontSize: 14 }}>{m.text}</T>
-                      </View>
-                    )}
-                  </View>
+                  {m.type === 'image' ? (
+                    <TouchableOpacity onPress={() => { const u = m.imageBase64 || m.imageUrl; if (u) setViewerUri(u); }} activeOpacity={0.85}>
+                      <Image
+                        source={{ uri: m.imageBase64 || m.imageUrl }}
+                        style={{ width: 200, height: 150, borderRadius: 12, borderWidth: 1, borderColor: C.blueBorder }}
+                        contentFit="cover"
+                      />
+                    </TouchableOpacity>
+                  ) : m.type === 'audio' ? (
+                    <TouchableOpacity
+                      style={[
+                        cs.bubble,
+                        isMe ? cs.bubbleMe : cs.bubbleOther,
+                        { flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 10 },
+                      ]}
+                      onPress={() => playAudio(m.audioBase64, m.audioUrl, m.id)}
+                    >
+                      <T style={{ fontSize: 22 }}>{playingId === m.id ? '⏸' : '▶️'}</T>
+                      <T style={{ color: isMe ? C.textDark : C.white, fontSize: 13 }}>
+                        🎤 {playingId === m.id ? 'מנגן...' : 'הודעה קולית'}
+                      </T>
+                    </TouchableOpacity>
+                  ) : (
+                    <View style={[cs.bubble, isMe ? cs.bubbleMe : cs.bubbleOther]}>
+                      <T style={{ color: isMe ? C.textDark : C.white, fontSize: 14 }}>{m.text}</T>
+                    </View>
+                  )}
                 </TouchableOpacity>
               );
             })}
@@ -796,8 +755,8 @@ function InlineChatModal({ chatId, otherUid, otherName, visible, onClose, onDeci
                   <T style={{ color: '#fff', fontWeight: '800', fontSize: 13, backgroundColor: '#EF4444', paddingHorizontal: 14, paddingVertical: 5, borderRadius: 14, overflow: 'hidden' }}>{t.recordingAudio}</T>
                 </View>
               )}
-              <TouchableOpacity accessibilityRole="button" accessibilityLabel="שלח" style={cs.sendBtn} onPress={send}>
-                <T style={{ color: C.white, fontSize: 18 }}>◀</T>
+              <TouchableOpacity accessibilityRole="button" accessibilityLabel={(t as any).sendBtn} style={[cs.sendBtn, !text.trim() && { opacity: 0.5 }]} onPress={send}>
+                <T style={cs.sendBtnText} numberOfLines={1}>{(t as any).sendBtn}</T>
               </TouchableOpacity>
               <TextInput
                 style={cs.input}

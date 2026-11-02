@@ -1723,3 +1723,50 @@ test('the password hint states the rule the form enforces', () => {
   assert.ok(!/password\.length < 6/.test(reg), 'and the screen does not stop at 6 itself');
 });
 
+
+// Chrome's WAV fallback was saved as .m4a, and an iPhone goes by the extension.
+test('a voice note from the website plays on an iPhone', async () => {
+  const { voiceFileName } = await import('../.tsbuild/voiceFile.mjs');
+  assert.equal(voiceFileName('data:audio/wav;base64,UklGRg', 'm1'), 'voice_m1.wav');
+  assert.equal(voiceFileName('data:audio/mp4;base64,AAAA', 'm2'), 'voice_m2.m4a');
+  assert.equal(voiceFileName('data:audio/m4a;base64,AAAA', 'm3'), 'voice_m3.m4a');
+  assert.equal(voiceFileName('https://example.com/a.m4a', 'm4'), 'voice_m4.m4a');
+});
+
+test('every booking of a client is in exactly one of the two tabs', async () => {
+  const { bookingTabs } = await import('../.tsbuild/bookingTabs.mjs');
+  const today = '2026-11-02';
+  const isPast = (b) => b.date < today;
+  const list = ['pending', 'confirmed', 'onway', 'active', 'done', 'cancelled', 'expired', 'handled']
+    .flatMap((status) => [{ status, date: '2026-11-10' }, { status, date: '2026-10-01' }]);
+  const { active, history } = bookingTabs(list, isPast, false);
+  assert.equal(active.length + history.length, list.length);
+  assert.ok(active.every((b) => !history.includes(b)));
+  assert.deepEqual(active.map((b) => b.status), ['pending', 'confirmed', 'onway', 'active']);
+});
+
+test('a job whose day passed is history, even if it was never closed', async () => {
+  const { bookingTabs } = await import('../.tsbuild/bookingTabs.mjs');
+  const late = { status: 'confirmed', date: '2026-10-01' };
+  const { active, history } = bookingTabs([late], (b) => b.date < '2026-11-02', true);
+  assert.deepEqual(active, []);
+  assert.deepEqual(history, [late]);
+});
+
+test('a cleaner\'s unanswered booking waits in incoming, in neither tab', async () => {
+  const { bookingTabs } = await import('../.tsbuild/bookingTabs.mjs');
+  const waiting = { status: 'pending', date: '2026-11-10' };
+  const { active, history } = bookingTabs([waiting], () => false, true);
+  assert.deepEqual(active, []);
+  assert.deepEqual(history, []);
+});
+
+test('the send button says so in every language', () => {
+  const src = readFileSync(new URL('../lib/translations.ts', import.meta.url), 'utf8');
+  for (const key of ['sendBtn', 'activeTabLabel', 'historyTabLabel']) {
+    const line = src.split('\n').find((l) => l.trim().startsWith(`${key}: {`)) || '';
+    for (const lang of ['he', 'en', 'ru', 'ar', 'fr', 'hi', 'uk']) {
+      assert.match(line, new RegExp(`\\b${lang}: ['"][^'"]+['"]`), `${key} ${lang}`);
+    }
+  }
+});

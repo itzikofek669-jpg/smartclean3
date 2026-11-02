@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useLayoutEffect } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import BackIcon from '../lib/BackIcon';
 import { signOutOfDevice } from '../lib/signOutDevice';
@@ -86,6 +86,7 @@ import * as ImagePicker from 'expo-image-picker';
 import * as ImageManipulator from 'expo-image-manipulator';
 import * as FileSystem from 'expo-file-system/legacy';
 import { readVoiceNote } from '../lib/voiceNotes';
+import { voiceFileName } from '../lib/voiceFile';
 import { logError } from '../lib/logError';
 
 
@@ -702,7 +703,7 @@ function ModalBackHandler({ onBack }: { onBack: () => void }) {
 // ─── Drawer ──────────────────────────────────────────────────────────────────
 const PANEL_W = 270;
 
-function DrawerMenu({ visible, onClose, onProfile, onLogout, onMessages, onReport, onSupport, onActiveBookings, onHistory, onAccessibility, showHistory = true }: any) {
+function DrawerMenu({ visible, onClose, onProfile, onLogout, onMessages, onReport, onSupport, onActiveBookings, onHistory, onAccessibility }: any) {
   const { t, lang, setLang, flipSide, setFlipSide } = useLanguage();
   const C = useAppColors();
   const s = createS(C);
@@ -810,18 +811,16 @@ function DrawerMenu({ visible, onClose, onProfile, onLogout, onMessages, onRepor
             <T style={ds.itemArrow}>‹</T>
           </TouchableOpacity>
 
-          {showHistory && (
-            <TouchableOpacity
-              style={ds.item}
-              onPress={() => { onClose(); onHistory(); }}
-              accessibilityRole="button"
-              accessibilityLabel={t.historyTitle}
-            >
-              <T style={ds.itemIcon}>📋</T>
-              <T style={[ds.itemText, { flex: 1 }]}>{t.historyTitle}</T>
-              <T style={ds.itemArrow}>‹</T>
-            </TouchableOpacity>
-          )}
+          <TouchableOpacity
+            style={ds.item}
+            onPress={() => { onClose(); onHistory(); }}
+            accessibilityRole="button"
+            accessibilityLabel={t.historyTitle}
+          >
+            <T style={ds.itemIcon}>📋</T>
+            <T style={[ds.itemText, { flex: 1 }]}>{t.historyTitle}</T>
+            <T style={ds.itemArrow}>‹</T>
+          </TouchableOpacity>
 
           <TouchableOpacity
             style={ds.item}
@@ -900,7 +899,7 @@ function DrawerMenu({ visible, onClose, onProfile, onLogout, onMessages, onRepor
           {/* זכויות יוצרים */}
           <View style={{ marginTop: 18, paddingTop: 14, alignItems: 'center', gap: 2 }}>
             <T style={{ fontSize: 11, color: C.textSub, fontWeight: '600', textAlign: 'center' }}>© {new Date().getFullYear()} A&M Clean</T>
-            <T style={{ fontSize: 10, color: C.textSub, textAlign: 'center' }}>כל הזכויות שמורות</T>
+            <T style={{ fontSize: 10, color: C.textSub, textAlign: 'center' }}>{(t as any).allRightsReserved}</T>
           </View>
 
         </ScrollView>
@@ -1445,13 +1444,15 @@ function AddressAutocomplete({ value, onChange, placeholder, onFocus, error }: {
 
 // ─── Booking modal ───────────────────────────────────────────────────────────
 // ─── Calendar Picker ─────────────────────────────────────────────────────────
-const DAYS_HE = ['א', 'ב', 'ג', 'ד', 'ה', 'ו', 'ש'];
-const MONTHS_HE = ['ינואר','פברואר','מרץ','אפריל','מאי','יוני','יולי','אוגוסט','ספטמבר','אוקטובר','נובמבר','דצמבר'];
+// 'ar' and not 'ar-SA': that one titles these Gregorian weeks with a Hijri month.
+const CAL_LOCALES: Record<string, string> = { he: 'he-IL', en: 'en-GB', ru: 'ru-RU', ar: 'ar', fr: 'fr-FR', hi: 'hi-IN', uk: 'uk-UA' };
+const monthTitle = (year: number, month: number, lang: string) =>
+  new Date(year, month, 1).toLocaleDateString(CAL_LOCALES[lang] || 'he-IL', { month: 'long', year: 'numeric' });
 
 function CalendarPicker({ visible, value, onChange, onClose }: {
   visible: boolean; value: Date; onChange: (d: Date) => void; onClose: () => void;
 }) {
-  const { t } = useLanguage();
+  const { t, lang, isRTL } = useLanguage();
   const today = new Date(); today.setHours(0,0,0,0);
   const [viewYear,  setViewYear]  = useState(value.getFullYear());
   const [viewMonth, setViewMonth] = useState(value.getMonth());
@@ -1485,22 +1486,22 @@ function CalendarPicker({ visible, value, onChange, onClose }: {
               shadowColor:'#000', shadowOpacity:0.2, shadowRadius:12, elevation:10 }}>
 
             {/* Header */}
-            <View style={{ flexDirection:'row', alignItems:'center', justifyContent:'space-between', marginBottom:16 }}>
+            <View style={{ flexDirection: isRTL ? 'row-reverse' : 'row', alignItems:'center', justifyContent:'space-between', marginBottom:16 }}>
               <TouchableOpacity accessibilityRole="button" accessibilityLabel="הקודם" onPress={prevMonth} style={{ padding:8 }}>
-                <T style={{ fontSize:20, color:'#2563EB', fontWeight:'900' }}>‹</T>
+                <T style={{ fontSize:20, color:'#2563EB', fontWeight:'900' }}>{isRTL ? '›' : '‹'}</T>
               </TouchableOpacity>
               <T style={{ fontSize:17, fontWeight:'900', color:'#1E3A5F' }}>
-                {MONTHS_HE[viewMonth]} {viewYear}
+                {monthTitle(viewYear, viewMonth, lang)}
               </T>
               <TouchableOpacity accessibilityRole="button" accessibilityLabel="הבא" onPress={nextMonth} style={{ padding:8 }}>
-                <T style={{ fontSize:20, color:'#2563EB', fontWeight:'900' }}>›</T>
+                <T style={{ fontSize:20, color:'#2563EB', fontWeight:'900' }}>{isRTL ? '‹' : '›'}</T>
               </TouchableOpacity>
             </View>
 
             {/* Day names */}
-            <View style={{ flexDirection:'row', marginBottom:6 }}>
-              {DAYS_HE.map(d => (
-                <View key={d} style={{ flex:1, alignItems:'center' }}>
+            <View style={{ flexDirection: isRTL ? 'row-reverse' : 'row', marginBottom:6 }}>
+              {((t as any).dayNamesShort as string[]).map((d, i) => (
+                <View key={i} style={{ flex:1, alignItems:'center' }}>
                   <T style={{ fontSize:12, fontWeight:'700', color:'#94A3B8' }}>{d}</T>
                 </View>
               ))}
@@ -1508,7 +1509,7 @@ function CalendarPicker({ visible, value, onChange, onClose }: {
 
             {/* Grid */}
             {Array.from({ length: cells.length / 7 }, (_, row) => (
-              <View key={row} style={{ flexDirection:'row', marginBottom:4 }}>
+              <View key={row} style={{ flexDirection: isRTL ? 'row-reverse' : 'row', marginBottom:4 }}>
                 {cells.slice(row * 7, row * 7 + 7).map((day, col) => {
                   if (!day) return <View key={col} style={{ flex:1 }} />;
                   const cellDate = new Date(viewYear, viewMonth, day);
@@ -1547,7 +1548,7 @@ function CalendarPicker({ visible, value, onChange, onClose }: {
 function MultiCalendarPicker({ selected, onChange, label }: {
   selected: string[]; onChange: (dates: string[]) => void; label: string;
 }) {
-  const { t } = useLanguage();
+  const { t, lang, isRTL } = useLanguage();
   const today = new Date(); today.setHours(0,0,0,0);
   const [viewYear,  setViewYear]  = useState(today.getFullYear());
   const [viewMonth, setViewMonth] = useState(today.getMonth());
@@ -1625,22 +1626,22 @@ function MultiCalendarPicker({ selected, onChange, label }: {
           shadowColor: '#000', shadowOpacity: 0.08, shadowRadius: 8, elevation: 4 }}>
 
           {/* ניווט חודש */}
-          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+          <View style={{ flexDirection: isRTL ? 'row-reverse' : 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
             <TouchableOpacity accessibilityRole="button" accessibilityLabel="הקודם" onPress={prevMonth} style={{ padding: 8 }}>
-              <Text style={{ fontSize: 22, color: '#2563EB', fontWeight: '900' }}>‹</Text>
+              <Text style={{ fontSize: 22, color: '#2563EB', fontWeight: '900' }}>{isRTL ? '›' : '‹'}</Text>
             </TouchableOpacity>
             <Text style={{ fontSize: 15, fontWeight: '900', color: '#1E3A5F' }}>
-              {MONTHS_HE[viewMonth]} {viewYear}
+              {monthTitle(viewYear, viewMonth, lang)}
             </Text>
             <TouchableOpacity accessibilityRole="button" accessibilityLabel="הבא" onPress={nextMonth} style={{ padding: 8 }}>
-              <Text style={{ fontSize: 22, color: '#2563EB', fontWeight: '900' }}>›</Text>
+              <Text style={{ fontSize: 22, color: '#2563EB', fontWeight: '900' }}>{isRTL ? '‹' : '›'}</Text>
             </TouchableOpacity>
           </View>
 
           {/* שמות ימים */}
-          <View style={{ flexDirection: 'row', marginBottom: 4 }}>
-            {DAYS_HE.map(d => (
-              <View key={d} style={{ flex: 1, alignItems: 'center' }}>
+          <View style={{ flexDirection: isRTL ? 'row-reverse' : 'row', marginBottom: 4 }}>
+            {((t as any).dayNamesShort as string[]).map((d, i) => (
+              <View key={i} style={{ flex: 1, alignItems: 'center' }}>
                 <Text style={{ fontSize: 11, fontWeight: '700', color: '#94A3B8' }}>{d}</Text>
               </View>
             ))}
@@ -1648,7 +1649,7 @@ function MultiCalendarPicker({ selected, onChange, label }: {
 
           {/* גריד */}
           {Array.from({ length: cells.length / 7 }, (_, row) => (
-            <View key={row} style={{ flexDirection: 'row', marginBottom: 2 }}>
+            <View key={row} style={{ flexDirection: isRTL ? 'row-reverse' : 'row', marginBottom: 2 }}>
               {cells.slice(row * 7, row * 7 + 7).map((day, col) => {
                 if (!day) return <View key={col} style={{ flex: 1 }} />;
                 const cellDate = new Date(viewYear, viewMonth, day);
@@ -1697,14 +1698,25 @@ function MultiCalendarPicker({ selected, onChange, label }: {
 // transaction — because the rules freeze a posted job's price and hours
 // (bookingMoneyUnchanged) against tampering, and those are exactly what a
 // client wants to change. A job a cleaner took meanwhile is not touched.
+/** The amounts both client forms offer. A job kept from elsewhere may hold another. */
+const JOB_BUDGETS = [60, 70, 80, 90, 100, 120, 150];
+const budgetChoices = (current: number) =>
+  current > 0 && !JOB_BUDGETS.includes(current) ? [...JOB_BUDGETS, current] : JOB_BUDGETS;
+
+// כפתורי "עריכה" ו"ביטול" במסך "ממתינה לאישור": זה לצד זה, באותו גודל.
+const pendingBtn = (bg: string, border: string) => ({
+  flex: 1, minHeight: 46, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 8,
+  borderRadius: 12, borderWidth: 1.5, backgroundColor: bg, borderColor: border,
+} as const);
+
 function PostJobModal({ visible, onClose, onPosted, editJob, openJobs, onEditJob }: {
-  visible: boolean; onClose: () => void; onPosted?: () => void; editJob?: any | null;
+  visible: boolean; onClose: () => void; onPosted?: (edited: boolean) => void; editJob?: any | null;
   /** The client's own jobs nobody has taken yet, listed here with an ✏️ each. */
   openJobs?: any[];
   /** Open one of them for editing; `fromForm` when this form is the one on screen. */
   onEditJob?: (id: string, fromForm?: boolean) => void;
 }) {
-  const { t } = useLanguage();
+  const { t, lang } = useLanguage();
   const C = useAppColors();
   const insets = useSafeAreaInsets();
   // Editing starts from the job's own values. The modal is keyed per job
@@ -1734,7 +1746,6 @@ function PostJobModal({ visible, onClose, onPosted, editJob, openJobs, onEditJob
     return { d, h };
   })();
   const [date, setDate]         = useState<Date>(ejDate ?? defaultSlot.d);
-  const [calOpen, setCalOpen]   = useState(false);
   const [hour, setHour]         = useState(Number.isFinite(ejHour) ? ejHour : defaultSlot.h);
   const [hours, setHours]       = useState(ej && Number(ej.hours) > 0 ? Number(ej.hours) : 2);
   const [isPrivate, setIsPrivate] = useState(ej ? ej.isPrivateHouse !== false : true);
@@ -1750,7 +1761,48 @@ function PostJobModal({ visible, onClose, onPosted, editJob, openJobs, onEditJob
   const [photos, setPhotos]     = useState<string[]>(ej ? jobPhotosOf(ej.photos) : []);   // base64 (data URIs) — עד 3
   const [photoBusy, setPhotoBusy] = useState(false);   // a photo still being picked/compressed
   const [busy, setBusy]         = useState(false);
-  const svcKeys = Object.keys(SERVICE_DESCRIPTIONS);
+  const [svcOpen, setSvcOpen]   = useState(false);   // רשימת סוגי הניקיון
+  const [jobsOpen, setJobsOpen] = useState(false);   // המודעות שכבר פורסמו
+  const [tried, setTried]       = useState(false);   // נלחץ "פרסם" על טופס חסר
+  const formScrollRef = useRef<ScrollView>(null);
+  // חוזרים לכפתור בזמן שמודעה עדיין מחכה לנותן שירות: קודם אומרים את זה, עם
+  // ✏️ וביטול — ולא טופס ריק. בכל פתיחה מחדש, ואף פעם לא בעריכה.
+  // מחושב בכל רינדור ולא פעם אחת בפתיחה: אחרת הטופס הבזיק לרגע לפני מסך ההמתנה.
+  const [wantsAnother, setWantsAnother] = useState(false);
+  const [, setPressCount] = useState(0);
+  const [cancellingId, setCancellingId] = useState('');
+  // מתאפס בפתיחה ולא בסגירה: אחרת החלון הראה את מסך ההמתנה בזמן שהוא יורד.
+  useLayoutEffect(() => { if (visible) setWantsAnother(false); }, [visible]);
+  const pendingNow = !ej && !wantsAnother && (openJobs?.length ?? 0) > 0;
+  const cancelOpenJob = async (j: any) => {
+    if (cancellingId) return;
+    setCancellingId(j.id);
+    try {
+      // עבודה מהלוח שאף נותן שירות לא לקח: אין צד שני להודיע לו. בטרנזקציה, כי
+      // נותן שירות יכול לקחת אותה רגע לפני — ואז לא מבטלים בשקט מאחורי גבו.
+      const ref = doc(db, 'bookings', j.id);
+      await runTransaction(db, async tx => {
+        const cur: any = (await tx.get(ref)).data();
+        if (!cur || cur.cleanerId || cur.open !== true || cur.status !== 'pending') throw new Error('JOB_TAKEN');
+        tx.update(ref, { status: 'cancelled', cancelledBy: 'client', cancelledAt: new Date().toISOString() });
+      });
+      // האחרונה בוטלה — אין מה שמחכה, חוזרים למסך הראשי.
+      if ((openJobs?.length ?? 0) <= 1) onClose();
+    } catch (err: any) {
+      if (err?.message === 'JOB_TAKEN') {
+        Alert.alert('', (t as any).jobEditTakenMsg ?? 'נותן שירות כבר לקח את העבודה. אפשר לבטל אותה מהפרופיל.');
+        return;
+      }
+      logError('home:cancelOpenJob', err);
+      Alert.alert(t.error, (t as any).errGeneric ?? 'שגיאה — נסה שוב');
+    } finally {
+      setCancellingId('');
+    }
+  };
+  // עם מה שכבר נבחר: במודעה ישנה יכול להיות סוג שכבר לא ברשימה, והוא חייב להישאר
+  // ניתן להסרה.
+  const svcKeys = [...new Set([...Object.keys(SERVICE_DESCRIPTIONS), ...types])];
+  const cityYRef = useRef(0);
 
   // עריכה: הכתובת המלאה וההערות נטענו לפני שהטופס נפתח (editJobId).
   const ejId = ej?.id;
@@ -1783,7 +1835,7 @@ function PostJobModal({ visible, onClose, onPosted, editJob, openJobs, onEditJob
   };
   const toggle = (k: string) => setTypes(p => p.includes(k) ? p.filter(x => x !== k) : [...p, k]);
   // אי אפשר לפרסם לתאריך/שעה שכבר עברו (היום ושעה שחלפה)
-  const isPastJob = (() => {
+  const jobInPast = () => {
     const n = new Date();
     const dOnly = new Date(date); dOnly.setHours(0, 0, 0, 0);
     const tOnly = new Date(n);    tOnly.setHours(0, 0, 0, 0);
@@ -1792,14 +1844,47 @@ function PostJobModal({ visible, onClose, onPosted, editJob, openJobs, onEditJob
     // With the minutes: an edited job may start on the half hour, and 10:30
     // has passed at 10:40 though its hour has not.
     return hour <= n.getHours() + n.getMinutes() / 60;
-  })();
+  };
+  const isPastJob = jobInPast();
   const valid = types.length > 0 && city.trim().length >= 2 && !isPastJob && budget > 0;
+  // מה חסר נאמר רק אחרי לחיצה על "פרסם", במקום אחד ליד הכפתור. אזהרה ליד כל שדה
+  // הופיעה עוד לפני שנגעו בטופס, והכפתור היה אפור בלי להסביר למה.
+  const missing = types.length === 0 ? ((t as any).pickServiceHint ?? 'יש לבחור לפחות סוג ניקיון אחד')
+    : city.trim().length < 2 ? ((t as any).pickCityHint ?? 'יש להזין עיר')
+    : budget <= 0 ? ((t as any).pickBudgetNote ?? 'בחר/י סכום מקסימלי לשעה')
+    : '';
 
   const dateStr = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+
+  // התאריך: שדה אחד, ולחיצה פותחת את החודש שלו בלוח שנה (CalendarPicker). השעה
+  // על − / + כמו ב"ניקיון דחוף".
+  const POST_LAST_HOUR = 22;
+  const dayOffset = (() => {
+    const a = new Date(date); a.setHours(0, 0, 0, 0);
+    const b = new Date(); b.setHours(0, 0, 0, 0);
+    return Math.round((a.getTime() - b.getTime()) / 86400000);
+  })();
+  const postTodayClosed = urgentFirstSlot(new Date(), 30) > POST_LAST_HOUR;
+  const postMinHour = dayOffset === 0 ? Math.min(POST_LAST_HOUR, urgentFirstSlot(new Date(), 30)) : 6;
+  // רק כשהיום משתנה. בפתיחת עריכה זה הזיז בשקט את שעת העבודה, גם למי שרק תיקן
+  // הערה, ומודעה שהשעה שלה עברה קפצה קדימה בלי שהאזהרה תופיע.
+  const clampedDayRef = useRef(dateStr);
+  useEffect(() => {
+    if (ej && clampedDayRef.current === dateStr) return;
+    clampedDayRef.current = dateStr;
+    if (hour < postMinHour) setHour(postMinHour);
+    else if (hour > POST_LAST_HOUR) setHour(POST_LAST_HOUR);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [dateStr]);
+  const [calOpen, setCalOpen] = useState(false);
+  const dayLocale = CAL_LOCALES[lang] || 'he-IL';
 
   const submit = async () => {
     if (!valid || busy) return;
     setBusy(true);
+    // המודעה מופיעה ברשימה מקומית עוד לפני שהכתיבה נגמרה, ובלי זה הטופס התחלף
+    // למסך ההמתנה באמצע הפרסום.
+    setWantsAnother(true);
     try {
       const uid = auth.currentUser?.uid || '';
       const startStr = hhmm(hour);
@@ -1856,19 +1941,12 @@ function PostJobModal({ visible, onClose, onPosted, editJob, openJobs, onEditJob
         await jobBatch.commit();
       }
       upsertAddress(city.trim()).catch(() => {});   // שמור את הכתובת למילוי אוטומטי בפעם הבאה
-      onPosted?.();
+      onPosted?.(!!editJob?.id);
+      // נשלח: חזרה למסך הראשי, בלי חלון נוסף. לחיצה חוזרת על "ניקיון בזמן שלך"
+      // מראה את המודעה ממתינה, עם ✏️ וביטול, כל עוד אף נותן שירות לא לקח אותה.
       onClose();
-      // ✏️ right here, where the client has just read the details back: the
-      // only edit button used to be on the booking's card in the profile.
-      const postedId = jobRef.id;
-      Alert.alert('📢', editJob?.id
-        ? ((t as any).jobEditedOk ?? 'המודעה עודכנה.')
-        : ((t as any).jobPostedOk ?? 'המודעה פורסמה, נותני שירות יוכלו לראות ולאשר הזמנה.\nאתה תקבל הודעה כשנותן שירות יאשר את ההזמנה.'),
-        onEditJob ? [
-          { text: `✏️ ${(t as any).editJobBtn ?? 'עריכת המודעה'}`, onPress: () => onEditJob(postedId) },
-          { text: t.closeBtn ?? 'סגור', style: 'cancel' },
-        ] : undefined);
       setTypes([]); setCity(''); setCitySugg([]); setBudget(80); setNotes(''); setPhotos([]);
+      setSvcOpen(false); setTried(false);
     } catch (err: any) {
       if (err?.message === 'JOB_TAKEN') {
         Alert.alert('', (t as any).jobEditTakenMsg ?? 'נותן שירות כבר לקח את העבודה, ולכן אי אפשר לערוך אותה. אפשר לדבר איתו בצ\'אט או לבטל את ההזמנה.');
@@ -1880,6 +1958,24 @@ function PostJobModal({ visible, onClose, onPosted, editJob, openJobs, onEditJob
     } finally { setBusy(false); }
   };
 
+  const pressPublish = () => {
+    // שוב מול השעון: טופס שנשאר פתוח עובר את השעה שנבחרה בלי שום רינדור.
+    if (valid && !jobInPast()) { submit(); return; }
+    setTried(true);
+    setPressCount(n => n + 1);   // השעה עברה בלי רינדור: בלי זה הכפתור לא ענה כלום
+    // הרשימה סגורה ובראש הטופס, אז פשוט לא ראו שהיא חסרה.
+    if (types.length === 0) { setSvcOpen(true); formScrollRef.current?.scrollTo({ y: 0, animated: true }); }
+    else if (city.trim().length < 2) revealCity();
+  };
+
+  // עיר והערות הם שדות הכתיבה, ושניהם בתחתית הטופס: בלי זה המקלדת עלתה והשדה
+  // נשאר מוסתר מתחת לכפתור הקבוע. לעיר גוללים אליה, כי במסך קטן סוף הטופס רחוק
+  // ממנה יותר מהמקום שנשאר מעל המקלדת.
+  const revealNotes = () => { setTimeout(() => formScrollRef.current?.scrollToEnd({ animated: true }), 300); };
+  const revealCity = () => { setTimeout(() => formScrollRef.current?.scrollTo({ y: Math.max(0, cityYRef.current - 8), animated: true }), 300); };
+
+  const fieldLabel = { fontSize: 13, fontWeight: '700', color: C.textDark, textAlign: 'right' } as const;
+
   return (
     <Modal visible={visible} animationType="slide" presentationStyle="pageSheet" onRequestClose={onClose}>
       <SafeAreaView style={{ flex: 1, backgroundColor: C.bluePale }}>
@@ -1890,161 +1986,244 @@ function PostJobModal({ visible, onClose, onPosted, editJob, openJobs, onEditJob
           <T style={{ fontSize: 17, fontWeight: '900', color: '#fff' }}>{editJob?.id ? `✏️ ${(t as any).editJobTitle ?? 'עריכת מודעה'}` : `📢 ${(t as any).postJobTitle ?? 'פרסם עבודה פתוחה'}`}</T>
           <View style={{ width: 36 }} />
         </View>
-        <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'} keyboardVerticalOffset={0}>
-        <ScrollView contentContainerStyle={{ padding: 16, gap: 14, paddingBottom: insets.bottom + 24 }} keyboardShouldPersistTaps="handled">
-          <T style={{ fontSize: 13, color: C.textSub, textAlign: 'center' }}>{(t as any).postJobSub ?? 'כל נותן שירות מתאים יראה את העבודה ויוכל לקחת אותה'}</T>
+        {/* הפער נמדד: ה-pageSheet מתחיל מתחת לשורת המצב, ובלעדיו המקלדת מכסה את
+            הכפתור הקבוע שבתחתית. */}
+        {pendingNow ? (
+          <ScrollView contentContainerStyle={{ padding: 16, gap: 12 }}>
+            <View style={{ backgroundColor: C.white, borderRadius: 20, padding: 20, alignItems: 'center', gap: 12, borderWidth: 2, borderColor: C.blue }}>
+              <T style={{ fontSize: 44 }}>⏳</T>
+              <T style={{ fontSize: 18, fontWeight: '900', color: C.textDark, textAlign: 'center' }}>{(t as any).jobWaitingMsg ?? 'המודעה ממתינה לאישור נותן שירות'}</T>
+              {openJobs!.map(j => (
+                <View key={j.id} style={{ alignSelf: 'stretch', gap: 8, padding: 12, borderRadius: 12, borderWidth: 1, borderColor: C.blueBorder, backgroundColor: C.bluePale }}>
+                  <T style={{ fontSize: 13, fontWeight: '700', color: C.textDark, textAlign: 'right' }}>
+                    📅 {formatJobDate(String(j.bookingDate || ''))}{j.startTime ? ` ${(t as any).atHour ?? 'בשעה'} ${j.startTime}` : ''}
+                  </T>
+                  <T style={{ fontSize: 12, color: C.textSub, textAlign: 'right' }} numberOfLines={1}>
+                    {String(j.serviceType || '').split(' + ').filter(Boolean).map((st: string) => stripEmoji(String(t.types[st] || st))).join(', ')}
+                    {j.addrCity ? ` · 📍 ${String((t.cities as any)?.[j.addrCity] || j.addrCity)}` : ''}
+                  </T>
+                  <View style={{ flexDirection: 'row-reverse', gap: 8 }}>
+                    <TouchableOpacity accessibilityRole="button" disabled={!!cancellingId} onPress={() => onEditJob?.(j.id, true)} style={pendingBtn('#EFF6FF', C.blue)}>
+                      <T numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8} style={{ fontSize: 14, fontWeight: '800', color: C.blue }}>✏️ {(t as any).urgentEditBtn ?? 'עריכת הבקשה'}</T>
+                    </TouchableOpacity>
+                    <TouchableOpacity accessibilityRole="button" disabled={!!cancellingId} onPress={() => cancelOpenJob(j)} style={pendingBtn('#FEE2E2', '#FCA5A5')}>
+                      <T numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8} style={{ fontSize: 14, fontWeight: '800', color: '#EF4444' }}>{cancellingId === j.id ? '…' : t.urgentCancelBtn}</T>
+                    </TouchableOpacity>
+                  </View>
+                </View>
+              ))}
+              <TouchableOpacity accessibilityRole="button" onPress={() => setWantsAnother(true)} style={{ paddingVertical: 8 }}>
+                <T style={{ fontSize: 14, fontWeight: '800', color: C.blue }}>+ {(t as any).postAnotherJob ?? 'פרסום עבודה נוספת'}</T>
+              </TouchableOpacity>
+            </View>
+          </ScrollView>
+        ) : (
+        <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'} keyboardVerticalOffset={Platform.OS === 'ios' ? insets.top : 0}>
+        <ScrollView ref={formScrollRef} contentContainerStyle={{ padding: 16, gap: 14 }} keyboardShouldPersistTaps="handled">
 
           {/* המודעות שהלקוח כבר פרסם ועוד לא נלקחו — עם ✏️ לכל אחת. בלי זה
               כפתור העריכה היה רק בכרטיס ההזמנה בפרופיל, ומי שחזר לכאן כדי
-              לתקן מודעה מצא טופס ריק. */}
+              לתקן מודעה מצא טופס ריק. שורה אחת שנפתחת, כדי לא לדחוף את הטופס. */}
           {!ej && (openJobs?.length ?? 0) > 0 && (
-            <View style={{ backgroundColor: C.white, borderRadius: 14, borderWidth: 1.5, borderColor: C.blueBorder, padding: 12, gap: 10 }}>
-              <T style={{ fontSize: 14, fontWeight: '800', color: C.textDark, textAlign: 'right' }}>📢 {(t as any).myOpenJobsTitle ?? 'המודעות שפרסמת'}</T>
-              {openJobs!.map(j => (
-                <View key={j.id} style={{ flexDirection: 'row-reverse', alignItems: 'center', gap: 10 }}>
-                  <View style={{ flex: 1 }}>
-                    <T style={{ fontSize: 13, fontWeight: '700', color: C.textDark, textAlign: 'right' }}>
-                      📅 {formatJobDate(String(j.bookingDate || ''))}{j.startTime ? ` ${(t as any).atHour ?? 'בשעה'} ${j.startTime}` : ''}
-                    </T>
-                    <T style={{ fontSize: 12, color: C.textSub, textAlign: 'right' }} numberOfLines={1}>
-                      {String(j.serviceType || '').split(' + ').filter(Boolean).map((st: string) => String(t.types[st] || st)).join(', ')}
-                      {j.addrCity ? ` · 📍 ${String((t.cities as any)?.[j.addrCity] || j.addrCity)}` : ''}
-                    </T>
-                  </View>
-                  <TouchableOpacity
-                    onPress={() => onEditJob?.(j.id, true)}
-                    accessibilityRole="button"
-                    style={{ paddingHorizontal: 12, paddingVertical: 8, borderRadius: 10, borderWidth: 1.5, borderColor: C.blue, backgroundColor: C.white }}
-                  >
-                    <T style={{ fontSize: 13, fontWeight: '800', color: C.blue }}>✏️ {(t as any).editShortBtn ?? 'עריכה'}</T>
-                  </TouchableOpacity>
+            <View style={{ backgroundColor: C.white, borderRadius: 12, borderWidth: 1, borderColor: C.blueBorder }}>
+              <TouchableOpacity
+                onPress={() => setJobsOpen(o => !o)}
+                accessibilityRole="button"
+                accessibilityState={{ expanded: jobsOpen }}
+                style={{ flexDirection: 'row-reverse', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 12, paddingVertical: 10 }}
+              >
+                <T style={fieldLabel}>📢 {(t as any).prevBookingsShort ?? 'הזמנות קודמות'} ({openJobs!.length})</T>
+                <T style={{ fontSize: 12, color: C.textSub }}>{jobsOpen ? '▲' : '▼'}</T>
+              </TouchableOpacity>
+              {jobsOpen && (
+                <View style={{ paddingHorizontal: 12, paddingBottom: 12, gap: 10 }}>
+                  {openJobs!.map(j => (
+                    <View key={j.id} style={{ flexDirection: 'row-reverse', alignItems: 'center', gap: 10 }}>
+                      <View style={{ flex: 1 }}>
+                        <T style={{ fontSize: 13, fontWeight: '700', color: C.textDark, textAlign: 'right' }}>
+                          📅 {formatJobDate(String(j.bookingDate || ''))}{j.startTime ? ` ${(t as any).atHour ?? 'בשעה'} ${j.startTime}` : ''}
+                        </T>
+                        <T style={{ fontSize: 12, color: C.textSub, textAlign: 'right' }} numberOfLines={1}>
+                          {String(j.serviceType || '').split(' + ').filter(Boolean).map((st: string) => String(t.types[st] || st)).join(', ')}
+                          {j.addrCity ? ` · 📍 ${String((t.cities as any)?.[j.addrCity] || j.addrCity)}` : ''}
+                        </T>
+                      </View>
+                      <TouchableOpacity
+                        onPress={() => onEditJob?.(j.id, true)}
+                        accessibilityRole="button"
+                        style={{ paddingHorizontal: 12, paddingVertical: 8, borderRadius: 10, borderWidth: 1.5, borderColor: C.blue, backgroundColor: C.white }}
+                      >
+                        <T style={{ fontSize: 13, fontWeight: '800', color: C.blue }}>✏️ {(t as any).editShortBtn ?? 'עריכה'}</T>
+                      </TouchableOpacity>
+                    </View>
+                  ))}
+                  <T style={{ fontSize: 11, color: C.textSub, textAlign: 'right' }}>{(t as any).myOpenJobsHint ?? 'אפשר לערוך מודעה כל עוד אף נותן שירות לא לקח אותה.'}</T>
                 </View>
-              ))}
-              <T style={{ fontSize: 11, color: C.textSub, textAlign: 'right' }}>{(t as any).myOpenJobsHint ?? 'אפשר לערוך מודעה כל עוד אף נותן שירות לא לקח אותה.'}</T>
+              )}
             </View>
           )}
 
-          <T style={{ fontSize: 14, fontWeight: '800', color: C.textDark, textAlign: 'right' }}>{(t as any).serviceTypeLabel ?? 'סוג ניקיון'}</T>
-          <View style={{ flexDirection: 'row-reverse', flexWrap: 'wrap', gap: 8, justifyContent: 'center' }}>
-            {svcKeys.map(k => (
-              <TouchableOpacity key={k} onPress={() => toggle(k)} style={{ paddingHorizontal: 12, paddingVertical: 8, borderRadius: 20, borderWidth: 1.5, borderColor: types.includes(k) ? C.blue : C.blueBorder, backgroundColor: types.includes(k) ? C.blue : C.white }}>
-                <T style={{ fontSize: 12, fontWeight: '700', color: types.includes(k) ? '#fff' : C.textDark }}>{String(t.types[k] || k)}</T>
-              </TouchableOpacity>
-            ))}
+          {/* סוג ניקיון — שורה אחת שנפתחת. אפשר לבחור כמה, אז היא נשארת פתוחה */}
+          <View style={{ gap: 6 }}>
+            <T style={fieldLabel}>{(t as any).serviceTypeLabel ?? 'סוג ניקיון'}</T>
+            <TouchableOpacity
+              onPress={() => setSvcOpen(o => !o)}
+              accessibilityRole="button"
+              accessibilityState={{ expanded: svcOpen }}
+              style={{ flexDirection: 'row-reverse', alignItems: 'center', gap: 8, minHeight: 46, backgroundColor: C.white, borderRadius: 12, borderWidth: 1.5, borderColor: tried && types.length === 0 ? '#B45309' : C.blueBorder, paddingHorizontal: 12 }}
+            >
+              <T numberOfLines={1} style={{ flex: 1, fontSize: 14, fontWeight: types.length ? '700' : '400', color: types.length ? C.textDark : C.textSub, textAlign: 'right' }}>
+                {types.length ? types.map(k => stripEmoji(String(t.types[k] || k))).join(', ') : ((t as any).pickServicePh ?? 'בחר/י סוג ניקיון')}
+              </T>
+              <T style={{ fontSize: 12, color: C.textSub }}>{svcOpen ? '▲' : '▼'}</T>
+            </TouchableOpacity>
+            {svcOpen && (
+              <View style={{ flexDirection: 'row-reverse', flexWrap: 'wrap', justifyContent: 'space-between', rowGap: 8 }}>
+                {svcKeys.map(k => {
+                  const on = types.includes(k);
+                  return (
+                    <TouchableOpacity
+                      key={k}
+                      onPress={() => toggle(k)}
+                      accessibilityRole="checkbox"
+                      accessibilityState={{ checked: on }}
+                      style={{ width: '48.5%', minHeight: 42, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 6, borderRadius: 12, borderWidth: 1.5, borderColor: on ? C.blue : C.blueBorder, backgroundColor: on ? C.blue : C.white }}
+                    >
+                      <T numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8} style={{ fontSize: 13, fontWeight: '700', color: on ? '#fff' : C.textDark }}>{stripEmoji(String(t.types[k] || k))}</T>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+            )}
           </View>
-          {types.length === 0 && (
-            <T style={{ fontSize: 12.5, fontWeight: '700', color: '#B45309', textAlign: 'right' }}>⚠️ {(t as any).pickServiceHint ?? 'יש לבחור לפחות סוג ניקיון אחד'}</T>
-          )}
 
-          <View style={{ flexDirection: 'row-reverse', gap: 10 }}>
-            <View style={{ flex: 1 }}>
-              <T style={{ fontSize: 14, fontWeight: '800', color: C.textDark, textAlign: 'right', marginBottom: 6 }}>{(t as any).dateLabel ?? 'תאריך'}</T>
-              <TouchableOpacity onPress={() => setCalOpen(true)} style={{ backgroundColor: isPastJob ? '#FEF2F2' : C.white, borderRadius: 12, borderWidth: 1.5, borderColor: isPastJob ? '#DC2626' : C.blueBorder, padding: 12 }}>
-                <T style={{ fontSize: 14, color: isPastJob ? '#DC2626' : C.textDark, textAlign: 'center' }}>📅 {formatJobDate(dateStr)}</T>
+          {/* תאריך, שעה ומספר שעות — שורה אחת. התאריך פותח את החודש בלוח שנה */}
+          <View style={{ flexDirection: 'row-reverse', gap: 8 }}>
+            <View style={{ flex: 1.3, gap: 6 }}>
+              <T style={fieldLabel} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8}>{(t as any).dateLabel ?? 'תאריך'}</T>
+              <TouchableOpacity accessibilityRole="button" accessibilityLabel={(t as any).selectDate ?? 'בחר תאריך'} onPress={() => setCalOpen(true)}
+                style={{ minHeight: 46, flexDirection: 'row-reverse', alignItems: 'center', justifyContent: 'space-between', gap: 4, paddingHorizontal: 8, backgroundColor: isPastJob ? '#FEF2F2' : C.white, borderRadius: 12, borderWidth: 1.5, borderColor: isPastJob ? '#DC2626' : C.blueBorder }}>
+                <T numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75} maxFontSizeMultiplier={1.2} style={{ flexShrink: 1, fontSize: 13, fontWeight: '800', color: isPastJob ? '#DC2626' : C.textDark }}>
+                  {date.toLocaleDateString(dayLocale, { weekday: 'short' })} {date.getDate()}.{date.getMonth() + 1}
+                </T>
+                <T style={{ fontSize: 14 }}>📅</T>
               </TouchableOpacity>
             </View>
-            <View style={{ flex: 1 }}>
-              <T style={{ fontSize: 14, fontWeight: '800', color: C.textDark, textAlign: 'right', marginBottom: 6 }}>{(t as any).timeLabel ?? 'שעה'}</T>
-              <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: isPastJob ? '#FEF2F2' : C.white, borderRadius: 12, borderWidth: 1.5, borderColor: isPastJob ? '#DC2626' : C.blueBorder, paddingHorizontal: 8 }}>
-                <TouchableOpacity onPress={() => setHour(h => Math.max(6, h - 1))} style={{ padding: 8 }}><T style={{ fontSize: 20, color: C.blue }}>−</T></TouchableOpacity>
-                <T style={{ fontSize: 15, fontWeight: '800', color: isPastJob ? '#DC2626' : C.textDark }}>{hhmm(hour)}</T>
-                <TouchableOpacity onPress={() => setHour(h => Math.min(22, h + 1))} style={{ padding: 8 }}><T style={{ fontSize: 20, color: C.blue }}>+</T></TouchableOpacity>
-              </View>
+            <View style={{ flex: 1.25, gap: 6 }}>
+              <T style={fieldLabel} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8}>{(t as any).timeLabel ?? 'שעה'}</T>
+              <TimeWheelPicker compact accent={C.blue} value={hour} onChange={setHour} minHour={postMinHour} maxHour={POST_LAST_HOUR} />
             </View>
-          </View>
-
-          <View style={{ flexDirection: 'row-reverse', gap: 10 }}>
-            <View style={{ flex: 1 }}>
-              <T style={{ fontSize: 14, fontWeight: '800', color: C.textDark, textAlign: 'right', marginBottom: 6 }}>{(t as any).hoursLabel ?? 'שעות'}</T>
-              <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: C.white, borderRadius: 12, borderWidth: 1.5, borderColor: C.blueBorder, paddingHorizontal: 8 }}>
-                <TouchableOpacity onPress={() => setHours(h => Math.max(1, h - 1))} style={{ padding: 8 }}><T style={{ fontSize: 20, color: C.blue }}>−</T></TouchableOpacity>
-                <T style={{ fontSize: 15, fontWeight: '800', color: C.textDark }}>{hours}</T>
-                <TouchableOpacity onPress={() => setHours(h => Math.min(12, h + 1))} style={{ padding: 8 }}><T style={{ fontSize: 20, color: C.blue }}>+</T></TouchableOpacity>
-              </View>
+            <View style={{ flex: 0.9, gap: 6 }}>
+              <T style={fieldLabel} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8}>{(t as any).hoursLabel ?? 'שעות'}</T>
+              <HoursWheelPicker compact accent={C.blue} value={hours} onChange={setHours} values={[...new Set([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, hours])].sort((x, y) => x - y)} />
             </View>
           </View>
 
           {/* סכום מקסימלי לשעה — אותה בחירה כמו בבקשה דחופה */}
-          <View style={{ gap: 8 }}>
-            <T style={{ fontSize: 14, fontWeight: '800', color: C.textDark, textAlign: 'right' }}>💰 {(t as any).urgentMaxPriceLabel ?? 'סכום מקסימלי לשעה'}</T>
-            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, justifyContent: 'center' }}>
-              {[60, 70, 80, 90, 100, 120, 150].map(p => (
+          <View style={{ gap: 6 }}>
+            <T style={fieldLabel}>{(t as any).urgentMaxPriceLabel ?? 'סכום מקסימלי לשעה'}</T>
+            <View style={{ flexDirection: 'row-reverse', gap: 4 }}>
+              {budgetChoices(budget).map(p => (
                 <TouchableOpacity
                   key={p}
                   onPress={() => setBudget(p)}
                   activeOpacity={0.8}
-                  style={{ paddingHorizontal: 14, paddingVertical: 9, borderRadius: 12, borderWidth: 1.5, backgroundColor: budget === p ? '#7C3AED' : C.white, borderColor: budget === p ? '#7C3AED' : C.blueBorder }}
+                  style={{ flex: 1, alignItems: 'center', paddingVertical: 10, borderRadius: 10, borderWidth: 1.5, backgroundColor: budget === p ? C.blue : C.white, borderColor: budget === p ? C.blue : C.blueBorder }}
                 >
-                  <T style={{ fontSize: 13, fontWeight: '800', color: budget === p ? '#fff' : C.textDark }}>₪{p}</T>
+                  <T numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8} style={{ fontSize: 12, fontWeight: '800', color: budget === p ? '#fff' : C.textDark }}>₪{p}</T>
                 </TouchableOpacity>
               ))}
             </View>
-            {budget > 0
-              ? <T style={{ fontSize: 11, color: C.textSub, textAlign: 'right' }}>{(t as any).jobMaxPriceHint ?? 'נותני השירות יראו את הסכום הזה במודעה'}</T>
-              : <T style={{ fontSize: 12, color: '#DC2626', fontWeight: '700', textAlign: 'right' }}>{(t as any).pickBudgetNote ?? 'בחר/י סכום מקסימלי לשעה'}</T>}
           </View>
 
-          <T style={{ fontSize: 14, fontWeight: '800', color: C.textDark, textAlign: 'right' }}>{(t as any).propertyTypeLabel ?? 'סוג נכס'}</T>
-          <View style={{ flexDirection: 'row-reverse', gap: 8 }}>
-            <TouchableOpacity onPress={() => setIsPrivate(true)} style={{ flex: 1, paddingVertical: 12, borderRadius: 12, borderWidth: 1.5, borderColor: isPrivate ? C.blue : C.blueBorder, backgroundColor: isPrivate ? C.blue : C.white, alignItems: 'center' }}><T style={{ fontWeight: '700', color: isPrivate ? '#fff' : C.textDark }}>🏠 {(t as any).privateHouseLabel ?? 'בית פרטי'}</T></TouchableOpacity>
-            <TouchableOpacity onPress={() => setIsPrivate(false)} style={{ flex: 1, paddingVertical: 12, borderRadius: 12, borderWidth: 1.5, borderColor: !isPrivate ? C.blue : C.blueBorder, backgroundColor: !isPrivate ? C.blue : C.white, alignItems: 'center' }}><T style={{ fontWeight: '700', color: !isPrivate ? '#fff' : C.textDark }}>🏢 {(t as any).aptBuildingLabel ?? 'דירה'}</T></TouchableOpacity>
-          </View>
-
-          <T style={{ fontSize: 14, fontWeight: '800', color: C.textDark, textAlign: 'right' }}>{(t as any).cityLabel ?? 'עיר'}</T>
-          <TextInput style={{ backgroundColor: C.white, borderRadius: 12, borderWidth: 1.5, borderColor: C.blueBorder, padding: 12, textAlign: 'right', color: C.textDark }} value={city} onChangeText={computeCitySugg} onBlur={() => setTimeout(() => setCitySugg([]), 180)} placeholder={(t as any).citySearchPh ?? 'הקלד עיר…'} placeholderTextColor={C.textSub} />
-          {citySugg.length > 0 && (
-            <View style={{ backgroundColor: C.white, borderRadius: 12, borderWidth: 1, borderColor: C.blueBorder, overflow: 'hidden', marginTop: -6 }}>
-              {citySugg.map((c, i) => (
-                <TouchableOpacity key={c} onPress={() => { setCity(c); setCitySugg([]); }} style={{ paddingVertical: 11, paddingHorizontal: 14, borderBottomWidth: i < citySugg.length - 1 ? 1 : 0, borderBottomColor: C.blueBorder }}>
-                  <T style={{ fontSize: 14, color: C.textDark, textAlign: 'right' }}>📍 {c}</T>
-                </TouchableOpacity>
-              ))}
+          <View style={{ gap: 6 }}>
+            <T style={fieldLabel}>{(t as any).propertyTypeLabel ?? 'סוג נכס'}</T>
+            <View style={{ flexDirection: 'row-reverse', gap: 8 }}>
+              <TouchableOpacity onPress={() => setIsPrivate(true)} style={{ flex: 1, paddingVertical: 11, borderRadius: 12, borderWidth: 1.5, borderColor: isPrivate ? C.blue : C.blueBorder, backgroundColor: isPrivate ? C.blue : C.white, alignItems: 'center' }}><T style={{ fontSize: 13, fontWeight: '700', color: isPrivate ? '#fff' : C.textDark }}>🏠 {(t as any).privateHouseLabel ?? 'בית פרטי'}</T></TouchableOpacity>
+              <TouchableOpacity onPress={() => setIsPrivate(false)} style={{ flex: 1, paddingVertical: 11, borderRadius: 12, borderWidth: 1.5, borderColor: !isPrivate ? C.blue : C.blueBorder, backgroundColor: !isPrivate ? C.blue : C.white, alignItems: 'center' }}><T style={{ fontSize: 13, fontWeight: '700', color: !isPrivate ? '#fff' : C.textDark }}>🏢 {(t as any).aptBuildingLabel ?? 'דירה'}</T></TouchableOpacity>
             </View>
-          )}
-          {city.trim().length < 2 && (
-            <T style={{ fontSize: 12.5, fontWeight: '700', color: '#B45309', textAlign: 'right' }}>⚠️ {(t as any).pickCityHint ?? 'יש להזין עיר'}</T>
-          )}
-
-          <View style={{ flexDirection: 'row-reverse', alignItems: 'center', justifyContent: 'space-between' }}>
-            <T style={{ fontSize: 14, fontWeight: '800', color: C.textDark, textAlign: 'right' }}>{(t as any).notesLabel ?? 'הערות (לא חובה)'}</T>
-            <T style={{ fontSize: 12, fontWeight: '700', color: countWords(notes) >= JOB_NOTES_MAX_WORDS ? '#B45309' : C.textSub }}>
-              {countWords(notes)}/{JOB_NOTES_MAX_WORDS} {(t as any).bioWordCount ?? 'מילים'}
-            </T>
           </View>
-          <TextInput style={{ backgroundColor: C.white, borderRadius: 12, borderWidth: 1.5, borderColor: C.blueBorder, padding: 12, textAlign: 'right', color: C.textDark, height: 70, textAlignVertical: 'top' }} value={notes} onChangeText={v => setNotes(limitWords(v, JOB_NOTES_MAX_WORDS))} multiline placeholder={(t as any).notesPh ?? 'פרטים נוספים לנותן השירות…'} placeholderTextColor={C.textSub} />
 
-          {/* צירוף תמונות (לא חובה) */}
-          <T style={{ fontSize: 14, fontWeight: '800', color: C.textDark, textAlign: 'right' }}>{(t as any).jobPhotosLabel ?? 'תמונות (לא חובה)'}</T>
-          {/* מצלמה או גלריה — lib/JobPhotos */}
-          <JobPhotosField photos={photos} onChange={setPhotos} onBusy={setPhotoBusy} />
+          <View style={{ gap: 6 }} onLayout={e => { cityYRef.current = e.nativeEvent.layout.y; }}>
+            <T style={fieldLabel}>{(t as any).cityLabel ?? 'עיר'}</T>
+            <TextInput style={{ backgroundColor: C.white, borderRadius: 12, borderWidth: 1.5, borderColor: tried && city.trim().length < 2 ? '#B45309' : C.blueBorder, padding: 12, textAlign: 'right', color: C.textDark }} value={city} onChangeText={computeCitySugg} onFocus={revealCity} onBlur={() => setTimeout(() => setCitySugg([]), 180)} placeholder={(t as any).citySearchPh ?? 'הקלד עיר…'} placeholderTextColor={C.textSub} />
+            {citySugg.length > 0 && (
+              <View style={{ backgroundColor: C.white, borderRadius: 12, borderWidth: 1, borderColor: C.blueBorder, overflow: 'hidden' }}>
+                {citySugg.map((c, i) => (
+                  <TouchableOpacity key={c} onPress={() => { setCity(c); setCitySugg([]); }} style={{ paddingVertical: 11, paddingHorizontal: 14, borderBottomWidth: i < citySugg.length - 1 ? 1 : 0, borderBottomColor: C.blueBorder }}>
+                    <T style={{ fontSize: 14, color: C.textDark, textAlign: 'right' }}>📍 {c}</T>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            )}
+          </View>
 
-          {isPastJob && (
-            <View style={{ backgroundColor: '#FEF2F2', borderWidth: 1.5, borderColor: '#DC2626', borderRadius: 12, padding: 12 }}>
-              <T style={{ color: '#991B1B', fontSize: 14, fontWeight: '900', textAlign: 'center' }}>
-                ⏰ {(t as any).pastTimeError ?? 'לא ניתן לפרסם לתאריך/שעה שכבר עברו'}
+          <View style={{ gap: 6 }}>
+            <View style={{ flexDirection: 'row-reverse', alignItems: 'center', justifyContent: 'space-between' }}>
+              <T style={fieldLabel}>{(t as any).notesLabel ?? 'הערות (לא חובה)'}</T>
+              <T style={{ fontSize: 12, fontWeight: '700', color: countWords(notes) >= JOB_NOTES_MAX_WORDS ? '#B45309' : C.textSub }}>
+                {countWords(notes)}/{JOB_NOTES_MAX_WORDS} {(t as any).bioWordCount ?? 'מילים'}
               </T>
             </View>
-          )}
+            <TextInput style={{ backgroundColor: C.white, borderRadius: 12, borderWidth: 1.5, borderColor: C.blueBorder, padding: 12, textAlign: 'right', color: C.textDark, height: 56, textAlignVertical: 'top' }} value={notes} onChangeText={v => setNotes(limitWords(v, JOB_NOTES_MAX_WORDS))} onFocus={revealNotes} multiline placeholder={(t as any).notesPh ?? 'פרטים נוספים לנותן השירות…'} placeholderTextColor={C.textSub} />
+          </View>
 
-          <TouchableOpacity disabled={!valid || busy || photoBusy} onPress={submit} style={{ backgroundColor: valid && !busy && !photoBusy ? C.green : C.grayBorder, borderRadius: 14, paddingVertical: 15, alignItems: 'center', marginTop: 4 }}>
+          {/* צירוף תמונות (לא חובה) — מצלמה או גלריה, lib/JobPhotos */}
+          <View style={{ flexDirection: 'row-reverse', alignItems: 'center', gap: 10 }}>
+            <T style={[fieldLabel, { flex: 1 }]}>{(t as any).jobPhotosLabel ?? 'תמונות (לא חובה)'}</T>
+            <JobPhotosField photos={photos} onChange={setPhotos} onBusy={setPhotoBusy} />
+          </View>
+        </ScrollView>
+
+        {/* הכפתור קבוע בתחתית, ומה שחסר נאמר לידו. באייפון SafeAreaView כבר מרחיק
+            אותו מהקצה; באנדרואיד הוא View רגיל, והכפתור היה נופל תחת סרגל הניווט. */}
+        <View style={{ paddingHorizontal: 16, paddingTop: 10, paddingBottom: (Platform.OS === 'ios' ? 0 : insets.bottom) + 12, gap: 8, backgroundColor: C.bluePale, borderTopWidth: 1, borderTopColor: C.blueBorder }}>
+          {isPastJob ? (
+            <T style={{ color: '#991B1B', fontSize: 13, fontWeight: '800', textAlign: 'center' }}>
+              {(t as any).pastTimeError ?? '⏰ לא ניתן לפרסם לתאריך/שעה שכבר עברו'}
+            </T>
+          ) : tried && !!missing && (
+            <T style={{ color: '#B45309', fontSize: 13, fontWeight: '800', textAlign: 'center' }}>⚠️ {missing}</T>
+          )}
+          <TouchableOpacity disabled={busy || photoBusy} onPress={pressPublish} style={{ backgroundColor: !busy && !photoBusy ? C.green : C.grayBorder, borderRadius: 14, paddingVertical: 14, alignItems: 'center' }}>
             <T style={{ color: '#fff', fontWeight: '900', fontSize: 15 }}>{busy ? '…' : editJob?.id ? `💾 ${(t as any).saveChangesBtn ?? 'שמור שינויים'}` : `📢 ${(t as any).postJobBtn ?? 'פרסם עבודה'}`}</T>
           </TouchableOpacity>
-        </ScrollView>
+        </View>
         </KeyboardAvoidingView>
-        <CalendarPicker visible={calOpen} value={date} onChange={d => { const nd = new Date(d); nd.setHours(hour, 0, 0, 0); setDate(nd); }} onClose={() => setCalOpen(false)} />
+        )}
+        {/* key: נפתח תמיד על החודש של התאריך שנבחר */}
+        <CalendarPicker key={calOpen ? `open-${dateStr}` : 'closed'} visible={calOpen} value={date} onChange={d => { const nd = new Date(d); nd.setHours(Math.floor(hour), 0, 0, 0); setDate(nd); }} onClose={() => setCalOpen(false)} />
       </SafeAreaView>
     </Modal>
   );
 }
 
 // ─── Spinner Picker (+/−) ─────────────────────────────────────────────────────
-function SpinnerPicker({ value, onChange, values, display }: {
+function SpinnerPicker({ value, onChange, values, display, compact, accent = '#7C3AED' }: {
   value: number; onChange: (v: number) => void; values: number[]; display?: (v: number) => string;
+  /** One field in a row of three, as in the client forms. */
+  compact?: boolean;
+  /** The − / + colour: purple in "ניקיון דחוף", blue in "ניקיון בזמן שלך". */
+  accent?: string;
 }) {
+  const C = useAppColors();
   const idx = values.indexOf(value);
   const dec = () => { if (idx > 0) onChange(values[idx - 1]); };
   const inc = () => { if (idx < values.length - 1) onChange(values[idx + 1]); };
   const label = display ? display(value) : String(value);
+  if (compact) {
+    return (
+      <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', minHeight: 46, backgroundColor: C.white, borderRadius: 12, borderWidth: 1.5, borderColor: C.blueBorder, paddingHorizontal: 2 }}>
+        <TouchableOpacity accessibilityRole="button" accessibilityLabel="הפחת" onPress={dec} disabled={idx === 0} style={{ paddingHorizontal: 8, paddingVertical: 8 }}>
+          <T style={{ fontSize: 18, color: idx === 0 ? '#CBD5E1' : accent }}>−</T>
+        </TouchableOpacity>
+        <T numberOfLines={1} maxFontSizeMultiplier={1.2} style={{ fontSize: 14, fontWeight: '800', color: C.textDark }}>{label}</T>
+        <TouchableOpacity accessibilityRole="button" accessibilityLabel="הוסף" onPress={inc} disabled={idx === values.length - 1} style={{ paddingHorizontal: 8, paddingVertical: 8 }}>
+          <T style={{ fontSize: 18, color: idx === values.length - 1 ? '#CBD5E1' : accent }}>+</T>
+        </TouchableOpacity>
+      </View>
+    );
+  }
   return (
     <View style={{ flexDirection: 'row', alignItems: 'center', gap: 0, alignSelf: 'center',
       backgroundColor: '#F1F5F9', borderRadius: 16, overflow: 'hidden', borderWidth: 1.5, borderColor: '#2563EB' }}>
@@ -2063,7 +2242,7 @@ function SpinnerPicker({ value, onChange, values, display }: {
   );
 }
 
-function TimeWheelPicker({ value, onChange, minHour = 7, maxHour = 23.5 }: { value: number; onChange: (v: number) => void; minHour?: number; maxHour?: number }) {
+function TimeWheelPicker({ value, onChange, minHour = 7, maxHour = 23.5, compact, accent }: { value: number; onChange: (v: number) => void; minHour?: number; maxHour?: number; compact?: boolean; accent?: string }) {
   // From 06:00: the earliest a cleaner can set her working day to start
   // (normalizeAvailability), and the wheel now opens at her own hours.
   const timeValues: number[] = Array.from({ length: 36 }, (_, i) => 6 + i * 0.5).filter(h => h >= minHour && h <= maxHour);
@@ -2072,11 +2251,11 @@ function TimeWheelPicker({ value, onChange, minHour = 7, maxHour = 23.5 }: { val
     const mm = v % 1 === 0.5 ? '30' : '00';
     return `${hh}:${mm}`;
   };
-  return <SpinnerPicker value={value} onChange={onChange} values={timeValues} display={display} />;
+  return <SpinnerPicker value={value} onChange={onChange} values={timeValues} display={display} compact={compact} accent={accent} />;
 }
 
-function HoursWheelPicker({ value, onChange, values }: { value: number; onChange: (v: number) => void; values: number[] }) {
-  return <SpinnerPicker value={value} onChange={onChange} values={values} display={v => `${v} ש'`} />;
+function HoursWheelPicker({ value, onChange, values, compact, accent }: { value: number; onChange: (v: number) => void; values: number[]; compact?: boolean; accent?: string }) {
+  return <SpinnerPicker value={value} onChange={onChange} values={values} display={compact ? undefined : v => `${v} ש'`} compact={compact} accent={accent} />;
 }
 
 // ─── InlineBookingChat — צ'אט מוטבע במסך המתנה / אישור ─────────────────────
@@ -2173,11 +2352,11 @@ function InlineBookingChat({ open, onToggle, messages, text, onChangeText, onSen
           {/* Input row */}
           <KeyboardAvoidingView behavior="padding">
             <View style={{ flexDirection: 'row', gap: 6, padding: 10, borderTopWidth: 1, borderColor: '#F3F4F6', alignItems: 'center' }}>
-              <TouchableOpacity accessibilityRole="button" accessibilityLabel="שלח"
-                style={{ width: 38, height: 38, borderRadius: 19, backgroundColor: accentColor, alignItems: 'center', justifyContent: 'center' }}
+              <TouchableOpacity accessibilityRole="button" accessibilityLabel={(t as any).sendBtn}
+                style={{ height: 38, paddingHorizontal: 12, borderRadius: 11, backgroundColor: accentColor, alignItems: 'center', justifyContent: 'center', opacity: text.trim() ? 1 : 0.5 }}
                 onPress={onSend}
               >
-                <T style={{ color: '#fff', fontSize: 16 }}>◀</T>
+                <T style={{ color: '#fff', fontSize: 13, fontWeight: '800' }} numberOfLines={1}>{(t as any).sendBtn}</T>
               </TouchableOpacity>
               <TextInput
                 style={{ flex: 1, backgroundColor: '#F9FAFB', borderRadius: 10, paddingHorizontal: 12, paddingVertical: 8, fontSize: 14, color: '#1F2937', borderWidth: 1, borderColor: '#E5E7EB' }}
@@ -2556,6 +2735,12 @@ function BookingModal({ cleaner, visible, onClose, onBookingCreated, prebookData
       if (offered.length > 0 && !offered.includes(payment)) {
         return Alert.alert(t.error, (t as any).selectPaymentMethod ?? 'בחר/י אמצעי תשלום');
       }
+    }
+
+    // מנקת דמו קיימת רק במכשיר הזה: אין לה חשבון ואין מי שיראה את ההזמנה.
+    // הסירוב ש-lib/demoMode מבטיח. באתר הוא בשער, וכאן לא נקרא מעולם.
+    if (isDemoCleanerId(cleaner?.id)) {
+      return Alert.alert('🤖', (t as any).botBookMsg ?? 'זהו נותן שירות לדוגמה — אי אפשר להזמין אותו.');
     }
 
     // ── ולידציה: חובה לבחור סוג ניקיון ──────────────────────────────────
@@ -3631,7 +3816,7 @@ function ChatModal({ cleaner, visible, onClose }: any) {
       let playSrc = src;
       if (src.startsWith('data:')) {
         const base64 = src.substring(src.indexOf(',') + 1);
-        const path = (FileSystem.cacheDirectory || '') + `voice_${msgId}.m4a`;
+        const path = (FileSystem.cacheDirectory || '') + voiceFileName(src, msgId);
         await FileSystem.writeAsStringAsync(path, base64, { encoding: 'base64' as any });
         playSrc = path;
       }
@@ -3745,7 +3930,7 @@ function ChatModal({ cleaner, visible, onClose }: any) {
                   <T style={{ color: '#fff', fontWeight: '800', fontSize: 13, backgroundColor: '#EF4444', paddingHorizontal: 14, paddingVertical: 5, borderRadius: 14, overflow: 'hidden' }}>{t.recordingAudio}</T>
                 </View>
               )}
-              <TouchableOpacity accessibilityRole="button" accessibilityLabel="שלח" style={s.sendBtn} onPress={send}><T style={{ color: C.white, fontSize: 18 }}>◀</T></TouchableOpacity>
+              <TouchableOpacity accessibilityRole="button" accessibilityLabel={(t as any).sendBtn} style={[s.sendBtn, !text.trim() && { opacity: 0.5 }]} onPress={send}><T style={s.sendBtnText} numberOfLines={1}>{(t as any).sendBtn}</T></TouchableOpacity>
               <TextInput style={s.chatInput} placeholder={t.chatPlaceholder} value={text} onChangeText={setText} placeholderTextColor={C.textSub} textAlign="right" onSubmitEditing={send} />
               <TouchableOpacity accessibilityRole="button" accessibilityLabel="צרף תמונה"
                 style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: C.blueLight, alignItems: 'center', justifyContent: 'center', borderWidth: 1.5, borderColor: C.blueBorder }}
@@ -4064,8 +4249,8 @@ function searchPlaceOf(query: string, lang: string, nameOf: (city: string) => st
 // ─── Main screen ──────────────────────────────────────────────────────────────
 export default function HomeScreen() {
   const router   = useRouter();
-  const navParams = useLocalSearchParams<{ openPostJob?: string; editJobId?: string }>();
-  const { t, lang, setLang, flipSide } = useLanguage();
+  const navParams = useLocalSearchParams<{ editJobId?: string }>();
+  const { t, lang, setLang, flipSide, isRTL } = useLanguage();
   const C = useAppColors();
   const s = createS(C);
   const ds = createDS(C);
@@ -4369,16 +4554,6 @@ export default function HomeScreen() {
       editJobLoading.current = false;
     }
   };
-  // הגעה מהפרופיל עם openPostJob=1 — פותח מיד את "ניקיון בזמן שלך".
-  // הדגל נצרך פעם אחת כדי שחזרה למסך לא תפתח את הטופס שוב.
-  const postJobParamUsedRef = useRef(false);
-  useEffect(() => {
-    if (navParams?.openPostJob === '1' && !postJobParamUsedRef.current) {
-      postJobParamUsedRef.current = true;
-      openNewPostJob();
-      router.setParams({ openPostJob: undefined });
-    }
-  }, [navParams?.openPostJob]);
   // הגעה מהפרופיל עם editJobId — "✏️ עריכה" על מודעה של הלקוח שעוד לא נלקחה.
   useEffect(() => {
     const id = navParams?.editJobId;
@@ -4404,6 +4579,8 @@ export default function HomeScreen() {
   const [urgentServiceTypes,   setUrgentServiceTypes]   = useState<string[]>([]);
   const toggleUrgentServiceType = (tp: string) => setUrgentServiceTypes(prev => prev.includes(tp) ? prev.filter(x => x !== tp) : [...prev, tp]);
   const [urgentServiceDropOpen, setUrgentServiceDropOpen] = useState(false);
+  const [urgentTried, setUrgentTried] = useState(false);   // נלחץ "שלח" על טופס חסר
+  const urgentAddrYRef = useRef(0);
   const [urgentAddress,   setUrgentAddress]   = useState('');
   const [urgentPayment,   setUrgentPayment]   = useState('cash');
   // תמונות לבקשה דחופה (לא חובה) — מצלמה או גלריה, כמו ב"ניקיון בזמן שלך".
@@ -4462,6 +4639,7 @@ export default function HomeScreen() {
   // היום, השעה והמשך שטופס חדש מתחיל מהם. גם כשהבקשה שבחוץ בוטלה או פגה
   // והטופס חוזר מתחת לכרטיס ההמתנה: בלי זה הוא נשאר על היום והשעה של הבקשה
   // הישנה — למשל "היום" אחרי השעה האחרונה, שהשליחה דוחה.
+  const resetUrgentChoices = () => { setUrgentServiceTypes([]); setUrgentMaxPrice(80); };
   const urgentTimeDefaults = () => {
     // שעה הבאה הזמינה (עגול ל-30 דקות + 30 דקות קדימה)
     const now   = new Date();
@@ -4525,8 +4703,11 @@ export default function HomeScreen() {
           // it. Taken on the website, the booking is still pending, and "found"
           // was premature. The confirmed popup is the one announcement; the card
           // shows the name while the sheet is open.
-          setUrgentFoundName(d.takenByName || '');
+          // החלון סגור (חזרו למסך הראשי אחרי השליחה): ההודעה מגיעה בפוש ובפופאפ
+          // האישור, ופתיחה חוזרת מראה טופס חדש — לא כרטיס "נמצא".
+          setUrgentFoundName(urgentSheetOpen.current ? (d.takenByName || '') : '');
           setUrgentWaiting(false);
+          if (!urgentSheetOpen.current) resetUrgentChoices();
           stop();
         } else if (!snap.exists() || d?.status === 'expired' || d?.status === 'cancelled') {
           // Gone — deleted counts too (the website and the profile's sweep
@@ -4536,7 +4717,7 @@ export default function HomeScreen() {
           // The form comes back from under the waiting card: start it afresh
           // — unless this is ✏️ withdrawing the request, which brings the
           // form back as it was sent (handleEditUrgent).
-          if (!urgentEditBusy.current && urgentEditedId.current !== id) urgentTimeDefaults();
+          if (!urgentEditBusy.current && urgentEditedId.current !== id) { urgentTimeDefaults(); resetUrgentChoices(); }
           stop();
         } else if (d?.status === 'open' && urgentUnsubRef.current === unsub && !urgentExpiryTimer.current) {
           // Nobody took it and its time is up — its two hours, or the hour it
@@ -4594,12 +4775,16 @@ export default function HomeScreen() {
       Alert.alert('', (t as any).urgentEditAbandoned ?? 'הבקשה הקודמת בוטלה ולא נשלחה מחדש. כדי להזמין ניקוי דחוף, שלח/י בקשה חדשה.');
     }
     if (!urgentWaiting) setUrgentFoundName('');
+    setUrgentTried(false);
     setUrgentOpen(false);
   };
 
   // ── טען ברירות מחדל חכמות כשניקוי דחוף נפתח ─────────────────────────────
   useEffect(() => {
     if (!urgentOpen) return;
+    // נלקחה בזמן שהחלון היה סגור: ההודעה על כך כבר הגיעה (פוש ופופאפ האישור).
+    // מסך "ממתינה" מוצג רק כל עוד אף נותן שירות לא לקח — אחרת טופס חדש.
+    if (!urgentWaiting && urgentFoundName) setUrgentFoundName('');
     // בקשה כבר בחוץ: הטופס עדיין מחזיק את מה שנשלח, ו-✏️ מחזיר אותו לתיקון.
     // האיפוס שלמטה רץ בכל פתיחה, ולכן ✏️ הציג "היום, השעה הקרובה, שעתיים"
     // במקום מה שנשלח — ושליחה חוזרת שידרה שעה אחרת.
@@ -4655,6 +4840,20 @@ export default function HomeScreen() {
     });
     return () => sub.remove();
   }, [drawer, profile, booking, chatWith, filterVisible, urgentOpen, quickRebookOpen, photoViewerOpen, reportOpen, search, showSearchSugg]);
+
+  // מה חסר נאמר רק אחרי לחיצה על "שלח", במקום אחד ליד הכפתור: אזהרה אדומה ליד כל
+  // שדה הופיעה עוד לפני שנגעו בטופס, והכפתור היה אפור בלי להסביר למה.
+  const urgentAddrOk = urgentAddress.trim().length >= 5 && /\d/.test(urgentAddress);
+  const urgentMissing = urgentServiceTypes.length === 0 ? ((t as any).urgentPickServiceError ?? 'יש לבחור סוג שירות')
+    : !urgentAddrOk ? (t.addressNoNumber ?? 'יש להזין כתובת מלאה כולל מספר בית')
+    : '';
+  const pressSendUrgent = () => {
+    if (!urgentMissing) { handleSendUrgent(); return; }
+    setUrgentTried(true);
+    // הרשימה סגורה ובראש הטופס, אז פשוט לא ראו שהיא חסרה.
+    if (urgentServiceTypes.length === 0) { setUrgentServiceDropOpen(true); urgentScrollRef.current?.scrollTo({ y: 0, animated: true }); }
+    else if (!urgentAddrOk) urgentScrollRef.current?.scrollTo({ y: Math.max(0, urgentAddrYRef.current - 8), animated: true });
+  };
 
   const handleSendUrgent = async () => {
     if (urgentServiceTypes.length === 0)
@@ -4906,13 +5105,18 @@ export default function HomeScreen() {
       setUrgentWaiting(true);
       setUrgentPhotos([]);   // already on the request; the next one starts without them
       setUrgentOpen(false); // סגור מודל מיד — חזור למסך הראשי
+      showToast((t as any).requestSentToast ?? 'הבקשה נשלחה');
       // המאזין נשמר ב-ref ומנותק גם בעזיבת המסך, לא רק כשהבקשה נסגרת.
       // קודם הוא נוצר כאן ושוחרר רק על taken/expired/cancelled — לקוח שפרסם
       // בקשה ויצא לפני שמנקה ענתה השאיר מאזין חי, שקרא setState על עץ שכבר
       // אינו מורכב ופתח Alert מעל מסך אחר. אחרי התנתקות השאילתה גם נדחית
       // ע"י החוקים, ובלי onError הדחייה הזאת בלתי נראית.
       watchUrgentRequest(reqRef.id);
-    } catch (_) {}
+    } catch (err) {
+      // הבקשה לא נשלחה: בלי זה הספינר נעצר בשקט והטופס נשאר כאילו כלום.
+      logError('home:urgentSend', err);
+      Alert.alert(t.error, (t as any).errUrgentSendFailed ?? 'שגיאה בשליחת הבקשה');
+    }
     urgentSendingNow.current = false;
     setUrgentSending(false);
   };
@@ -4982,12 +5186,32 @@ export default function HomeScreen() {
   const handleCancelUrgent = async () => {
     if (!urgentRequestId) return;
     const id = urgentRequestId;
-    try { await updateDoc(doc(db,'urgentRequests', id), { status: 'cancelled' }); } catch(_) {}
+    const ref = doc(db,'urgentRequests', id);
+    try {
+      // בטרנזקציה, כמו ✏️: נותן שירות יכול לקחת אותה באותו רגע, ועדכון רגיל דרס
+      // אותו — הלקוח ראה "בוטלה" והמנקה נשאר עם הזמנה. גם בלי רשת זה נכשל מיד,
+      // ולא נכתב בחזרה כשהיא חוזרת.
+      await runTransaction(db, async (tx) => {
+        const d: any = (await tx.get(ref)).data();
+        if (d?.status === 'taken') throw new Error('URGENT_TAKEN');
+        if (d?.status === 'open') tx.update(ref, { status: 'cancelled' });
+      });
+    } catch (err: any) {
+      if (err?.message === 'URGENT_TAKEN') {
+        Alert.alert('', (t as any).urgentCancelTakenMsg ?? 'נותן שירות כבר לקח את הבקשה. אפשר לבטל את ההזמנה מהפרופיל.');
+        return;
+      }
+      // בלי רשת הבקשה עדיין בחוץ — לא להעמיד פנים שבוטלה.
+      logError('home:urgentCancel', err);
+      Alert.alert(t.error, (t as any).errGeneric ?? 'שגיאה — נסה שוב');
+      return;
+    }
     void removeUrgentRequest(id);
     setUrgentWaiting(false);
     setUrgentRequestId(null);
     setUrgentFoundName('');
     urgentTimeDefaults();
+    setUrgentOpen(false);   // בוטלה — חזרה למסך הראשי, כמו באתר
   };
 
   // ── פופאפ אישור הזמנה ──────────────────────────────────────────────────────
@@ -7073,6 +7297,8 @@ export default function HomeScreen() {
         openJobs={myOpenJobs}
         onEditJob={(id, fromForm) => { void openEditJob(id, fromForm); }}
         onClose={closePostJob}
+        // "הבקשה נשלחה" לכמה שניות במסך הראשי — בלעדיה הטופס פשוט נעלם.
+        onPosted={edited => showToast(edited ? ((t as any).jobEditedOk ?? 'המודעה עודכנה.') : ((t as any).requestSentToast ?? 'הבקשה נשלחה'))}
       />
 
       <CleanerProfile
@@ -7178,9 +7404,8 @@ export default function HomeScreen() {
         visible={drawer}
         onClose={() => setDrawer(false)}
         onProfile={() => router.push('/profile')}
-        onActiveBookings={() => router.push('/profile')}
+        onActiveBookings={() => router.push({ pathname: '/profile', params: { section: 'active' } })}
         onHistory={() => router.push({ pathname: '/profile', params: { section: 'history' } })}
-        showHistory={myRole !== 'cleaner'}
         onLogout={handleLogout}
         onMessages={() => router.push('/messages')}
         onReport={() => { setDrawer(false); setReportOpen(true); }}
@@ -7675,23 +7900,22 @@ export default function HomeScreen() {
         <SafeAreaView style={{ flex: 1, backgroundColor: C.bluePale }}>
           {/* Header */}
           <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: '#7C3AED', padding: 16 }}>
-            {!urgentWaiting && !urgentFoundName ? (
-              <TouchableOpacity onPress={closeUrgentSheet} style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: 'rgba(255,255,255,0.25)', alignItems: 'center', justifyContent: 'center' }}>
-                <T style={{ color: C.white, fontSize: 18, fontWeight: '700' }}>✕</T>
-              </TouchableOpacity>
-            ) : <View style={{ width: 36 }} />}
+            {/* ✕ תמיד, גם כשהבקשה ממתינה: הסגירה לא נוגעת בבקשה, היא נשארת בחוץ */}
+            <TouchableOpacity onPress={closeUrgentSheet} accessibilityRole="button" accessibilityLabel={t.closeBtn} style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: 'rgba(255,255,255,0.25)', alignItems: 'center', justifyContent: 'center' }}>
+              <T style={{ color: C.white, fontSize: 18, fontWeight: '700' }}>✕</T>
+            </TouchableOpacity>
             <T style={{ fontSize: 17, fontWeight: '900', color: C.white }}>🚨 {t.urgentTitle}</T>
             <View style={{ width: 36 }} />
           </View>
 
-          <KeyboardAvoidingView style={{ flex: 1 }} behavior="padding" keyboardVerticalOffset={0}>
-          <ScrollView ref={urgentScrollRef} contentContainerStyle={{ padding: 20, gap: 18, paddingBottom: insets.bottom + 40 }} keyboardShouldPersistTaps="handled">
+          <KeyboardAvoidingView style={{ flex: 1 }} behavior="padding" keyboardVerticalOffset={Platform.OS === 'ios' ? insets.top : 0}>
+          <ScrollView ref={urgentScrollRef} contentContainerStyle={{ padding: 16, gap: 14 }} keyboardShouldPersistTaps="handled">
 
             {/* ── מצב המתנה ── */}
             {urgentWaiting && (
               <View style={{ backgroundColor: C.white, borderRadius: 20, padding: 28, alignItems: 'center', gap: 14, borderWidth: 2, borderColor: '#7C3AED' }}>
                 <T style={{ fontSize: 48 }}>⏳</T>
-                <T style={{ fontSize: 18, fontWeight: '900', color: C.textDark, textAlign: 'center' }}>{t.urgentWaitingMsg}</T>
+                <T style={{ fontSize: 18, fontWeight: '900', color: C.textDark, textAlign: 'center' }}>{(t as any).urgentPendingMsg ?? 'הבקשה ממתינה לאישור נותן שירות'}</T>
                 {/* What became of the alert: how many phones rang, or why none did. */}
                 {(() => {
                   const info = urgentAlertInfo && urgentAlertInfo.id === urgentRequestId ? urgentAlertInfo : null;
@@ -7703,18 +7927,21 @@ export default function HomeScreen() {
                     <T style={{ fontSize: 13, fontWeight: '700', lineHeight: 19, textAlign: 'center', color: good ? '#065F46' : '#B45309' }}>{text}</T>
                   );
                 })()}
-                <TouchableOpacity
-                  style={{ backgroundColor: '#EDE9FE', borderRadius: 12, paddingVertical: 12, paddingHorizontal: 28, marginTop: 6, borderWidth: 1, borderColor: '#DDD6FE' }}
-                  onPress={handleEditUrgent}
-                >
-                  <T style={{ fontSize: 14, fontWeight: '800', color: '#6D28D9' }}>✏️ {(t as any).urgentEditBtn ?? 'עריכת הבקשה'}</T>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={{ backgroundColor: '#FEE2E2', borderRadius: 12, paddingVertical: 12, paddingHorizontal: 28 }}
-                  onPress={handleCancelUrgent}
-                >
-                  <T style={{ fontSize: 14, fontWeight: '800', color: '#EF4444' }}>{t.urgentCancelBtn}</T>
-                </TouchableOpacity>
+                {/* עריכה וביטול זה לצד זה, באותו גודל */}
+                <View style={{ flexDirection: 'row-reverse', gap: 8, alignSelf: 'stretch', marginTop: 6 }}>
+                  <TouchableOpacity
+                    style={pendingBtn('#EDE9FE', '#DDD6FE')}
+                    onPress={handleEditUrgent}
+                  >
+                    <T numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8} style={{ fontSize: 14, fontWeight: '800', color: '#6D28D9' }}>✏️ {(t as any).urgentEditBtn ?? 'עריכת הבקשה'}</T>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={pendingBtn('#FEE2E2', '#FCA5A5')}
+                    onPress={handleCancelUrgent}
+                  >
+                    <T numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8} style={{ fontSize: 14, fontWeight: '800', color: '#EF4444' }}>{t.urgentCancelBtn}</T>
+                  </TouchableOpacity>
+                </View>
               </View>
             )}
 
@@ -7733,127 +7960,112 @@ export default function HomeScreen() {
               </View>
             )}
 
-            {/* ── טופס ניקוי דחוף — היום בלבד ── */}
+            {/* ── טופס ניקוי דחוף — אותו סידור כמו "ניקיון בזמן שלך", בסגול שלו ── */}
             {!urgentWaiting && urgentFoundName === '' && (
               <>
-                <View style={{ backgroundColor: '#EDE9FE', borderRadius: 14, padding: 14, borderWidth: 1, borderColor: '#DDD6FE' }}>
-                  <T style={{ fontSize: 13, color: '#5B21B6', textAlign: 'center', lineHeight: 20 }}>
-                    🚨 {t.urgentSubtitle}
-                  </T>
-                </View>
-
-                {/* בחירת תאריך — היום / מחר */}
-                <View style={{ gap: 8 }}>
-                  <T style={[s.fieldLabel, { textAlign: 'right' }]}>📅 {t.dateLabel}</T>
-                  <View style={{ flexDirection: 'row', gap: 10 }}>
-                    {([
-                      { key: 'today'    as const, icon: '🚨', label: 'היום' },
-                      { key: 'tomorrow' as const, icon: '📅', label: 'מחר'  },
-                    ]).map(opt => (
-                      <TouchableOpacity
-                        key={opt.key}
-                        disabled={opt.key === 'today' && urgentTodayIsClosed}
-                        style={{ flex: 1, borderRadius: 14, paddingVertical: 14, alignItems: 'center', gap: 4, backgroundColor: urgentDate === opt.key ? '#7C3AED' : C.white, borderWidth: 1.5, borderColor: urgentDate === opt.key ? '#7C3AED' : C.blueBorder, opacity: opt.key === 'today' && urgentTodayIsClosed ? 0.4 : 1 }}
-                        onPress={() => setUrgentDate(opt.key)}
-                      >
-                        <T style={{ fontSize: 22 }}>{opt.icon}</T>
-                        <T style={{ fontSize: 13, fontWeight: '800', color: urgentDate === opt.key ? '#fff' : C.textDark }}>{opt.label}</T>
-                      </TouchableOpacity>
-                    ))}
-                  </View>
-                </View>
-
-                {/* סוג שירות — תפריט נפתח */}
-                <View style={{ gap: 8, zIndex: 1000 }}>
-                  <T style={[s.fieldLabel, { textAlign: 'right' }]}>{(t as any).serviceTypeLabel ?? 'סוג שירות'}</T>
+                {/* סוג שירות — שורה אחת שנפתחת. אפשר לבחור כמה, אז היא נשארת פתוחה */}
+                <View style={{ gap: 6 }}>
+                  <T style={s.fieldLabel}>{(t as any).serviceTypeLabel ?? 'סוג שירות'}</T>
                   <TouchableOpacity
                     onPress={() => setUrgentServiceDropOpen(v => !v)}
                     activeOpacity={0.8}
-                    style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: C.white, borderRadius: 12, borderWidth: urgentServiceTypes.length === 0 ? 2 : 1.5, borderColor: urgentServiceTypes.length === 0 ? '#DC2626' : (urgentServiceDropOpen ? '#7C3AED' : C.blueBorder), paddingHorizontal: 14, paddingVertical: 13 }}
+                    accessibilityRole="button"
+                    accessibilityState={{ expanded: urgentServiceDropOpen }}
+                    style={{ flexDirection: 'row-reverse', alignItems: 'center', gap: 8, minHeight: 46, backgroundColor: C.white, borderRadius: 12, borderWidth: 1.5, borderColor: urgentTried && urgentServiceTypes.length === 0 ? '#B45309' : (urgentServiceDropOpen ? '#7C3AED' : C.blueBorder), paddingHorizontal: 12 }}
                   >
-                    <T style={{ fontSize: 14, fontWeight: '700', color: urgentServiceTypes.length ? C.textDark : '#DC2626' }} numberOfLines={2}>
+                    <T numberOfLines={1} style={{ flex: 1, fontSize: 14, fontWeight: urgentServiceTypes.length ? '700' : '400', color: urgentServiceTypes.length ? C.textDark : C.textSub, textAlign: 'right' }}>
                       {urgentServiceTypes.length
-                        ? urgentServiceTypes.map(st => `${TYPE_ICONS[st] || ''} ${t.types[st] || st}`).join(' · ')
+                        ? urgentServiceTypes.map(st => stripEmoji(String(t.types[st] || st))).join(', ')
                         : ((t as any).selectServiceTypeMulti ?? 'בחר סוג שירות (אפשר כמה)')}
                     </T>
-                    <T style={{ fontSize: 14, color: '#7C3AED' }}>{urgentServiceDropOpen ? '▲' : '▼'}</T>
+                    <T style={{ fontSize: 12, color: '#7C3AED' }}>{urgentServiceDropOpen ? '▲' : '▼'}</T>
                   </TouchableOpacity>
-                  {urgentServiceTypes.length === 0 && (
-                    <T style={{ fontSize: 11, color: '#DC2626', fontWeight: '700', textAlign: 'right' }}>⚠️ יש לבחור סוג שירות</T>
-                  )}
                   {urgentServiceDropOpen && (
-                    <View style={{ backgroundColor: C.white, borderRadius: 12, borderWidth: 1, borderColor: C.blueBorder, overflow: 'hidden' }}>
-                      {Object.keys(TYPE_ICONS).map(tp => {
+                    <View style={{ flexDirection: 'row-reverse', flexWrap: 'wrap', justifyContent: 'space-between', rowGap: 8 }}>
+                      {[...new Set([...Object.keys(TYPE_ICONS), ...urgentServiceTypes])].map(tp => {
                         const sel = urgentServiceTypes.includes(tp);
                         return (
-                        <TouchableOpacity
-                          key={tp}
-                          onPress={() => toggleUrgentServiceType(tp)}
-                          style={{ flexDirection: 'row-reverse', alignItems: 'center', gap: 8, paddingHorizontal: 14, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: C.bluePale, backgroundColor: sel ? C.bluePale : C.white }}
-                        >
-                          <T style={{ fontSize: 16, color: sel ? '#7C3AED' : C.blueBorder }}>{sel ? '☑' : '☐'}</T>
-                          <T style={{ flex: 1, fontSize: 14, fontWeight: sel ? '800' : '400', color: sel ? '#7C3AED' : C.textDark, textAlign: 'right' }}>
-                            {TYPE_ICONS[tp] || ''} {t.types[tp] || tp}
-                          </T>
-                        </TouchableOpacity>
+                          <TouchableOpacity
+                            key={tp}
+                            onPress={() => toggleUrgentServiceType(tp)}
+                            accessibilityRole="checkbox"
+                            accessibilityState={{ checked: sel }}
+                            style={{ width: '48.5%', minHeight: 42, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 6, borderRadius: 12, borderWidth: 1.5, borderColor: sel ? '#7C3AED' : C.blueBorder, backgroundColor: sel ? '#7C3AED' : C.white }}
+                          >
+                            <T numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8} style={{ fontSize: 13, fontWeight: '700', color: sel ? '#fff' : C.textDark }}>{stripEmoji(String(t.types[tp] || tp))}</T>
+                          </TouchableOpacity>
                         );
                       })}
                     </View>
                   )}
                 </View>
 
-                {/* שעת התחלה */}
-                <View style={{ gap: 8 }}>
-                  <T style={[s.fieldLabel, { textAlign: 'right' }]}>{t.timeLabel}</T>
-                  <TimeWheelPicker value={urgentHour} onChange={setUrgentHour} minHour={urgentMinHour} maxHour={URGENT_LAST_START_HOUR} />
-                </View>
-
-                {/* שעות עבודה */}
-                <View style={{ gap: 8 }}>
-                  <T style={[s.fieldLabel, { textAlign: 'right' }]}>{t.hoursLabel}</T>
-                  <HoursWheelPicker value={urgentHours} onChange={setUrgentHours} values={[1,2,3,4,5,6,7,8,9,10,11,12]} />
+                {/* תאריך, שעה ומספר שעות — שורה אחת */}
+                <View style={{ flexDirection: 'row-reverse', gap: 8 }}>
+                  <View style={{ flex: 1.2, gap: 6 }}>
+                    <T style={s.fieldLabel} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8}>{t.dateLabel}</T>
+                    <View style={{ flexDirection: 'row-reverse', gap: 4 }}>
+                      {([
+                        { key: 'today'    as const, label: (t as any).urgentToday ?? 'היום' },
+                        { key: 'tomorrow' as const, label: (t as any).urgentTomorrow ?? 'מחר' },
+                      ]).map(opt => (
+                        <TouchableOpacity
+                          key={opt.key}
+                          disabled={opt.key === 'today' && urgentTodayIsClosed}
+                          style={{ flex: 1, minHeight: 46, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 2, borderRadius: 12, borderWidth: 1.5, backgroundColor: urgentDate === opt.key ? '#7C3AED' : C.white, borderColor: urgentDate === opt.key ? '#7C3AED' : C.blueBorder, opacity: opt.key === 'today' && urgentTodayIsClosed ? 0.4 : 1 }}
+                          onPress={() => setUrgentDate(opt.key)}
+                        >
+                          <T numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7} style={{ fontSize: 13, fontWeight: '800', color: urgentDate === opt.key ? '#fff' : C.textDark }}>{opt.label}</T>
+                        </TouchableOpacity>
+                      ))}
+                    </View>
+                  </View>
+                  <View style={{ flex: 1.1, gap: 6 }}>
+                    <T style={s.fieldLabel} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8}>{t.timeLabel}</T>
+                    <TimeWheelPicker compact value={urgentHour} onChange={setUrgentHour} minHour={urgentMinHour} maxHour={URGENT_LAST_START_HOUR} />
+                  </View>
+                  <View style={{ flex: 0.9, gap: 6 }}>
+                    <T style={s.fieldLabel} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8}>{t.hoursLabel}</T>
+                    <HoursWheelPicker compact value={urgentHours} onChange={setUrgentHours} values={[1,2,3,4,5,6,7,8,9,10,11,12]} />
+                  </View>
                 </View>
 
                 {/* סכום מקסימלי לשעה — שולח רק למנקים בטווח */}
-                <View style={{ gap: 8 }}>
-                  <T style={[s.fieldLabel, { textAlign: 'right' }]}>💰 {(t as any).urgentMaxPriceLabel ?? 'סכום מקסימלי לשעה'}</T>
-                  <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, justifyContent: 'center' }}>
-                    {[60, 70, 80, 90, 100, 120, 150].map(p => (
+                <View style={{ gap: 6 }}>
+                  <T style={s.fieldLabel}>{(t as any).urgentMaxPriceLabel ?? 'סכום מקסימלי לשעה'}</T>
+                  <View style={{ flexDirection: 'row-reverse', gap: 4 }}>
+                    {budgetChoices(urgentMaxPrice).map(p => (
                       <TouchableOpacity
                         key={p}
                         onPress={() => setUrgentMaxPrice(p)}
                         activeOpacity={0.8}
-                        style={{ paddingHorizontal: 14, paddingVertical: 9, borderRadius: 12, borderWidth: 1.5, backgroundColor: urgentMaxPrice === p ? '#7C3AED' : C.white, borderColor: urgentMaxPrice === p ? '#7C3AED' : C.blueBorder }}
+                        style={{ flex: 1, alignItems: 'center', paddingVertical: 10, borderRadius: 10, borderWidth: 1.5, backgroundColor: urgentMaxPrice === p ? '#7C3AED' : C.white, borderColor: urgentMaxPrice === p ? '#7C3AED' : C.blueBorder }}
                       >
-                        <T style={{ fontSize: 13, fontWeight: '800', color: urgentMaxPrice === p ? '#fff' : C.textDark }}>₪{p}</T>
+                        <T numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8} style={{ fontSize: 12, fontWeight: '800', color: urgentMaxPrice === p ? '#fff' : C.textDark }}>₪{p}</T>
                       </TouchableOpacity>
                     ))}
                   </View>
-                  <T style={{ fontSize: 11, color: C.textSub, textAlign: 'right' }}>{(t as any).urgentMaxPriceHint ?? 'ההתראה תישלח רק לנותני שירות שמחירם לשעה עד הסכום שבחרת'}</T>
                 </View>
 
                 {/* כתובת */}
-                <View style={{ gap: 8, zIndex: 999 }}>
-                  <T style={[s.fieldLabel, { textAlign: 'right' }]}>{t.addressLabel}</T>
+                <View style={{ gap: 6, zIndex: 999 }} onLayout={e => { urgentAddrYRef.current = e.nativeEvent.layout.y; }}>
+                  <T style={s.fieldLabel}>{t.addressLabel}</T>
                   <AddressPicker selectedId="" onSelect={a => setUrgentAddress(a.address)} savedAddresses={urgentSavedAddresses} />
                   <AddressAutocomplete value={urgentAddress} onChange={setUrgentAddress} placeholder={t.addressPlaceholder}
-                    onFocus={() => setTimeout(() => urgentScrollRef.current?.scrollToEnd({ animated: true }), 300)}
-                    error={!urgentAddress.trim() || urgentAddress.trim().length < 5 || !/\d/.test(urgentAddress)}
+                    onFocus={() => setTimeout(() => urgentScrollRef.current?.scrollTo({ y: Math.max(0, urgentAddrYRef.current - 8), animated: true }), 300)}
+                    error={urgentTried && !urgentAddrOk}
                   />
-                  {(!urgentAddress.trim() || urgentAddress.trim().length < 5 || !/\d/.test(urgentAddress)) && (
-                    <T style={{ fontSize: 11, color: '#DC2626', fontWeight: '700', textAlign: 'right' }}>⚠️ יש להזין כתובת מלאה כולל מספר בית</T>
-                  )}
                 </View>
 
                 {/* תמונות (לא חובה) */}
-                <View style={{ gap: 8 }}>
-                  <T style={[s.fieldLabel, { textAlign: 'right' }]}>{(t as any).jobPhotosLabel ?? 'תמונות (לא חובה)'}</T>
+                <View style={{ flexDirection: 'row-reverse', alignItems: 'center', gap: 10 }}>
+                  <T style={[s.fieldLabel, { flex: 1 }]}>{(t as any).jobPhotosLabel ?? 'תמונות (לא חובה)'}</T>
                   <JobPhotosField photos={urgentPhotos} onChange={setUrgentPhotos} onBusy={setUrgentPhotoBusy} />
                 </View>
 
                 {/* תשלום */}
-                <View style={{ gap: 8 }}>
-                  <T style={[s.fieldLabel, { textAlign: 'right' }]}>{t.paymentMethodLabel}</T>
+                <View style={{ gap: 6 }}>
+                  <T style={s.fieldLabel}>{t.paymentMethodLabel}</T>
                   <View style={{ flexDirection: 'row', gap: 8 }}>
                     {(['cash','bit','paybox','bank'] as const).map(p => (
                       <TouchableOpacity key={p} style={[s.hourBtn, { flex: 1, flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 4 }, urgentPayment === p && s.hourBtnActive]} onPress={() => setUrgentPayment(p)}>
@@ -7871,32 +8083,33 @@ export default function HomeScreen() {
                   </View>
                   <T style={{ fontSize: 12, color: '#5B21B6', fontWeight: '700', textAlign: 'center', marginTop: 2 }}>{t.paymentDirectNote}</T>
                 </View>
-
-                {/* סה"כ */}
-                <View style={{ backgroundColor: '#EDE9FE', borderRadius: 12, padding: 12, flexDirection: 'row-reverse', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <T style={{ fontSize: 14, color: '#5B21B6' }}>{t.estimatedTotal}</T>
-                  <T style={{ fontSize: 20, fontWeight: '900', color: '#7C3AED' }}>₪{urgentHours * urgentMaxPrice}</T>
-                </View>
-
-                {/* כפתור שליחה — חסום עד שכל השדות מלאים */}
-                {(() => {
-                  const urgentReady = urgentServiceTypes.length > 0 && urgentAddress.trim().length >= 5 && /\d/.test(urgentAddress) && !!urgentPayment;
-                  return (
-                    <TouchableOpacity
-                      style={{ backgroundColor: (urgentSending || !urgentReady || urgentPhotoBusy) ? '#94A3B8' : '#7C3AED', borderRadius: 14, padding: 16, alignItems: 'center', elevation: 4, shadowColor: '#7C3AED', shadowOpacity: 0.4, shadowRadius: 8, shadowOffset: { width: 0, height: 4 } }}
-                      onPress={handleSendUrgent}
-                      disabled={urgentSending || !urgentReady || urgentPhotoBusy}
-                    >
-                      {urgentSending
-                        ? <ActivityIndicator color="#fff" />
-                        : <T style={{ fontSize: 16, fontWeight: '900', color: C.white }}>🚨 {t.urgentSendBtn}</T>
-                      }
-                    </TouchableOpacity>
-                  );
-                })()}
               </>
             )}
           </ScrollView>
+
+          {/* הכפתור קבוע בתחתית, ומה שחסר נאמר לידו. באייפון SafeAreaView כבר מרחיק
+              אותו מהקצה; באנדרואיד הוא View רגיל. */}
+          {!urgentWaiting && urgentFoundName === '' && (
+            <View style={{ paddingHorizontal: 16, paddingTop: 10, paddingBottom: (Platform.OS === 'ios' ? 0 : insets.bottom) + 12, gap: 8, backgroundColor: C.bluePale, borderTopWidth: 1, borderTopColor: C.blueBorder }}>
+              {urgentTried && !!urgentMissing && (
+                <T style={{ color: '#B45309', fontSize: 13, fontWeight: '800', textAlign: 'center' }}>⚠️ {urgentMissing}</T>
+              )}
+              <View style={{ backgroundColor: '#EDE9FE', borderRadius: 12, paddingHorizontal: 12, paddingVertical: 7, flexDirection: 'row-reverse', justifyContent: 'space-between', alignItems: 'center' }}>
+                <T style={{ fontSize: 13, color: '#5B21B6' }}>{t.estimatedTotal}</T>
+                <T style={{ fontSize: 17, fontWeight: '900', color: '#7C3AED' }}>₪{urgentHours * urgentMaxPrice}</T>
+              </View>
+              <TouchableOpacity
+                style={{ backgroundColor: (urgentSending || urgentPhotoBusy) ? '#94A3B8' : '#7C3AED', borderRadius: 14, paddingVertical: 14, alignItems: 'center', elevation: 4, shadowColor: '#7C3AED', shadowOpacity: 0.4, shadowRadius: 8, shadowOffset: { width: 0, height: 4 } }}
+                onPress={pressSendUrgent}
+                disabled={urgentSending || urgentPhotoBusy}
+              >
+                {urgentSending
+                  ? <ActivityIndicator color="#fff" />
+                  : <T style={{ fontSize: 15, fontWeight: '900', color: C.white }}>🚨 {t.urgentSendBtn}</T>
+                }
+              </TouchableOpacity>
+            </View>
+          )}
           </KeyboardAvoidingView>
         </SafeAreaView>
       </Modal>
@@ -7921,7 +8134,7 @@ export default function HomeScreen() {
                 <TouchableOpacity
                   key={opt.key}
                   onPress={() => setReportType(opt.key)}
-                  style={{ flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: reportType === opt.key ? C.blue : C.white, borderRadius: 12, padding: 14, borderWidth: 1.5, borderColor: reportType === opt.key ? C.blue : C.grayBorder }}
+                  style={{ flexDirection: isRTL ? 'row-reverse' : 'row', alignItems: 'center', gap: 12, backgroundColor: reportType === opt.key ? C.blue : C.white, borderRadius: 12, padding: 14, borderWidth: 1.5, borderColor: reportType === opt.key ? C.blue : C.grayBorder }}
                 >
                   <T style={{ fontSize: 20 }}>{reportType === opt.key ? '🔵' : '⚪'}</T>
                   <T style={{ fontSize: 15, fontWeight: '700', color: reportType === opt.key ? C.white : C.textDark }}>{opt.label}</T>
@@ -7930,17 +8143,19 @@ export default function HomeScreen() {
             </View>
             {reportType !== 'bug' && (
               <TextInput
-                style={{ backgroundColor: C.white, borderRadius: 10, padding: 12, fontSize: 14, color: C.textDark, borderWidth: 1, borderColor: C.grayBorder, textAlign: 'right' }}
+                style={{ backgroundColor: C.white, borderRadius: 10, padding: 12, fontSize: 14, color: C.textDark, borderWidth: 1, borderColor: C.grayBorder }}
                 placeholder={t.reportTargetPlaceholder}
                 placeholderTextColor={C.textSub}
+                textAlign={isRTL ? 'right' : 'left'}
                 value={reportTarget}
                 onChangeText={setReportTarget}
               />
             )}
             <TextInput
-              style={{ backgroundColor: C.white, borderRadius: 10, padding: 12, fontSize: 14, color: C.textDark, borderWidth: 1, borderColor: C.grayBorder, minHeight: 110, textAlignVertical: 'top', textAlign: 'right' }}
+              style={{ backgroundColor: C.white, borderRadius: 10, padding: 12, fontSize: 14, color: C.textDark, borderWidth: 1, borderColor: C.grayBorder, minHeight: 110, textAlignVertical: 'top' }}
               placeholder={t.reportDescPlaceholder}
               placeholderTextColor={C.textSub}
+              textAlign={isRTL ? 'right' : 'left'}
               value={reportDesc}
               onChangeText={setReportDesc}
               multiline
@@ -8197,7 +8412,8 @@ function createS(c: AppColors) {
   bitBtnText:   { fontSize: 14, fontWeight: '800', color: '#FFFFFF', textAlign: 'center' },
   chatRow:      { flexDirection: 'row', gap: 8, padding: 12, backgroundColor: c.white, borderTopWidth: 1, borderColor: c.blueBorder, alignItems: 'center' },
   chatInput:    { flex: 1, backgroundColor: c.bluePale, borderRadius: 10, padding: 10, fontSize: 14, color: c.textDark, borderWidth: 1, borderColor: c.blueBorder },
-  sendBtn:      { width: 42, height: 42, backgroundColor: c.blue, borderRadius: 21, alignItems: 'center', justifyContent: 'center' },
+  sendBtn:      { height: 42, paddingHorizontal: 14, backgroundColor: c.blue, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
+  sendBtnText:  { fontSize: 14, fontWeight: '800', color: c.white },
   micBtn:       { width: 42, height: 42, backgroundColor: c.blueLight, borderRadius: 21, alignItems: 'center', justifyContent: 'center', borderWidth: 1.5, borderColor: c.blueBorder },
   micBtnRecording: { backgroundColor: '#FEE2E2', borderColor: '#EF4444' },
   audioBubble:  { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 14, paddingVertical: 10, borderRadius: 18, maxWidth: W * 0.65 },

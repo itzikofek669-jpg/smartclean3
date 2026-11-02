@@ -39,6 +39,18 @@ export const MAX_PORTFOLIO_IMAGES = 12;
  */
 export const MAX_PORTFOLIO_IMAGE_CHARS = 260_000;
 
+/**
+ * One photo as it is saved now: a twelfth of the 1 MiB document the gallery
+ * shares. Mirrored in the web copy as PORTFOLIO_PHOTO_PRESET.
+ */
+export const PORTFOLIO_PHOTO_CHARS = 84_000;
+
+/**
+ * All the photos together. Older galleries can hold images far bigger than a
+ * new one, so the count alone does not say a save fits. Mirrored in the web copy.
+ */
+export const MAX_PORTFOLIO_TOTAL_CHARS = 1_020_000;
+
 /** Session cache, so reopening a profile doesn't pay for the read twice. */
 const cache = new Map<string, Promise<string[]>>();
 

@@ -26,6 +26,8 @@
     "lib/jobSearch.ts",
     "lib/search.ts",
     "lib/pushState.ts",
-    "lib/rebookList.ts"
+    "lib/rebookList.ts",
+    "lib/voiceFile.ts",
+    "lib/bookingTabs.ts"
   ]
 }

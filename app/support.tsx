@@ -200,6 +200,11 @@ function getBotResponse(input: string, ctx: BotContext): BotResponse {
 // ══════════════════════════════════════════════════════════════════════════════
 // תשובות ללקוח
 // ══════════════════════════════════════════════════════════════════════════════
+/** "לקבל את הכסף בחזרה" is a refund, and the cancellation answer is the right one. */
+const REFUND = /חזרה|החזר|החזיר|זיכוי|לבטל|ביטול|ביטלתי|בוטל/;
+/** Money coming back to a client. "כסף" alone went to the booking's price. */
+const isRefundQ = (msg: string) => REFUND.test(msg) && /כסף|תשלום|שילמתי|החזר|זיכוי/.test(msg);
+
 function getClientResponse(msg: string, userName: string, activeBooking: any, allBookings: any[]): BotResponse {
 
   // ── ברכות ─────────────────────────────────────────────────────────────────
@@ -280,7 +285,7 @@ function getClientResponse(msg: string, userName: string, activeBooking: any, al
     };
   }
 
-  if (matchAny(msg, ['לבטל', 'ביטול', 'לא רוצה', 'בטל הזמנה', 'cancel', 'לא צריך'])) {
+  if (isRefundQ(msg) || matchAny(msg, ['לבטל', 'ביטול', 'לא רוצה', 'בטל הזמנה', 'cancel', 'לא צריך'])) {
     if (!activeBooking) {
       return {
         text: 'אין הזמנה פעילה לביטול. 🙂',
@@ -320,7 +325,7 @@ function getClientResponse(msg: string, userName: string, activeBooking: any, al
   }
 
   // ── קבלת תשלום (שאלת מנקה שהגיע לפה) ─────────────────────────────────────
-  if (matchAny(msg, ['מקבלים תשלום', 'מקבל תשלום', 'לקבל תשלום', 'קבלת תשלום', 'איך מקבל', 'לקבל כסף', 'תשלום מלקוח', 'תשלום ממני', 'תשלום ממנקה', 'מנקה מקבל', 'נותן שירות מקבל'])) {
+  if (!REFUND.test(msg) && matchAny(msg, ['מקבלים תשלום', 'מקבל תשלום', 'לקבל תשלום', 'קבלת תשלום', 'איך מקבל', 'לקבל כסף', 'תשלום מלקוח', 'תשלום ממני', 'תשלום ממנקה'])) {
     return {
       text: `💳 קבלת תשלום מלקוחות:\n\n💵 מזומן — הלקוח משלם לך ישירות בסיום הניקוי\n📱 Bit — הלקוח שולח העברה מיידית לטלפון שלך\n💜 PayBox — הלקוח שולח תשלום דרך PayBox\n🏦 העברה בנקאית — הלקוח מעביר לחשבון שלך\n\n✅ A&M Clean לא גובה עמלה — 100% מהסכום הולך אליך!\n\n💡 שיטת התשלום נקבעת עם הלקוח בעת ההזמנה.`,
       // A client has no earnings to ask about: "כמה הרווחתי?" was offered here and answered by nothing.
@@ -990,7 +995,7 @@ function TypingDots({ s }: { s: ReturnType<typeof createS> }) {
 
 // ─── Main Screen ──────────────────────────────────────────────────────────────
 export default function SupportScreen() {
-  const { highContrast, flipSide } = useLanguage();
+  const { t, highContrast, flipSide } = useLanguage();
   const insets = useSafeAreaInsets();
   const C = highContrast ? {
     bg:        '#FFFFFF', botBg:  '#F0F0F0', userBg: '#0040CC',
@@ -1155,10 +1160,10 @@ export default function SupportScreen() {
 
     // ── תשלום — תפוס ישירות ללא תלות ב-role ──────────────────────────────
     const norm = normalize(trimmed);
-    const isPaymentQ = norm.includes('מקבלים תשלום') || norm.includes('מקבל תשלום') ||
+    const isPaymentQ = !REFUND.test(norm) && (norm.includes('מקבלים תשלום') || norm.includes('מקבל תשלום') ||
       norm.includes('קבלת תשלום') || norm.includes('לקבל תשלום') ||
       norm.includes('איך מקבל') || norm.includes('לקבל כסף') ||
-      trimmed === 'איך מקבלים תשלום?';
+      trimmed === 'איך מקבלים תשלום?');
     if (isPaymentQ) {
       setTyping(true);
       setTimeout(() => {
@@ -1300,7 +1305,7 @@ export default function SupportScreen() {
             onPress={() => handleSend(input)}
             disabled={!input.trim()}
           >
-            <T style={s.sendBtnText}>▶</T>
+            <T style={s.sendBtnText} numberOfLines={1}>{(t as any).sendBtn}</T>
           </TouchableOpacity>
         </View>
       </KeyboardAvoidingView>
@@ -1354,8 +1359,8 @@ function createS(c: typeof C_DEFAULT) { return StyleSheet.create({
   // Input bar
   inputBar:      { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: c.white, paddingHorizontal: 14, paddingVertical: 10, borderTopWidth: 1, borderTopColor: c.border },
   textInput:     { flex: 1, backgroundColor: c.bg, borderRadius: 22, paddingHorizontal: 16, paddingVertical: 10, fontSize: 14, color: c.text, maxHeight: 80, borderWidth: 1, borderColor: c.border, textAlign: 'right' },
-  sendBtn:       { width: 44, height: 44, borderRadius: 22, backgroundColor: c.blue, alignItems: 'center', justifyContent: 'center' },
-  sendBtnText:   { color: '#fff', fontSize: 16, fontWeight: '700' },
+  sendBtn:       { height: 44, paddingHorizontal: 14, borderRadius: 12, backgroundColor: c.blue, alignItems: 'center', justifyContent: 'center' },
+  sendBtnText:   { color: '#fff', fontSize: 14, fontWeight: '800' },
 }); }
 
 

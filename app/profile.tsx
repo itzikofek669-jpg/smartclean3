@@ -34,17 +34,19 @@ import * as Calendar from 'expo-calendar/legacy';
 import { saveAvatar as savePhotoDoc, fetchAvatar, resolvePhoto } from '../lib/photos';
 import {
   fetchPortfolio, savePortfolio as savePortfolioDoc,
-  MAX_PORTFOLIO_IMAGES, MAX_PORTFOLIO_IMAGE_CHARS,
+  MAX_PORTFOLIO_IMAGES, MAX_PORTFOLIO_IMAGE_CHARS, MAX_PORTFOLIO_TOTAL_CHARS, PORTFOLIO_PHOTO_CHARS,
 } from '../lib/portfolio';
 import {
   LANGUAGE_CODES, LANGUAGE_FLAGS, normalizeLanguages, workingHoursVerdict,
 } from '../lib/cleanerTraits';
 import { setActiveChat } from '../lib/chatPresence';
 import { readVoiceNote, voiceNoteSource } from '../lib/voiceNotes';
+import { voiceFileName } from '../lib/voiceFile';
 import * as FileSystem from 'expo-file-system/legacy';
 // expo-audio — הקלטה והשמעה של הודעות קוליות (SDK 54, מחליף את expo-av)
 import { useAudioRecorder, createAudioPlayer, RecordingPresets, setAudioModeAsync, AudioModule } from 'expo-audio';
 import { useLanguage, T, useAppColors, AppColors } from '../lib/LanguageContext';
+import { bookingTabs } from '../lib/bookingTabs';
 import BackIcon from '../lib/BackIcon';
 import ServiceInfoBtn from '../lib/ServiceInfoBtn';
 import { Lang } from '../lib/translations';
@@ -98,6 +100,17 @@ function createEP(c: AppColors) {
     traitChipTxtOn:{ color: c.white, fontWeight: '700' },
     saveBtn:      { backgroundColor: c.blue, borderRadius: 14, padding: 16, alignItems: 'center', marginTop: 8, marginBottom: 20 },
     saveBtnText:  { fontSize: 16, fontWeight: '800', color: c.white },
+    // Profile photo, and the camera / gallery pair it shares with the portfolio.
+    avatar:       { width: 96, height: 96, borderRadius: 48, borderWidth: 3, borderColor: c.blueBorder },
+    avatarEmpty:  { width: 96, height: 96, borderRadius: 48, backgroundColor: c.blue, alignItems: 'center', justifyContent: 'center', borderWidth: 3, borderColor: c.blueBorder },
+    avatarLetter: { fontSize: 34, fontWeight: '900', color: c.white },
+    sourceRow:    { gap: 10, alignSelf: 'stretch' },
+    sourceBtn:    { flex: 1, backgroundColor: c.white, borderRadius: 12, paddingVertical: 10, alignItems: 'center', borderWidth: 1.5, borderColor: c.blue },
+    sourceBtnText:{ fontSize: 13, fontWeight: '800', color: c.blue, textAlign: 'center' },
+    pfGrid:       { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 6, marginBottom: 10, justifyContent: 'center' },
+    pfImg:        { width: 88, height: 88, borderRadius: 14 },
+    pfDel:        { position: 'absolute', top: 4, left: 4, width: 24, height: 24, borderRadius: 12, backgroundColor: 'rgba(4,44,83,.75)', alignItems: 'center', justifyContent: 'center' },
+    pfDelText:    { color: c.white, fontSize: 12, fontWeight: '800' },
   });
 }
 
@@ -168,25 +181,33 @@ function createS(c: AppColors) {
     addressText:       { fontSize: 11, color: c.textSub, marginTop: 8 },
 
     // Times row
-    timesRow:      { flexDirection: 'row', gap: 6, marginTop: 10, flexWrap: 'wrap' },
+    timesRow:      { flexDirection: 'row', gap: 6, flexWrap: 'wrap' },
     timeChip:      { backgroundColor: c.blueLight, borderRadius: 10, paddingHorizontal: 10, paddingVertical: 6, borderWidth: 1, borderColor: c.blueBorder, alignItems: 'center' },
     timeChipLabel: { fontSize: 9, color: c.textSub, fontWeight: '600', marginBottom: 2 },
     timeChipVal:   { fontSize: 13, fontWeight: '900', color: c.blue },
 
-    // Start / End buttons
-    startBtn:     { marginTop: 10, backgroundColor: c.blue, borderRadius: 10, padding: 12, alignItems: 'center' },
-    startBtnText: { fontSize: 14, fontWeight: '800', color: c.white },
-    endBtn:       { marginTop: 10, backgroundColor: c.green, borderRadius: 10, padding: 12, alignItems: 'center' },
-    endBtnText:   { fontSize: 14, fontWeight: '800', color: c.white },
-    // Undo a mistaken "on my way" / "started": quiet, so it is not pressed by accident.
-    undoBtn:      { backgroundColor: c.white, borderRadius: 10, paddingVertical: 9, alignItems: 'center', borderWidth: 1, borderColor: c.blueBorder },
-    undoBtnText:  { fontSize: 13, fontWeight: '700', color: c.textSub },
-    cancelBtn:     { marginTop: 10, backgroundColor: '#FEE2E2', borderRadius: 10, padding: 12, alignItems: 'center', borderWidth: 1.5, borderColor: '#FCA5A5' },
-    cancelBtnText: { fontSize: 14, fontWeight: '800', color: '#DC2626' },
+    // Availability status — the site's .avail-bar and toggle
+    statusCard:    { alignItems: 'center', gap: 12, backgroundColor: c.blueLight, borderRadius: 16, paddingHorizontal: 16, paddingVertical: 14, marginHorizontal: 16, marginTop: 12 },
+    statusTitle:   { fontSize: 15, fontWeight: '800', color: c.textDark },
+    statusSub:     { fontSize: 12, color: c.textSub, marginTop: 2 },
+    statusToggle:  { width: 50, height: 28, borderRadius: 14, backgroundColor: c.blueBorder, padding: 3, justifyContent: 'center' },
+    statusToggleOn:{ backgroundColor: c.green, alignItems: 'flex-end' },
+    statusThumb:   { width: 22, height: 22, borderRadius: 11, backgroundColor: c.white },
 
-    rateBtn:     { marginTop: 10, backgroundColor: c.blueLight, borderRadius: 10, padding: 10, alignItems: 'center', borderWidth: 1, borderColor: c.blueBorder },
-    rateBtnText: { fontSize: 13, fontWeight: '700', color: c.blue },
-    ratedRow:    { flexDirection: 'row', alignItems: 'center', marginTop: 8 },
+    // Booking card actions: one small size, two across, as the site's .btn-sm. The
+    // border is on every button so outlined and solid ones come out the same height.
+    cardActions:        { flexWrap: 'wrap', justifyContent: 'space-between', rowGap: 8 },
+    cardBtn:            { width: '48.5%', borderRadius: 10, borderWidth: 1.5, borderColor: 'transparent', paddingVertical: 8, paddingHorizontal: 6, alignItems: 'center', justifyContent: 'center' },
+    cardBtnText:        { fontSize: 13, fontWeight: '800', color: c.white, textAlign: 'center' },
+    cardBtnOutline:     { borderColor: c.blue },
+    cardBtnOutlineText: { color: c.blue },
+    // Undo a mistaken "on my way" / "started": quiet, so it is not pressed by accident.
+    cardBtnQuiet:       { borderColor: c.blueBorder },
+    cardBtnQuietText:   { color: c.textSub },
+    cardBtnCancel:      { borderColor: '#DC2626' },
+    cardBtnCancelText:  { color: '#DC2626' },
+
+    ratedRow:    { flexDirection: 'row', alignItems: 'center' },
     ratedLabel:  { fontSize: 12, color: c.textSub },
 
     // Photos
@@ -207,13 +228,12 @@ function createS(c: AppColors) {
     referralShareBtn:    { backgroundColor: c.blue, borderRadius: 10, paddingHorizontal: 14, paddingVertical: 10, alignItems: 'center', justifyContent: 'center' },
     referralShareBtnText:{ fontSize: 13, fontWeight: '800', color: c.white, textAlign: 'center' },
 
-    // Booking history compact row + modal
-    historyCompactRow:  { flexDirection: 'row-reverse', alignItems: 'center', backgroundColor: c.white, borderRadius: 16, padding: 14, borderWidth: 1, borderColor: c.blueBorder, gap: 12 },
-    historyCompactIcon: { fontSize: 26 },
-    historyCompactTitle:{ fontSize: 15, fontWeight: '800', color: c.textDark, textAlign: 'right' },
-    historyCompactSub:  { fontSize: 13, color: c.textSub, marginTop: 2, textAlign: 'right' },
-    historyCompactArrow:{ fontSize: 26, color: c.textSub, fontWeight: '300' },
-    historySheet:       { backgroundColor: c.white, borderTopLeftRadius: 24, borderTopRightRadius: 24, maxHeight: '85%' },
+    // Active / history tabs, as the site's .seg
+    seg:          { gap: 6, backgroundColor: c.blueLight, borderRadius: 12, padding: 4, marginBottom: 12 },
+    segBtn:       { flex: 1, borderRadius: 9, paddingVertical: 9, alignItems: 'center' },
+    segBtnOn:     { backgroundColor: c.white, elevation: 2, shadowColor: '#000', shadowOpacity: 0.08, shadowRadius: 4, shadowOffset: { width: 0, height: 2 } },
+    segBtnText:   { fontSize: 14, fontWeight: '700', color: c.textSub },
+    segBtnTextOn: { color: c.blue },
 
     // Insurance card
     insuranceCard:        { backgroundColor: '#EFF6FF', borderRadius: 14, padding: 16, borderWidth: 1.5, borderColor: '#BFDBFE', alignItems: 'center' },
@@ -226,10 +246,13 @@ function createS(c: AppColors) {
     areaBtnActive:    { backgroundColor: c.blue, borderColor: c.blue },
     areaBtnText:      { fontSize: 13, fontWeight: '700', color: c.textDark },
     areaBtnTextActive:{ color: c.white },
-    langBtn:          { width: '30%', paddingVertical: 10, borderRadius: 10, backgroundColor: c.white, borderWidth: 1.5, borderColor: c.blueBorder, alignItems: 'center' },
+    langBtn:          { width: '30%', minHeight: 46, paddingVertical: 8, borderRadius: 10, backgroundColor: c.white, borderWidth: 1.5, borderColor: c.blueBorder, alignItems: 'center', justifyContent: 'center' },
     langBtnActive:    { backgroundColor: c.blue, borderColor: c.blue },
     langBtnText:      { fontSize: 12, fontWeight: '700', color: c.textDark, textAlign: 'center' },
     langBtnTextActive:{ color: c.white },
+    // Devanagari stands taller than the line the system font leaves for it, and
+    // on Android the top of it was cut off.
+    langBtnTextHi:    { fontFamily: 'NotoSansDevanagari_400Regular', fontWeight: '400', lineHeight: 24 },
 
     dayRow:           { flexDirection: 'row', alignItems: 'center', gap: 10 },
     dayHourLabel:     { fontSize: 13, fontWeight: '800', color: c.green, minWidth: 42, textAlign: 'right' },
@@ -247,10 +270,6 @@ function createS(c: AppColors) {
     // Recurring badge
     recurBadge: { backgroundColor: '#EDE9FE', borderRadius: 6, paddingHorizontal: 6, paddingVertical: 2, fontSize: 10, fontWeight: '700', color: '#7C3AED' },
 
-    // On-way button
-    onWayBtn:         { backgroundColor: '#F97316', borderRadius: 10, padding: 12, alignItems: 'center' },
-    onWayBtnText:     { fontSize: 14, fontWeight: '800', color: c.white },
-
     // Status pills new
     statusPillOnWay:       { backgroundColor: '#FEF3C7', borderColor: '#FCD34D' },
     statusPillTextOnWay:   { fontSize: 11, fontWeight: '700', color: '#D97706' },
@@ -258,8 +277,6 @@ function createS(c: AppColors) {
     statusPillTextConfirmed: { fontSize: 11, fontWeight: '700', color: '#7C3AED' },
 
     // Chat from cleaner side
-    chatCardBtn:     { marginTop: 8, backgroundColor: c.blueLight, borderRadius: 10, padding: 10, alignItems: 'center', borderWidth: 1, borderColor: c.blueBorder },
-    chatCardBtnText: { fontSize: 13, fontWeight: '700', color: c.blue },
     chatBubble:            { maxWidth: '80%', padding: 12, borderRadius: 16 },
     chatBubbleMe:          { backgroundColor: c.white, borderWidth: 1, borderColor: c.blueBorder },
     chatBubbleOther:       { backgroundColor: c.blue },
@@ -268,7 +285,8 @@ function createS(c: AppColors) {
     chatAudioBubbleOther:  { backgroundColor: c.blue },
     chatInputRow:          { flexDirection: 'row', gap: 8, padding: 12, backgroundColor: c.white, borderTopWidth: 1, borderColor: c.blueBorder },
     chatTextInput:         { flex: 1, backgroundColor: c.bluePale, borderRadius: 10, padding: 10, fontSize: 14, color: c.textDark, borderWidth: 1, borderColor: c.blueBorder },
-    chatSendBtn:           { width: 42, height: 42, backgroundColor: c.blue, borderRadius: 21, alignItems: 'center', justifyContent: 'center' },
+    chatSendBtn:           { height: 42, paddingHorizontal: 14, backgroundColor: c.blue, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
+    chatSendBtnText:       { fontSize: 14, fontWeight: '800', color: c.white },
     chatMicBtn:            { width: 42, height: 42, backgroundColor: c.blueLight, borderRadius: 21, alignItems: 'center', justifyContent: 'center', borderWidth: 1.5, borderColor: c.blueBorder },
     chatMicBtnRecording:   { backgroundColor: '#FEE2E2', borderColor: '#EF4444' },
 
@@ -459,7 +477,7 @@ function slotIsPast(date: string, time: string): boolean {
 export default function ProfileScreen() {
   const router = useRouter();
   const { tab, requestId, section, acceptReqId, confirmBookingId } = useLocalSearchParams<{ tab?: string; requestId?: string; section?: string; acceptReqId?: string; confirmBookingId?: string }>();
-  const { t, lang, setLang, flipSide } = useLanguage();
+  const { t, lang, setLang, flipSide, isRTL } = useLanguage();
   const C = useAppColors();
   const s = createS(C);
   const ep = createEP(C);
@@ -478,7 +496,7 @@ export default function ProfileScreen() {
 
   // Auto-open section from drawer deep-link
   useEffect(() => {
-    if (section === 'history') setHistoryOpen(true);
+    if (section === 'history' || section === 'active') setBookingsTab(section);
   }, [section]);
 
   const [userName,     setUserName]     = useState('');
@@ -491,6 +509,11 @@ export default function ProfileScreen() {
   const [availabilitySet, setAvailabilitySet] = useState(false);
   const [availSaved,   setAvailSaved]   = useState(false);
   const [showPhone,    setShowPhone]    = useState(true);
+  // null until the profile document has answered: see the status card.
+  const [isAvailable,  setIsAvailable]  = useState<boolean | null>(null);
+  // What the history window can say: its list is empty until the first snapshot.
+  const [clientBksState,  setClientBksState]  = useState<'loading' | 'ready' | 'failed'>('loading');
+  const [cleanerBksState, setCleanerBksState] = useState<'loading' | 'ready' | 'failed'>('loading');
   const [bookings,     setBookings]     = useState<any[]>([]);
   const [incomingBks,  setIncomingBks]  = useState<any[]>([]);
   const [loading,      setLoading]      = useState(true);
@@ -518,6 +541,10 @@ export default function ProfileScreen() {
   const [availableDates,   setAvailableDates]   = useState<string[]>([]); // תאריכים זמינים — YYYY-MM-DD
   const [calMonth,         setCalMonth]         = useState(new Date()); // חודש מוצג בלוח
   const [portfolioSaved,   setPortfolioSaved]   = useState(false); // סימן שמור אחרי העלאת תמונה
+  // One change to the gallery at a time: each builds on the server's list, and
+  // that list only moves once the previous save has landed.
+  const [portfolioBusy,    setPortfolioBusy]    = useState(false);
+  const portfolioBusyRef = useRef(false);
 
   // ── כתובות שמורות (לקוח) ───────────────────────────────────────────────
   // Shared with the booking form and stored on the user document — this
@@ -688,7 +715,7 @@ export default function ProfileScreen() {
   const [activeBookingDetail, setActiveBookingDetail] = useState<any>(null);
 
   // Booking history modal (client)
-  const [historyOpen, setHistoryOpen] = useState(false);
+  const [bookingsTab, setBookingsTab] = useState<'active' | 'history'>(section === 'history' ? 'history' : 'active');
 
   // Pending booking confirmation modal (pendingConfirmBooking הוכרז למעלה, לפני האפקטים שמשתמשים בו)
   const [confirmedBookingView,  setConfirmedBookingView]  = useState<any>(null);
@@ -1186,6 +1213,7 @@ export default function ProfileScreen() {
           setAvailability(parsedAvail);
           setAvailabilitySet(d.availabilitySet === true);
           setShowPhone(d.showPhone !== false);
+          setIsAvailable(d.available !== false);
           // Live gallery, falling back to whatever the user document still
           // carries inline until this cleaner next saves. See lib/portfolio.
           fetchPortfolio(uid, d.portfolio).then(setPortfolio).catch(() => {});
@@ -1223,6 +1251,7 @@ export default function ProfileScreen() {
         const docs = snap.docs.map(d => ({ id: d.id, ...d.data() })).filter((b: any) => !replacedByEdit(b));
         docs.sort((a: any, b: any) => (b.createdAt || '').localeCompare(a.createdAt || ''));
         setBookings(docs);
+        setClientBksState('ready');
         // הכתובת המדויקת וההערות יושבות במסמך משנה פרטי — ראה lib/bookingDetails.
         // המיזוג נעשה כאן, במקום שבו ההזמנות נטענות, כדי שכל מסך תצוגה ימשיך
         // לקרוא b.address בדיוק כמו קודם.
@@ -1237,7 +1266,7 @@ export default function ProfileScreen() {
         // half; fill it in wherever it is missing. See lib/bookingDetails.
         if (needsPhoneBackfill(docs as any)) void ownPhone(uid).then(phone => backfillClientPhone(docs as any, phone));
       },
-      (err) => logError('profile:clientBookings', err),
+      (err) => { logError('profile:clientBookings', err); setClientBksState('failed'); },
     );
 
     // ── הזמנות נכנסות למנקה — בזמן אמת ────────────────────────────────────
@@ -1247,13 +1276,14 @@ export default function ProfileScreen() {
         const docs = snap.docs.map(d => ({ id: d.id, ...d.data() }));
         docs.sort((a: any, b: any) => (b.createdAt || '').localeCompare(a.createdAt || ''));
         setIncomingBks(docs);
+        setCleanerBksState('ready');
         // אותו מיזוג בצד המנקה: ברגע שהעבודה שלה, הכתובת נטענת אליה.
         const myCleanerSeq = ++detailsSeqRef.current.cleaner;
         withBookingDetails(docs as any)
           .then(rows => { if (myCleanerSeq === detailsSeqRef.current.cleaner) setIncomingBks(rows as any); })
           .catch(err => logError('profile:cleanerDetails', err));
       },
-      (err) => logError('profile:cleanerBookings', err),
+      (err) => { logError('profile:cleanerBookings', err); setCleanerBksState('failed'); },
     );
 
     // ── בקשות דחופות — בזמן אמת ────────────────────────────────────────────
@@ -1312,31 +1342,27 @@ export default function ProfileScreen() {
     prevUrgentPopupRef.current = urgentRequests.length;
   }, [urgentRequests, userRole]);
 
+  const pickAvatarFrom = async (source: 'gallery' | 'camera') => {
+    try {
+      const perm = source === 'gallery'
+        ? await ImagePicker.requestMediaLibraryPermissionsAsync()
+        : await ImagePicker.requestCameraPermissionsAsync();
+      if (!perm.granted) return Alert.alert(t.error, source === 'gallery' ? t.galleryPermDenied : t.cameraPermDenied);
+      const options = { allowsEditing: true, aspect: [1, 1] as [number, number], quality: 1, base64: false, exif: false };
+      const res = source === 'gallery'
+        ? await ImagePicker.launchImageLibraryAsync({ ...options, mediaTypes: ImagePicker.MediaTypeOptions.Images })
+        : await ImagePicker.launchCameraAsync(options);
+      if (!res.canceled) saveAvatar(res.assets[0]?.uri);
+    } catch (err) {
+      logError('profile:avatarPick', err);
+      Alert.alert(t.error, t.imageReadError);
+    }
+  };
+
   const pickImage = () => {
     Alert.alert(t.profilePhotoTitle, '', [
-      {
-        text: t.galleryOption,
-        onPress: async () => {
-          const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
-          if (!perm.granted) return Alert.alert(t.error, t.galleryPermDenied);
-          const res = await ImagePicker.launchImageLibraryAsync({
-            mediaTypes: ImagePicker.MediaTypeOptions.Images,
-            allowsEditing: true, aspect: [1,1], quality: 1, base64: false, exif: false,
-          });
-          if (!res.canceled) saveAvatar(res.assets[0]?.uri);
-        },
-      },
-      {
-        text: t.cameraOption,
-        onPress: async () => {
-          const perm = await ImagePicker.requestCameraPermissionsAsync();
-          if (!perm.granted) return Alert.alert(t.error, t.cameraPermDenied);
-          const res = await ImagePicker.launchCameraAsync({
-            allowsEditing: true, aspect: [1,1], quality: 1, base64: false, exif: false,
-          });
-          if (!res.canceled) saveAvatar(res.assets[0]?.uri);
-        },
-      },
+      { text: t.galleryOption, onPress: () => pickAvatarFrom('gallery') },
+      { text: t.cameraOption,  onPress: () => pickAvatarFrom('camera') },
       { text: t.cancel, style: 'cancel' },
     ]);
   };
@@ -1429,6 +1455,21 @@ export default function ProfileScreen() {
     setTimeout(() => setAvailSaved(false), 1500);
   };
 
+  // ─── Status: whether clients see this cleaner as available ───────────────────
+  // The same `available` flag the website's toggle writes.
+  const toggleAvailable = async () => {
+    if (isAvailable === null) return;
+    const next = !isAvailable;
+    setIsAvailable(next);
+    try {
+      await setDoc(doc(db, 'users', uid), { available: next }, { merge: true });
+    } catch (err) {
+      setIsAvailable(!next);
+      logError('profile:available', err);
+      Alert.alert(t.error, t.updateStatusError);
+    }
+  };
+
   const toggleShowPhone = async (val: boolean) => {
     setShowPhone(val);
     await setDoc(doc(db, 'users', uid), { showPhone: val }, { merge: true });
@@ -1469,31 +1510,50 @@ export default function ProfileScreen() {
   };
 
   // ─── Portfolio ────────────────────────────────────────────────────────────────
+  const addPortfolioPhoto = async (source: 'gallery' | 'camera') => {
+    if (portfolioBusyRef.current) return;
+    portfolioBusyRef.current = true;
+    setPortfolioBusy(true);
+    try {
+      const perm = source === 'gallery'
+        ? await ImagePicker.requestMediaLibraryPermissionsAsync()
+        : await ImagePicker.requestCameraPermissionsAsync();
+      if (!perm.granted) {
+        Alert.alert(t.error, source === 'gallery' ? t.galleryPermDenied : t.cameraPermDenied);
+        return;
+      }
+      const res = source === 'gallery'
+        ? await ImagePicker.launchImageLibraryAsync({ mediaTypes: ImagePicker.MediaTypeOptions.Images, quality: 1, exif: false })
+        : await ImagePicker.launchCameraAsync({ quality: 1, exif: false });
+      if (res.canceled || !res.assets[0]) return;
+      // Quality alone left a phone photo far over the limit, so every real
+      // picture was refused as too large. It has to come down in size too.
+      const asset = res.assets[0];
+      const tall = (asset.height ?? 0) > (asset.width ?? 0);
+      let b64: string | undefined;
+      for (const st of [{ side: 900, compress: 0.4 }, { side: 720, compress: 0.35 }, { side: 600, compress: 0.3 }, { side: 480, compress: 0.3 }]) {
+        const out = await ImageManipulator.manipulateAsync(
+          asset.uri,
+          [{ resize: tall ? { height: st.side } : { width: st.side } }],
+          { compress: st.compress, format: ImageManipulator.SaveFormat.JPEG, base64: true },
+        );
+        b64 = out.base64;
+        if (b64 && b64.length <= PORTFOLIO_PHOTO_CHARS) break;
+      }
+      if (b64) await savePortfolioPhoto(b64);
+    } catch (err) {
+      logError('profile:portfolioPick', err);
+      Alert.alert(t.error, t.imageReadError);
+    } finally {
+      portfolioBusyRef.current = false;
+      setPortfolioBusy(false);
+    }
+  };
+
   const pickPortfolioPhoto = () => {
     Alert.alert(t.portfolioAdd, '', [
-      {
-        text: '🖼️ גלריה',
-        onPress: async () => {
-          const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
-          if (!perm.granted) return Alert.alert(t.error, t.galleryPermDenied);
-          const res = await ImagePicker.launchImageLibraryAsync({
-            mediaTypes: ImagePicker.MediaTypeOptions.Images,
-            quality: 0.3, base64: true,
-          });
-          if (!res.canceled && res.assets[0].base64) savePortfolioPhoto(res.assets[0].base64);
-        },
-      },
-      {
-        text: '📷 מצלמה',
-        onPress: async () => {
-          const perm = await ImagePicker.requestCameraPermissionsAsync();
-          if (!perm.granted) return Alert.alert(t.error, t.cameraPermDenied);
-          const res = await ImagePicker.launchCameraAsync({
-            quality: 0.3, base64: true,
-          });
-          if (!res.canceled && res.assets[0].base64) savePortfolioPhoto(res.assets[0].base64);
-        },
-      },
+      { text: `🖼️ ${t.galleryOption}`, onPress: () => addPortfolioPhoto('gallery') },
+      { text: `📷 ${t.cameraOption}`,  onPress: () => addPortfolioPhoto('camera') },
       { text: t.cancel, style: 'cancel' },
     ]);
   };
@@ -1535,13 +1595,14 @@ export default function ProfileScreen() {
       Alert.alert('', (t as any).saveFailedMsg ?? 'השמירה נכשלה. נסה/י שוב.');
       return;
     }
-    if (current.length >= MAX_PORTFOLIO_IMAGES) {
+    const updated = [...current, uri];
+    if (current.length >= MAX_PORTFOLIO_IMAGES
+      || updated.reduce((sum, u) => sum + u.length, 0) > MAX_PORTFOLIO_TOTAL_CHARS) {
       setPortfolio(current);
       Alert.alert('', String((t as any).portfolioFullMsg ?? 'ניתן להעלות עד {n} תמונות')
-        .replace('{n}', String(MAX_PORTFOLIO_IMAGES)));
+        .replace('{n}', String(current.length)));
       return;
     }
-    const updated = [...current, uri];
     setPortfolio(updated);
     try {
       await writePortfolio(updated, current.length > 0);
@@ -1555,6 +1616,7 @@ export default function ProfileScreen() {
   };
 
   const removePortfolioPhoto = (index: number) => {
+    if (portfolioBusyRef.current) return;
     Alert.alert(t.portfolioDeleteTitle, t.portfolioDeleteMsg, [
       {
         text: t.portfolioDeleteBtn, style: 'destructive',
@@ -1848,7 +1910,7 @@ export default function ProfileScreen() {
       // inline data URIs. Same approach as app/messages.tsx.
       if (src.startsWith('data:')) {
         const base64 = src.substring(src.indexOf(',') + 1);
-        const path = (FileSystem.cacheDirectory || '') + `voice_${msgId}.m4a`;
+        const path = (FileSystem.cacheDirectory || '') + voiceFileName(src, msgId);
         await FileSystem.writeAsStringAsync(path, base64, { encoding: 'base64' as any });
         playSrc = path;
       }
@@ -1975,6 +2037,9 @@ export default function ProfileScreen() {
           const daysToAdd = b.recurring === 'weekly' ? 7 : 30;
           const currentDate = new Date(b.bookingDate || now);
           let nextDate = new Date(currentDate.getTime() + daysToAdd * 24 * 60 * 60 * 1000);
+          // Closed late: the next visit is the first one still ahead. Born in the
+          // past, the sweep expired it in silence and the series ended there.
+          while (nextDate.getTime() < Date.now()) nextDate = new Date(nextDate.getTime() + daysToAdd * 24 * 60 * 60 * 1000);
           // On a day she works. Thirty days on is two weekdays on, so a monthly
           // visit came back on a day she may have off; a weekly one only moves
           // if she has changed her days since. Her next working day within the
@@ -2058,7 +2123,7 @@ export default function ProfileScreen() {
           // Set default tab based on booking payment method
           const defaultTab = b.payment === 'paybox' ? 'paybox' : b.payment === 'bank' ? 'bank' : 'bit';
           setPaySheetTab(defaultTab);
-          setPaySheetOpen(true);
+          overSheet(() => setPaySheetOpen(true));
         } catch (_) {}
       }
 
@@ -2575,7 +2640,8 @@ export default function ProfileScreen() {
             await updateDoc(doc(db, 'bookings', b.id), write);
             // אל תשאיר את הבקשה הדחופה שממנה נולדה ההזמנה נעולה על 'taken'
             await releaseUrgentRequest(b, userRole === 'cleaner' ? 'cleaner' : 'client');
-            setBookings(prev => prev.filter(x => x.id !== b.id));
+            // ללקוח היא עוברת להיסטוריה. בלי זה היא נעלמה משתי הלשוניות עד לעדכון הבא.
+            setBookings(prev => userRole === 'cleaner' ? prev.filter(x => x.id !== b.id) : prev.map(x => x.id === b.id ? { ...x, ...write } : x));
             setIncomingBks(prev => prev.filter(x => x.id !== b.id));
             // הסר מהיומן של מי שביטל — הצד השני מסיר אצלו דרך המאזין שלו
             removeBookingFromCalendar(b.id, b).catch(() => {});
@@ -2602,6 +2668,103 @@ export default function ProfileScreen() {
   };
 
   // ─── Booking Card ─────────────────────────────────────────────────────────────
+  // צ'אט לקוח↔נותן שירות, דרך מסך ההודעות הכללי כמו בלוח העבודות. אותו תנאי
+  // כמו באתר (ClientBookings): יש מי לדבר איתו, וההזמנה לא בוטלה. עבודה בלוח
+  // שאיש לא לקח עדיין היא בלי cleanerId, ולמנקת הדגמה (bot_/bot-, או מספר
+  // קטן בנתונים ישנים) אין מי שיענה.
+  const canChatWithCleaner = (b: any) =>
+    !!b.cleanerId && !/^(bot[-_]|\d{1,2}$)/.test(String(b.cleanerId)) && b.status !== 'cancelled';
+  const chatOpeningRef = useRef(false);
+  // פרטי ההזמנה הם מודל, וכל מה שנפתח מכרטיס בתוכו נפתח מתחתיו: iOS לא מציג מודל
+  // מעל מודל, לא קורה כלום והמסך נשאר תקוע. סוגרים קודם ומחכים. הדגל: בזמן שהחלון
+  // נסגר הוא עדיין על המסך, ולחיצה שנייה הייתה פותחת את אותו הדבר פעמיים.
+  const overSheet = (open: () => void) => {
+    if (chatOpeningRef.current) return;
+    if (!activeBookingDetail) { open(); return; }
+    chatOpeningRef.current = true;
+    setActiveBookingDetail(null);
+    setTimeout(() => { chatOpeningRef.current = false; open(); }, 400);
+  };
+
+  // מגיעים מהתפריט הצדדי: ישר ללשוניות, לא לראש הפרופיל. פעם אחת, כי מעבר בין
+  // לשוניות משנה את הגובה ואסור לו להזיז את המסך.
+  const profileScrollRef = useRef<ScrollView>(null);
+  const jumpedToBookingsRef = useRef(false);
+  const jumpToBookings = (y: number) => {
+    if (!section || jumpedToBookingsRef.current) return;
+    jumpedToBookingsRef.current = true;
+    profileScrollRef.current?.scrollTo({ y: Math.max(0, y - 12), animated: false });
+  };
+
+  const openBookingChat = (b: any) => overSheet(() => router.push({ pathname: '/messages', params: {
+    openChatId: [uid, b.cleanerId].sort().join('_'),
+    openOtherUid: b.cleanerId,
+    // בלי שם ממציא: מה שנשלח לכאן נשמר בשיחה וחוסם את חיפוש השם האמיתי.
+    openOtherName: b.cleanerName || '',
+  } }));
+
+  /** Camera and gallery side by side, in the edit-profile sheet. */
+  const sourceButtons = (onPick: (source: 'gallery' | 'camera') => void) => (
+    <View style={[ep.sourceRow, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
+      <TouchableOpacity style={ep.sourceBtn} onPress={() => onPick('camera')}>
+        <T style={ep.sourceBtnText}>📷 {t.cameraOption}</T>
+      </TouchableOpacity>
+      <TouchableOpacity style={ep.sourceBtn} onPress={() => onPick('gallery')}>
+        <T style={ep.sourceBtnText}>🖼️ {t.galleryOption}</T>
+      </TouchableOpacity>
+    </View>
+  );
+
+  /** The preferred-language grid. There were two copies, and only one had the
+   *  Devanagari font: in the other, Hindi came out with its top cut off. */
+  const renderLangGrid = (marginTop: number) => (
+    <View style={{ flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', rowGap: 10, marginTop }}>
+      {[
+        { key: 'he', label: 'עברית',    flag: '🇮🇱' },
+        { key: 'en', label: 'English',  flag: '🇬🇧' },
+        { key: 'ru', label: 'Русский',  flag: '🇷🇺' },
+        { key: 'ar', label: 'العربية',  flag: '🇸🇦' },
+        { key: 'fr', label: 'Français', flag: '🇫🇷' },
+        { key: 'hi', label: 'हिन्दी',  flag: '🇮🇳' },
+        { key: 'uk', label: 'Українська', flag: '🇺🇦' },
+      ].map(l => (
+        <TouchableOpacity
+          key={l.key}
+          style={[s.langBtn, prefLang === l.key && s.langBtnActive]}
+          onPress={async () => {
+            setPrefLang(l.key);
+            setLang(l.key as Lang);
+            await setDoc(doc(db, 'users', uid), { preferredLang: l.key }, { merge: true });
+          }}
+        >
+          {/* הדגל והשם בנפרד, בשורה אחת. יחד, בגופן הדוואנגרי, ההינדית ירדה
+              לשורה שנייה ונחתכה בתחתית הכפתור — נראה רק הדגל. */}
+          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 4, maxWidth: '100%', paddingHorizontal: 4 }}>
+            <T style={s.langBtnText}>{l.flag}</T>
+            <T
+              numberOfLines={1}
+              adjustsFontSizeToFit
+              minimumFontScale={0.75}
+              style={[s.langBtnText, { flexShrink: 1 }, prefLang === l.key && s.langBtnTextActive, l.key === 'hi' && s.langBtnTextHi]}
+            >
+              {l.label}
+            </T>
+          </View>
+        </TouchableOpacity>
+      ))}
+    </View>
+  );
+
+  // row-reverse in Hebrew and Arabic: the app never calls forceRTL, so a plain row
+  // would put the first button on the physical left.
+  const cardActions = [s.cardActions, { flexDirection: isRTL ? 'row-reverse' : 'row' } as const];
+  // hitSlop keeps the tap area near finger size now that the button itself is small.
+  const cardBtn = (label: string, onPress: () => void, box?: object, text?: object) => (
+    <TouchableOpacity style={[s.cardBtn, box]} hitSlop={{ top: 4, bottom: 4 }} onPress={onPress}>
+      <T style={[s.cardBtnText, text]}>{label}</T>
+    </TouchableOpacity>
+  );
+
   const renderBookingCard = (b: any, forCleaner = false) => {
     const alreadyRated = forCleaner ? !!b.clientRating : !!b.cleanerRating;
     const isDone   = b.status === 'done';
@@ -2617,6 +2780,11 @@ export default function ProfileScreen() {
       b.status === 'cancelled' ? '#EF4444' : C.blueBorder;
 
     const personName = forCleaner ? (b.clientName || 'לקוח') : (b.cleanerName || 'נותן שירות');
+    // יום העבודה עבר: "בדרך" ו"התחל" על עבודה משבוע שעבר היו שולחים ללקוח פוש.
+    // אבל היא לא יכולה להיתקע: מנקה ששכחה ללחוץ עדיין מסיימת אותה, ומה שלא קרה
+    // היא מבטלת. "סיום" בלי "התחל" מחייב לפי השעות שסוכמו (handleEndCleaning).
+    const pastDay = isPastBooking(b);
+    const unclosedPastJob = pastDay && (b.status === 'confirmed' || b.status === 'onway');
     const hours = isDone && b.actualHours != null ? b.actualHours : b.hours;
     const total = isDone && b.actualTotal != null ? b.actualTotal : b.total;
 
@@ -2686,7 +2854,7 @@ export default function ProfileScreen() {
           </View>
 
           {/* Progress bar — cleaner side only */}
-          {forCleaner && (() => {
+          {forCleaner && !['cancelled', 'expired', 'handled'].includes(b.status) && (() => {
             const steps = [
               { key: 'pending',   label: '📋 ממתין' },
               { key: 'confirmed', label: '✅ אושר' },
@@ -2750,193 +2918,147 @@ export default function ProfileScreen() {
           )}
         </View>
 
-        {/* Start / End time row */}
-        {hasTimes && (
-          <View style={s.timesRow}>
-            {b.startedAt && (
-              <View style={s.timeChip}>
-                <T style={s.timeChipLabel}>{t.startedAtLabel}</T>
-                <T style={s.timeChipVal}>{formatTime(b.startedAt, lang)}</T>
-              </View>
-            )}
-            {b.finishedAt && (
-              <View style={s.timeChip}>
-                <T style={s.timeChipLabel}>{t.finishedAtLabel}</T>
-                <T style={s.timeChipVal}>{formatTime(b.finishedAt, lang)}</T>
-              </View>
-            )}
-            {b.startedAt && b.finishedAt && (
-              <View style={[s.timeChip, { backgroundColor: C.greenBg }]}>
-                <T style={s.timeChipLabel}>{t.durationLabel}</T>
-                <T style={[s.timeChipVal, { color: C.green }]}>{calcDuration(b.startedAt, b.finishedAt)}</T>
-              </View>
-            )}
-          </View>
-        )}
+        {/* לכרטיס אין padding משלו, ובלי הבלוק הזה הכפתורים נמתחו מקצה לקצה */}
+        <View style={{ paddingHorizontal: 14, paddingBottom: 12, gap: 10 }}>
 
-        {/* Edit — the client's own job on the board, while nobody has taken it.
-            Opens "ניקיון בזמן שלך" with its details (home.tsx, editJobId). */}
-        {!forCleaner && b.open === true && !b.cleanerId && b.status === 'pending' && (
-          <TouchableOpacity
-            style={[s.undoBtn, { marginTop: 10 }]}
-            onPress={() => router.replace({ pathname: '/home', params: { editJobId: b.id } })}
-          >
-            <T style={[s.undoBtnText, { color: C.blue }]}>✏️ {(t as any).editJobBtn ?? 'עריכת המודעה'}</T>
-          </TouchableOpacity>
-        )}
+          {/* Start / End time row */}
+          {hasTimes && (
+            <View style={s.timesRow}>
+              {b.startedAt && (
+                <View style={s.timeChip}>
+                  <T style={s.timeChipLabel}>{t.startedAtLabel}</T>
+                  <T style={s.timeChipVal}>{formatTime(b.startedAt, lang)}</T>
+                </View>
+              )}
+              {b.finishedAt && (
+                <View style={s.timeChip}>
+                  <T style={s.timeChipLabel}>{t.finishedAtLabel}</T>
+                  <T style={s.timeChipVal}>{formatTime(b.finishedAt, lang)}</T>
+                </View>
+              )}
+              {b.startedAt && b.finishedAt && (
+                <View style={[s.timeChip, { backgroundColor: C.greenBg }]}>
+                  <T style={s.timeChipLabel}>{t.durationLabel}</T>
+                  <T style={[s.timeChipVal, { color: C.green }]}>{calcDuration(b.startedAt, b.finishedAt)}</T>
+                </View>
+              )}
+            </View>
+          )}
 
-        {/* Cancel button — pending/confirmed/onway, both client and cleaner (כולל דחוף) */}
-        {(b.status === 'pending' || b.status === 'confirmed' || b.status === 'onway') && (
-          <TouchableOpacity style={s.cancelBtn} onPress={() => handleCancelBooking(b)}>
-            <T style={s.cancelBtnText}>{t.cancelBookingBtn}</T>
-          </TouchableOpacity>
-        )}
+          {/* Before / After photos — לקוח בלי תמונות לא צריך כותרת ריקה */}
+          {isDone && (forCleaner || b.beforePhotos?.length > 0 || b.afterPhotos?.length > 0) && (
+            <View>
+              <T style={{ fontSize: 11, fontWeight: '700', color: C.textSub, marginBottom: 6 }}>{t.photosTitle}</T>
+              {forCleaner && (
+                <View style={{ flexDirection: 'row', gap: 8, flexWrap: 'wrap' }}>
+                  <TouchableOpacity style={s.photoBtn} onPress={() => uploadJobPhoto(b.id, 'before')}>
+                    <T style={s.photoBtnText}>📸 {t.beforePhotosLabel}</T>
+                  </TouchableOpacity>
+                  <TouchableOpacity style={[s.photoBtn, { backgroundColor: '#EDE9FE', borderColor: '#7C3AED' }]} onPress={() => uploadJobPhoto(b.id, 'after')}>
+                    <T style={[s.photoBtnText, { color: '#7C3AED' }]}>📸 {t.afterPhotosLabel}</T>
+                  </TouchableOpacity>
+                </View>
+              )}
+              {!forCleaner && ((b.beforePhotos?.length > 0) || (b.afterPhotos?.length > 0)) && (
+                <TouchableOpacity style={s.photoBtn} onPress={() => {
+                  const all = [...(b.beforePhotos || []), ...(b.afterPhotos || [])];
+                  overSheet(() => { setPhotoViewerUris(all); setPhotoViewerIdx(0); setPhotoViewerOpen(true); });
+                }}>
+                  <T style={s.photoBtnText}>📸 {t.viewPhotos} ({(b.beforePhotos?.length || 0) + (b.afterPhotos?.length || 0)})</T>
+                </TouchableOpacity>
+              )}
+              {b.beforePhotos?.length > 0 && (
+                <ScrollView horizontal style={{ marginTop: 8 }} showsHorizontalScrollIndicator={false}>
+                  {b.beforePhotos.map((uri: string, i: number) => (
+                    <TouchableOpacity key={i} onPress={() => overSheet(() => { setPhotoViewerUris(b.beforePhotos); setPhotoViewerIdx(i); setPhotoViewerOpen(true); })}>
+                      <Image source={{ uri }} style={{ width: 56, height: 56, borderRadius: 8, marginRight: 6 }} contentFit="cover" />
+                    </TouchableOpacity>
+                  ))}
+                </ScrollView>
+              )}
+              {b.afterPhotos?.length > 0 && (
+                <ScrollView horizontal style={{ marginTop: 6 }} showsHorizontalScrollIndicator={false}>
+                  {b.afterPhotos.map((uri: string, i: number) => (
+                    <TouchableOpacity key={i} onPress={() => overSheet(() => { setPhotoViewerUris(b.afterPhotos); setPhotoViewerIdx(i); setPhotoViewerOpen(true); })}>
+                      <Image source={{ uri }} style={{ width: 56, height: 56, borderRadius: 8, marginRight: 6, borderWidth: 2, borderColor: '#7C3AED' }} contentFit="cover" />
+                    </TouchableOpacity>
+                  ))}
+                </ScrollView>
+              )}
+            </View>
+          )}
 
-        {/* ─── הזמנה שממתינה להחלטה שלי — קודם מאשרים ─── */}
-        {forCleaner && awaitsMyApproval(b, uid) && (
-          <TouchableOpacity
-            style={{ backgroundColor: '#16A34A', borderRadius: 14, paddingVertical: 13, alignItems: 'center', marginTop: 8 }}
-            onPress={() => setPendingConfirmBooking(b)}
-          >
-            <T style={{ fontSize: 15, fontWeight: '900', color: '#fff' }}>{t.approveBookingBtn}</T>
-          </TouchableOpacity>
-        )}
-
-        {/* Cleaner action buttons — רק אחרי אישור.
-            "בדרך" ו"התחל ניקיון" כתבו onway/active ישירות מ-pending, כלומר
-            עבודה יכלה לרוץ עד סופה בלי לעבור confirmed אף פעם — וסנכרון היומן
-            וההודעה ללקוח תלויים שניהם ב-confirmed. קודם זה לא קרה כי תפיסה
-            מהלוח קפצה ישר ל-confirmed; מרגע שהיא נשארת ממתינה, זה הפך למסלול
-            אמיתי שמסתיים בלי יומן ובלי שהלקוח ידע שאושר. */}
-        {forCleaner && (b.status === 'confirmed' || b.status === 'onway') && (
-          <View style={{ gap: 8, marginTop: 8 }}>
-            {b.status === 'confirmed' && (
-              <TouchableOpacity style={s.onWayBtn} onPress={() => handleOnWay(b)}>
-                <T style={s.onWayBtnText}>{t.onWayBtn}</T>
-              </TouchableOpacity>
-            )}
-            <TouchableOpacity style={s.startBtn} onPress={() => handleStartCleaning(b)}>
-              <T style={s.startBtnText}>✨ {t.startCleaningBtn}</T>
-            </TouchableOpacity>
-            {b.status === 'onway' && (
-              <TouchableOpacity style={s.undoBtn} onPress={() => handleUndoProgress(b)}>
-                <T style={s.undoBtnText}>↩️ {(t as any).undoOnWayBtn ?? 'ביטול "אני בדרך"'}</T>
-              </TouchableOpacity>
-            )}
-          </View>
-        )}
-        {/* (The standalone "start cleaning" button for `onway` lived here. The
-            block above now covers confirmed and onway together, so this was
-            rendering the same green button twice, stacked.) */}
-        {forCleaner && isActive && (
-          <TouchableOpacity
-            style={s.endBtn}
-            onPress={() => Alert.alert(
-              '✅ סיום ניקיון',
-              'האם לסמן את הניקיון כמושלם?\nפעולה זו תעדכן את הלקוח ותפתח את מסך התשלום.',
-              [
-                { text: 'ביטול', style: 'cancel' },
-                { text: '✅ כן, סיים ניקיון', onPress: () => handleEndCleaning(b) },
-              ]
-            )}
-          >
-            <T style={s.endBtnText}>✅ {t.endCleaningBtn}</T>
-          </TouchableOpacity>
-        )}
-        {forCleaner && isActive && (
-          <TouchableOpacity style={[s.undoBtn, { marginTop: 8 }]} onPress={() => handleUndoProgress(b)}>
-            <T style={s.undoBtnText}>↩️ {(t as any).undoStartBtn ?? 'ביטול "התחלתי עבודה"'}</T>
-          </TouchableOpacity>
-        )}
-        {/* Payment received button */}
-        {forCleaner && b.paymentStatus && b.paymentStatus !== 'paid' && b.status !== 'pending' && (
-          <TouchableOpacity
-            style={{ marginTop: 8, backgroundColor: '#10B981', borderRadius: 10, padding: 10, alignItems: 'center' }}
-            onPress={() => handlePaymentReceived(b)}
-          >
-            <T style={{ color: '#fff', fontWeight: '800', fontSize: 14 }}>
-              {b.payment === 'bit' ? '💙 אישור תשלום Bit' : b.payment === 'card' ? '💳 אישור תשלום כרטיס' : '💵 קיבלתי מזומן'} ✓
+          {/* Review deadline countdown */}
+          {isDone && !forCleaner && b.reviewRequired && !b.cleanerRating && b.reviewDeadline && (
+            <T style={{ color: '#EF4444', fontSize: 12, textAlign: 'right' }}>
+              ⏰ {t.reviewDeadlineDays}: {Math.max(0, Math.ceil((new Date(b.reviewDeadline).getTime() - nowMs) / 86400000))} ימים
             </T>
-          </TouchableOpacity>
-        )}
-        {forCleaner && b.paymentStatus === 'paid' && (
-          <View style={{ marginTop: 8, backgroundColor: '#D1FAE5', borderRadius: 10, padding: 8, alignItems: 'center' }}>
-            <T style={{ color: '#065F46', fontWeight: '700', fontSize: 13 }}>{t.paymentApproved}</T>
-          </View>
-        )}
+          )}
 
-        {/* Chat button */}
-        {forCleaner && (
-          <TouchableOpacity style={s.chatCardBtn} onPress={() => openCleanerChat(b)}>
-            <T style={s.chatCardBtnText}>{t.chatWithClient || "💬 צ'אט"}</T>
-          </TouchableOpacity>
-        )}
-
-        {/* Before / After photos */}
-        {isDone && (
-          <View style={{ marginTop: 10 }}>
-            <T style={{ fontSize: 11, fontWeight: '700', color: C.textSub, marginBottom: 6 }}>{t.photosTitle}</T>
-            {forCleaner && (
-              <View style={{ flexDirection: 'row', gap: 8, flexWrap: 'wrap' }}>
-                <TouchableOpacity style={s.photoBtn} onPress={() => uploadJobPhoto(b.id, 'before')}>
-                  <T style={s.photoBtnText}>📸 {t.beforePhotosLabel}</T>
-                </TouchableOpacity>
-                <TouchableOpacity style={[s.photoBtn, { backgroundColor: '#EDE9FE', borderColor: '#7C3AED' }]} onPress={() => uploadJobPhoto(b.id, 'after')}>
-                  <T style={[s.photoBtnText, { color: '#7C3AED' }]}>📸 {t.afterPhotosLabel}</T>
-                </TouchableOpacity>
-              </View>
-            )}
-            {!forCleaner && ((b.beforePhotos?.length > 0) || (b.afterPhotos?.length > 0)) && (
-              <TouchableOpacity style={s.photoBtn} onPress={() => {
-                const all = [...(b.beforePhotos || []), ...(b.afterPhotos || [])];
-                setPhotoViewerUris(all); setPhotoViewerIdx(0); setPhotoViewerOpen(true);
-              }}>
-                <T style={s.photoBtnText}>📸 {t.viewPhotos} ({(b.beforePhotos?.length || 0) + (b.afterPhotos?.length || 0)})</T>
-              </TouchableOpacity>
-            )}
-            {b.beforePhotos?.length > 0 && (
-              <ScrollView horizontal style={{ marginTop: 8 }} showsHorizontalScrollIndicator={false}>
-                {b.beforePhotos.map((uri: string, i: number) => (
-                  <TouchableOpacity key={i} onPress={() => { setPhotoViewerUris(b.beforePhotos); setPhotoViewerIdx(i); setPhotoViewerOpen(true); }}>
-                    <Image source={{ uri }} style={{ width: 56, height: 56, borderRadius: 8, marginRight: 6 }} contentFit="cover" />
-                  </TouchableOpacity>
-                ))}
-              </ScrollView>
-            )}
-            {b.afterPhotos?.length > 0 && (
-              <ScrollView horizontal style={{ marginTop: 6 }} showsHorizontalScrollIndicator={false}>
-                {b.afterPhotos.map((uri: string, i: number) => (
-                  <TouchableOpacity key={i} onPress={() => { setPhotoViewerUris(b.afterPhotos); setPhotoViewerIdx(i); setPhotoViewerOpen(true); }}>
-                    <Image source={{ uri }} style={{ width: 56, height: 56, borderRadius: 8, marginRight: 6, borderWidth: 2, borderColor: '#7C3AED' }} contentFit="cover" />
-                  </TouchableOpacity>
-                ))}
-              </ScrollView>
-            )}
-          </View>
-        )}
-
-        {/* Review deadline countdown */}
-        {isDone && !forCleaner && b.reviewRequired && !b.cleanerRating && b.reviewDeadline && (
-          <T style={{ color: '#EF4444', fontSize: 12, textAlign: 'right', marginTop: 4 }}>
-            ⏰ {t.reviewDeadlineDays}: {Math.max(0, Math.ceil((new Date(b.reviewDeadline).getTime() - nowMs) / 86400000))} ימים
-          </T>
-        )}
-
-        {/* Rating row — רק הלקוח מדרג את המנקה (אין דירוג לקוח) */}
-        {isDone && !forCleaner && (
-          alreadyRated ? (
+          {isDone && !forCleaner && alreadyRated && (
             <View style={s.ratedRow}>
               <T style={s.ratedLabel}>{t.ratedLabel}: </T>
               {[1,2,3,4,5].map(i => (
                 <T key={i} style={{ color: i <= b.cleanerRating ? C.gold : C.blueBorder, fontSize: 14 }}>★</T>
               ))}
             </View>
-          ) : (
-            <TouchableOpacity style={s.rateBtn} onPress={() => handleRate(b)}>
-              <T style={s.rateBtnText}>⭐ {t.rateTitle}</T>
-            </TouchableOpacity>
-          )
-        )}
+          )}
+
+          {/* כל הפעולות של הכרטיס בשורה אחת, בסדר של האתר: צ'אט ראשון, ביטול אחרון */}
+          <View style={cardActions}>
+            {forCleaner && cardBtn(t.chatWithClient || "💬 צ'אט", () => overSheet(() => openCleanerChat(b)), s.cardBtnOutline, s.cardBtnOutlineText)}
+            {!forCleaner && canChatWithCleaner(b) && cardBtn(t.chatBtn, () => openBookingChat(b), s.cardBtnOutline, s.cardBtnOutlineText)}
+
+            {/* Rating — רק הלקוח מדרג את המנקה (אין דירוג לקוח) */}
+            {isDone && !forCleaner && !alreadyRated && cardBtn(`⭐ ${t.rateTitle}`, () => overSheet(() => handleRate(b)), { backgroundColor: C.blue })}
+
+            {/* Edit — the client's own job on the board, while nobody has taken it.
+                Opens "ניקיון בזמן שלך" with its details (home.tsx, editJobId). */}
+            {!forCleaner && b.open === true && !b.cleanerId && b.status === 'pending' && cardBtn(
+              `✏️ ${(t as any).editJobBtn ?? 'עריכת המודעה'}`,
+              () => router.replace({ pathname: '/home', params: { editJobId: b.id } }),
+              s.cardBtnOutline, s.cardBtnOutlineText,
+            )}
+
+            {/* ─── הזמנה שממתינה להחלטה שלי — קודם מאשרים ─── */}
+            {forCleaner && awaitsMyApproval(b, uid) && cardBtn(t.approveBookingBtn, () => setPendingConfirmBooking(b), { backgroundColor: '#16A34A' })}
+
+            {/* Cleaner action buttons — רק אחרי אישור.
+                "בדרך" ו"התחל ניקיון" כתבו onway/active ישירות מ-pending, כלומר
+                עבודה יכלה לרוץ עד סופה בלי לעבור confirmed אף פעם — וסנכרון היומן
+                וההודעה ללקוח תלויים שניהם ב-confirmed. קודם זה לא קרה כי תפיסה
+                מהלוח קפצה ישר ל-confirmed; מרגע שהיא נשארת ממתינה, זה הפך למסלול
+                אמיתי שמסתיים בלי יומן ובלי שהלקוח ידע שאושר. */}
+            {forCleaner && !pastDay && b.status === 'confirmed' && cardBtn(t.onWayBtn, () => handleOnWay(b), { backgroundColor: '#EA580C' })}
+            {forCleaner && !pastDay && (b.status === 'confirmed' || b.status === 'onway') && cardBtn(`✨ ${t.startCleaningBtn}`, () => handleStartCleaning(b), { backgroundColor: C.blue })}
+            {forCleaner && b.status === 'onway' && cardBtn(`↩️ ${(t as any).undoOnWayBtn ?? 'ביטול "אני בדרך"'}`, () => handleUndoProgress(b), s.cardBtnQuiet, s.cardBtnQuietText)}
+            {forCleaner && (isActive || unclosedPastJob) && cardBtn(
+              `✅ ${t.endCleaningBtn}`,
+              () => Alert.alert(
+                '✅ סיום ניקיון',
+                'האם לסמן את הניקיון כמושלם?\nפעולה זו תעדכן את הלקוח ותפתח את מסך התשלום.',
+                [
+                  { text: 'ביטול', style: 'cancel' },
+                  { text: '✅ כן, סיים ניקיון', onPress: () => handleEndCleaning(b) },
+                ]
+              ),
+              { backgroundColor: C.green },
+            )}
+            {/* The short label, as on the site: the long one takes two lines at this
+                size, and there is no cancel beside it here to confuse it with. */}
+            {forCleaner && isActive && cardBtn(`↩️ ${(t as any).undoShortBtn ?? 'ביטול'}`, () => handleUndoProgress(b), s.cardBtnQuiet, s.cardBtnQuietText)}
+
+            {/* Payment received button */}
+            {forCleaner && b.paymentStatus && b.paymentStatus !== 'paid' && ['confirmed', 'onway', 'active', 'done'].includes(b.status) && cardBtn(
+              `${b.payment === 'bit' ? '💙 אישור תשלום Bit' : b.payment === 'card' ? '💳 אישור תשלום כרטיס' : '💵 קיבלתי מזומן'} ✓`,
+              () => handlePaymentReceived(b),
+              s.cardBtnOutline, s.cardBtnOutlineText,
+            )}
+
+            {/* Cancel button — pending/confirmed/onway, both client and cleaner (כולל דחוף) */}
+            {(forCleaner || !pastDay || b.status === 'pending') && (b.status === 'pending' || b.status === 'confirmed' || b.status === 'onway') && cardBtn(t.cancelBookingBtn, () => handleCancelBooking(b), s.cardBtnCancel, s.cardBtnCancelText)}
+          </View>
+        </View>
       </View>
     );
   };
@@ -3198,10 +3320,12 @@ export default function ProfileScreen() {
                   />
                   {pendingChatInput.trim() ? (
                     <TouchableOpacity
-                      style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: C.blue, alignItems: 'center', justifyContent: 'center' }}
+                      accessibilityRole="button"
+                      accessibilityLabel={(t as any).sendBtn}
+                      style={s.chatSendBtn}
                       onPress={() => sendPendingChat()}
                     >
-                      <T style={{ fontSize: 16, color: '#fff' }}>➤</T>
+                      <T style={s.chatSendBtnText} numberOfLines={1}>{(t as any).sendBtn}</T>
                     </TouchableOpacity>
                   ) : (
                     <>
@@ -3360,17 +3484,15 @@ export default function ProfileScreen() {
                     </View>
                   </View>
 
-                  {/* כפתור ביטול */}
-                  {canCancel && (
-                    <TouchableOpacity
-                      style={{ backgroundColor: '#FEE2E2', borderRadius: 14, paddingVertical: 14, alignItems: 'center', borderWidth: 1.5, borderColor: '#FCA5A5' }}
-                      onPress={() => {
+                  {/* כפתורי צ'אט וביטול, באותו גודל כמו בכרטיס */}
+                  {(canChatWithCleaner(b) || canCancel) && (
+                    <View style={cardActions}>
+                      {canChatWithCleaner(b) && cardBtn(t.chatBtn, () => openBookingChat(b), s.cardBtnOutline, s.cardBtnOutlineText)}
+                      {canCancel && cardBtn(t.cancelBookingBtn, () => {
                         setActiveBookingDetail(null);
                         setTimeout(() => handleCancelBooking(b), 300);
-                      }}
-                    >
-                      <T style={{ fontSize: 15, fontWeight: '900', color: '#DC2626' }}>{t.cancelBookingBtn}</T>
-                    </TouchableOpacity>
+                      }, s.cardBtnCancel, s.cardBtnCancelText)}
+                    </View>
                   )}
 
                   {/* כפתור סגירה */}
@@ -3448,7 +3570,7 @@ export default function ProfileScreen() {
       {loading ? (
         <View style={s.loader}><ActivityIndicator size="large" color={C.blue} /></View>
       ) : (
-        <ScrollView contentContainerStyle={{ paddingBottom: insets.bottom + TAB_BAR_CONTENT_HEIGHT + 16 }}>
+        <ScrollView ref={profileScrollRef} contentContainerStyle={{ paddingBottom: insets.bottom + TAB_BAR_CONTENT_HEIGHT + 16 }}>
 
           {/* Hero */}
           <View style={s.hero}>
@@ -3499,76 +3621,87 @@ export default function ProfileScreen() {
             </View>
           </View>
 
-          {/* ── ניקיונות פעילים (מנקה) — ראשון בדף ──────────────────────── */}
-          {isCleaner && (() => {
-            // הזמנות שתאריכן עבר עוברות ל"הושלמו" — לא מוצגות כפעילות
-            const activeBookings = incomingBks.filter(b => ['confirmed','onway','active'].includes(b.status) && !isPastBooking(b));
-            return (
-              <View style={[s.section, { backgroundColor: '#F0FDF4', borderRadius: 20, borderWidth: 2, borderColor: '#10B981' }]}>
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 10 }}>
-                  <T style={[s.sectionTitle, { color: '#065F46', marginBottom: 0, flex: 1, textAlign: 'center' }]}>{t.activeCleaningsTitle}</T>
-                  {activeBookings.length > 0 && (
-                    <View style={{ backgroundColor: '#10B981', borderRadius: 12, paddingHorizontal: 10, paddingVertical: 3, marginRight: 'auto' }}>
-                      <T style={{ fontSize: 13, fontWeight: '900', color: '#fff' }}>{activeBookings.length}</T>
-                    </View>
-                  )}
-                </View>
-                {activeBookings.length === 0 ? (
-                  <View style={{ alignItems: 'center', paddingVertical: 18, gap: 6 }}>
-                    <T style={{ fontSize: 32 }}>🧹</T>
-                    <T style={{ fontSize: 14, fontWeight: '700', color: '#065F46' }}>{t.noActiveCleanings}</T>
-                    <T style={{ fontSize: 12, color: '#6B9DC2' }}>{t.newBookingsWillAppear}</T>
-                  </View>
-                ) : (
-                  activeBookings.map(b => renderBookingCard(b, true))
-                )}
-              </View>
-            );
-          })()}
-
-          {/* ── פרסום עבודה פתוחה (לקוח) — קיצור דרך מהפרופיל ─────────────
-              הכפתור קיים במסך הבית, אבל אחרי הזמנה הלקוח נוחת בפרופיל, ולכן
-              הוא זמין גם כאן. פותח את אותו מסך "ניקיון בזמן שלך". */}
-          {!isCleaner && (
+          {/* סטטוס זמינות — כמו בראש לוח המנקה באתר. לא מוצג עד שהפרופיל ענה:
+              בלי זה מתג יכול להיראות דלוק אצל מי שכיבה אותו. */}
+          {isCleaner && isAvailable !== null && (
             <TouchableOpacity
-              onPress={() => router.replace({ pathname: '/home', params: { openPostJob: '1' } })}
-              activeOpacity={0.85}
-              style={{ backgroundColor: C.blue, borderRadius: 14, paddingVertical: 14, alignItems: 'center', marginBottom: 14, elevation: 3, shadowColor: '#000', shadowOpacity: 0.15, shadowRadius: 6, shadowOffset: { width: 0, height: 3 } }}
+              style={[s.statusCard, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}
+              onPress={toggleAvailable}
+              activeOpacity={0.8}
+              accessibilityRole="switch"
+              accessibilityState={{ checked: isAvailable }}
+              accessibilityLabel={(t as any).availabilityStatus}
             >
-              <T style={{ color: '#fff', fontSize: 15, fontWeight: '900' }}>
-                🧹 {(t as any).postJobHomeBtn ?? 'ניקיון בזמן שלך'}
-              </T>
+              <View style={{ flex: 1 }}>
+                <T style={[s.statusTitle, { textAlign: isRTL ? 'right' : 'left' }]}>{(t as any).availabilityStatus}</T>
+                <T style={[s.statusSub, { textAlign: isRTL ? 'right' : 'left' }]}>
+                  {isAvailable ? (t as any).availableToClients : (t as any).hiddenFromClients}
+                </T>
+              </View>
+              <View style={[s.statusToggle, isAvailable && s.statusToggleOn]}>
+                <View style={s.statusThumb} />
+              </View>
             </TouchableOpacity>
           )}
 
-          {/* ── הזמנות פעילות (לקוח) — ראשון בדף ───────────────────────── */}
-          {!isCleaner && (() => {
-            // כל הזמנה שתאריכה עבר — גם אם התשלום לא אושר — עוברת להיסטוריה
-            const activeBookings = bookings.filter(b =>
-              ['pending','confirmed','onway','active'].includes(b.status) && !isPastBooking(b));
+          {/* ── הזמנות: פעילות / היסטוריה, בשתי לשוניות כמו באתר ──────────────
+              המספרים מחכים לתשובה מהשרת: לפניה הרשימה ריקה, ו-(0) היה ניחוש. */}
+          {(() => {
+            const { active, history } = bookingTabs(isCleaner ? incomingBks : bookings, isPastBooking, isCleaner);
+            const state = isCleaner ? cleanerBksState : clientBksState;
+            const showing = bookingsTab === 'active' ? active : history;
+            const tabs = [
+              { key: 'active' as const,  label: (t as any).activeTabLabel,  count: active.length },
+              { key: 'history' as const, label: (t as any).historyTabLabel, count: history.length },
+            ];
             return (
-              <View style={[s.section, { backgroundColor: '#F0FDF4', borderRadius: 20, borderWidth: 2, borderColor: '#10B981' }]}>
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 10 }}>
-                  <View style={{ width: 10, height: 10, borderRadius: 5, backgroundColor: '#10B981' }} />
-                  <T style={[s.sectionTitle, { color: '#065F46', marginBottom: 0, flex: 1, textAlign: 'center' }]}>{t.activeBookingsTitle}</T>
-                  {activeBookings.length > 0 && (
-                    <View style={{ backgroundColor: '#10B981', borderRadius: 12, paddingHorizontal: 10, paddingVertical: 3, marginRight: 'auto' }}>
-                      <T style={{ fontSize: 13, fontWeight: '900', color: '#fff' }}>{activeBookings.length}</T>
-                    </View>
-                  )}
+              <View style={s.section} onLayout={e => jumpToBookings(e.nativeEvent.layout.y)}>
+                <View style={[s.seg, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
+                  {tabs.map(tab => {
+                    const on = bookingsTab === tab.key;
+                    return (
+                      <TouchableOpacity
+                        key={tab.key}
+                        style={[s.segBtn, on && s.segBtnOn]}
+                        onPress={() => setBookingsTab(tab.key)}
+                        accessibilityRole="tab"
+                        accessibilityState={{ selected: on }}
+                      >
+                        <T style={[s.segBtnText, on && s.segBtnTextOn]}>
+                          {tab.label}{state === 'ready' ? ` (${tab.count})` : ''}
+                        </T>
+                      </TouchableOpacity>
+                    );
+                  })}
                 </View>
-                {activeBookings.length === 0 ? (
-                  <View style={{ alignItems: 'center', paddingVertical: 18, gap: 6 }}>
-                    <T style={{ fontSize: 32 }}>🧹</T>
-                    <T style={{ fontSize: 14, fontWeight: '700', color: '#065F46' }}>{t.noActiveCleanings}</T>
-                    <T style={{ fontSize: 12, color: '#6B9DC2' }}>{t.newBookingsWillAppear}</T>
+                {state === 'loading' ? (
+                  <ActivityIndicator size="large" color={C.blue} style={{ marginVertical: 24 }} />
+                ) : state === 'failed' && showing.length === 0 ? (
+                  <View style={s.emptyBox}>
+                    <T style={s.emptyText}>{t.error}</T>
                   </View>
-                ) : (
-                  activeBookings.map(b => (
+                ) : showing.length === 0 ? (
+                  bookingsTab === 'active' ? (
+                    <View style={s.emptyBox}>
+                      <T style={{ fontSize: 32, marginBottom: 6 }}>🧹</T>
+                      <T style={s.emptyText}>{t.noActiveCleanings}</T>
+                      <T style={s.emptySubText}>{t.newBookingsWillAppear}</T>
+                    </View>
+                  ) : (
+                    <View style={s.emptyBox}>
+                      <T style={{ fontSize: 40, marginBottom: 8 }}>📋</T>
+                      <T style={s.emptyText}>{t.noBookingsText}</T>
+                      {!isCleaner && <T style={s.emptySubText}>{t.noBookingsSub}</T>}
+                    </View>
+                  )
+                ) : bookingsTab === 'active' && !isCleaner ? (
+                  showing.map(b => (
                     <TouchableOpacity key={b.id} onPress={() => setActiveBookingDetail(b)} activeOpacity={0.85}>
                       {renderBookingCard(b, false)}
                     </TouchableOpacity>
                   ))
+                ) : (
+                  showing.map(b => renderBookingCard(b, isCleaner))
                 )}
               </View>
             );
@@ -3761,7 +3894,13 @@ export default function ProfileScreen() {
                 <T style={{ fontSize: 16, color: C.blue, fontWeight: '800' }}>{incomingOpen ? '▲' : '▼'}</T>
               </TouchableOpacity>
               {incomingOpen && (
-                incomingBks.length === 0 ? (
+                cleanerBksState === 'loading' ? (
+                  <ActivityIndicator size="large" color={C.blue} style={{ marginVertical: 24 }} />
+                ) : cleanerBksState === 'failed' && incomingBks.length === 0 ? (
+                  <View style={s.emptyBox}>
+                    <T style={s.emptyText}>{t.error}</T>
+                  </View>
+                ) : incomingBks.length === 0 ? (
                   <View style={s.emptyBox}>
                     <T style={{ fontSize: 36, marginBottom: 8 }}>📭</T>
                     <T style={s.emptyText}>{t.noBookingsText}</T>
@@ -3832,92 +3971,11 @@ export default function ProfileScreen() {
             </View>
           )}
 
-          {/* ── לקוח: היסטוריית הזמנות (compact row) ──────────────────── */}
-          {!isCleaner && (() => {
-            // היסטוריה כוללת גם הזמנות שתאריכן עבר (גם אם עדיין לא סומנו כהושלמו)
-            const historyBookings = bookings.filter(b =>
-              !['pending','confirmed','onway','active'].includes(b.status) || isPastBooking(b));
-            const lastB = historyBookings[0];
-            return (
-              <View style={s.section}>
-                {historyBookings.length === 0 ? (
-                  <View style={s.emptyBox}>
-                    <T style={{ fontSize: 40, marginBottom: 8 }}>📋</T>
-                    <T style={s.emptyText}>{t.noBookingsText}</T>
-                    <T style={s.emptySubText}>{t.noBookingsSub}</T>
-                  </View>
-                ) : (
-                  <TouchableOpacity
-                    style={s.historyCompactRow}
-                    onPress={() => setHistoryOpen(true)}
-                    activeOpacity={0.75}
-                  >
-                    <T style={s.historyCompactIcon}>📋</T>
-                    <View style={{ flex: 1 }}>
-                      <T style={s.historyCompactTitle}>{t.historyTitle}</T>
-                      <T style={s.historyCompactSub}>
-                        {historyBookings.length} {t.historyTitle}{lastB ? ` · ${lastB.cleanerName || ''}` : ''}
-                      </T>
-                    </View>
-                    <T style={s.historyCompactArrow}>‹</T>
-                  </TouchableOpacity>
-                )}
-              </View>
-            );
-          })()}
-
-          {/* History Modal */}
-          <Modal visible={historyOpen} animationType="slide" transparent onRequestClose={() => setHistoryOpen(false)}>
-            <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.45)', justifyContent: 'flex-end' }}>
-              <View style={[s.historySheet, { paddingBottom: insets.bottom + 16 }]}>
-                {/* handle */}
-                <View style={{ width: 40, height: 4, borderRadius: 2, backgroundColor: C.grayBorder, alignSelf: 'center', marginTop: 10, marginBottom: 4 }} />
-                <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingBottom: 10, borderBottomWidth: 1, borderColor: C.grayBorder }}>
-                  <TouchableOpacity onPress={() => setHistoryOpen(false)} hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}>
-                    <T style={{ fontSize: 15, color: C.blue, fontWeight: '700' }}>{t.closeBtn || 'סגור'}</T>
-                  </TouchableOpacity>
-                  <T style={{ fontSize: 16, fontWeight: '800', color: C.textDark }}>{t.historyTitle}</T>
-                  <View style={{ width: 48 }} />
-                </View>
-                <ScrollView contentContainerStyle={{ padding: 16, gap: 12 }} showsVerticalScrollIndicator={false}>
-                  {bookings
-                    .filter(b => !['pending','confirmed','onway','active'].includes(b.status))
-                    .map(b => renderBookingCard(b, false))
-                  }
-                </ScrollView>
-              </View>
-            </View>
-          </Modal>
-
           {/* שפה מועדפת (לקוח) */}
           {!isCleaner && (
             <View style={s.section}>
               <T style={[s.sectionTitle, { textAlign: 'center' }]}>🌐 {t.drawerLanguage}</T>
-              <View style={{ flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', rowGap: 10, marginTop: 10 }}>
-                {[
-                  { key: 'he', label: 'עברית',    flag: '🇮🇱' },
-                  { key: 'en', label: 'English',  flag: '🇬🇧' },
-                  { key: 'ru', label: 'Русский',  flag: '🇷🇺' },
-                  { key: 'ar', label: 'العربية',  flag: '🇸🇦' },
-                  { key: 'fr', label: 'Français', flag: '🇫🇷' },
-                  { key: 'hi', label: 'हिन्दी',  flag: '🇮🇳' },
-                  { key: 'uk', label: 'Українська', flag: '🇺🇦' },
-                ].map(l => (
-                  <TouchableOpacity
-                    key={l.key}
-                    style={[s.langBtn, prefLang === l.key && s.langBtnActive]}
-                    onPress={async () => {
-                      setPrefLang(l.key);
-                      setLang(l.key as Lang);
-                      await setDoc(doc(db, 'users', uid), { preferredLang: l.key }, { merge: true });
-                    }}
-                  >
-                    <T style={[s.langBtnText, prefLang === l.key && s.langBtnTextActive, l.key === 'hi' && { fontFamily: 'NotoSansDevanagari_400Regular', fontWeight: '400' }]}>
-                      {l.flag} {l.label}
-                    </T>
-                  </TouchableOpacity>
-                ))}
-              </View>
+              {renderLangGrid(10)}
             </View>
           )}
 
@@ -3997,10 +4055,12 @@ export default function ProfileScreen() {
                     style={{ backgroundColor: C.blue, borderRadius: 12, padding: 12, alignItems: 'center' }}
                     onPress={handleAddAddr}
                   >
-                    <T style={{ fontSize: 14, fontWeight: '800', color: C.white }}>{t.addAddressBtn}</T>
+                    <T style={{ fontSize: 14, fontWeight: '800', color: C.white }}>
+                      {savedAddrs.length > 0 ? ((t as any).addAnotherAddrBtn ?? '+ הוסף כתובת נוספת') : t.addAddressBtn}
+                    </T>
                   </TouchableOpacity>
                   <T style={{ fontSize: 11, color: C.textSub, textAlign: 'center' }}>
-                    {savedAddrs.length}/5 כתובות שמורות
+                    {savedAddrs.length}/5 {(t as any).savedAddressesWord}
                   </T>
                 </View>
               )}
@@ -4299,8 +4359,8 @@ export default function ProfileScreen() {
                     <T style={{ color: '#fff', fontWeight: '800', fontSize: 13, backgroundColor: '#EF4444', paddingHorizontal: 14, paddingVertical: 5, borderRadius: 14, overflow: 'hidden' }}>{t.recordingAudio}</T>
                   </View>
                 )}
-                <TouchableOpacity accessibilityRole="button" accessibilityLabel="נגן" style={s.chatSendBtn} onPress={sendCleanerMessage}>
-                  <T style={{ color: C.white, fontSize: 18 }}>▶</T>
+                <TouchableOpacity accessibilityRole="button" accessibilityLabel={(t as any).sendBtn} style={[s.chatSendBtn, !chatInput.trim() && { opacity: 0.5 }]} onPress={sendCleanerMessage}>
+                  <T style={s.chatSendBtnText} numberOfLines={1}>{(t as any).sendBtn}</T>
                 </TouchableOpacity>
                 <TextInput
                   style={s.chatTextInput}
@@ -4445,6 +4505,18 @@ export default function ProfileScreen() {
           <KeyboardAvoidingView style={{ flex: 1 }} behavior="padding">
             <ScrollView contentContainerStyle={{ padding: 20, gap: 14, paddingBottom: insets.bottom + 16 }}>
 
+              {/* תמונת פרופיל — ראשונה, כמו באתר */}
+              <View style={{ alignItems: 'center', gap: 12 }}>
+                {photoB64 ? (
+                  <Image source={{ uri: photoB64 }} style={ep.avatar} contentFit="cover" />
+                ) : (
+                  <View style={ep.avatarEmpty}>
+                    <T style={ep.avatarLetter}>{(editName || userName || '?').charAt(0)}</T>
+                  </View>
+                )}
+                {uploading ? <ActivityIndicator size="small" color={C.blue} /> : sourceButtons(pickAvatarFrom)}
+              </View>
+
               {/* שם */}
               <View>
                 <T style={ep.label}>{t.editFullNameLabel}</T>
@@ -4485,14 +4557,14 @@ export default function ProfileScreen() {
                   {/* סוג דיור */}
                   <View style={{ flexDirection: 'row', gap: 10 }}>
                     <TouchableOpacity
-                      style={{ flex: 1, flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: !editAddrPrivate ? C.blue : C.bluePale, borderRadius: 12, padding: 12, borderWidth: 1.5, borderColor: !editAddrPrivate ? C.blue : C.blueBorder }}
+                      style={{ flex: 1, flexDirection: isRTL ? 'row-reverse' : 'row', alignItems: 'center', gap: 8, backgroundColor: !editAddrPrivate ? C.blue : C.bluePale, borderRadius: 12, padding: 12, borderWidth: 1.5, borderColor: !editAddrPrivate ? C.blue : C.blueBorder }}
                       onPress={() => setEditAddrPrivate(false)}
                     >
                       <T style={{ fontSize: 16 }}>{!editAddrPrivate ? '🔵' : '⚪'}</T>
                       <T style={{ fontWeight: '700', color: !editAddrPrivate ? C.white : C.textDark, fontSize: 14 }}>{t.apartmentLabel}</T>
                     </TouchableOpacity>
                     <TouchableOpacity
-                      style={{ flex: 1, flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: editAddrPrivate ? C.blue : C.bluePale, borderRadius: 12, padding: 12, borderWidth: 1.5, borderColor: editAddrPrivate ? C.blue : C.blueBorder }}
+                      style={{ flex: 1, flexDirection: isRTL ? 'row-reverse' : 'row', alignItems: 'center', gap: 8, backgroundColor: editAddrPrivate ? C.blue : C.bluePale, borderRadius: 12, padding: 12, borderWidth: 1.5, borderColor: editAddrPrivate ? C.blue : C.blueBorder }}
                       onPress={() => setEditAddrPrivate(true)}
                     >
                       <T style={{ fontSize: 16 }}>{editAddrPrivate ? '🔵' : '⚪'}</T>
@@ -4533,8 +4605,8 @@ export default function ProfileScreen() {
                   {/* תצוגה מקדימה */}
                   {(editCity || editStreet) && (
                     <View style={{ backgroundColor: C.bluePale, borderRadius: 10, padding: 10, borderWidth: 1, borderColor: C.blueBorder }}>
-                      <T style={{ fontSize: 11, color: C.textSub, marginBottom: 2 }}>{t.fullAddrLabel}</T>
-                      <T style={{ fontSize: 13, fontWeight: '700', color: C.textDark }}>
+                      <T style={{ fontSize: 11, color: C.textSub, marginBottom: 2, textAlign: isRTL ? 'right' : 'left' }}>{t.fullAddrLabel}</T>
+                      <T style={{ fontSize: 13, fontWeight: '700', color: C.textDark, textAlign: isRTL ? 'right' : 'left' }}>
                         {[editStreet.trim(), editCity.trim(), editAddrPrivate ? 'בית פרטי' : (editFloor ? `קומה ${editFloor}` : ''), (!editAddrPrivate && editApt) ? `דירה ${editApt}` : ''].filter(Boolean).join(', ')}
                       </T>
                     </View>
@@ -4709,6 +4781,33 @@ export default function ProfileScreen() {
                 </View>
               </View>
 
+              {/* תיק עבודות */}
+              <View>
+                <T style={[ep.label, { textAlign: 'center', fontSize: 15 }]}>
+                  📸 {t.portfolioTitle} ({portfolio.length}/{MAX_PORTFOLIO_IMAGES})
+                </T>
+                {portfolio.length > 0 && (
+                  <View style={ep.pfGrid}>
+                    {portfolio.map((uri, i) => (
+                      <View key={i}>
+                        <Image source={{ uri }} style={ep.pfImg} contentFit="cover" />
+                        <TouchableOpacity
+                          style={ep.pfDel}
+                          onPress={() => removePortfolioPhoto(i)}
+                          accessibilityRole="button"
+                          accessibilityLabel={t.portfolioDeleteBtn}
+                        >
+                          <T style={ep.pfDelText}>✕</T>
+                        </TouchableOpacity>
+                      </View>
+                    ))}
+                  </View>
+                )}
+                {portfolio.length < MAX_PORTFOLIO_IMAGES && (
+                  portfolioBusy ? <ActivityIndicator size="small" color={C.blue} /> : sourceButtons(addPortfolioPhoto)
+                )}
+              </View>
+
               {/* אימות זהות */}
               <View>
                 <T style={[ep.label, { textAlign: 'center', fontSize: 15 }]}>🪪 {t.idVerifyTitle}</T>
@@ -4740,31 +4839,7 @@ export default function ProfileScreen() {
               {/* שפה מועדפת */}
               <View>
                 <T style={[ep.label, { textAlign: 'center', fontSize: 15 }]}>🌐 {t.drawerLanguage}</T>
-                <View style={{ flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', rowGap: 10, marginTop: 8 }}>
-                  {[
-                    { key: 'he', label: 'עברית',    flag: '🇮🇱' },
-                    { key: 'en', label: 'English',  flag: '🇬🇧' },
-                    { key: 'ru', label: 'Русский',  flag: '🇷🇺' },
-                    { key: 'ar', label: 'العربية',  flag: '🇸🇦' },
-                    { key: 'fr', label: 'Français', flag: '🇫🇷' },
-                    { key: 'hi', label: 'हिन्दी',  flag: '🇮🇳' },
-                  { key: 'uk', label: 'Українська', flag: '🇺🇦' },
-                  ].map(l => (
-                    <TouchableOpacity
-                      key={l.key}
-                      style={[s.langBtn, prefLang === l.key && s.langBtnActive]}
-                      onPress={async () => {
-                        setPrefLang(l.key);
-                        setLang(l.key as Lang);
-                        await setDoc(doc(db, 'users', uid), { preferredLang: l.key }, { merge: true });
-                      }}
-                    >
-                      <T style={[s.langBtnText, prefLang === l.key && s.langBtnTextActive]}>
-                        {l.flag} {l.label}
-                      </T>
-                    </TouchableOpacity>
-                  ))}
-                </View>
+                {renderLangGrid(8)}
               </View>
 
               {/* ימים ושעות עבודה */}
@@ -4847,7 +4922,7 @@ export default function ProfileScreen() {
                   key={opt.key}
                   onPress={() => setReportType(opt.key as any)}
                   style={{
-                    flexDirection: 'row', alignItems: 'center', gap: 12,
+                    flexDirection: isRTL ? 'row-reverse' : 'row', alignItems: 'center', gap: 12,
                     backgroundColor: reportType === opt.key ? C.blue : C.white,
                     borderRadius: 12, padding: 14,
                     borderWidth: 1.5, borderColor: reportType === opt.key ? C.blue : C.blueBorder,
@@ -4862,13 +4937,14 @@ export default function ProfileScreen() {
             {/* שם האדם */}
             {reportType !== 'bug' && (
               <View style={{ gap: 6 }}>
-                <T style={{ fontSize: 13, fontWeight: '700', color: C.textDark }}>
+                <T style={{ fontSize: 13, fontWeight: '700', color: C.textDark, textAlign: isRTL ? 'right' : 'left' }}>
                   {reportType === 'cleaner' ? '🧹 שם נותן השירות' : '👤 שם הלקוח'}
                 </T>
                 <TextInput
-                  style={{ backgroundColor: C.white, borderRadius: 10, padding: 12, fontSize: 14, color: C.textDark, borderWidth: 1, borderColor: C.blueBorder, textAlign: 'right' }}
+                  style={{ backgroundColor: C.white, borderRadius: 10, padding: 12, fontSize: 14, color: C.textDark, borderWidth: 1, borderColor: C.blueBorder }}
                   placeholder={t.reportTargetPlaceholder}
                   placeholderTextColor={C.textSub}
+                  textAlign={isRTL ? 'right' : 'left'}
                   value={reportTarget}
                   onChangeText={setReportTarget}
                 />
@@ -4877,11 +4953,12 @@ export default function ProfileScreen() {
 
             {/* פירוט */}
             <View style={{ gap: 6 }}>
-              <T style={{ fontSize: 13, fontWeight: '700', color: C.textDark }}>📝 {t.reportDescLabel}</T>
+              <T style={{ fontSize: 13, fontWeight: '700', color: C.textDark, textAlign: isRTL ? 'right' : 'left' }}>📝 {t.reportDescLabel}</T>
               <TextInput
-                style={{ backgroundColor: C.white, borderRadius: 10, padding: 12, fontSize: 14, color: C.textDark, borderWidth: 1, borderColor: C.blueBorder, minHeight: 110, textAlignVertical: 'top', textAlign: 'right' }}
+                style={{ backgroundColor: C.white, borderRadius: 10, padding: 12, fontSize: 14, color: C.textDark, borderWidth: 1, borderColor: C.blueBorder, minHeight: 110, textAlignVertical: 'top' }}
                 placeholder={t.reportDescPlaceholder}
                 placeholderTextColor={C.textSub}
+                textAlign={isRTL ? 'right' : 'left'}
                 value={reportDesc}
                 onChangeText={setReportDesc}
                 multiline
