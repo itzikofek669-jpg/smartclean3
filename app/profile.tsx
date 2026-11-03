@@ -2866,7 +2866,7 @@ export default function ProfileScreen() {
             const svc = (Array.isArray(b.serviceTypes) && b.serviceTypes.length
               ? b.serviceTypes.map((st: string) => t.types[st] || st).join(', ')
               : (b.serviceType ? String(b.serviceType).split(' + ').map((st: string) => t.types[st] || st).join(', ') : ''));
-            return svc ? <T style={{ fontSize: 13, fontWeight: '800', color: C.blue }}>🧹 {svc}</T> : null;
+            return svc ? <T style={{ fontSize: 13, fontWeight: '800', color: C.blue }}>{svc}</T> : null;
           })()}
 
           {/* שעות + תשלום + סטטוס */}
@@ -3170,7 +3170,7 @@ export default function ProfileScreen() {
                     const svc = (Array.isArray(pendingConfirmBooking.serviceTypes) && pendingConfirmBooking.serviceTypes.length
                       ? pendingConfirmBooking.serviceTypes.map((st: string) => t.types[st] || st).join(', ')
                       : (pendingConfirmBooking.serviceType ? String(pendingConfirmBooking.serviceType).split(' + ').map((st: string) => t.types[st] || st).join(', ') : ''));
-                    return svc ? <T style={{ fontSize: 13, fontWeight: '800', color: C.blue }}>🧹 {svc}</T> : null;
+                    return svc ? <T style={{ fontSize: 13, fontWeight: '800', color: C.blue }}>{svc}</T> : null;
                   })()}
                   <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 10 }}>
                     <T style={{ fontSize: 12, color: C.textSub }}>📅 {pendingConfirmBooking.bookingDate}  🕐 {pendingConfirmBooking.startTime}</T>

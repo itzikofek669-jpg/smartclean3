@@ -4175,7 +4175,7 @@ function QuickRebookModal({ visible, onClose, myBookings, bookingsState, allClea
                   <View key={b.id} style={{ backgroundColor: C.white, borderRadius: 18, padding: 16, borderWidth: 1.5, borderColor: C.blueBorder, gap: 10, elevation: 2, shadowColor: '#000', shadowOpacity: 0.06, shadowRadius: 6 }}>
                     {/* שורת כותרת + סטטוס + כפתור מחיקה */}
                     <View style={{ flexDirection: row, justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
-                      <T style={{ fontSize: 16, fontWeight: '900', color: C.textDark, flex: 1, textAlign: align }}>🧹 {b.cleanerName}</T>
+                      <T style={{ fontSize: 16, fontWeight: '900', color: C.textDark, flex: 1, textAlign: align }}>{b.cleanerName}</T>
                       <View style={{ flexDirection: row, alignItems: 'center', gap: 8 }}>
                         <View style={{ backgroundColor: statusBg, borderRadius: 8, paddingHorizontal: 8, paddingVertical: 3 }}>
                           <T style={{ fontSize: 11, fontWeight: '700', color: statusColor }}>{statusLabel}</T>
@@ -7640,7 +7640,7 @@ export default function HomeScreen() {
               return (
                 <View style={{ marginBottom: 18, gap: 5 }}>
                   {!!b.clientName && <T style={{ fontSize: 15, fontWeight: '800', color: C.textDark, textAlign: 'right' }}>👤 {b.clientName}</T>}
-                  {!!svc && <T style={{ fontSize: 14, color: C.textDark, textAlign: 'right' }}>🧹 {svc}</T>}
+                  {!!svc && <T style={{ fontSize: 14, color: C.textDark, textAlign: 'right' }}>{svc}</T>}
                   {(!!b.bookingDate || !!b.startTime) && <T style={{ fontSize: 14, color: C.textDark, textAlign: 'right' }}>📅 {b.bookingDate || ''}{b.startTime ? ` · ${b.startTime}` : ''}</T>}
                   {!!b.hours && <T style={{ fontSize: 14, color: C.textDark, textAlign: 'right' }}>⏱️ {b.hours} {t.hoursUnit || 'שעות'}</T>}
                   {!!(b.address || b.addrCity) && <T style={{ fontSize: 14, color: C.textDark, textAlign: 'right' }}>📍 {b.address || b.addrCity}</T>}
