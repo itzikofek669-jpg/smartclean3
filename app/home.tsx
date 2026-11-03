@@ -2563,7 +2563,6 @@ function BookingModal({ cleaner, visible, onClose, onBookingCreated, prebookData
   const [recurringDates, setRecurringDates] = useState<string[]>([]);
   const [serviceTypes,  setServiceTypes]  = useState<string[]>([]);
   const toggleServiceType = (tp: string) => setServiceTypes(prev => prev.includes(tp) ? prev.filter(x => x !== tp) : [...prev, tp]);
-  const [serviceDropdownOpen, setServiceDropdownOpen] = useState(false);
   const [showSuccess,   setShowSuccess]   = useState(false);
   const [bookedDetails, setBookedDetails] = useState<{ name: string; hours: number; total: number; cleanerUid: string; startTime: string; dateStr: string; address: string } | null>(null);
   const [showWaiting,   setShowWaiting]   = useState(false);
@@ -3332,54 +3331,73 @@ function BookingModal({ cleaner, visible, onClose, onBookingCreated, prebookData
     );
   }
 
+  // The site's pills and section titles (.pill / .pill-active / .section-label).
+  const pill = (on: boolean) => ({
+    minHeight: 40, justifyContent: 'center' as const, paddingHorizontal: 14, paddingVertical: 8, borderRadius: 999,
+    borderWidth: 1.5, borderColor: on ? C.blue : C.blueBorder, backgroundColor: on ? C.blueLight : C.white,
+  });
+  const pillText = (on: boolean) => ({ fontSize: 14, fontWeight: (on ? '800' : '600') as '800' | '600', color: on ? C.blue : C.textDark });
+  const sectionLabel = { fontSize: 13, fontWeight: '800' as const, color: C.textSub, textAlign: 'right' as const };
+
   return (
     <Modal visible={visible} animationType="slide" presentationStyle="pageSheet" onRequestClose={handleClose}>
       <SafeAreaView style={{ flex: 1, backgroundColor: C.bluePale }}>
         <View style={s.modalHeader}>
           <TouchableOpacity accessibilityRole="button" accessibilityLabel="סגור" onPress={handleClose} style={s.closeBtn}><T style={{ color: C.white, fontSize: 18 }}>✕</T></TouchableOpacity>
-          <T style={s.modalTitle}>{t.newBookingTitle}</T>
+          <T style={s.modalTitle}>{(t as any).bookingCleaningTitle ?? 'הזמנת ניקיון'}</T>
           <View style={{ width: 36 }} />
         </View>
         <KeyboardAvoidingView style={{ flex: 1 }} behavior="padding" keyboardVerticalOffset={Platform.OS === 'android' ? 0 : 0}>
         <ScrollView ref={bookingScrollRef} contentContainerStyle={{ padding: 16, gap: 14, paddingBottom: insets.bottom + 40 }} keyboardShouldPersistTaps="handled">
-            {/* Cleaner info */}
-            <View style={s.bookingCard}>
-              <View style={s.bookingAvatar}>
-                {(() => {
-                  const uri = avatarUri ||
-                    (!isNaN(parseInt(cleaner.id)) ? `https://i.pravatar.cc/150?img=${((parseInt(cleaner.id) - 1) % 70) + 1}` : null);
-                  return uri
-                    ? <Image source={{ uri }} style={{ width: 48, height: 48, borderRadius: 24 }} contentFit="cover" />
-                    : <T style={s.bookingAvatarText}>{cleaner.initials}</T>;
-                })()}
+            {/* כמו באתר: מי ובכמה מתחת לכותרת, ואז סוג שירות, תאריך ושעה, מספר שעות,
+                כתובת, תדירות, אמצעי תשלום, סיכום, ו"אשר הזמנה" / "ביטול" זה לצד זה. */}
+            <T style={{ fontSize: 13, color: C.textSub, textAlign: 'center', marginTop: -2 }}>
+              {cleaner.name} · ₪{effectivePrice}{t.perHour}
+            </T>
+
+            {/* סוג שירות — כפתורים, אפשר כמה */}
+            {cleaner?.types?.length > 0 && (
+              <View style={{ gap: 8 }}>
+                <T style={sectionLabel}>{(t as any).serviceTypeLabel ?? 'סוג שירות'}</T>
+                <View style={{ flexDirection: 'row-reverse', flexWrap: 'wrap', gap: 8 }}>
+                  {cleaner.types.map((tp: string) => {
+                    const sel = serviceTypes.includes(tp);
+                    return (
+                      <TouchableOpacity key={tp} accessibilityRole="checkbox" accessibilityState={{ checked: sel }} onPress={() => toggleServiceType(tp)} style={pill(sel)}>
+                        <T style={pillText(sel)}>{TYPE_ICONS[tp] || ''} {t.types[tp] || tp}</T>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
               </View>
-              <View style={{ flex: 1 }}>
-                <T style={s.bookingName}>{cleaner.name}</T>
-                <T style={s.bookingCity}>📍 {t.cities[cleaner.city] || cleaner.city} · ₪{cleaner.price}{t.perHour}</T>
+            )}
+
+            {/* תאריך ושעה — שורה אחת */}
+            <View style={{ flexDirection: 'row-reverse', gap: 10 }}>
+              <View style={{ flex: 1, gap: 6 }}>
+                <T style={s.fieldLabel}>{t.dateLabel}</T>
+                <TouchableOpacity accessibilityRole="button" accessibilityLabel={t.selectDate} onPress={() => setShowDatePicker(true)}
+                  style={{ minHeight: 50, flexDirection: 'row-reverse', alignItems: 'center', justifyContent: 'space-between', gap: 6, paddingHorizontal: 12, backgroundColor: C.white, borderRadius: 12, borderWidth: 1.5, borderColor: C.blueBorder }}>
+                  <T numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8} style={{ flexShrink: 1, fontSize: 15, fontWeight: '700', color: C.textDark }}>{fmtDate(bookingDate)}</T>
+                  <T style={{ fontSize: 15 }}>📅</T>
+                </TouchableOpacity>
+              </View>
+              <View style={{ flex: 1, gap: 6 }}>
+                <T style={s.fieldLabel}>{t.timeLabel}</T>
+                <TimeWheelPicker compact accent={C.blue} value={startHour} onChange={setStartHour} minHour={clockMin} maxHour={clockMax} />
               </View>
             </View>
-
-            {/* Date */}
-            <T style={s.fieldLabel}>📅 {t.dateLabel}</T>
-            <TouchableOpacity style={s.dateBtn} onPress={() => setShowDatePicker(true)}>
-              <T style={s.dateBtnText}>{fmtDate(bookingDate)}</T>
-              <T style={{ fontSize: 12, color: C.textSub }}>📅 {t.selectDate}</T>
-            </TouchableOpacity>
             <CalendarPicker
               visible={showDatePicker}
               value={bookingDate}
               onChange={setBookingDate}
               onClose={() => setShowDatePicker(false)}
             />
-
-            {/* Time */}
-            <T style={s.fieldLabel}>🕐 {t.timeLabel}</T>
             {isToday && (
-              <T style={{ fontSize: 12, color: '#EF4444', marginBottom: 4, textAlign: 'right' }}>
+              <T style={{ fontSize: 12, color: '#EF4444', textAlign: 'right' }}>
                 {((t as any).bookableFromNote ?? '⚠️ ניתן להזמין מ-{time} ומעלה').replace('{time}', `${String(Math.floor(clockMin)).padStart(2,'0')}:${clockMin % 1 === 0.5 ? '30' : '00'}`)}
               </T>
             )}
-            <TimeWheelPicker value={startHour} onChange={setStartHour} minHour={clockMin} maxHour={clockMax} />
             {/* Said as soon as the day or time is picked, not only after the
                 whole form is filled and "book" is pressed. */}
             {bookWindow?.allBusy && (
@@ -3398,100 +3416,32 @@ function BookingModal({ cleaner, visible, onClose, onBookingCreated, prebookData
               return <T style={{ fontSize: 12.5, color: '#DC2626', fontWeight: '700', textAlign: 'right', marginTop: 6 }}>⛔ {msg}</T>;
             })()}
 
-            {/* Recurring */}
-            <T style={s.fieldLabel}>🔁 {t.recurringLabel}</T>
-            <View style={{ flexDirection: 'row', gap: 8 }}>
-              {(['once', 'weekly', 'monthly'] as const).map(opt => (
-                <TouchableOpacity key={opt} style={[s.recurBtn, recurring === opt && s.recurBtnActive]} onPress={() => setRecurring(opt)}>
-                  <T style={[s.recurBtnText, recurring === opt && { color: C.white }]}>
-                    {opt === 'once' ? t.recurOnce : opt === 'weekly' ? t.recurWeekly : t.recurMonthly}
-                  </T>
-                </TouchableOpacity>
-              ))}
+
+            {/* מספר שעות */}
+            <View style={{ gap: 6 }}>
+              <T style={s.fieldLabel}>{t.hoursLabel}</T>
+              <HoursWheelPicker compact accent={C.blue} value={hours} onChange={setHours} values={[1,2,3,4,5,6,7,8,9,10,11,12]} />
             </View>
 
-            {/* Calendar for recurring dates */}
-            {recurring !== 'once' && (
-              <MultiCalendarPicker
-                selected={recurringDates}
-                onChange={setRecurringDates}
-                label={recurring === 'weekly' ? (t.recurWeekly || 'שבועי') : (t.recurMonthly || 'חודשי')}
-              />
-            )}
-
-            {/* Service Type (if cleaner has servicePricing) */}
-            {cleaner?.types?.length > 0 && (
-              <>
-                <T style={s.fieldLabel}>{t.selectServiceType} <T style={{ color: '#DC2626' }}>*</T></T>
-                {/* כפתור פתיחת התפריט */}
-                <TouchableOpacity
-                  style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: C.white, borderRadius: 12, borderWidth: serviceTypes.length === 0 ? 2 : 1.5, borderColor: serviceDropdownOpen ? C.blue : (serviceTypes.length === 0 ? '#DC2626' : C.blueBorder), paddingHorizontal: 14, paddingVertical: 13 }}
-                  onPress={() => setServiceDropdownOpen(o => !o)}
-                  activeOpacity={0.8}
-                >
-                  <T style={{ fontSize: 14, fontWeight: '700', color: serviceTypes.length ? C.textDark : '#DC2626' }} numberOfLines={2}>
-                    {serviceTypes.length
-                      ? serviceTypes.map(st => `${TYPE_ICONS[st] || ''} ${t.types[st] || st}`).join(' · ')
-                      : ((t as any).selectServiceTypeMulti ?? 'בחר סוג שירות (אפשר כמה)')}
-                  </T>
-                  <T style={{ fontSize: 14, color: C.blue }}>{serviceDropdownOpen ? '▲' : '▼'}</T>
-                </TouchableOpacity>
-                {serviceTypes.length === 0 && (
-                  <T style={{ fontSize: 11, color: '#DC2626', fontWeight: '700', textAlign: 'right' }}>⚠️ יש לבחור סוג ניקיון</T>
-                )}
-                {/* רשימת אפשרויות — בחירה מרובה */}
-                {serviceDropdownOpen && (
-                  <View style={{ backgroundColor: C.white, borderRadius: 12, borderWidth: 1.5, borderColor: C.blueBorder, marginTop: 4, overflow: 'hidden' }}>
-                    {cleaner.types.map((tp: string, i: number) => {
-                      const sel = serviceTypes.includes(tp);
-                      return (
-                      <View key={tp} style={{ flexDirection: 'row', alignItems: 'center', borderTopWidth: i === 0 ? 0 : 1, borderTopColor: C.blueBorder }}>
-                        <TouchableOpacity
-                          style={{ flex: 1, flexDirection: 'row-reverse', alignItems: 'center', gap: 8, paddingHorizontal: 14, paddingVertical: 13, backgroundColor: sel ? C.bluePale : C.white }}
-                          onPress={() => toggleServiceType(tp)}
-                        >
-                          <T style={{ fontSize: 16, color: sel ? C.blue : C.blueBorder }}>{sel ? '☑' : '☐'}</T>
-                          <T style={{ flex: 1, fontSize: 14, fontWeight: '700', color: sel ? C.blue : C.textDark, textAlign: 'right' }}>
-                            {TYPE_ICONS[tp] || ''} {t.types[tp] || tp}
-                            {cleaner.servicePricing?.[tp] ? ` · ₪${cleaner.servicePricing[tp]}` : ''}
-                          </T>
-                        </TouchableOpacity>
-                        <View style={{ paddingHorizontal: 8 }}><ServiceInfoBtn serviceKey={tp} /></View>
-                      </View>
-                      );
-                    })}
-                  </View>
-                )}
-                {serviceTypes.length > 0 && (
-                  <T style={{ fontSize: 11, color: C.textSub }}>{t.priceRangeLabel}: ₪{effectivePrice}{t.perHour}</T>
-                )}
-                {serviceTypes.filter(st => SERVICE_DESCRIPTIONS[st]).map(st => (
-                  <View key={st} style={{ backgroundColor: C.bluePale, borderRadius: 12, padding: 12, gap: 4, borderWidth: 1, borderColor: C.blueBorder, marginTop: 4 }}>
-                    <T style={{ fontSize: 12, fontWeight: '800', color: C.textDark, marginBottom: 4 }}>{TYPE_ICONS[st] || ''} {t.types[st] || st} — {t.serviceIncludesTitle}</T>
-                    {SERVICE_DESCRIPTIONS[st].map((line, i) => (
-                      <T key={i} style={{ fontSize: 12, color: C.textDark, lineHeight: 20 }}>{line}</T>
-                    ))}
-                  </View>
-                ))}
-              </>
-            )}
-
-            {/* Hours */}
-            <T style={s.fieldLabel}>{t.hoursLabel}</T>
-            <HoursWheelPicker value={hours} onChange={setHours} values={[1,2,3,4,5,6,7,8,9,10,11,12]} />
-
-            {/* Address */}
+            {/* כתובת */}
             <T style={s.fieldLabel}>{t.addressLabel}</T>
             {!addrEditMode && (addrCity || addrStreet) ? (
-              <View style={{ backgroundColor: C.bluePale, borderRadius: 12, padding: 14, borderWidth: 1, borderColor: C.blueBorder, marginBottom: 10 }}>
-                <T style={{ fontSize: 12, color: C.textSub, marginBottom: 4, textAlign: 'right' }}>{t.fullAddrLabel}</T>
-                <T style={{ fontSize: 14, fontWeight: '800', color: C.textDark, textAlign: 'right' }}>📍 {buildFullAddress(addrCity, addrStreet, addrFloor, addrApt, addrPrivate)}</T>
-                <TouchableOpacity onPress={() => setAddrEditMode(true)} style={{ marginTop: 10, alignSelf: 'flex-start', backgroundColor: C.white, borderRadius: 10, paddingHorizontal: 14, paddingVertical: 8, borderWidth: 1.5, borderColor: C.blue }}>
-                  <T style={{ fontSize: 13, fontWeight: '800', color: C.blue }}>{t.changeAddressBtn}</T>
-                </TouchableOpacity>
-              </View>
+              /* The address as one field, as on the site; a tap opens its parts. */
+              <TouchableOpacity accessibilityRole="button" accessibilityHint={t.changeAddressBtn} onPress={() => setAddrEditMode(true)}
+                style={{ minHeight: 50, flexDirection: 'row-reverse', alignItems: 'center', gap: 8, backgroundColor: C.white, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 10, borderWidth: 1.5, borderColor: C.blueBorder }}>
+                <T style={{ flex: 1, fontSize: 14, fontWeight: '700', color: C.textDark, textAlign: 'right' }}>{buildFullAddress(addrCity, addrStreet, addrFloor, addrApt, addrPrivate)}</T>
+                <T style={{ fontSize: 13, fontWeight: '800', color: C.blue }}>✏️</T>
+              </TouchableOpacity>
             ) : (<>
-            <AddressPicker selectedId={selectedAddrId} onSelect={fillFromSaved} savedAddresses={savedAddresses} />
+            {savedAddresses.length > 0 && (
+              <View style={{ flexDirection: 'row-reverse', flexWrap: 'wrap', gap: 8, marginBottom: 8 }}>
+                {savedAddresses.map(a => (
+                  <TouchableOpacity key={a.id} accessibilityRole="button" onPress={() => fillFromSaved(a)} style={pill(selectedAddrId === a.id)}>
+                    <T numberOfLines={1} style={pillText(selectedAddrId === a.id)}>📍 {a.address}</T>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            )}
 
             {/* שדות כתובת מובנים */}
             <View style={{ gap: 8 }}>
@@ -3579,41 +3529,70 @@ function BookingModal({ cleaner, visible, onClose, onBookingCreated, prebookData
             </View>
             </>)}
 
-            {/* Payment */}
-            <T style={s.fieldLabel}>{t.paymentMethodLabel}</T>
-            <View style={s.payRow}>
-              {(cleaner.payment || []).map((p: string) => {
-                const PAY_LABEL: Record<string,string> = {
-                  cash: t.payCash, bit: t.payBit, paybox: 'PayBox', bank: 'בנקאי', card: 'כרטיס'
-                };
-                return (
-                  <TouchableOpacity key={p} style={[s.payBtn, payment === p && s.payBtnActive]} onPress={() => setPayment(p)}>
-                    {p === 'paybox'
-                      ? <View style={{ height: 22, justifyContent: 'center' }}><PayboxIcon size={20} /></View>
-                      : <T style={s.payIcon}>{PAY_ICONS[p] || '💳'}</T>}
-                    <T
-                      style={[s.payLabel, payment === p && { color: C.blue }]}
-                      numberOfLines={2}
-                      adjustsFontSizeToFit
-                      minimumFontScale={0.75}
-                    >
-                      {PAY_LABEL[p] || p}
-                    </T>
+
+            {/* תדירות */}
+            <View style={{ gap: 8 }}>
+              <T style={sectionLabel}>🔁 {t.recurringLabel}</T>
+              <View style={{ flexDirection: 'row-reverse', flexWrap: 'wrap', gap: 8, justifyContent: 'center' }}>
+                {(['once', 'weekly', 'monthly'] as const).map(opt => (
+                  <TouchableOpacity key={opt} accessibilityRole="button" accessibilityState={{ selected: recurring === opt }} onPress={() => setRecurring(opt)} style={pill(recurring === opt)}>
+                    <T style={pillText(recurring === opt)}>{opt === 'once' ? t.recurOnce : opt === 'weekly' ? t.recurWeekly : t.recurMonthly}</T>
                   </TouchableOpacity>
-                );
-              })}
+                ))}
+              </View>
+              {recurring !== 'once' && (
+                <MultiCalendarPicker
+                  selected={recurringDates}
+                  onChange={setRecurringDates}
+                  label={recurring === 'weekly' ? (t.recurWeekly || 'שבועי') : (t.recurMonthly || 'חודשי')}
+                />
+              )}
             </View>
-            <T style={{ fontSize: 12, color: '#EF4444', fontWeight: '700', marginTop: 6, textAlign: 'center', lineHeight: 17 }}>{t.paymentDirectNote}</T>
 
-            {/* Summary */}
-            <View style={s.summaryCard}>
-              <T style={s.summaryLabel}>{t.totalLabel}</T>
-              <T style={s.summaryTotal}>₪{total}</T>
+            {/* אמצעי תשלום */}
+            <View style={{ gap: 8 }}>
+              <T style={sectionLabel}>{t.paymentMethodLabel}</T>
+              <View style={{ flexDirection: 'row-reverse', flexWrap: 'wrap', gap: 8, justifyContent: 'center' }}>
+                {(cleaner.payment || []).map((p: string) => {
+                  const PAY_LABEL: Record<string,string> = {
+                    cash: t.payCash, bit: t.payBit, paybox: 'PayBox', bank: 'בנקאי', card: 'כרטיס'
+                  };
+                  return (
+                    <TouchableOpacity key={p} accessibilityRole="button" accessibilityState={{ selected: payment === p }} onPress={() => setPayment(p)} style={[pill(payment === p), { flexDirection: 'row-reverse', alignItems: 'center', gap: 6 }]}>
+                      {p === 'paybox' ? <PayboxIcon size={16} /> : <T style={{ fontSize: 14 }}>{PAY_ICONS[p] || '💳'}</T>}
+                      <T style={pillText(payment === p)}>{PAY_LABEL[p] || p}</T>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+              <T style={{ fontSize: 12, color: C.textSub, textAlign: 'center', lineHeight: 17 }}>{t.paymentDirectNote}</T>
             </View>
 
-            <TouchableOpacity style={[s.confirmBtn, saving && { opacity: 0.7 }]} onPress={handleBook} disabled={saving}>
-              <T style={s.confirmBtnText}>{saving ? t.savingText : `✅ ${t.confirmBtnText} · ₪${total}`}</T>
-            </TouchableOpacity>
+            {/* סיכום */}
+            <View style={{ backgroundColor: C.blueLight, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 12, gap: 6 }}>
+              <View style={{ flexDirection: 'row-reverse', justifyContent: 'space-between' }}>
+                <T style={{ fontSize: 14, color: C.textDark }}>₪{effectivePrice} × {hours} {(t as any).hoursShort ?? 'שעות'}</T>
+                <T style={{ fontSize: 14, color: C.textDark }}>₪{total}</T>
+              </View>
+              <View style={{ flexDirection: 'row-reverse', justifyContent: 'space-between' }}>
+                <T style={{ fontSize: 14, color: C.textDark }}>{(t as any).serviceFeeLabel ?? 'דמי שירות'}</T>
+                <T style={{ fontSize: 14, color: C.textDark }}>₪0</T>
+              </View>
+              <View style={{ flexDirection: 'row-reverse', justifyContent: 'space-between', borderTopWidth: 1, borderStyle: 'dashed', borderTopColor: C.blueBorder, paddingTop: 8, marginTop: 2 }}>
+                <T style={{ fontSize: 16, fontWeight: '900', color: C.blue }}>{(t as any).totalSummaryLabel ?? 'סה״כ'}</T>
+                <T style={{ fontSize: 16, fontWeight: '900', color: C.blue }}>₪{total}</T>
+              </View>
+            </View>
+
+            {/* אשר הזמנה / ביטול — זה לצד זה */}
+            <View style={{ flexDirection: 'row-reverse', gap: 10 }}>
+              <TouchableOpacity accessibilityRole="button" style={{ flex: 1, minHeight: 52, borderRadius: 14, alignItems: 'center', justifyContent: 'center', backgroundColor: C.blue, opacity: saving ? 0.7 : 1 }} onPress={handleBook} disabled={saving}>
+                <T style={{ fontSize: 16, fontWeight: '900', color: C.white }}>{saving ? t.savingText : t.confirmBtnText}</T>
+              </TouchableOpacity>
+              <TouchableOpacity accessibilityRole="button" style={{ flex: 1, minHeight: 52, borderRadius: 14, alignItems: 'center', justifyContent: 'center', backgroundColor: C.white, borderWidth: 1.5, borderColor: C.blue }} onPress={handleClose} disabled={saving}>
+                <T style={{ fontSize: 16, fontWeight: '800', color: C.blue }}>{t.cancel}</T>
+              </TouchableOpacity>
+            </View>
           </ScrollView>
         </KeyboardAvoidingView>
       </SafeAreaView>
