@@ -1,5 +1,6 @@
 import React from 'react';
-import { ActivityIndicator, Alert, Platform, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Alert, Modal, Platform, TouchableOpacity, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Image } from 'expo-image';
 import * as ImagePicker from 'expo-image-picker';
 import * as ImageManipulator from 'expo-image-manipulator';
@@ -31,7 +32,7 @@ export function jobPhotosOf(photos: unknown): string[] {
     .slice(0, JOB_PHOTOS_MAX);
 }
 
-type Source = 'camera' | 'library';
+export type Source = 'camera' | 'library';
 
 function askSource(t: any): Promise<Source | null> {
   return new Promise(resolve => {
@@ -53,13 +54,13 @@ function askSource(t: any): Promise<Source | null> {
  * One photo, taken or picked, as a compressed JPEG data URL — or null when the
  * user cancelled or it could not be read (after saying so).
  */
-export async function pickJobPhoto(t: any): Promise<string | null> {
-  const source = await askSource(t);
+export async function pickJobPhoto(t: any, chosen?: Source): Promise<string | null> {
+  const source = chosen ?? await askSource(t);
   if (!source) return null;
   // iOS: the question above is still sliding away when its button answers, and
   // a camera or gallery presented at that moment — from inside the form's own
   // sheet — can be dropped without a word. A beat lets it finish.
-  if (Platform.OS === 'ios') await new Promise(resolve => setTimeout(resolve, 350));
+  if (Platform.OS === 'ios') await new Promise(resolve => setTimeout(resolve, 400));
   const perm = source === 'camera'
     ? await ImagePicker.requestCameraPermissionsAsync()
     : await ImagePicker.requestMediaLibraryPermissionsAsync();
@@ -109,16 +110,24 @@ export function JobPhotosField({ photos, onChange, onBusy }: {
 }) {
   const { t } = useLanguage();
   const C = useAppColors();
+  const insets = useSafeAreaInsets();
   const [busy, setBusy] = React.useState(false);
-  const add = async () => {
+  // "מצלמה או גלריה" in a sheet from the bottom, as on the website — not the
+  // system's alert. Inside the form's own modal, so it opens over it.
+  const [asking, setAsking] = React.useState(false);
+  const add = () => {
     if (busy) return;
     if (photos.length >= JOB_PHOTOS_MAX) {
       Alert.alert('', (t as any).jobPhotosMax ?? 'אפשר לצרף עד 3 תמונות');
       return;
     }
+    setAsking(true);
+  };
+  const choose = async (source: Source) => {
+    setAsking(false);
     setBusy(true); onBusy?.(true);
     try {
-      const uri = await pickJobPhoto(t);
+      const uri = await pickJobPhoto(t, source);
       if (uri) onChange(prev => [...prev, uri].slice(0, JOB_PHOTOS_MAX));
     } finally {
       setBusy(false); onBusy?.(false);
@@ -159,6 +168,23 @@ export function JobPhotosField({ photos, onChange, onBusy }: {
           )}
         </TouchableOpacity>
       )}
+      <Modal visible={asking} transparent animationType="slide" onRequestClose={() => setAsking(false)}>
+        <View style={{ flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(0,0,0,0.45)' }}>
+          <TouchableOpacity accessibilityRole="button" accessibilityLabel={t.cancel ?? 'ביטול'} activeOpacity={1} style={{ flex: 1 }} onPress={() => setAsking(false)} />
+          <View style={{ backgroundColor: C.white, borderTopLeftRadius: 20, borderTopRightRadius: 20, paddingHorizontal: 16, paddingTop: 18, paddingBottom: insets.bottom + 14, gap: 10 }}>
+            <T style={{ fontSize: 16, fontWeight: '800', color: C.textDark, textAlign: 'center', marginBottom: 4 }}>{(t as any).jobPhotoSourceTitle ?? '📷 הוספת תמונה'}</T>
+            <TouchableOpacity accessibilityRole="button" onPress={() => choose('camera')} style={{ minHeight: 50, borderRadius: 14, backgroundColor: C.blue, alignItems: 'center', justifyContent: 'center' }}>
+              <T style={{ fontSize: 16, fontWeight: '800', color: C.white }}>{(t as any).cameraOption ?? '📷 מצלמה'}</T>
+            </TouchableOpacity>
+            <TouchableOpacity accessibilityRole="button" onPress={() => choose('library')} style={{ minHeight: 50, borderRadius: 14, borderWidth: 1.5, borderColor: C.blue, backgroundColor: C.white, alignItems: 'center', justifyContent: 'center' }}>
+              <T style={{ fontSize: 16, fontWeight: '800', color: C.blue }}>{(t as any).galleryOption ?? '🖼️ גלריה'}</T>
+            </TouchableOpacity>
+            <TouchableOpacity accessibilityRole="button" onPress={() => setAsking(false)} style={{ paddingVertical: 10, alignItems: 'center' }}>
+              <T style={{ fontSize: 15, fontWeight: '700', color: C.textSub }}>{t.cancel ?? 'ביטול'}</T>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
