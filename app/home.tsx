@@ -703,7 +703,7 @@ function ModalBackHandler({ onBack }: { onBack: () => void }) {
 // ─── Drawer ──────────────────────────────────────────────────────────────────
 const PANEL_W = 270;
 
-function DrawerMenu({ visible, onClose, onProfile, onLogout, onMessages, onReport, onSupport, onActiveBookings, onHistory, onAccessibility }: any) {
+function DrawerMenu({ visible, onClose, onProfile, onLogout, onMessages, onReport, onSupport, onActiveBookings, onAccessibility }: any) {
   const { t, lang, setLang, flipSide, setFlipSide } = useLanguage();
   const C = useAppColors();
   const s = createS(C);
@@ -811,16 +811,8 @@ function DrawerMenu({ visible, onClose, onProfile, onLogout, onMessages, onRepor
             <T style={ds.itemArrow}>‹</T>
           </TouchableOpacity>
 
-          <TouchableOpacity
-            style={ds.item}
-            onPress={() => { onClose(); onHistory(); }}
-            accessibilityRole="button"
-            accessibilityLabel={t.historyTitle}
-          >
-            <T style={ds.itemIcon}>📋</T>
-            <T style={[ds.itemText, { flex: 1 }]}>{t.historyTitle}</T>
-            <T style={ds.itemArrow}>‹</T>
-          </TouchableOpacity>
+          {/* בלי "היסטוריית הזמנות" נפרד: ההיסטוריה היא לשונית בחלון ההזמנות
+              הפעילות, נגיעה אחת מהפריט שמעל. */}
 
           <TouchableOpacity
             style={ds.item}
@@ -7406,7 +7398,6 @@ export default function HomeScreen() {
         onClose={() => setDrawer(false)}
         onProfile={() => router.push('/profile')}
         onActiveBookings={() => router.push({ pathname: '/profile', params: { section: 'active' } })}
-        onHistory={() => router.push({ pathname: '/profile', params: { section: 'history' } })}
         onLogout={handleLogout}
         onMessages={() => router.push('/messages')}
         onReport={() => { setDrawer(false); setReportOpen(true); }}
