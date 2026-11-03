@@ -1048,7 +1048,7 @@ function CleanerTraitsSection({ cleaner, s, t }: any) {
 }
 
 function CleanerProfile({ cleaner, visible, onClose, onBook, onChat, initialShowReviews, onOpenPhotos }: any) {
-  const { t } = useLanguage();
+  const { t, isRTL } = useLanguage();
   const C = useAppColors();
   const s = createS(C);
   const insets = useSafeAreaInsets();
@@ -1188,7 +1188,9 @@ function CleanerProfile({ cleaner, visible, onClose, onBook, onChat, initialShow
               {cleaner.types.map((tp: string) => {
                 const svcPrice = cleaner.servicePricing?.[tp] ?? cleaner.price;
                 return (
-                  <View key={tp} style={{ flexDirection: 'row', alignItems: 'center', gap: 8, alignSelf: 'stretch' }}>
+                  // השירות בתחילת השורה והמחיר בסופה: מימין לשמאל בעברית ובערבית. האפליקציה
+                  // לא מפעילה forceRTL, ושורה רגילה שמה את המחיר מימין.
+                  <View key={tp} style={{ flexDirection: isRTL ? 'row-reverse' : 'row', alignItems: 'center', gap: 8, alignSelf: 'stretch' }}>
                     <View style={{ flex: 1 }}>
                       <ServiceInfoBtn
                         serviceKey={tp}
