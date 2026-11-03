@@ -524,7 +524,6 @@ export default function ProfileScreen() {
   const [portfolio,    setPortfolio]    = useState<string[]>([]);
   const [idVerified,   setIdVerified]   = useState(false);
   const [idSubmitted,  setIdSubmitted]  = useState(false);
-  const [prefLang,     setPrefLang]     = useState('he');
   const [userPhone,    setUserPhone]    = useState('');
   // null = עוד לא ידוע. היה useState(true), כלומר "יש טוקן" נוחש לפני
   // שהמסמך הגיע — ואם הקריאה נכשלה הכפתור נשאר ירוק וכתוב עליו "כבה"
@@ -1220,7 +1219,6 @@ export default function ProfileScreen() {
           fetchPortfolio(uid, d.portfolio).then(setPortfolio).catch(() => {});
           setIdVerified(d.identityVerified === true);
           setIdSubmitted(!!d.idSubmittedAt);
-          setPrefLang((d.preferredLang || 'he') as Lang);
           setUserPhone(d.phone || '');
           let code = d.referralCode || '';
           if (!code) {
@@ -2716,46 +2714,6 @@ export default function ProfileScreen() {
     </View>
   );
 
-  /** The preferred-language grid. There were two copies, and only one had the
-   *  Devanagari font: in the other, Hindi came out with its top cut off. */
-  const renderLangGrid = (marginTop: number) => (
-    <View style={{ flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', rowGap: 10, marginTop }}>
-      {[
-        { key: 'he', label: 'עברית',    flag: '🇮🇱' },
-        { key: 'en', label: 'English',  flag: '🇬🇧' },
-        { key: 'ru', label: 'Русский',  flag: '🇷🇺' },
-        { key: 'ar', label: 'العربية',  flag: '🇸🇦' },
-        { key: 'fr', label: 'Français', flag: '🇫🇷' },
-        { key: 'hi', label: 'हिन्दी',  flag: '🇮🇳' },
-        { key: 'uk', label: 'Українська', flag: '🇺🇦' },
-      ].map(l => (
-        <TouchableOpacity
-          key={l.key}
-          style={[s.langBtn, prefLang === l.key && s.langBtnActive]}
-          onPress={async () => {
-            setPrefLang(l.key);
-            setLang(l.key as Lang);
-            await setDoc(doc(db, 'users', uid), { preferredLang: l.key }, { merge: true });
-          }}
-        >
-          {/* הדגל והשם בנפרד, בשורה אחת. יחד, בגופן הדוואנגרי, ההינדית ירדה
-              לשורה שנייה ונחתכה בתחתית הכפתור — נראה רק הדגל. */}
-          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 4, maxWidth: '100%', paddingHorizontal: 4 }}>
-            <T style={s.langBtnText}>{l.flag}</T>
-            <T
-              numberOfLines={1}
-              adjustsFontSizeToFit
-              minimumFontScale={0.75}
-              style={[s.langBtnText, { flexShrink: 1 }, prefLang === l.key && s.langBtnTextActive, l.key === 'hi' && s.langBtnTextHi]}
-            >
-              {l.label}
-            </T>
-          </View>
-        </TouchableOpacity>
-      ))}
-    </View>
-  );
-
   // row-reverse in Hebrew and Arabic: the app never calls forceRTL, so a plain row
   // would put the first button on the physical left.
   const cardActions = [s.cardActions, { flexDirection: isRTL ? 'row-reverse' : 'row' } as const];
@@ -4008,13 +3966,7 @@ export default function ProfileScreen() {
             </View>
           )}
 
-          {/* שפה מועדפת (לקוח) */}
-          {!isCleaner && (
-            <View style={s.section}>
-              <T style={[s.sectionTitle, { textAlign: 'center' }]}>🌐 {t.drawerLanguage}</T>
-              {renderLangGrid(10)}
-            </View>
-          )}
+          {/* שפת האפליקציה נבחרת מהתפריט הצדדי, לא כאן. */}
 
           {/* ── הכתובות שלי (לקוח) ── */}
           {!isCleaner && (
