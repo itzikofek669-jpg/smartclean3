@@ -47,6 +47,7 @@ import * as FileSystem from 'expo-file-system/legacy';
 import { useAudioRecorder, createAudioPlayer, RecordingPresets, setAudioModeAsync, AudioModule } from 'expo-audio';
 import { useLanguage, T, useAppColors, AppColors } from '../lib/LanguageContext';
 import { bookingTabs, unansweredPast } from '../lib/bookingTabs';
+import { formatJobDate } from '../lib/jobUtils';
 import BackIcon from '../lib/BackIcon';
 import ServiceInfoBtn from '../lib/ServiceInfoBtn';
 import { Lang } from '../lib/translations';
@@ -2765,7 +2766,8 @@ export default function ProfileScreen() {
     </TouchableOpacity>
   );
 
-  const renderBookingCard = (b: any, forCleaner = false) => {
+  // compact: the client's history — the website's card, without the cleaning's details.
+  const renderBookingCard = (b: any, forCleaner = false, compact = false) => {
     const alreadyRated = forCleaner ? !!b.clientRating : !!b.cleanerRating;
     const isDone   = b.status === 'done';
     const isActive = b.status === 'active';
@@ -2792,8 +2794,37 @@ export default function ProfileScreen() {
     const total = isDone && b.actualTotal != null ? b.actualTotal : b.total;
 
     return (
-      <View key={b.id} style={[s.bookingCard, { borderLeftWidth: 4, borderLeftColor: statusBorderColor, borderRadius: 16, padding: 0, overflow: 'hidden' }]}>
+      <View key={b.id} style={[s.bookingCard, compact
+        ? { borderRadius: 16, padding: 0, overflow: 'hidden' }
+        : { borderLeftWidth: 4, borderLeftColor: statusBorderColor, borderRadius: 16, padding: 0, overflow: 'hidden' }]}>
 
+        {compact ? (() => {
+          // ההיסטוריה של הלקוח — הכרטיס של האתר: סוג הניקיון ועם מי, הסטטוס, היום
+          // והשעה, הכתובת והמחיר. בלי פירוט הניקיון.
+          const row = isRTL ? 'row-reverse' as const : 'row' as const;
+          const align = isRTL ? 'right' as const : 'left' as const;
+          const keys = Array.isArray(b.serviceTypes) && b.serviceTypes.length ? b.serviceTypes : String(b.serviceType || '').split(' + ').filter(Boolean);
+          const st = overdue ? 'expired' : b.status;
+          return (
+            <View style={{ padding: 14, gap: 8 }}>
+              <View style={{ flexDirection: row, alignItems: 'flex-start', justifyContent: 'space-between', gap: 8 }}>
+                <View style={{ flexDirection: row, alignItems: 'center', gap: 8, flex: 1 }}>
+                  <T style={{ fontSize: 22 }}>{SERVICE_ICONS[keys[0]] || '🧽'}</T>
+                  <View style={{ flex: 1 }}>
+                    <T style={{ fontSize: 15, fontWeight: '800', color: C.textDark, textAlign: align }}>{keys.map((k: string) => t.types[k] || k).join(', ') || '—'}</T>
+                    <T style={{ fontSize: 12, color: C.textSub, textAlign: align }}>{(t as any).withCleanerLabel ?? 'עם'} {b.cleanerName || '—'}</T>
+                  </View>
+                </View>
+                <View style={getStatusStyle(st)}><T style={getStatusTextStyle(st)}>{getStatusLabel(st)}</T></View>
+              </View>
+              <T style={{ fontSize: 13, color: C.textSub, textAlign: align, writingDirection: isRTL ? 'rtl' : 'ltr' }}>
+                📅 {b.bookingDate ? formatJobDate(String(b.bookingDate)) : '—'} {(t as any).atHour ?? 'בשעה'} {b.startTime || '--:--'}   ⏱ {hours} {t.hoursUnit}
+              </T>
+              {b.address ? <T style={{ fontSize: 13, color: C.textSub, textAlign: align, writingDirection: isRTL ? 'rtl' : 'ltr' }}>📍 {b.address}</T> : null}
+              <T style={{ fontSize: 15, fontWeight: '800', color: C.textDark, textAlign: align }}>₪{total}</T>
+            </View>
+          );
+        })() : (<>
         {/* ── שורה עליונה: שם + מחיר ── */}
         <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 14, paddingTop: 14, paddingBottom: 8 }}>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, flex: 1 }}>
@@ -2920,12 +2951,13 @@ export default function ProfileScreen() {
             </View>
           )}
         </View>
+        </>)}
 
         {/* לכרטיס אין padding משלו, ובלי הבלוק הזה הכפתורים נמתחו מקצה לקצה */}
         <View style={{ paddingHorizontal: 14, paddingBottom: 12, gap: 10 }}>
 
           {/* Start / End time row */}
-          {hasTimes && (
+          {hasTimes && !compact && (
             <View style={s.timesRow}>
               {b.startedAt && (
                 <View style={s.timeChip}>
@@ -3705,7 +3737,7 @@ export default function ProfileScreen() {
                     </TouchableOpacity>
                   ))
                 ) : (
-                  showing.map(b => renderBookingCard(b, isCleaner))
+                  showing.map(b => renderBookingCard(b, isCleaner, !isCleaner && bookingsTab === 'history'))
                 )}
               </View>
             );
