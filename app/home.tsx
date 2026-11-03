@@ -6833,7 +6833,7 @@ export default function HomeScreen() {
           </View>
         )}
         <View style={s.header}>
-          <View style={[s.headerLogoRow, flipSide && { flexDirection: 'row-reverse' }]}>
+          <View style={[s.headerLogoRow, { gap: 6 }, flipSide && { flexDirection: 'row-reverse' }]}>
             {/* כפתורי אמצע (הנגישות עברה לתפריט הצד).
                 פעם זו הייתה גלילה אופקית, כדי שהכפתורים לא ידחפו את ההמבורגר
                 מהמסך. באייפון השורה הייתה רחבה מהמסך, ו"ניקיון בזמן שלך" נחתך
@@ -6876,14 +6876,15 @@ export default function HomeScreen() {
               {/* סגול זהה לאתר ולמסך המנקה — "דחוף" צריך להיות אותו צבע בכל
                   האפליקציה, לא אדום בצד הלקוח וסגול בצד המנקה. */}
               {myRole === 'client' && (
-                <TouchableOpacity onPress={() => setUrgentOpen(true)} activeOpacity={0.85} style={{ flexShrink: 1, borderRadius: 12, overflow: 'hidden', shadowColor: '#7C3AED', shadowOpacity: 0.4, shadowRadius: 8, shadowOffset: { width: 0, height: 3 }, elevation: 4 }}>
-                  <LinearGradient colors={['#8B5CF6', '#7C3AED']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={s.urgentHeaderBtn}>
+                <TouchableOpacity onPress={() => setUrgentOpen(true)} activeOpacity={0.85} style={{ flex: 1, alignSelf: 'stretch', borderRadius: 12, overflow: 'hidden', shadowColor: '#7C3AED', shadowOpacity: 0.4, shadowRadius: 8, shadowOffset: { width: 0, height: 3 }, elevation: 4 }}>
+                  {/* השניים הארוכים מתרחבים וממלאים את השורה: בלי רווח ריק לפני התפריט */}
+                  <LinearGradient colors={['#8B5CF6', '#7C3AED']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={[s.urgentHeaderBtn, { flex: 1 }]}>
                     <T style={[s.urgentHeaderBtnText, s.headerBtnLabel]} numberOfLines={2} maxFontSizeMultiplier={1.2}>{stripEmoji(t.urgentBtn)}</T>
                   </LinearGradient>
                 </TouchableOpacity>
               )}
               {myRole === 'client' && (
-                <TouchableOpacity onPress={openNewPostJob} activeOpacity={0.85} style={[s.urgentHeaderBtn, { backgroundColor: C.blue, flexShrink: 1 }]}>
+                <TouchableOpacity onPress={openNewPostJob} activeOpacity={0.85} style={[s.urgentHeaderBtn, { backgroundColor: C.blue, flex: 1, alignSelf: 'stretch' }]}>
                   <T style={[s.urgentHeaderBtnText, s.headerBtnLabel]} numberOfLines={2} maxFontSizeMultiplier={1.2}>{stripEmoji((t as any).postJobHomeBtn ?? 'ניקיון בזמן שלך')}</T>
                 </TouchableOpacity>
               )}
@@ -6911,7 +6912,7 @@ export default function HomeScreen() {
             {/* כפתור תפריט — צד ימין. flexShrink:0 כדי שלעולם לא ייחתך/ייעלם. */}
             <TouchableOpacity
               onPress={() => setDrawer(true)}
-              style={[s.hamburgerBtn, { flexShrink: 0, marginHorizontal: 6 }]}
+              style={[s.hamburgerBtn, { flexShrink: 0 }]}
               accessibilityRole="button"
               accessibilityLabel="פתח תפריט"
               accessibilityHint="פותח תפריט ניווט"
