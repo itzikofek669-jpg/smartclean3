@@ -1770,3 +1770,22 @@ test('the send button says so in every language', () => {
     }
   }
 });
+
+test('a job nobody took before its hour is over for the client, not active and not editable', async () => {
+  const { bookingTabs, unansweredPast } = await import('../.tsbuild/bookingTabs.mjs');
+  const now = new Date(2026, 10, 3, 11, 6);                    // 3 Nov 2026, 11:06 — the screenshot
+  const job = (startTime, status, extra = {}) => ({ bookingDate: '2026-11-03', startTime, hours: 2, status, ...extra });
+  // The screenshot: posted for 08:30 today, nobody took it.
+  assert.equal(unansweredPast(job('08:30', 'pending', { open: true }), now), true);
+  // Still ahead today, or agreed with a cleaner: not over.
+  assert.equal(unansweredPast(job('13:00', 'pending'), now), false);
+  assert.equal(unansweredPast(job('08:30', 'confirmed'), now), false);
+  // A time that cannot be read is not assumed gone.
+  assert.equal(unansweredPast({ bookingDate: '2026-11-03', startTime: '', status: 'pending' }, now), false);
+  // The client's tabs: it leaves "active" for "history" now, not at midnight.
+  const list = [job('08:30', 'pending', { id: 'gone' }), job('13:00', 'pending', { id: 'ahead' }), job('08:30', 'confirmed', { id: 'agreed' })];
+  const dayPassed = () => false;
+  const { active, history } = bookingTabs(list, (b) => dayPassed(b) || unansweredPast(b, now), false);
+  assert.deepEqual(active.map((b) => b.id).sort(), ['agreed', 'ahead']);
+  assert.deepEqual(history.map((b) => b.id), ['gone']);
+});

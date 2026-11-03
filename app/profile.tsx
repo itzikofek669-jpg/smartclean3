@@ -46,7 +46,7 @@ import * as FileSystem from 'expo-file-system/legacy';
 // expo-audio — הקלטה והשמעה של הודעות קוליות (SDK 54, מחליף את expo-av)
 import { useAudioRecorder, createAudioPlayer, RecordingPresets, setAudioModeAsync, AudioModule } from 'expo-audio';
 import { useLanguage, T, useAppColors, AppColors } from '../lib/LanguageContext';
-import { bookingTabs } from '../lib/bookingTabs';
+import { bookingTabs, unansweredPast } from '../lib/bookingTabs';
 import BackIcon from '../lib/BackIcon';
 import ServiceInfoBtn from '../lib/ServiceInfoBtn';
 import { Lang } from '../lib/translations';
@@ -2784,6 +2784,9 @@ export default function ProfileScreen() {
     // אבל היא לא יכולה להיתקע: מנקה ששכחה ללחוץ עדיין מסיימת אותה, ומה שלא קרה
     // היא מבטלת. "סיום" בלי "התחל" מחייב לפי השעות שסוכמו (handleEndCleaning).
     const pastDay = isPastBooking(b);
+    // הלקוח: אף אחד לא לקח או אישר עד השעה שנקבעה — היא נגמרה, לא "ממתינה".
+    // אין עריכה, והתווית "פג תוקף" (lib/bookingSlot, כמו באתר).
+    const overdue = !forCleaner && unansweredPast(b);
     const unclosedPastJob = pastDay && (b.status === 'confirmed' || b.status === 'onway');
     const hours = isDone && b.actualHours != null ? b.actualHours : b.hours;
     const total = isDone && b.actualTotal != null ? b.actualTotal : b.total;
@@ -2846,8 +2849,8 @@ export default function ProfileScreen() {
             <View style={s.detailPill}>
               <T style={s.detailPillText}>{PAY_ICONS[b.payment] || '💳'} {b.payment === 'bit' ? t.payBit : b.payment === 'cash' ? t.payCash : b.payment === 'paybox' ? t.payPaybox : b.payment === 'bank' ? t.payBank : b.payment === 'card' ? t.payCard : b.payment}</T>
             </View>
-            <View style={getStatusStyle(b.status)}>
-              <T style={getStatusTextStyle(b.status)}>{getStatusLabel(b.status)}</T>
+            <View style={getStatusStyle(overdue ? 'expired' : b.status)}>
+              <T style={getStatusTextStyle(overdue ? 'expired' : b.status)}>{getStatusLabel(overdue ? 'expired' : b.status)}</T>
             </View>
             {b.recurring === 'weekly'  && <T style={s.recurBadge}>{t.recurBadgeWeekly}</T>}
             {b.recurring === 'monthly' && <T style={s.recurBadge}>{t.recurBadgeMonthly}</T>}
@@ -3014,7 +3017,7 @@ export default function ProfileScreen() {
 
             {/* Edit — the client's own job on the board, while nobody has taken it.
                 Opens "ניקיון בזמן שלך" with its details (home.tsx, editJobId). */}
-            {!forCleaner && b.open === true && !b.cleanerId && b.status === 'pending' && cardBtn(
+            {!forCleaner && b.open === true && !b.cleanerId && b.status === 'pending' && !overdue && cardBtn(
               `✏️ ${(t as any).editJobBtn ?? 'עריכת המודעה'}`,
               () => router.replace({ pathname: '/home', params: { editJobId: b.id } }),
               s.cardBtnOutline, s.cardBtnOutlineText,
@@ -3647,7 +3650,8 @@ export default function ProfileScreen() {
           {/* ── הזמנות: פעילות / היסטוריה, בשתי לשוניות כמו באתר ──────────────
               המספרים מחכים לתשובה מהשרת: לפניה הרשימה ריקה, ו-(0) היה ניחוש. */}
           {(() => {
-            const { active, history } = bookingTabs(isCleaner ? incomingBks : bookings, isPastBooking, isCleaner);
+            // מה שאף אחד לא לקח עד השעה שלו עובר להיסטוריה מיד, לא בחצות.
+            const { active, history } = bookingTabs(isCleaner ? incomingBks : bookings, (b: any) => isPastBooking(b) || (!isCleaner && unansweredPast(b)), isCleaner);
             const state = isCleaner ? cleanerBksState : clientBksState;
             const showing = bookingsTab === 'active' ? active : history;
             const tabs = [

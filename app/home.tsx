@@ -60,6 +60,7 @@ import {
 import { compareCleaners, compareJobs, isAvailableNow, rotationRank } from '../lib/displayOrder';
 import { isUrgentRequestLive, URGENT_FIRST_START_HOUR, URGENT_LAST_START_HOUR, urgentStartAllowed, urgentTodayClosed, urgentFirstSlot, hourOfTime, urgentEditContext, urgentPushPlan, urgentAlertedAfter, liveUrgentEdit, urgentAlertOutcome, expiryOf, slotOf, urgentBackOut, UrgentEditContext } from '../lib/urgentRequest';
 import { sameDayOverlap, bookingHoldsHours } from '../lib/bookingSlot';
+import { unansweredPast } from '../lib/bookingTabs';
 import { claimUpdate, occupiesCleanerTime, pendingSlotMissed, pendingSlotExpired, expiryUpdate, rejectionUpdate, isBoardJobOfferable, busySlotOf, declinedByCleaner } from '../lib/bookingActions';
 import { resolveRole } from '../lib/resolveRole';
 import { MAP_STYLE_LIGHT, MAP_STYLE_DARK } from '../lib/mapStyle';
@@ -4522,6 +4523,11 @@ export default function HomeScreen() {
       if (!snap.exists() || d?.clientUid !== auth.currentUser?.uid) return;
       if (d?.cleanerId || d?.open !== true || d?.status !== 'pending') {
         Alert.alert('', (t as any).jobEditTakenMsg ?? 'נותן שירות כבר לקח את העבודה, ולכן אי אפשר לערוך אותה. אפשר לדבר איתו בצ\'אט או לבטל את ההזמנה.');
+        return;
+      }
+      // השעה שלה עברה ואיש לא לקח אותה: היא נגמרה, ואין מה לערוך.
+      if (unansweredPast(d)) {
+        Alert.alert('', (t as any).jobEditPastMsg ?? 'הזמן של המודעה הזאת כבר עבר, ולכן אי אפשר לערוך אותה. אפשר לפרסם מודעה חדשה.');
         return;
       }
       // The street and the notes live in the private half. Read here, before

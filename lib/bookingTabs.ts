@@ -1,3 +1,5 @@
+import { startDateOf } from './bookingSlot';
+
 /**
  * The two tabs at the top of the profile: what is still going on, and what is
  * over. A booking whose day has passed is history whatever its status says,
@@ -19,4 +21,16 @@ export function bookingTabs<B extends { status: string }>(
     active: bookings.filter((b) => live.includes(b.status) && !isPast(b)),
     history: bookings.filter((b) => !LIVE.includes(b.status) || isPast(b)),
   };
+}
+
+/**
+ * Nobody took or approved it before it was due to start: for the client the
+ * booking is over, not waiting. Such a job stayed under "active" until
+ * midnight, still offering ✏️ — and cleaners no longer see a job whose hour has
+ * passed, so it could never be taken. Mirrored in the website's ClientBookings.
+ */
+export function unansweredPast(b: { status?: string; bookingDate?: string; startTime?: string }, now: Date = new Date()): boolean {
+  if (b?.status !== 'pending') return false;
+  const start = startDateOf(b);
+  return !!start && start.getTime() <= now.getTime();
 }
