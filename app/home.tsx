@@ -2395,43 +2395,6 @@ function InlineBookingChat({ open, onToggle, messages, text, onChangeText, onSen
 // Saved addresses now live on the Firestore user document, shared with the
 // profile screen and readable by the web. See lib/savedAddresses.ts.
 
-// ─── AddressPicker component ──────────────────────────────────────────────────
-function AddressPicker({ selectedId, onSelect, savedAddresses }: {
-  selectedId: string;
-  onSelect: (a: SavedAddress) => void;
-  savedAddresses: SavedAddress[];
-}) {
-  const C = useAppColors();
-  const { t } = useLanguage();
-  if (savedAddresses.length === 0) return null;
-  return (
-    <View style={{ gap: 6, marginBottom: 8 }}>
-      <T style={{ fontSize: 12, color: C.textSub, fontWeight: '600', textAlign: 'right' }}>{t.savedAddrLabel}</T>
-      {/* רשימה אנכית ברוחב מלא — הכתובת המלאה נראית, בלי חיתוך */}
-      <View style={{ gap: 6 }}>
-        {savedAddresses.map(a => {
-          const isSelected = selectedId === a.id;
-          return (
-            <TouchableOpacity
-              key={a.id}
-              onPress={() => onSelect(a)}
-              style={{
-                flexDirection: 'row-reverse', alignItems: 'center', gap: 6,
-                backgroundColor: isSelected ? C.blue : C.white,
-                borderRadius: 14, paddingHorizontal: 12, paddingVertical: 9,
-                borderWidth: 1.5, borderColor: isSelected ? C.blue : C.blueBorder,
-              }}
-            >
-              {a.isPrimary && <T style={{ fontSize: 12 }}>⭐</T>}
-              <T style={{ flex: 1, fontSize: 12.5, fontWeight: '600', textAlign: 'right', color: isSelected ? C.white : C.textDark }} numberOfLines={2}>{a.address}</T>
-            </TouchableOpacity>
-          );
-        })}
-      </View>
-    </View>
-  );
-}
-
 // ─────────────────────────────────────────────────────────────────────────────
 function BookingModal({ cleaner, visible, onClose, onBookingCreated, prebookData }: any) {
   const { t, lang }  = useLanguage();
@@ -8037,7 +8000,20 @@ export default function HomeScreen() {
                 {/* כתובת */}
                 <View style={{ gap: 6, zIndex: 999 }} onLayout={e => { urgentAddrYRef.current = e.nativeEvent.layout.y; }}>
                   <T style={s.fieldLabel}>{t.addressLabel}</T>
-                  <AddressPicker selectedId="" onSelect={a => setUrgentAddress(a.address)} savedAddresses={urgentSavedAddresses} />
+                  {/* הכתובות השמורות ככפתורים, כמו באתר: זו שבשדה מלאה בסגול של הדחוף */}
+                  {urgentSavedAddresses.length > 0 && (
+                    <View style={{ flexDirection: 'row-reverse', flexWrap: 'wrap', gap: 8 }}>
+                      {urgentSavedAddresses.map(a => {
+                        const on = urgentAddress.trim() === a.address.trim();
+                        return (
+                          <TouchableOpacity key={a.id} accessibilityRole="button" accessibilityState={{ selected: on }} onPress={() => setUrgentAddress(a.address)}
+                            style={{ maxWidth: '100%', paddingHorizontal: 14, paddingVertical: 9, borderRadius: 999, borderWidth: 1.5, borderColor: on ? '#7C3AED' : C.blueBorder, backgroundColor: on ? '#7C3AED' : C.white }}>
+                            <T numberOfLines={1} style={{ fontSize: 14, fontWeight: '800', color: on ? '#fff' : C.textDark }}>📍 {a.address}</T>
+                          </TouchableOpacity>
+                        );
+                      })}
+                    </View>
+                  )}
                   <AddressAutocomplete value={urgentAddress} onChange={setUrgentAddress} placeholder={t.addressPlaceholder}
                     onFocus={() => setTimeout(() => urgentScrollRef.current?.scrollTo({ y: Math.max(0, urgentAddrYRef.current - 8), animated: true }), 300)}
                     error={urgentTried && !urgentAddrOk}
@@ -8055,7 +8031,7 @@ export default function HomeScreen() {
                   <T style={s.fieldLabel}>{t.paymentMethodLabel}</T>
                   <View style={{ flexDirection: 'row', gap: 8 }}>
                     {(['cash','bit','paybox','bank'] as const).map(p => (
-                      <TouchableOpacity key={p} style={[s.hourBtn, { flex: 1, flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 4 }, urgentPayment === p && s.hourBtnActive]} onPress={() => setUrgentPayment(p)}>
+                      <TouchableOpacity key={p} style={[s.hourBtn, { flex: 1, flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 4 }, urgentPayment === p && { backgroundColor: '#7C3AED', borderColor: '#7C3AED' }]} onPress={() => setUrgentPayment(p)}>
                         {p === 'paybox' && <PayboxIcon size={16} color={urgentPayment === p ? '#fff' : PAYBOX_BLUE} />}
                         <T
                           style={[{ fontSize: 13, fontWeight: '700', color: C.textDark, textAlign: 'center' }, urgentPayment === p && { color: C.white }]}
@@ -8063,7 +8039,7 @@ export default function HomeScreen() {
                           adjustsFontSizeToFit
                           minimumFontScale={0.75}
                         >
-                          {p === 'cash' ? t.payCash : p === 'bit' ? t.payBit : p === 'paybox' ? 'PayBox' : 'בנקאי'}
+                          {p === 'cash' ? t.payCash : p === 'bit' ? t.payBit : p === 'paybox' ? 'PayBox' : (t.payBank || 'העברה בנקאית')}
                         </T>
                       </TouchableOpacity>
                     ))}
