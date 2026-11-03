@@ -3939,8 +3939,9 @@ export default function ProfileScreen() {
                   );
                 })}
               </View>
-              {weekBookings.length === 0 && (
-                <T style={{ textAlign: 'center', color: C.textSub, fontSize: 12, marginTop: 8 }}>{t.scheduleEmpty}</T>
+              {/* רק אחרי שההזמנות נטענו: בזמן הטעינה זה אמר "אין הזמנות" למי שיש לו. */}
+              {weekBookings.length === 0 && cleanerBksState === 'ready' && (
+                <T style={{ textAlign: 'center', color: C.textSub, fontSize: 12, marginTop: 8, marginBottom: 20 }}>{t.scheduleEmpty}</T>
               )}
 
               {/* פורטפוליו */}

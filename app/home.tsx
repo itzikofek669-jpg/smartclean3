@@ -4102,7 +4102,12 @@ function QuickRebookModal({ visible, onClose, myBookings, bookingsState, allClea
   onBook: (cleaner: any, prevBooking: any) => void;
   onHistory: () => void;
 }) {
-  const { t } = useLanguage();
+  const { t, isRTL } = useLanguage();
+  // The app never calls forceRTL, so a plain row and unaligned text run left to
+  // right even in Hebrew — the card read mirrored next to the website's. Every
+  // row and line here follows the language instead.
+  const row = isRTL ? 'row-reverse' as const : 'row' as const;
+  const align = isRTL ? 'right' as const : 'left' as const;
   const C = useAppColors();
   const s = createS(C);
   const insets = useSafeAreaInsets();
@@ -4195,9 +4200,9 @@ function QuickRebookModal({ visible, onClose, myBookings, bookingsState, allClea
                 return (
                   <View key={b.id} style={{ backgroundColor: C.white, borderRadius: 18, padding: 16, borderWidth: 1.5, borderColor: C.blueBorder, gap: 10, elevation: 2, shadowColor: '#000', shadowOpacity: 0.06, shadowRadius: 6 }}>
                     {/* שורת כותרת + סטטוס + כפתור מחיקה */}
-                    <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-                      <T style={{ fontSize: 16, fontWeight: '900', color: C.textDark, flex: 1 }}>🧹 {b.cleanerName}</T>
-                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                    <View style={{ flexDirection: row, justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
+                      <T style={{ fontSize: 16, fontWeight: '900', color: C.textDark, flex: 1, textAlign: align }}>🧹 {b.cleanerName}</T>
+                      <View style={{ flexDirection: row, alignItems: 'center', gap: 8 }}>
                         <View style={{ backgroundColor: statusBg, borderRadius: 8, paddingHorizontal: 8, paddingVertical: 3 }}>
                           <T style={{ fontSize: 11, fontWeight: '700', color: statusColor }}>{statusLabel}</T>
                         </View>
@@ -4210,14 +4215,21 @@ function QuickRebookModal({ visible, onClose, myBookings, bookingsState, allClea
                         </TouchableOpacity>
                       </View>
                     </View>
-                    <T style={{ fontSize: 13, color: C.textSub }}>
-                      📅 {b.bookingDate || b.createdAt?.split('T')[0]}
-                      {b.startTime ? ` · 🕐 ${b.startTime}` : ''}
-                      {b.hours ? ` · ⏱ ${b.hours} ${t.hoursUnit}` : ''}
-                      {b.serviceType ? ` · ${b.serviceType}` : ''}
+                    {b.serviceType ? (
+                      <T style={{ fontSize: 13, color: C.textSub, textAlign: align }}>
+                        {String(b.serviceType).split(' + ').filter(Boolean).map((st: string) => String(t.types[st] || st)).join(', ')}
+                      </T>
+                    ) : null}
+                    <T style={{ fontSize: 13, color: C.textSub, textAlign: align, writingDirection: isRTL ? 'rtl' : 'ltr' }}>
+                      📅 {formatJobDate(String(b.bookingDate || b.createdAt?.split('T')[0] || ''))}
+                      {b.startTime ? ` ${(t as any).atHour ?? 'בשעה'} ${b.startTime}` : ''}
+                      {b.hours ? `   ⏱ ${b.hours} ${t.hoursUnit}` : ''}
                     </T>
-                    <T style={{ fontSize: 13, color: C.textSub }} numberOfLines={1}>📍 {b.address}</T>
-                    {b.total ? <T style={{ fontSize: 13, color: C.blue, fontWeight: '700' }}>₪{b.total}</T> : null}
+                    {/* הכתובת בתחילת השורה והמחיר בסופה, כמו באתר */}
+                    <View style={{ flexDirection: row, alignItems: 'center', gap: 10 }}>
+                      <T style={{ flex: 1, fontSize: 13, color: C.textSub, textAlign: align, writingDirection: isRTL ? 'rtl' : 'ltr' }} numberOfLines={1}>📍 {b.address}</T>
+                      {b.total ? <T style={{ fontSize: 13, color: C.blue, fontWeight: '700' }}>₪{b.total}</T> : null}
+                    </View>
                     <TouchableOpacity
                       style={{ backgroundColor: '#1E6FB8', borderRadius: 12, paddingVertical: 13, alignItems: 'center', marginTop: 2 }}
                       onPress={() => handleRebook(b)}
