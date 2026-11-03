@@ -4809,10 +4809,11 @@ export default function ProfileScreen() {
               {/* אמצעי תשלום */}
               <View>
                 <T style={ep.label}>{t.editPaymentLabel}</T>
-                <View style={{ flexDirection: 'row', gap: 8, marginTop: 6 }}>
+                {/* ארבעה כפתורים קטנים בשורה אחת */}
+                <View style={{ flexDirection: isRTL ? 'row-reverse' : 'row', gap: 6, marginTop: 6 }}>
                   {[{ key: 'cash', label: '💵 ' + t.payCash }, { key: 'bit', label: '📱 ' + t.payBit }, { key: 'paybox', label: '💜 ' + t.payPaybox }, { key: 'bank', label: '🏦 ' + t.payBank }].map(p => (
-                    <TouchableOpacity key={p.key} style={[ep.pill, editPayment.includes(p.key) && ep.pillActive, { flex: 1, alignItems: 'center' }]} onPress={() => toggleEdit(editPayment, setEditPayment, p.key)}>
-                      <T style={[ep.pillText, editPayment.includes(p.key) && ep.pillTextActive]}>{p.label}</T>
+                    <TouchableOpacity key={p.key} style={[ep.pill, editPayment.includes(p.key) && ep.pillActive, { flex: 1, alignItems: 'center', paddingHorizontal: 4, paddingVertical: 7 }]} onPress={() => toggleEdit(editPayment, setEditPayment, p.key)}>
+                      <T numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75} style={[ep.pillText, { fontSize: 12 }, editPayment.includes(p.key) && ep.pillTextActive]}>{p.label}</T>
                     </TouchableOpacity>
                   ))}
                 </View>
@@ -4873,11 +4874,8 @@ export default function ProfileScreen() {
                 </View>
               </View>
 
-              {/* שפה מועדפת */}
-              <View>
-                <T style={[ep.label, { textAlign: 'center', fontSize: 15 }]}>🌐 {t.drawerLanguage}</T>
-                {renderLangGrid(8)}
-              </View>
+              {/* בלי בחירת שפת האפליקציה כאן: היא בתפריט הצד. השפות שנותן השירות
+                  מדבר (בתכונות) נשארות — הן מופיעות ללקוחות בכרטיס שלו. */}
 
               {/* ימים ושעות עבודה */}
               <View>
