@@ -4347,6 +4347,14 @@ export default function HomeScreen() {
 
   // Advanced filter
   const [filterVisible,  setFilterVisible]  = useState(false);
+  // The website's filter (FilterModal): centred titles, round pills, chosen = filled blue.
+  const fLabel = { fontSize: 13, fontWeight: '800' as const, color: C.textDark, textAlign: 'center' as const, marginBottom: 8 };
+  const fPills = { flexDirection: (isRTL ? 'row-reverse' : 'row') as 'row' | 'row-reverse', flexWrap: 'wrap' as const, justifyContent: 'center' as const, gap: 8 };
+  const fPill = (on: boolean) => ({
+    paddingHorizontal: 14, paddingVertical: 8, borderRadius: 999, borderWidth: 1.5,
+    borderColor: on ? C.blue : C.blueBorder, backgroundColor: on ? C.blue : C.white,
+  });
+  const fPillText = (on: boolean) => ({ fontSize: 13, fontWeight: (on ? '700' : '600') as '700' | '600', color: on ? C.white : C.textDark });
   const [filterMinRating,setFilterMinRating]= useState(0);
   const [filterMaxPrice, setFilterMaxPrice] = useState(999);
   const [filterAvailOnly,setFilterAvailOnly]= useState(false);
@@ -7404,28 +7412,33 @@ export default function HomeScreen() {
         onAccessibility={() => { setDrawer(false); setA11yOpen(true); }}
       />
 
-      {/* Advanced Filter Modal */}
-      <Modal visible={filterVisible} animationType="slide" presentationStyle="pageSheet" onRequestClose={() => setFilterVisible(false)}>
+      {/* Advanced Filter Modal — the website's filter: a sheet from the bottom with
+          ✕, the title and "אפס סינון" on one line, centred section titles, round
+          pills (chosen = filled blue), the count and "הצג". */}
+      <Modal visible={filterVisible} transparent animationType="slide" onRequestClose={() => setFilterVisible(false)}>
         <ModalBackHandler onBack={() => setFilterVisible(false)} />
-        <SafeAreaView style={{ flex: 1, backgroundColor: C.bluePale }}>
-          <View style={s.modalHeader}>
-            <TouchableOpacity onPress={() => setFilterVisible(false)} style={s.closeBtn}>
-              <T style={{ color: C.white, fontSize: 18 }}>✕</T>
-            </TouchableOpacity>
-            <T style={s.modalTitle}>{t.filterTitle}</T>
-            <TouchableOpacity
-              onPress={() => { setFilterMinRating(0); setFilterMaxPrice(999); setFilterAvailOnly(false); setFilterTypes([]); setFilterCity(''); setRegion('all'); showToast(t.filterReset, 'info'); }}
-              activeOpacity={0.85}
-              style={{ flexDirection: 'row', alignItems: 'center', gap: 5, backgroundColor: '#FF8A00', paddingHorizontal: 14, paddingVertical: 9, borderRadius: 22, elevation: 3, shadowColor: '#000', shadowOpacity: 0.2, shadowRadius: 3, shadowOffset: { width: 0, height: 2 } }}>
-              <T style={{ color: '#fff', fontSize: 14 }}>↺</T>
-              <T style={{ color: '#fff', fontSize: 14, fontWeight: '800' }}>{t.filterReset}</T>
-            </TouchableOpacity>
-          </View>
-          <ScrollView contentContainerStyle={{ padding: 16, gap: 20, paddingBottom: insets.bottom + 16 }} keyboardShouldPersistTaps="handled">
+        <View style={{ flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(0,0,0,0.4)' }}>
+          <TouchableOpacity accessibilityRole="button" accessibilityLabel={t.closeBtn} activeOpacity={1} style={{ flex: 1 }} onPress={() => setFilterVisible(false)} />
+          <View style={{ maxHeight: '92%', backgroundColor: C.white, borderTopLeftRadius: 24, borderTopRightRadius: 24, paddingTop: 16, paddingBottom: insets.bottom }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20, marginBottom: 6 }}>
+              <TouchableOpacity accessibilityRole="button" accessibilityLabel={t.closeBtn} onPress={() => setFilterVisible(false)} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }} style={{ width: 36, alignItems: 'flex-start' }}>
+                <T style={{ fontSize: 20, color: C.textSub }}>✕</T>
+              </TouchableOpacity>
+              <T style={{ flex: 1, fontSize: 18, fontWeight: '900', color: C.blue, textAlign: 'center' }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8}>{t.filterTitle}</T>
+              <TouchableOpacity
+                accessibilityRole="button"
+                onPress={() => { setFilterMinRating(0); setFilterMaxPrice(999); setFilterAvailOnly(false); setFilterTypes([]); setFilterCity(''); setRegion('all'); showToast(t.filterReset, 'info'); }}
+                activeOpacity={0.85}
+                style={{ flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: '#FF8A00', paddingHorizontal: 14, paddingVertical: 8, borderRadius: 20 }}>
+                <T style={{ color: '#fff', fontSize: 13 }}>↺</T>
+                <T style={{ color: '#fff', fontSize: 13, fontWeight: '800' }}>{t.filterReset}</T>
+              </TouchableOpacity>
+            </View>
+            <ScrollView contentContainerStyle={{ paddingHorizontal: 20, paddingTop: 8, paddingBottom: 16, gap: 18 }} keyboardShouldPersistTaps="handled">
 
             {/* ── חיפוש לפי עיר ───────────────────────────────────────────── */}
             <View style={{ zIndex: 50 }}>
-              <T style={[s.fieldLabel, { textAlign: 'right' }]}>{t.searchByCity}</T>
+              <T style={fLabel}>{stripEmoji(String(t.searchByCity))}</T>
               <TextInput
                 style={[s.input, { marginTop: 8, textAlign: 'right' }]}
                 placeholder={t.citySearchPh}
@@ -7451,45 +7464,33 @@ export default function HomeScreen() {
               )}
             </View>
 
-            {/* Min rating */}
+            {/* דירוג מינימלי */}
             <View>
-              <T style={[s.fieldLabel, { textAlign: 'right' }]}>{t.filterRatingLabel}</T>
-              <View style={{ flexDirection: 'row', gap: 8, marginTop: 8, flexWrap: 'wrap', justifyContent: 'center' }}>
-                {[0,3,4,4.5,4.8].map(r => (
-                  <TouchableOpacity
-                    key={r}
-                    style={[s.hourBtn, filterMinRating === r && s.hourBtnActive, { width: 'auto', paddingHorizontal: 12 }]}
-                    onPress={() => setFilterMinRating(r)}
-                  >
-                    <T style={[{ fontSize: 12, fontWeight: '700', color: C.textDark }, filterMinRating === r && { color: C.white }]}>
-                      {r === 0 ? t.filterReset : `⭐ ${r}+`}
-                    </T>
+              <T style={fLabel}>{t.filterRatingLabel}</T>
+              <View style={fPills}>
+                {[0, 3, 4, 4.5, 4.8].map(r => (
+                  <TouchableOpacity key={r} accessibilityRole="button" accessibilityState={{ selected: filterMinRating === r }} style={fPill(filterMinRating === r)} onPress={() => setFilterMinRating(r)}>
+                    <T style={fPillText(filterMinRating === r)}>{r === 0 ? t.filterReset : `⭐ ${r}+`}</T>
                   </TouchableOpacity>
                 ))}
               </View>
             </View>
 
-            {/* Max price */}
+            {/* מחיר מקסימלי לשעה — מספרים בלבד, כמו באתר */}
             <View>
-              <T style={[s.fieldLabel, { textAlign: 'right' }]}>{t.filterMaxPriceLabel}: ₪{filterMaxPrice === 999 ? '∞' : filterMaxPrice}</T>
-              <View style={{ flexDirection: 'row', gap: 8, marginTop: 8, flexWrap: 'wrap', justifyContent: 'center' }}>
+              <T style={fLabel}>{t.filterMaxPriceLabel}: {filterMaxPrice === 999 ? t.filterReset : filterMaxPrice}</T>
+              <View style={fPills}>
                 {[999, 200, 150, 100, 80, 60].map(p => (
-                  <TouchableOpacity
-                    key={p}
-                    style={[s.hourBtn, filterMaxPrice === p && s.hourBtnActive, { width: 'auto', paddingHorizontal: 12 }]}
-                    onPress={() => setFilterMaxPrice(p)}
-                  >
-                    <T style={[{ fontSize: 12, fontWeight: '700', color: C.textDark }, filterMaxPrice === p && { color: C.white }]}>
-                      {p === 999 ? t.filterReset : `≤₪${p}`}
-                    </T>
+                  <TouchableOpacity key={p} accessibilityRole="button" accessibilityState={{ selected: filterMaxPrice === p }} style={fPill(filterMaxPrice === p)} onPress={() => setFilterMaxPrice(p)}>
+                    <T style={fPillText(filterMaxPrice === p)}>{p === 999 ? t.filterReset : String(p)}</T>
                   </TouchableOpacity>
                 ))}
               </View>
             </View>
 
-            {/* Available only */}
-            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: C.white, borderRadius: 12, padding: 14, borderWidth: 1, borderColor: C.blueBorder }}>
-              <T style={[s.fieldLabel, { textAlign: 'right' }]}>{t.filterAvailLabel}</T>
+            {/* זמינים עכשיו בלבד */}
+            <View style={{ flexDirection: isRTL ? 'row-reverse' : 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: C.blueLight, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 10, borderWidth: 1, borderColor: C.blueBorder }}>
+              <T style={{ fontSize: 14, fontWeight: '700', color: C.textDark }}>{t.filterAvailLabel}</T>
               <Switch
                 value={filterAvailOnly}
                 onValueChange={setFilterAvailOnly}
@@ -7498,41 +7499,36 @@ export default function HomeScreen() {
               />
             </View>
 
-            {/* Service types */}
+            {/* סוג שירות */}
             <View>
-              <T style={[s.fieldLabel, { textAlign: 'right' }]}>{t.filterTypesLabel}</T>
-              <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 8, justifyContent: 'center' }}>
+              <T style={fLabel}>{t.filterTypesLabel}</T>
+              <View style={fPills}>
                 {Object.keys(TYPE_ICONS).map(tp => {
                   const active = filterTypes.includes(tp);
                   return (
-                    <TouchableOpacity
-                      key={tp}
-                      style={[s.typePill, active && { backgroundColor: C.blue }]}
-                      onPress={() => setFilterTypes(prev => active ? prev.filter(x => x !== tp) : [...prev, tp])}
-                    >
-                      <T style={[s.typePillText, active && { color: C.white }]}>{TYPE_ICONS[tp]} {t.types[tp] || tp}</T>
+                    <TouchableOpacity key={tp} accessibilityRole="checkbox" accessibilityState={{ checked: active }} style={fPill(active)}
+                      onPress={() => setFilterTypes(prev => active ? prev.filter(x => x !== tp) : [...prev, tp])}>
+                      <T style={fPillText(active)}>{TYPE_ICONS[tp]} {t.types[tp] || tp}</T>
                     </TouchableOpacity>
                   );
                 })}
               </View>
             </View>
 
-            {/* ספירת תוצאות חיה */}
-            <View style={{ backgroundColor: filtered.length > 0 ? '#D1FAE5' : '#FEE2E2', borderRadius: 12, padding: 12, alignItems: 'center' }}>
-              <T style={{ fontWeight: '800', fontSize: 15, color: filtered.length > 0 ? '#065F46' : '#991B1B' }}>
+            {/* ספירת תוצאות חיה, ו"הצג" */}
+            <View style={{ backgroundColor: filtered.length > 0 ? '#D1FAE5' : '#FEE2E2', borderRadius: 12, padding: 11, alignItems: 'center' }}>
+              <T style={{ fontWeight: '800', fontSize: 14, color: filtered.length > 0 ? '#065F46' : '#991B1B', textAlign: 'center' }}>
                 {filtered.length > 0
-                  ? `✅ נמצאו ${filtered.length} נותני שירות`
-                  : '❌ אין נותני שירות בסינון הנוכחי — נסה להרחיב'}
+                  ? `✅ ${(t as any).foundCleaners ?? 'נמצאו'} ${filtered.length} ${(t as any).cleanersWord ?? 'נותני שירות'}`
+                  : ((t as any).noCleanersInFilter ?? '❌ אין נותני שירות בסינון הנוכחי')}
               </T>
             </View>
-
-            <TouchableOpacity style={s.confirmBtn} onPress={() => setFilterVisible(false)}>
-              <T style={s.confirmBtnText}>
-                ✓ הצג {filtered.length} נותני שירות
-              </T>
+            <TouchableOpacity accessibilityRole="button" style={{ backgroundColor: C.blue, borderRadius: 14, minHeight: 52, alignItems: 'center', justifyContent: 'center' }} onPress={() => setFilterVisible(false)}>
+              <T style={{ color: C.white, fontSize: 16, fontWeight: '900' }}>✓ {(t as any).showLabel ?? 'הצג'} {filtered.length}</T>
             </TouchableOpacity>
-          </ScrollView>
-        </SafeAreaView>
+            </ScrollView>
+          </View>
+        </View>
       </Modal>
 
       {/* Photo Viewer Modal */}
