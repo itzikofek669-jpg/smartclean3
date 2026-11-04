@@ -2536,6 +2536,7 @@ export default function ProfileScreen() {
         recurring: 'once', serviceType: req.serviceType || '',
         pricePerHour: Math.round(req.total / req.hours),
         source: 'urgent', urgentRequestId: req.id,
+        publicNotes: req.publicNotes || '',
       };
       setActiveTab('urgent');
       setPendingConfirmBooking(pseudo);
@@ -2574,6 +2575,8 @@ export default function ProfileScreen() {
             recurring: 'once', serviceType: req.serviceType || '',
             pricePerHour: Math.round(req.total / req.hours),
             source: 'urgent', urgentRequestId: req.id,
+            // ההערות של הלקוח מהבקשה כפי שנקראה בטרנזקציה — לכרטיס ההזמנה של נותן השירות.
+            ...(fresh.data()?.publicNotes ? { publicNotes: fresh.data()?.publicNotes } : {}),
             // השעות שהעבודה תופסת. בלעדיהן toSlots מפיל את ההזמנה — הוא מסנן
             // על busyFrom && busyUntil — ולכן busySlots נשאר ריק, המנקה הציגה
             // נקודה ירוקה "זמינה עכשיו" לאורך כל העבודה, ו-isCleanerBusy נתן
@@ -2906,6 +2909,10 @@ export default function ProfileScreen() {
             <T style={[s.addressText, { fontSize: 13 }]}>📍 {b.address}</T>
           ) : null}
 
+          {/* What the client wrote about the job — from the private half once she holds it,
+              or the public copy an urgent request or a board job carries. */}
+          {(b.notes || b.publicNotes) ? <T style={{ fontSize: 13, color: C.textDark, backgroundColor: '#FFFBEB', borderWidth: 1, borderColor: '#FDE68A', borderRadius: 10, paddingHorizontal: 10, paddingVertical: 6 }}>📝 {b.notes || b.publicNotes}</T> : null}
+
           {/* תשלום אושר */}
           {b.paymentStatus === 'paid' && (
             <View style={{ flexDirection: isRTL ? 'row-reverse' : 'row', alignItems: 'center', gap: 6, backgroundColor: '#D1FAE5', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 5 }}>
@@ -3118,6 +3125,7 @@ export default function ProfileScreen() {
                     <T style={{ fontSize: 16, fontWeight: '900', color: C.blue }}>₪{pendingConfirmBooking.total}</T>
                   </View>
                   <T style={{ fontSize: 13, color: C.textDark }}>📍 {pendingConfirmBooking.address}</T>
+                  {(pendingConfirmBooking.notes || pendingConfirmBooking.publicNotes) ? <T style={{ fontSize: 13, color: C.textDark, backgroundColor: '#FFFBEB', borderWidth: 1, borderColor: '#FDE68A', borderRadius: 10, paddingHorizontal: 10, paddingVertical: 6 }}>📝 {pendingConfirmBooking.notes || pendingConfirmBooking.publicNotes}</T> : null}
                   {/* Outside the days or hours she set — a booking from a build older
                       than that check, or her hours changed since. */}
                   {(() => {
@@ -3146,7 +3154,7 @@ export default function ProfileScreen() {
 
                 {/* ─── כפתור שינוי שעה ─── */}
                 <TouchableOpacity
-                  style={{ flexDirection: isRTL ? 'row-reverse' : 'row', alignItems: 'center', gap: 8, marginHorizontal: 12, marginTop: 10, backgroundColor: '#F59E0B', borderRadius: 14, paddingHorizontal: 18, paddingVertical: 13, alignSelf: 'flex-start', elevation: 3, shadowColor: '#92400E', shadowOpacity: 0.25, shadowRadius: 6, shadowOffset: { width: 0, height: 3 } }}
+                  style={{ flexDirection: isRTL ? 'row-reverse' : 'row', alignItems: 'center', gap: 8, marginHorizontal: 12, marginTop: 10, backgroundColor: '#F59E0B', borderRadius: 14, paddingHorizontal: 18, paddingVertical: 13, alignSelf: isRTL ? 'flex-end' : 'flex-start', elevation: 3, shadowColor: '#92400E', shadowOpacity: 0.25, shadowRadius: 6, shadowOffset: { width: 0, height: 3 } }}
                   onPress={() => setShowPendingTimeChange(v => !v)}
                   activeOpacity={0.82}
                 >
@@ -3797,6 +3805,7 @@ export default function ProfileScreen() {
                         </View>
                         <T style={{ fontSize: 14, color: C.textDark, fontWeight: '700' }}>👤 {req.clientName}</T>
                         <T style={{ fontSize: 13, color: C.textDark }}>📍 {req.address || req.addrCity}</T>
+                        {req.publicNotes ? <T style={{ fontSize: 13, color: C.textDark, backgroundColor: '#FFFBEB', borderWidth: 1, borderColor: '#FDE68A', borderRadius: 10, paddingHorizontal: 10, paddingVertical: 6 }}>📝 {req.publicNotes}</T> : null}
                         <View style={{ flexDirection: isRTL ? 'row-reverse' : 'row', gap: 12 }}>
                           <T style={{ fontSize: 12, color: C.textSub }}>📅 {urgentDayLabel(req)} {req.startTime}</T>
                           <T style={{ fontSize: 12, color: C.textSub }}>⏱️ {req.hours} {t.hoursUnit}</T>

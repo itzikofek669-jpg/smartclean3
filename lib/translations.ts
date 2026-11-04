@@ -4240,6 +4240,17 @@ const STAT_WORDS: Record<string, { statIncome: string; statActive: string }> = {
   uk: { statIncome: 'Дохід', statActive: '🔄 Активно' },
 };
 
+// Under a job's notes field (open job and urgent): who will read them.
+const NOTES_PUBLIC_HINT: Record<string, string> = {
+  he: 'ההערות גלויות לכל נותני השירות — בלי קוד כניסה או מספר טלפון.',
+  en: 'Notes are visible to every service provider — no door codes or phone numbers.',
+  ru: 'Заметки видят все исполнители — без кодов входа и телефонов.',
+  ar: 'الملاحظات ظاهرة لجميع مقدّمي الخدمة — بدون رمز دخول أو رقم هاتف.',
+  fr: 'Les notes sont visibles par tous les prestataires — sans code d’entrée ni numéro de téléphone.',
+  hi: 'नोट्स सभी सेवा प्रदाताओं को दिखते हैं — प्रवेश कोड या फ़ोन नंबर न लिखें।',
+  uk: 'Нотатки бачать усі виконавці — без кодів входу й телефонів.',
+};
+
 const ALL_RIGHTS: Record<string, string> = {
   he: 'כל הזכויות שמורות',
   en: 'All rights reserved',
@@ -4274,6 +4285,7 @@ for (const L of Object.keys(LANG_NAMES)) {
   Object.assign((translations as any)[L], {
     ...URGENT_MESSAGES[L],
     ...STAT_WORDS[L],
+    notesPublicHint: NOTES_PUBLIC_HINT[L],
     allRightsReserved: ALL_RIGHTS[L],
     savedAddressesWord: SAVED_ADDRESSES[L],
     langNames: LANG_NAMES[L],

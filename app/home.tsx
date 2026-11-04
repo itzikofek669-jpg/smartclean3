@@ -74,7 +74,7 @@ export {
 };
 import { setActiveChat } from '../lib/chatPresence';
 import DateTimePicker from '@react-native-community/datetimepicker';
-import { useLanguage, HC, T, useAppColors, AppColors } from '../lib/LanguageContext';
+import { useLanguage, HC, T, useAppColors, AppColors, rtlRows } from '../lib/LanguageContext';
 import ServiceInfoBtn from '../lib/ServiceInfoBtn';
 import { Lang } from '../lib/translations';
 import AccessibilityModal from '../lib/AccessibilityModal';
@@ -706,10 +706,10 @@ function ModalBackHandler({ onBack }: { onBack: () => void }) {
 const PANEL_W = 270;
 
 function DrawerMenu({ visible, onClose, onProfile, onLogout, onMessages, onReport, onSupport, onActiveBookings, onAccessibility }: any) {
-  const { t, lang, setLang, flipSide, setFlipSide } = useLanguage();
+  const { t, lang, setLang, flipSide, setFlipSide, isRTL } = useLanguage();
   const C = useAppColors();
   const s = createS(C);
-  const ds = createDS(C);
+  const ds = rtlRows(createDS(C), isRTL, ['langItem']);
   const [showLangs, setShowLangs] = useState(false);
 
   // ─── מיקום פיזי בפיקסלים — עוקף לגמרי את RTL right/left ───────────────────
@@ -1044,7 +1044,7 @@ function CleanerTraitsSection({ cleaner, s, t }: any) {
 function CleanerProfile({ cleaner, visible, onClose, onBook, onChat, initialShowReviews, onOpenPhotos }: any) {
   const { t, isRTL } = useLanguage();
   const C = useAppColors();
-  const s = createS(C);
+  const s = rtlRows(createS(C), isRTL, ['statsRow']);
   const insets = useSafeAreaInsets();
   const [showReviews, setShowReviews] = useState(false);
   const [loadedReviews, setLoadedReviews] = React.useState<any[]>([]);
@@ -1912,6 +1912,12 @@ function PostJobModal({ visible, onClose, onPosted, editJob, openJobs, onEditJob
         pricePerHour: budget,
         total: budget * hours,
         photos,
+        // The notes, for the cleaners deciding whether to take it: the form tells
+        // the client they are visible to all. A copy — the private half keeps its own.
+        // Not the notes of a job posted before that, which stayed private: editing
+        // its hour must not publish them.
+        ...(notes.trim() && !(ej && !ej.publicNotes && notes.trim() === String(ej.notes || '').trim())
+          ? { publicNotes: notes.trim() } : {}),
         // An edited job keeps its payment method (a repost may carry bit/paybox).
         payment: ej?.payment || 'cash', paymentStatus: `awaiting_${ej?.payment || 'cash'}`, status: 'pending',
         bookingDate: dateStr, startTime: startStr,
@@ -2164,6 +2170,7 @@ function PostJobModal({ visible, onClose, onPosted, editJob, openJobs, onEditJob
               </T>
             </View>
             <TextInput style={{ backgroundColor: C.white, borderRadius: 12, borderWidth: 1.5, borderColor: C.blueBorder, padding: 12, textAlign: 'right', color: C.textDark, height: 56, textAlignVertical: 'top' }} value={notes} onChangeText={v => setNotes(limitWords(v, JOB_NOTES_MAX_WORDS))} onFocus={revealNotes} multiline placeholder={(t as any).notesPh ?? 'פרטים נוספים לנותן השירות…'} placeholderTextColor={C.textSub} />
+            <T style={{ fontSize: 12, color: '#B45309' }}>{(t as any).notesPublicHint ?? 'ההערות גלויות לכל נותני השירות — בלי קוד כניסה או מספר טלפון.'}</T>
           </View>
 
           {/* צירוף תמונות (לא חובה) — מצלמה או גלריה, lib/JobPhotos */}
@@ -4204,7 +4211,7 @@ export default function HomeScreen() {
   const navParams = useLocalSearchParams<{ editJobId?: string }>();
   const { t, lang, setLang, flipSide, isRTL } = useLanguage();
   const C = useAppColors();
-  const s = createS(C);
+  const s = rtlRows(createS(C), isRTL, ['searchSuggItem']);
   const ds = createDS(C);
   const [a11yOpen, setA11yOpen] = useState(false);
   const insets   = useSafeAreaInsets();
@@ -4498,7 +4505,7 @@ export default function HomeScreen() {
       if (fromForm) closePostJob();
       const wait = postJobClosedAt.current + 450 - Date.now();
       if (wait > 0) await new Promise(resolve => setTimeout(resolve, wait));
-      setEditJob({ id: snap.id, ...d, address: det.address || d.address || '', notes: det.notes ?? d.notes ?? '' });
+      setEditJob({ id: snap.id, ...d, address: det.address || d.address || '', notes: det.notes ?? d.notes ?? d.publicNotes ?? '' });
       // A key of its own each time, so reopening the same job starts from the
       // job again and not from changes that were abandoned.
       setPostJobKey(`edit:${snap.id}:${Date.now()}`);
@@ -4541,6 +4548,7 @@ export default function HomeScreen() {
   const [urgentPayment,   setUrgentPayment]   = useState('cash');
   // תמונות לבקשה דחופה (לא חובה) — מצלמה או גלריה, כמו ב"ניקיון בזמן שלך".
   const [urgentPhotos,    setUrgentPhotos]    = useState<string[]>([]);
+  const [urgentNotes,     setUrgentNotes]     = useState('');
   const [urgentPhotoBusy, setUrgentPhotoBusy] = useState(false);   // a photo still on its way — hold the send
   const [urgentMaxPrice,  setUrgentMaxPrice]  = useState(80); // סכום מקסימלי לשעה — מסנן מנקים בטווח
   const [urgentSending,   setUrgentSending]   = useState(false);
@@ -4912,6 +4920,8 @@ export default function HomeScreen() {
         // On the broadcast itself, like a board job's photos: the cleaner decides
         // from them before taking it. Compressed in lib/JobPhotos.
         photos: urgentPhotos,
+        // The client's notes, on the broadcast like the photos — the form says so.
+        ...(urgentNotes.trim() ? { publicNotes: urgentNotes.trim() } : {}),
         status: 'open',
         createdAt: new Date().toISOString(),
         expiresAt,
@@ -5060,6 +5070,7 @@ export default function HomeScreen() {
       urgentEditCtx.current = null;   // sent — whatever comes next is a new request
       setUrgentWaiting(true);
       setUrgentPhotos([]);   // already on the request; the next one starts without them
+      setUrgentNotes('');
       setUrgentOpen(false); // סגור מודל מיד — חזור למסך הראשי
       showToast((t as any).requestSentToast ?? 'הבקשה נשלחה');
       // המאזין נשמר ב-ref ומנותק גם בעזיבת המסך, לא רק כשהבקשה נסגרת.
@@ -5132,6 +5143,7 @@ export default function HomeScreen() {
     if (Number(sent?.maxPrice) > 0) setUrgentMaxPrice(Number(sent.maxPrice));
     if (sentAddress) setUrgentAddress(sentAddress);
     setUrgentPhotos(jobPhotosOf(sent?.photos));
+    setUrgentNotes(typeof sent?.publicNotes === 'string' ? sent.publicNotes : '');
     // Withdrawn and read: the document and its private half go (removeUrgentRequest).
     void removeUrgentRequest(urgentRequestId);
     setUrgentWaiting(false);
@@ -5318,6 +5330,9 @@ export default function HomeScreen() {
         status: 'pending', createdAt: new Date().toISOString(),
         recurring: 'once', recurringDates: [],
         repostedFrom: b?.id || '',
+        // Only notes the client already made public: a job posted before notes
+        // were shown on the board kept them private, and a repost does not change that.
+        ...(b?.publicNotes ? { publicNotes: b.publicNotes } : {}),
       });
       // In the same batch as the job — the rule reads the parent through
       // getAfter, so the two land together or not at all.
@@ -7221,7 +7236,8 @@ export default function HomeScreen() {
                           {!!j.clientName && <View style={s.jobFact}><T style={s.jobFactText}>👤 {j.clientName}</T></View>}
                         </View>
                       )}
-                      {!!j.notes && <T style={s.jobNote}>📝 {j.notes}</T>}
+                      {/* The client's notes, once the card is tapped (an older job may still carry them as `notes`). */}
+                      {isPicked && !!(j.publicNotes || j.notes) && <T style={s.jobNote}>📝 {j.publicNotes || j.notes}</T>}
                       {jobPhotosOf(j.photos).length > 0 && (
                         <View style={{ flexDirection: 'row-reverse', flexWrap: 'wrap', gap: 6, marginTop: 2 }}>
                           {jobPhotosOf(j.photos).map((uri: string, pi: number) => (
@@ -7559,9 +7575,13 @@ export default function HomeScreen() {
               const pics: string[] = jobPhotosOf(urgentPopupReq.photos);
               return (
                 <>
-                  <T style={{ fontSize: 15, color: C.textDark, lineHeight: 24, textAlign: 'right', marginBottom: pics.length ? 10 : 18 }}>
+                  <T style={{ fontSize: 15, color: C.textDark, lineHeight: 24, textAlign: 'right', marginBottom: pics.length || urgentPopupReq.publicNotes ? 10 : 18 }}>
                     {urgentPopupReq.dateStr || ''} {urgentPopupReq.startTime || ''}{svc ? `${'\n'}🧹 ${svc}` : ''}{'\n'}📍 {urgentPopupReq.address || urgentPopupReq.addrCity || ''}{'\n'}⏱️ {urgentPopupReq.hours || ''} {t.hoursUnit} · ₪{urgentPopupReq.total || ''}
                   </T>
+                  {/* What the client wrote with the request — it may decide whether she takes it. */}
+                  {!!urgentPopupReq.publicNotes && (
+                    <T style={{ fontSize: 14, color: C.textDark, textAlign: 'right', backgroundColor: '#FFFBEB', borderWidth: 1, borderColor: '#FDE68A', borderRadius: 10, paddingHorizontal: 10, paddingVertical: 6, marginBottom: pics.length ? 10 : 18 }}>📝 {urgentPopupReq.publicNotes}</T>
+                  )}
                   {/* The client's photos of the job, if any (lib/JobPhotos). Not
                       tappable here: the enlarged view is a Modal of its own and
                       would open behind this one on iOS. The board card enlarges. */}
@@ -7597,7 +7617,7 @@ export default function HomeScreen() {
       <Modal visible={!!newBookingModal} transparent animationType="fade" onRequestClose={() => setNewBookingModal(null)}>
         <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center', padding: 28 }}>
           <View style={{ backgroundColor: C.white, borderRadius: 20, padding: 20, width: '100%', maxWidth: 360 }}>
-            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, marginBottom: 12 }}>
+            <View style={{ flexDirection: isRTL ? 'row-reverse' : 'row', alignItems: 'center', justifyContent: 'center', gap: 8, marginBottom: 12 }}>
               <T style={{ fontSize: 22 }}>🔔</T>
               <T style={{ fontSize: 18, fontWeight: '900', color: C.blueDark }}>{t.newBookingTitle || 'הזמנה חדשה'}</T>
             </View>
@@ -7620,7 +7640,7 @@ export default function HomeScreen() {
                 </View>
               );
             })()}
-            <View style={{ flexDirection: 'row', gap: 10 }}>
+            <View style={{ flexDirection: isRTL ? 'row-reverse' : 'row', gap: 10 }}>
               <TouchableOpacity
                 style={{ flex: 1, backgroundColor: '#10B981', borderRadius: 12, paddingVertical: 13, alignItems: 'center' }}
                 onPress={() => { const id = newBookingModal?.id; setNewBookingModal(null); markPendingSeen(); if (id) router.push({ pathname: '/profile', params: { tab: 'bookings', confirmBookingId: id } }); }}
@@ -7709,18 +7729,18 @@ export default function HomeScreen() {
             {/* כרטיס פרטים */}
             {confirmedPopup && (
               <View style={{ backgroundColor: '#F0FDF4', borderRadius: 16, padding: 16, width: '100%', gap: 10, borderWidth: 1, borderColor: '#A7F3D0' }}>
-                <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+                <View style={{ flexDirection: isRTL ? 'row-reverse' : 'row', justifyContent: 'space-between' }}>
                   <Text style={{ fontSize: 13, color: '#6B7280' }}>🧹 {t.cleanerLabel || 'נותן שירות'}</Text>
                   <Text style={{ fontSize: 13, fontWeight: '800', color: '#065F46' }}>{confirmedPopup.cleanerName}</Text>
                 </View>
                 {confirmedPopup.bookingDate ? (
-                  <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+                  <View style={{ flexDirection: isRTL ? 'row-reverse' : 'row', justifyContent: 'space-between' }}>
                     <Text style={{ fontSize: 13, color: '#6B7280' }}>📅 {t.dateLabel || 'תאריך'}</Text>
                     <Text style={{ fontSize: 13, fontWeight: '700', color: '#065F46' }}>{confirmedPopup.bookingDate}  {confirmedPopup.startTime || ''}</Text>
                   </View>
                 ) : null}
                 {confirmedPopup.hours ? (
-                  <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+                  <View style={{ flexDirection: isRTL ? 'row-reverse' : 'row', justifyContent: 'space-between' }}>
                     <Text style={{ fontSize: 13, color: '#6B7280' }}>⏱️ {t.hoursLabel || 'שעות'}</Text>
                     <Text style={{ fontSize: 13, fontWeight: '700', color: '#065F46' }}>{confirmedPopup.hours} {t.hoursUnit}</Text>
                   </View>
@@ -7764,13 +7784,13 @@ export default function HomeScreen() {
             {cancelledPopup && (
               <View style={{ backgroundColor: '#FEF2F2', borderRadius: 16, padding: 16, width: '100%', gap: 10, borderWidth: 1, borderColor: '#FECACA' }}>
                 {!!cancelledPopup.cleanerName && (
-                  <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+                  <View style={{ flexDirection: isRTL ? 'row-reverse' : 'row', justifyContent: 'space-between' }}>
                     <Text style={{ fontSize: 13, color: '#6B7280' }}>🧹 {t.cleanerLabel || 'נותן שירות'}</Text>
                     <Text style={{ fontSize: 13, fontWeight: '800', color: '#991B1B' }}>{cancelledPopup.cleanerName}</Text>
                   </View>
                 )}
                 {!!cancelledPopup.serviceType && (
-                  <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+                  <View style={{ flexDirection: isRTL ? 'row-reverse' : 'row', justifyContent: 'space-between' }}>
                     <Text style={{ fontSize: 13, color: '#6B7280' }}>🧴 {(t as any).serviceTypeLabel ?? t.servicesLabel ?? 'סוג שירות'}</Text>
                     <Text style={{ fontSize: 13, fontWeight: '700', color: '#991B1B', flexShrink: 1, textAlign: 'left' }} numberOfLines={2}>
                       {String(cancelledPopup.serviceType).split(' + ').map((k: string) => t.types?.[k] || k).join(', ')}
@@ -7778,7 +7798,7 @@ export default function HomeScreen() {
                   </View>
                 )}
                 {!!cancelledPopup.bookingDate && (
-                  <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+                  <View style={{ flexDirection: isRTL ? 'row-reverse' : 'row', justifyContent: 'space-between' }}>
                     <Text style={{ fontSize: 13, color: '#6B7280' }}>📅 {t.dateLabel || 'תאריך'}</Text>
                     <Text style={{ fontSize: 13, fontWeight: '700', color: '#991B1B' }}>
                       {formatJobDate(cancelledPopup.bookingDate)} {(t as any).atHour ?? 'בשעה'} {cancelledPopup.startTime || ''}
@@ -7786,19 +7806,19 @@ export default function HomeScreen() {
                   </View>
                 )}
                 {!!cancelledPopup.hours && (
-                  <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+                  <View style={{ flexDirection: isRTL ? 'row-reverse' : 'row', justifyContent: 'space-between' }}>
                     <Text style={{ fontSize: 13, color: '#6B7280' }}>⏱️ {t.hoursLabel || 'שעות'}</Text>
                     <Text style={{ fontSize: 13, fontWeight: '700', color: '#991B1B' }}>{cancelledPopup.hours} {t.hoursUnit}</Text>
                   </View>
                 )}
                 {!!cancelledPopup.address && (
-                  <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+                  <View style={{ flexDirection: isRTL ? 'row-reverse' : 'row', justifyContent: 'space-between' }}>
                     <Text style={{ fontSize: 13, color: '#6B7280' }}>📍 {t.addressLabel || 'כתובת'}</Text>
                     <Text style={{ fontSize: 13, fontWeight: '700', color: '#991B1B', flexShrink: 1, textAlign: 'left' }} numberOfLines={2}>{cancelledPopup.address}</Text>
                   </View>
                 )}
                 {cancelledPopup.total != null && (
-                  <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+                  <View style={{ flexDirection: isRTL ? 'row-reverse' : 'row', justifyContent: 'space-between' }}>
                     <Text style={{ fontSize: 13, color: '#6B7280' }}>💰 {(t as any).totalShort ?? 'סה"כ'}</Text>
                     <Text style={{ fontSize: 13, fontWeight: '800', color: '#991B1B' }}>₪{cancelledPopup.total}</Text>
                   </View>
@@ -7910,7 +7930,7 @@ export default function HomeScreen() {
                 <T style={{ fontSize: 16, color: '#065F46', fontWeight: '700' }}>{urgentFoundName}</T>
                 <TouchableOpacity
                   style={{ backgroundColor: C.green, borderRadius: 12, paddingVertical: 14, paddingHorizontal: 36, marginTop: 6 }}
-                  onPress={() => { setUrgentOpen(false); setUrgentFoundName(''); setUrgentRequestId(null); setUrgentAddress(''); setUrgentServiceTypes([]); setUrgentServiceDropOpen(false); setUrgentPhotos([]); }}
+                  onPress={() => { setUrgentOpen(false); setUrgentFoundName(''); setUrgentRequestId(null); setUrgentAddress(''); setUrgentServiceTypes([]); setUrgentServiceDropOpen(false); setUrgentPhotos([]); setUrgentNotes(''); }}
                 >
                   <T style={{ fontSize: 15, fontWeight: '900', color: C.white }}>{t.closeBtn}</T>
                 </TouchableOpacity>
@@ -8033,12 +8053,24 @@ export default function HomeScreen() {
                   <JobPhotosField photos={urgentPhotos} onChange={setUrgentPhotos} onBusy={setUrgentPhotoBusy} />
                 </View>
 
+                {/* הערות (לא חובה) — גלויות לכל נותני השירות בכרטיס הדחוף */}
+                <View style={{ gap: 6 }}>
+                  <View style={{ flexDirection: 'row-reverse', alignItems: 'center', justifyContent: 'space-between' }}>
+                    <T style={s.fieldLabel}>{(t as any).notesLabel ?? 'הערות (לא חובה)'}</T>
+                    <T style={{ fontSize: 12, fontWeight: '700', color: countWords(urgentNotes) >= JOB_NOTES_MAX_WORDS ? '#B45309' : C.textSub }}>
+                      {countWords(urgentNotes)}/{JOB_NOTES_MAX_WORDS} {(t as any).bioWordCount ?? 'מילים'}
+                    </T>
+                  </View>
+                  <TextInput style={{ backgroundColor: C.white, borderRadius: 12, borderWidth: 1.5, borderColor: C.blueBorder, padding: 12, textAlign: 'right', color: C.textDark, height: 56, textAlignVertical: 'top' }} value={urgentNotes} onChangeText={v => setUrgentNotes(limitWords(v, JOB_NOTES_MAX_WORDS))} multiline placeholder={(t as any).notesPh ?? 'פרטים נוספים לנותן השירות…'} placeholderTextColor={C.textSub} />
+                  <T style={{ fontSize: 12, color: '#B45309' }}>{(t as any).notesPublicHint ?? 'ההערות גלויות לכל נותני השירות — בלי קוד כניסה או מספר טלפון.'}</T>
+                </View>
+
                 {/* תשלום */}
                 <View style={{ gap: 6 }}>
                   <T style={s.fieldLabel}>{t.paymentMethodLabel}</T>
-                  <View style={{ flexDirection: 'row', gap: 8 }}>
+                  <View style={{ flexDirection: isRTL ? 'row-reverse' : 'row', gap: 8 }}>
                     {(['cash','bit','paybox','bank'] as const).map(p => (
-                      <TouchableOpacity key={p} style={[s.hourBtn, { flex: 1, flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 4 }, urgentPayment === p && { backgroundColor: '#7C3AED', borderColor: '#7C3AED' }]} onPress={() => setUrgentPayment(p)}>
+                      <TouchableOpacity key={p} style={[s.hourBtn, { flex: 1, flexDirection: isRTL ? 'row-reverse' : 'row', justifyContent: 'center', alignItems: 'center', gap: 4 }, urgentPayment === p && { backgroundColor: '#7C3AED', borderColor: '#7C3AED' }]} onPress={() => setUrgentPayment(p)}>
                         {p === 'paybox' && <PayboxIcon size={16} color={urgentPayment === p ? '#fff' : PAYBOX_BLUE} />}
                         <T
                           style={[{ fontSize: 13, fontWeight: '700', color: C.textDark, textAlign: 'center' }, urgentPayment === p && { color: C.white }]}
