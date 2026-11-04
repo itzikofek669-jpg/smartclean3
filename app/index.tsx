@@ -8,7 +8,7 @@ import { signInWithEmailAndPassword, sendPasswordResetEmail } from 'firebase/aut
 import * as SecureStore from 'expo-secure-store';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { auth, db } from '../lib/firebase';
-import { useLanguage, T, useAppColors, AppColors } from '../lib/LanguageContext';
+import { useLanguage, T, useAppColors, AppColors, rtlRows } from '../lib/LanguageContext';
 import { Lang } from '../lib/translations';
 
 function createS(c: AppColors) {
@@ -79,9 +79,9 @@ const LANGS: { code: Lang; flag: string; label: string; nativeName: string }[] =
 
 export default function LoginScreen() {
   const router = useRouter();
-  const { t, lang, setLang } = useLanguage();
+  const { t, lang, setLang, isRTL } = useLanguage();
   const C = useAppColors();
-  const s = createS(C);
+  const s = rtlRows(createS(C), isRTL, ['langBtn', 'langMenuItem', 'rememberRow', 'socialRow']);
 
   const [email,         setEmail]         = useState('');
   const [password,      setPassword]      = useState('');

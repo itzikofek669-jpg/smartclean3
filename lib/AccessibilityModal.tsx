@@ -12,7 +12,7 @@ interface Props {
 }
 
 export default function AccessibilityModal({ visible, onClose }: Props) {
-  const { t, flipSide, setFlipSide, textScale, setTextScale, highContrast, setHighContrast } = useLanguage();
+  const { t, flipSide, setFlipSide, textScale, setTextScale, highContrast, setHighContrast, isRTL } = useLanguage();
   const insets = useSafeAreaInsets();
 
   // צבעים דינמיים — מגיבים לניגודיות גבוהה
@@ -29,7 +29,7 @@ export default function AccessibilityModal({ visible, onClose }: Props) {
   const Row = ({ icon, label, sublabel, right }: {
     icon: string; label: string; sublabel?: string; right: React.ReactNode
   }) => (
-    <View style={[ms.row, { backgroundColor: bgRow, borderColor: border, borderWidth: highContrast ? 2 : 1 }]}>
+    <View style={[ms.row, { flexDirection: isRTL ? 'row-reverse' : 'row', backgroundColor: bgRow, borderColor: border, borderWidth: highContrast ? 2 : 1 }]}>
       <T style={[ms.rowIcon, { fontSize: fs(22) }]}>{icon}</T>
       <View style={{ flex: 1 }}>
         <T style={[ms.rowLabel, { color: txt, fontSize: fs(15) }]}>{label}</T>
@@ -70,7 +70,7 @@ export default function AccessibilityModal({ visible, onClose }: Props) {
           {/* מצב שמאלי */}
           <Row
             icon="✋"
-            label={t.leftHandedMode || 'מצב שמאלי'}
+            label={String(t.leftHandedMode || 'מצב שמאלי').replace(/^[^\p{L}]+/u, '')}
             sublabel={t.leftHandedSub || 'מזיז כפתורים לצד שמאל'}
             right={<Toggle value={flipSide} onToggle={() => setFlipSide(!flipSide)} />}
           />
@@ -84,12 +84,12 @@ export default function AccessibilityModal({ visible, onClose }: Props) {
           />
 
           {/* גודל טקסט */}
-          <View style={[ms.row, ms.scaleRow, { backgroundColor: bgRow, borderColor: border, borderWidth: highContrast ? 2 : 1 }]}>
+          <View style={[ms.row, ms.scaleRow, { flexDirection: isRTL ? 'row-reverse' : 'row', backgroundColor: bgRow, borderColor: border, borderWidth: highContrast ? 2 : 1 }]}>
             <T style={[ms.rowIcon, { fontSize: fs(22) }]}>Aa</T>
             <View style={{ flex: 1 }}>
               <T style={[ms.rowLabel, { color: txt, fontSize: fs(15) }]}>{t.textSizeLabel || 'גודל טקסט'}</T>
             </View>
-            <View style={ms.scaleBtns}>
+            <View style={[ms.scaleBtns, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
               {SCALES.map(sc => (
                 <TouchableOpacity
                   key={sc.v}

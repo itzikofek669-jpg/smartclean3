@@ -141,6 +141,20 @@ export function T({ style, children, ...props }: TextProps) {
 }
 
 /**
+ * שורות (flexDirection: 'row') בגיליון סגנונות — בעברית ובערבית הפוכות, כדי שהפריט
+ * הראשון יעמוד מימין. האפליקציה לא מפעילה RTL של המערכת, ולכן כל שורה שלא הופכים
+ * נשארת משמאל לימין. מקבלים רק את המפתחות שצריך: יש שורות שכבר נכתבו הפוכות.
+ */
+export function rtlRows<S extends Record<string, any>>(styles: S, isRTL: boolean, keys: (keyof S)[]): S {
+  if (!isRTL) return styles;
+  const out: any = { ...styles };
+  for (const k of keys) {
+    if (out[k] && out[k].flexDirection === 'row') out[k] = { ...out[k], flexDirection: 'row-reverse' };
+  }
+  return out;
+}
+
+/**
  * צבעי ניגודיות גבוהה — שחור על לבן (WCAG AAA ≥ 7:1)
  * לא "מצב לילה" — רקע בהיר עם טקסט כהה וגבולות שחורים בולטים
  */

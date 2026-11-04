@@ -20,6 +20,7 @@ interface Props {
 
 export default function ServiceInfoBtn({ serviceKey, inlinePill, label, pillStyle, pillTextStyle, hideInfo, onPressOverride }: Props) {
   const C = useAppColors();
+  const { isRTL } = useLanguage();
   const [open, setOpen] = useState(false);
   const desc = SERVICE_DESCRIPTIONS[serviceKey];
   const icon = SERVICE_ICONS[serviceKey] || '🧹';
@@ -30,7 +31,7 @@ export default function ServiceInfoBtn({ serviceKey, inlinePill, label, pillStyl
       <>
         <TouchableOpacity
           onPress={() => (onPressOverride ? onPressOverride() : setOpen(true))}
-          style={[pillStyle, { flexDirection: 'row', alignItems: 'center', gap: 4 }]}
+          style={[pillStyle, { flexDirection: isRTL ? 'row-reverse' : 'row', alignItems: 'center', gap: 4 }]}
           accessibilityRole="button"
           accessibilityLabel={`${label} — לחץ לפרטים`}
         >

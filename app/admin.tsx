@@ -13,7 +13,7 @@ import {
 import * as SecureStore from 'expo-secure-store';
 import { db, auth } from '../lib/firebase';
 import { useRouter } from 'expo-router';
-import { useLanguage, T } from '../lib/LanguageContext';
+import { useLanguage, T, rtlRows } from '../lib/LanguageContext';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { TAB_BAR_CONTENT_HEIGHT } from '../lib/BottomTabBar';
 import { demoModeStored, setDemoMode } from '../lib/demoMode';
@@ -90,9 +90,9 @@ const STATUS_LABELS: Record<string, string> = {
 // ─── Main screen ──────────────────────────────────────────────────────────────
 export default function AdminScreen() {
   const router = useRouter();
-  const { highContrast, flipSide } = useLanguage();
+  const { highContrast, flipSide, isRTL } = useLanguage();
   const C = highContrast ? HC_ADMIN : C_DEFAULT;
-  const s = createS(C);
+  const s = rtlRows(createS(C), isRTL, ['header', 'statsGrid', 'statCard', 'revenueBannerRow', 'dashHeader', 'dashLiveBadge', 'chart', 'topRow', 'recentRow', 'userCard', 'bookingCard', 'promoRow', 'infoRow']);
   const insets = useSafeAreaInsets();
   const [tab, setTab]         = useState(0);
   const [loading, setLoading] = useState(true);
@@ -586,7 +586,7 @@ export default function AdminScreen() {
             />
             {/* Booking status filter pills */}
             <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 8 }}>
-              <View style={{ flexDirection: 'row', gap: 8 }}>
+              <View style={{ flexDirection: isRTL ? 'row-reverse' : 'row', gap: 8 }}>
                 {Object.entries(STATUS_LABELS).map(([key, label]) => {
                   const count = bookings.filter(b => b.status === key).length;
                   if (count === 0) return null;
@@ -610,7 +610,7 @@ export default function AdminScreen() {
               : filteredBookings.map(b => (
                 <View key={b.id} style={s.bookingCard}>
                   <View style={{ flex: 1, gap: 3 }}>
-                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                    <View style={{ flexDirection: isRTL ? 'row-reverse' : 'row', alignItems: 'center', gap: 8 }}>
                       <StatusPill status={b.status} />
                       <T style={s.bookingDate}>{b.date} {b.startTime || ''}</T>
                     </View>
@@ -640,7 +640,7 @@ export default function AdminScreen() {
           <View style={s.tabContent}>
 
             {/* כותרת */}
-            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+            <View style={{ flexDirection: isRTL ? 'row-reverse' : 'row', alignItems: 'center', justifyContent: 'space-between' }}>
               <T style={s.cardTitle}>🚨 דיווחים ({reports.length})</T>
               <View style={{ backgroundColor: reports.filter(r => !r.resolved).length > 0 ? C_DEFAULT.red : C_DEFAULT.green, borderRadius: 12, paddingHorizontal: 10, paddingVertical: 4 }}>
                 <T style={{ fontSize: 12, fontWeight: '900', color: '#fff' }}>
@@ -658,7 +658,7 @@ export default function AdminScreen() {
               reports.map(r => (
                 <View key={r.id} style={[s.card, r.resolved && { opacity: 0.5 }]}>
                   {/* סוג + תאריך */}
-                  <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                  <View style={{ flexDirection: isRTL ? 'row-reverse' : 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
                     <View style={{ backgroundColor: r.type === 'bug' ? C_DEFAULT.orangeBg : C_DEFAULT.redBg, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 4 }}>
                       <T style={{ fontSize: 12, fontWeight: '800', color: r.type === 'bug' ? C_DEFAULT.orange : C_DEFAULT.red }}>
                         {REPORT_TYPE_LABEL[r.type] || r.type}
@@ -679,7 +679,7 @@ export default function AdminScreen() {
                   {/* מדווח */}
                   <T style={{ fontSize: 11, color: C_DEFAULT.sub, marginBottom: 10 }}>מדווח: {r.reportedBy}</T>
                   {/* כפתורים */}
-                  <View style={{ flexDirection: 'row', gap: 8 }}>
+                  <View style={{ flexDirection: isRTL ? 'row-reverse' : 'row', gap: 8 }}>
                     {!r.resolved && (
                       <TouchableOpacity
                         style={{ flex: 1, backgroundColor: C_DEFAULT.green, borderRadius: 10, paddingVertical: 10, alignItems: 'center' }}
@@ -745,7 +745,7 @@ export default function AdminScreen() {
             {/* Demo cleaners */}
             <View style={s.card}>
               <T style={s.cardTitle}>🤖 מנקי דמו במכשיר הזה</T>
-              <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+              <View style={{ flexDirection: isRTL ? 'row-reverse' : 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
                 <T style={[s.fieldLabel, { flex: 1, marginTop: 0 }]}>
                   הצג 200 נותני שירות מומצאים ברשימה ובמפה
                 </T>
@@ -793,9 +793,9 @@ export default function AdminScreen() {
 // ─── Sub-components ───────────────────────────────────────────────────────────
 
 function useAdminColors() {
-  const { highContrast } = useLanguage();
+  const { highContrast, isRTL } = useLanguage();
   const C = highContrast ? HC_ADMIN : C_DEFAULT;
-  const s = createS(C);
+  const s = rtlRows(createS(C), isRTL, ['header', 'statsGrid', 'statCard', 'revenueBannerRow', 'dashHeader', 'dashLiveBadge', 'chart', 'topRow', 'recentRow', 'userCard', 'bookingCard', 'promoRow', 'infoRow']);
   return { C, s };
 }
 
@@ -803,8 +803,9 @@ function StatCard({ icon, label, value, color }: {
   icon: string; label: string; value: any; color: string;
 }) {
   const { s } = useAdminColors();
+  const { isRTL } = useLanguage();
   return (
-    <View style={[s.statCard, { borderLeftColor: color, borderLeftWidth: 4 }]}>
+    <View style={[s.statCard, isRTL ? { borderRightColor: color, borderRightWidth: 4 } : { borderLeftColor: color, borderLeftWidth: 4 }]}>
       <View style={[s.statIconBadge, { backgroundColor: color + '1A' }]}>
         <T style={{ fontSize: 22 }}>{icon}</T>
       </View>
@@ -820,16 +821,17 @@ function UserCard({ user, isCleaner, onBlock, onDelete, extraBookings }: {
   user: any; isCleaner?: boolean; onBlock?: () => void; onDelete?: () => void; extraBookings?: number;
 }) {
   const { C, s } = useAdminColors();
+  const { isRTL } = useLanguage();
   return (
     <View style={[s.userCard, user.blocked && { borderColor: C.red, borderWidth: 1.5 }]}>
-      <View style={{ flexDirection: 'row', gap: 12, flex: 1 }}>
+      <View style={{ flexDirection: isRTL ? 'row-reverse' : 'row', gap: 12, flex: 1 }}>
         <View style={[s.userAvatar, { backgroundColor: isCleaner ? C.blue : C.green }]}>
           <T style={{ color: '#fff', fontWeight: '900', fontSize: 16 }}>
             {user.name?.charAt(0) || '?'}
           </T>
         </View>
         <View style={{ flex: 1, gap: 2 }}>
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+          <View style={{ flexDirection: isRTL ? 'row-reverse' : 'row', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
             <T style={s.userName}>{user.name || 'ללא שם'}</T>
             {user.blocked && (
               <View style={s.blockedBadge}>

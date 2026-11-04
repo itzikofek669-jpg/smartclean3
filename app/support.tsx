@@ -11,7 +11,7 @@ import { db, auth } from '../lib/firebase';
 import { resolveRole } from '../lib/resolveRole';
 import { logError } from '../lib/logError';
 import { useRouter } from 'expo-router';
-import { useLanguage, T } from '../lib/LanguageContext';
+import { useLanguage, T, rtlRows } from '../lib/LanguageContext';
 import { TAB_BAR_CONTENT_HEIGHT } from '../lib/BottomTabBar';
 
 const NAV_BAR_HEIGHT = Platform.OS === 'android'
@@ -995,7 +995,7 @@ function TypingDots({ s }: { s: ReturnType<typeof createS> }) {
 
 // ─── Main Screen ──────────────────────────────────────────────────────────────
 export default function SupportScreen() {
-  const { t, highContrast, flipSide } = useLanguage();
+  const { t, highContrast, flipSide, isRTL } = useLanguage();
   const insets = useSafeAreaInsets();
   const C = highContrast ? {
     bg:        '#FFFFFF', botBg:  '#F0F0F0', userBg: '#0040CC',
@@ -1003,7 +1003,7 @@ export default function SupportScreen() {
     text:      '#000000', sub:    '#1A1A1A',  border:   '#000000',
     white:     '#FFFFFF', green:  '#005C00',  red:      '#B30000',
   } : C_DEFAULT;
-  const s = createS(C);
+  const s = rtlRows(createS(C), isRTL, ['headerCenter', 'onlineRow', 'qrWrap']);
   const router = useRouter();
   const flatRef = useRef<FlatList>(null);
 

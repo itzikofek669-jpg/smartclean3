@@ -21,7 +21,7 @@ import {
   firstError, validateName, validateEmail, validatePassword,
   validatePhone, validateAge, validateDistance, validatePrice, normalizePhone,
 } from '../lib/validate';
-import { useLanguage, T, useAppColors, AppColors } from '../lib/LanguageContext';
+import { useLanguage, T, useAppColors, AppColors, rtlRows } from '../lib/LanguageContext';
 import BackIcon from '../lib/BackIcon';
 import { Lang } from '../lib/translations';
 import { TERMS_BY_LANG } from '../lib/terms';
@@ -348,6 +348,7 @@ function RegisterFreeBanner({ label1, sub1, label2, sub2, color1, color2, bg1, b
   label1: string; sub1: string; label2: string; sub2: string;
   color1: string; color2: string; bg1: string; bg2: string; border1: string; border2: string;
 }) {
+  const { isRTL } = useLanguage();
   const p1 = useAnimatedValue(1);
   const p2 = useAnimatedValue(1);
   useEffect(() => {
@@ -364,7 +365,7 @@ function RegisterFreeBanner({ label1, sub1, label2, sub2, color1, color2, bg1, b
   return (
     <View style={{ backgroundColor: '#fff', borderRadius: 18, marginBottom: 14, paddingVertical: 14, paddingHorizontal: 12, borderWidth: 1.5, borderColor: '#6EE7B7', elevation: 3, shadowColor: '#10B981', shadowOpacity: 0.15, shadowRadius: 8, shadowOffset: { width: 0, height: 3 } }}>
       <Text style={{ fontSize: 13, fontWeight: '900', color: '#065F46', textAlign: 'center', marginBottom: 10 }}>🎉 A&M Clean — חינמי לחלוטין</Text>
-      <View style={{ flexDirection: 'row', gap: 10 }}>
+      <View style={{ flexDirection: isRTL ? 'row-reverse' : 'row', gap: 10 }}>
         <View style={{ flex: 1, backgroundColor: bg1, borderRadius: 14, paddingVertical: 12, alignItems: 'center', borderWidth: 1.5, borderColor: border1 }}>
           <Animated.Text style={{ fontSize: 26, fontWeight: '900', color: color1, transform: [{ scale: p1 }] }}>{label1}</Animated.Text>
           <Text style={{ fontSize: 11, fontWeight: '700', color: color1, marginTop: 2 }}>{sub1}</Text>
@@ -380,9 +381,11 @@ function RegisterFreeBanner({ label1, sub1, label2, sub2, color1, color2, bg1, b
 
 export default function RegisterScreen() {
   const router = useRouter();
-  const { lang, t, setLang } = useLanguage();
+  const { lang, t, setLang, isRTL } = useLanguage();
   const C = useAppColors();
-  const s = createS(C);
+  // The fields read from the right in Hebrew, as on the login screen (they were centred).
+  const s0 = rtlRows(createS(C), isRTL, ['roleRow', 'pillRow', 'availTimeGroup', 'addrSugRow']);
+  const s = { ...s0, input: { ...s0.input, textAlign: (isRTL ? 'right' : 'left') as 'right' | 'left' } };
 
   // Base fields
   const [name,         setName]         = useState('');
@@ -898,16 +901,16 @@ export default function RegisterScreen() {
           {/* שדות בסיס */}
           <View style={s.field}>
             <T style={s.label}>{t.fullNameLabel}</T>
-            <TextInput style={[s.input, missName && s.inputError]} placeholder={t.namePlaceholder} value={name} onChangeText={setName} placeholderTextColor={C.sub} textAlign="center" />
+            <TextInput style={[s.input, missName && s.inputError]} placeholder={t.namePlaceholder} value={name} onChangeText={setName} placeholderTextColor={C.sub} textAlign={isRTL ? 'right' : 'left'} />
           </View>
           <View style={s.field}>
             <T style={s.label}>{t.emailLabel}</T>
-            <TextInput style={[s.input, missEmail && s.inputError]} placeholder="your@email.com" value={email} onChangeText={setEmail} keyboardType="email-address" autoCapitalize="none" placeholderTextColor={C.sub} textAlign="center" />
+            <TextInput style={[s.input, missEmail && s.inputError]} placeholder="your@email.com" value={email} onChangeText={setEmail} keyboardType="email-address" autoCapitalize="none" placeholderTextColor={C.sub} textAlign={isRTL ? 'right' : 'left'} />
           </View>
           <View style={s.field}>
             <T style={s.label}>{t.passwordLabel}</T>
             <View style={{ position: 'relative', justifyContent: 'center' }}>
-              <TextInput style={[s.input, missPass && s.inputError, { paddingLeft: 44 }]} placeholder={t.passwordHint} value={password} onChangeText={setPassword} secureTextEntry={!showPassword} placeholderTextColor={C.sub} textAlign="center" />
+              <TextInput style={[s.input, missPass && s.inputError, { paddingLeft: 44 }]} placeholder={t.passwordHint} value={password} onChangeText={setPassword} secureTextEntry={!showPassword} placeholderTextColor={C.sub} textAlign={isRTL ? 'right' : 'left'} />
               <TouchableOpacity onPress={() => setShowPassword(v => !v)} style={{ position: 'absolute', left: 10, padding: 6 }} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }} accessibilityLabel={showPassword ? 'הסתר סיסמה' : 'הצג סיסמה'}>
                 <Text style={{ fontSize: 20 }}>{showPassword ? '🙈' : '👁️'}</Text>
               </TouchableOpacity>
@@ -922,7 +925,7 @@ export default function RegisterScreen() {
               onChangeText={setPhone}
               keyboardType="phone-pad"
               placeholderTextColor={C.sub}
-              textAlign="center"
+              textAlign={isRTL ? 'right' : 'left'}
               maxLength={10}
             />
           </View>
@@ -939,7 +942,7 @@ export default function RegisterScreen() {
                 <TextInput
                   style={s.input} placeholder={t.addressPlaceholder}
                   value={city} onChangeText={handleCityChange}
-                  placeholderTextColor={C.sub} textAlign="center"
+                  placeholderTextColor={C.sub} textAlign={isRTL ? 'right' : 'left'}
                 />
                 {addrSuggestions.length > 0 && (
                   <View style={s.addrDropdown}>
@@ -977,7 +980,7 @@ export default function RegisterScreen() {
                     <TextInput
                       style={[s.input, (submitAttempted && !clientFloor.trim()) && s.inputError]}
                       placeholder={t.floorLabel ?? 'קומה'} value={clientFloor} onChangeText={setClientFloor}
-                      keyboardType="number-pad" placeholderTextColor={C.sub} textAlign="center"
+                      keyboardType="number-pad" placeholderTextColor={C.sub} textAlign={isRTL ? 'right' : 'left'}
                     />
                   </View>
                   <View style={[s.field, { flex: 1 }]}>
@@ -985,7 +988,7 @@ export default function RegisterScreen() {
                     <TextInput
                       style={[s.input, (submitAttempted && !clientApt.trim()) && s.inputError]}
                       placeholder={t.aptLabel ?? 'מספר דירה'} value={clientApt} onChangeText={setClientApt}
-                      keyboardType="number-pad" placeholderTextColor={C.sub} textAlign="center"
+                      keyboardType="number-pad" placeholderTextColor={C.sub} textAlign={isRTL ? 'right' : 'left'}
                     />
                   </View>
                 </View>
@@ -1038,17 +1041,17 @@ export default function RegisterScreen() {
 
                 <View style={s.field}>
                   <T style={s.label}>{t.citizenshipLabel}</T>
-                  <TextInput style={s.input} placeholder={t.citizenshipPlaceholder} value={citizenship} onChangeText={setCitizenship} placeholderTextColor={C.sub} textAlign="center" />
+                  <TextInput style={s.input} placeholder={t.citizenshipPlaceholder} value={citizenship} onChangeText={setCitizenship} placeholderTextColor={C.sub} textAlign={isRTL ? 'right' : 'left'} />
                 </View>
 
                 <View style={s.field}>
                   <T style={s.label}>{t.ageLabel}</T>
-                  <TextInput style={s.input} placeholder={t.agePlaceholder} value={cleanerAge} onChangeText={setCleanerAge} keyboardType="numeric" placeholderTextColor={C.sub} textAlign="center" />
+                  <TextInput style={s.input} placeholder={t.agePlaceholder} value={cleanerAge} onChangeText={setCleanerAge} keyboardType="numeric" placeholderTextColor={C.sub} textAlign={isRTL ? 'right' : 'left'} />
                 </View>
 
                 <View style={s.field}>
                   <T style={s.label}>{t.mobileLabel}</T>
-                  <View style={{ flexDirection: 'row', gap: 10 }}>
+                  <View style={{ flexDirection: isRTL ? 'row-reverse' : 'row', gap: 10 }}>
                     <TouchableOpacity
                       style={[s.pill, isMobile && s.pillActive, { flex: 1, alignItems: 'center', justifyContent: 'center', paddingVertical: 12 }]}
                       onPress={() => setIsMobile(true)}>
@@ -1065,13 +1068,13 @@ export default function RegisterScreen() {
                 <View style={s.field}>
                   <T style={s.label}>{t.cleanerAddressLabel}</T>
                   {/* מנקה — רק עיר ורחוב, ללא קומה/מספר דירה */}
-                  <TextInput style={s.input} placeholder={t.cleanerAddressPlaceholder} value={cleanerAddress} onChangeText={setCleanerAddress} placeholderTextColor={C.sub} textAlign="center" />
+                  <TextInput style={s.input} placeholder={t.cleanerAddressPlaceholder} value={cleanerAddress} onChangeText={setCleanerAddress} placeholderTextColor={C.sub} textAlign={isRTL ? 'right' : 'left'} />
                 </View>
 
                 {/* מרחק הגעה מקסימלי */}
                 <View style={s.field}>
                   <T style={s.label}>{t.maxDistanceLabel}</T>
-                  <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 4, justifyContent: 'center' }}>
+                  <View style={{ flexDirection: isRTL ? 'row-reverse' : 'row', flexWrap: 'wrap', gap: 8, marginTop: 4, justifyContent: 'center' }}>
                     {[5, 10, 20, 30, 50, 999].map(km => (
                       <TouchableOpacity
                         key={km}
@@ -1110,14 +1113,14 @@ export default function RegisterScreen() {
                         setBio(words.slice(0, 30).join(' '));
                       }
                     }}
-                    multiline placeholderTextColor={C.sub} textAlign="center"
+                    multiline placeholderTextColor={C.sub} textAlign={isRTL ? 'right' : 'left'}
                   />
                   <T style={{ fontSize: 11, color: C.sub, textAlign: 'right', marginTop: 4 }}>{t.bioWordLimitHint}</T>
                 </View>
 
                 <View style={s.field}>
                   <T style={s.label}>{t.suppliesLabel}</T>
-                  <View style={{ flexDirection: 'row', gap: 10 }}>
+                  <View style={{ flexDirection: isRTL ? 'row-reverse' : 'row', gap: 10 }}>
                     <TouchableOpacity
                       style={[s.pill, bringSupplies && s.pillActive, { flex: 1, alignItems: 'center', justifyContent: 'center', paddingVertical: 12 }]}
                       onPress={() => setBringSupplies(true)}>

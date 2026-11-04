@@ -78,7 +78,7 @@ function createS(c: AppColors) {
 
 // ─── Inline Chat Modal ────────────────────────────────────────────────────────
 function InlineChatModal({ chatId, otherUid, otherName, visible, onClose, onDecided }: any) {
-  const { t, flipSide } = useLanguage();
+  const { t, flipSide, isRTL } = useLanguage();
   const C = useAppColors();
   const cs = createCS(C);
   const insets = useSafeAreaInsets();
@@ -621,7 +621,7 @@ function InlineChatModal({ chatId, otherUid, otherName, visible, onClose, onDeci
                   </View>
                 );
               })()}
-              <View style={{ flexDirection: 'row', gap: 10 }}>
+              <View style={{ flexDirection: isRTL ? 'row-reverse' : 'row', gap: 10 }}>
                 <TouchableOpacity
                   disabled={deciding}
                   accessibilityRole="button"
@@ -706,7 +706,7 @@ function InlineChatModal({ chatId, otherUid, otherName, visible, onClose, onDeci
                       style={[
                         cs.bubble,
                         isMe ? cs.bubbleMe : cs.bubbleOther,
-                        { flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 10 },
+                        { flexDirection: isRTL ? 'row-reverse' : 'row', alignItems: 'center', gap: 8, paddingVertical: 10 },
                       ]}
                       onPress={() => playAudio(m.audioBase64, m.audioUrl, m.id)}
                     >
@@ -807,7 +807,7 @@ function InlineChatModal({ chatId, otherUid, otherName, visible, onClose, onDeci
 // ─── Messages Screen ──────────────────────────────────────────────────────────
 export default function MessagesScreen() {
   const router = useRouter();
-  const { t, lang, flipSide }  = useLanguage();
+  const { t, lang, flipSide, isRTL }  = useLanguage();
   const LOCALE_MAP: Record<string, string> = { he: 'he-IL', en: 'en-GB', ru: 'ru-RU', ar: 'ar-SA', fr: 'fr-FR', hi: 'hi-IN' };
   const C = useAppColors();
   const s = createS(C);
@@ -1014,7 +1014,7 @@ export default function MessagesScreen() {
         <>
           {/* רצועת מידע במצב בחירה */}
           {convSelecting && (
-            <View style={{ backgroundColor: '#FEF2F2', paddingHorizontal: 16, paddingVertical: 8, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', borderBottomWidth: 1, borderColor: '#FCA5A5' }}>
+            <View style={{ backgroundColor: '#FEF2F2', paddingHorizontal: 16, paddingVertical: 8, flexDirection: isRTL ? 'row-reverse' : 'row', justifyContent: 'space-between', alignItems: 'center', borderBottomWidth: 1, borderColor: '#FCA5A5' }}>
               <TouchableOpacity onPress={() => {
                 if (selectedConvs.size === conversations.length) {
                   setSelectedConvs(new Set());
