@@ -4218,15 +4218,6 @@ export default function HomeScreen() {
       mapRef.current.animateToRegion({ latitude: c.lat, longitude: c.lng, latitudeDelta: 0.04, longitudeDelta: 0.04 }, 500);
     }
   }, []);
-  // מרכוז המפה על כתובת עבודה מהלוח (לחיצה על כרטיס)
-  const showJobOnMap = React.useCallback((job: any) => {
-    try {
-      const c = (typeof job.lat === 'number' && typeof job.lng === 'number')
-        ? { lat: job.lat, lng: job.lng }
-        : getCoordsForCleaner({ city: job.addrCity, address: job.address });
-      if (c) mapRef.current?.animateToRegion({ latitude: c.lat, longitude: c.lng, latitudeDelta: 0.05, longitudeDelta: 0.05 }, 600);
-    } catch (_) {}
-  }, []);
   // התמקדות במפה לפי שם עיר (חיפוש/סינון) — מחפש קואורדינטות ב-CITY_COORDS, בתרגום, או אצל מנקה
   // useCallback + effect, not an assignment during render. Writing to a ref
   // while rendering is the case the React Compiler rules exist to catch, and
@@ -6151,6 +6142,17 @@ export default function HomeScreen() {
   // In an effect, not during render: writing a ref while rendering is the case
   // the React Compiler rules exist to catch.
   useEffect(() => { jobBoardRef.current = jobBoard; }, [jobBoard]);
+  // לחיצה בכל מקום בכרטיס, חוץ מהכפתורים והתמונות: הכרטיס מסומן והמפה זזה אל
+  // הסיכה שלו — אותה נקודה שבה היא מצוירת, כולל הפיזור של כמה עבודות באותה
+  // עיר. קודם רק שורות הפרטים הגיבו, והמפה נעצרה על מרכז העיר ולא על הסיכה.
+  const focusJob = React.useCallback((j: any) => {
+    setSelectedJobId(j._id);
+    try {
+      const p = spreadStacked(jobBoardRef.current, getJobCoords).find(x => x.item._id === j._id);
+      const c = p ? { lat: p.lat, lng: p.lng } : getJobCoords(j);
+      if (c) mapRef.current?.animateToRegion({ latitude: c.lat, longitude: c.lng, latitudeDelta: 0.05, longitudeDelta: 0.05 }, 600);
+    } catch (_) {}
+  }, []);
   const pickJob = React.useCallback((id: string) => {
     setSelectedJobId(id);
     const idx = jobBoardRef.current.findIndex((x: any) => x._id === id);
@@ -7175,7 +7177,9 @@ export default function HomeScreen() {
                 const isUrgent = j._kind === 'urgent';
                 const isPicked = pickedJobId === j._id;
                 return (
-                  <View style={[
+                  // accessible={false}: as one element for VoiceOver it would hide
+                  // the buttons inside it.
+                  <TouchableOpacity activeOpacity={0.85} accessible={false} onPress={() => focusJob(j)} style={[
                     s.jobCard,
                     isUrgent && { borderColor: '#7C3AED', borderWidth: 3, backgroundColor: '#EDE9FE', shadowColor: '#7C3AED', shadowOpacity: 0.3, shadowRadius: 8, elevation: 5 },
                     // Picked on the map: ringed in the pin's colour and a little larger.
@@ -7197,7 +7201,7 @@ export default function HomeScreen() {
                       </View>
                       {price != null && <T style={[s.jobPrice, isUrgent && { color: '#6D28D9' }]}>{(t as any).totalShort ?? 'סה"כ'} ₪{price}</T>}
                     </View>
-                    <TouchableOpacity activeOpacity={0.7} style={{ marginTop: 7, gap: 5 }} onPress={() => { setSelectedJobId(j._id); showJobOnMap(j); }}>
+                    <View style={{ marginTop: 7, gap: 5 }}>
                       <View style={s.jobFactRow}>
                         {!!dateStr && <View style={s.jobFact}><T style={s.jobFactText}>📅 {formatJobDate(dateStr).replace(/\/\d{4}$/, '')}{timeStr ? ` · ${timeStr}` : ''}</T></View>}
                         {!!j.hours && <View style={s.jobFact}><T style={s.jobFactText}>⏱️ {j.hours} {(t as any).hoursUnit ?? 'שעות'}</T></View>}
@@ -7224,7 +7228,7 @@ export default function HomeScreen() {
                           ))}
                         </View>
                       )}
-                    </TouchableOpacity>
+                    </View>
                     <View style={{ flexDirection: 'row-reverse', gap: 6, marginTop: 9 }}>
                       <TouchableOpacity style={[s.jobBtn, s.jobBtnPrimary]} onPress={() => claimJob(j)}>
                         <T style={s.jobBtnPrimaryText} numberOfLines={1}>{(t as any).claimJobBtn ?? 'קח את העבודה'}</T>
@@ -7236,7 +7240,7 @@ export default function HomeScreen() {
                         <T style={s.jobBtnDismissText}>✕</T>
                       </TouchableOpacity>
                     </View>
-                  </View>
+                  </TouchableOpacity>
                 );
               }
             : ({ item: c }) => (
