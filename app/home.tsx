@@ -6908,7 +6908,7 @@ export default function HomeScreen() {
               בלי התראות הוא לא שומע שנותן השירות אישר, ביטל או כתב לו. */}
           {!!myRole && pushSilence(pushOptedOut, pushPermitted, pushUnregistered) && (
             <TouchableOpacity
-              style={{ backgroundColor: '#DC2626', borderRadius: 14, padding: 14, marginBottom: 8, flexDirection: 'row', alignItems: 'center', gap: 10, opacity: pushTurningOn ? 0.7 : 1 }}
+              style={{ backgroundColor: '#DC2626', borderRadius: 14, padding: 14, marginBottom: 8, flexDirection: isRTL ? 'row-reverse' : 'row', alignItems: 'center', gap: 10, opacity: pushTurningOn ? 0.7 : 1 }}
               onPress={handleTurnPushOn}
               disabled={pushTurningOn}
               activeOpacity={0.88}

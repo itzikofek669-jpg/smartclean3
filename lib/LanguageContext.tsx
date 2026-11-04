@@ -106,25 +106,38 @@ export function useFS() {
 /**
  * T — רכיב Text שמכפיל fontSize אוטומטית לפי textScale מהקונטקסט.
  * משמש במקום <Text> בכל האפליקציה — כל שאר ה-props עוברים ישירות.
+ *
+ * בעברית ובערבית טקסט בלי textAlign משלו מיושר לימין. האפליקציה לא קוראת ל-
+ * I18nManager.forceRTL, ולכן ברירת המחדל של RN הייתה שמאל: כרטיסים שלמים
+ * (תאריך, סוג הניקיון, פירוט, כתובת) נראו משמאל לימין. טקסט מקונן בתוך T אחר
+ * לא מקבל יישור — ב-iOS היישור של התו הראשון בפסקה קובע לכל הפסקה, וכותרת
+ * ממורכזת עם מילה מודגשת בתחילתה הייתה זזה לימין.
  */
+const InsideText = createContext(false);
+
 export function T({ style, children, ...props }: TextProps) {
   const { textScale, lang } = useContext(LanguageContext);
+  const nested = useContext(InsideText);
   const needsDevanagari = lang === 'hi' &&
     typeof children === 'string' &&
     /[ऀ-ॿ]/.test(children);
   const hiFont = needsDevanagari ? { fontFamily: 'NotoSansDevanagari_400Regular' } : {};
   const flat: any = style ? RNStyleSheet.flatten(style) ?? {} : {};
+  const rtlAlign = !nested && (lang === 'he' || lang === 'ar') && flat.textAlign == null
+    ? { textAlign: 'right' as const }
+    : null;
 
   // הינדי: הקטנת פונט אוטומטית אם הטקסט לא מתאים לכפתור
   const hiAdjust = needsDevanagari && !props.numberOfLines
     ? { adjustsFontSizeToFit: true, numberOfLines: 2, minimumFontScale: 0.65 }
     : {};
 
-  if (textScale === 1) return <RNText style={[hiFont, style]} {...hiAdjust} {...props}>{children}</RNText>;
+  const inner = nested ? children : <InsideText.Provider value>{children}</InsideText.Provider>;
+  if (textScale === 1) return <RNText style={[hiFont, style, rtlAlign]} {...hiAdjust} {...props}>{inner}</RNText>;
   const scaled = flat.fontSize != null
-    ? { ...flat, ...hiFont, fontSize: Math.round(flat.fontSize * textScale) }
-    : { ...flat, ...hiFont };
-  return <RNText style={scaled} {...hiAdjust} {...props}>{children}</RNText>;
+    ? { ...flat, ...hiFont, ...rtlAlign, fontSize: Math.round(flat.fontSize * textScale) }
+    : { ...flat, ...hiFont, ...rtlAlign };
+  return <RNText style={scaled} {...hiAdjust} {...props}>{inner}</RNText>;
 }
 
 /**

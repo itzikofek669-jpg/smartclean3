@@ -426,8 +426,9 @@ function calcDuration(startIso: string, endIso: string): string {
 // ─── Star Rating Component ────────────────────────────────────────────────────
 function StarPicker({ value, onChange }: { value: number; onChange: (n: number) => void }) {
   const C = useAppColors();
+  const { isRTL } = useLanguage();
   return (
-    <View style={{ flexDirection: 'row', gap: 6 }}>
+    <View style={{ flexDirection: isRTL ? 'row-reverse' : 'row', gap: 6 }}>
       {[1,2,3,4,5].map(i => (
         <TouchableOpacity key={i} onPress={() => onChange(i)}>
           <T style={{ fontSize: 30, color: i <= value ? C.gold : C.blueBorder }}>★</T>
@@ -2786,8 +2787,8 @@ export default function ProfileScreen() {
           );
         })() : (<>
         {/* ── שורה עליונה: שם + מחיר ── */}
-        <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 14, paddingTop: 14, paddingBottom: 8 }}>
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, flex: 1 }}>
+        <View style={{ flexDirection: isRTL ? 'row-reverse' : 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 14, paddingTop: 14, paddingBottom: 8 }}>
+          <View style={{ flexDirection: isRTL ? 'row-reverse' : 'row', alignItems: 'center', gap: 10, flex: 1 }}>
             <View style={[s.bookingAvatar, { backgroundColor: statusBorderColor }]}>
               <T style={s.bookingAvatarText}>{personName.charAt(0)}</T>
             </View>
@@ -2813,7 +2814,7 @@ export default function ProfileScreen() {
 
           {/* תאריך + שעה */}
           {(b.bookingDate || b.startTime) && (
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+            <View style={{ flexDirection: isRTL ? 'row-reverse' : 'row', alignItems: 'center', gap: 6 }}>
               <T style={{ fontSize: 13, color: C.textDark, fontWeight: '700' }}>
                 📅 {b.bookingDate ? dateOnly(b.bookingDate).toLocaleDateString(LOCALE_MAP[lang] || 'he-IL', { weekday: 'short', day: '2-digit', month: '2-digit', year: '2-digit' }) : ''}
                 {b.startTime ? `  🕐 ${b.startTime}` : ''}
@@ -2830,7 +2831,7 @@ export default function ProfileScreen() {
           })()}
 
           {/* שעות + תשלום + סטטוס */}
-          <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>
+          <View style={{ flexDirection: isRTL ? 'row-reverse' : 'row', flexWrap: 'wrap', gap: 6 }}>
             <View style={s.detailPill}>
               <T style={s.detailPillText}>⏱ {hours} {t.hoursUnit}</T>
               {isDone && b.actualHours != null && b.actualHours !== b.hours && (
@@ -2907,7 +2908,7 @@ export default function ProfileScreen() {
 
           {/* תשלום אושר */}
           {b.paymentStatus === 'paid' && (
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: '#D1FAE5', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 5 }}>
+            <View style={{ flexDirection: isRTL ? 'row-reverse' : 'row', alignItems: 'center', gap: 6, backgroundColor: '#D1FAE5', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 5 }}>
               <T style={{ fontSize: 12, fontWeight: '800', color: '#065F46' }}>{t.paymentApproved}</T>
             </View>
           )}
