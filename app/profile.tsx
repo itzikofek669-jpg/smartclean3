@@ -2197,7 +2197,8 @@ export default function ProfileScreen() {
   };
 
   const totalSpent  = bookings.filter(b => b.status !== 'cancelled').reduce((sum, b) => sum + (b.total || 0), 0);
-  const totalEarned = incomingBks.filter(b => b.status !== 'cancelled').reduce((sum, b) => sum + (b.total || 0), 0);
+  // מה שנגבה בפועל כשהשעות השתנו, כמו באתר ובסיכום העסקי.
+  const totalEarned = incomingBks.filter(b => b.status !== 'cancelled').reduce((sum, b) => sum + (b.actualTotal || b.total || 0), 0);
   const isCleaner   = userRole === 'cleaner';
   const DAYS_LABELS = [t.availSun, t.availMon, t.availTue, t.availWed, t.availThu, t.availFri, t.availSat];
 
@@ -2219,8 +2220,9 @@ export default function ProfileScreen() {
   const clientFreq: Record<string, number> = {};
   incomingBks.forEach(b => { if (b.clientUid) clientFreq[b.clientUid] = (clientFreq[b.clientUid] || 0) + 1; });
   const repeatClients   = Object.values(clientFreq).filter(n => n >= 2).length;
-  const ratedBks        = completedBks.filter(b => b.clientRating);
-  const dashAvgRating   = ratedBks.length > 0 ? (ratedBks.reduce((s, b) => s + b.clientRating, 0) / ratedBks.length).toFixed(1) : '-';
+  // הדירוג שלה: הכוכבים שהלקוחות נתנו לה (cleanerRating), לא אלה שהיא נתנה להם.
+  const ratedBks        = completedBks.filter(b => b.cleanerRating);
+  const dashAvgRating   = ratedBks.length > 0 ? (ratedBks.reduce((s, b) => s + b.cleanerRating, 0) / ratedBks.length).toFixed(1) : '-';
 
   // Weekly schedule
   const weekStart = (() => { const d = new Date(nowDate); d.setDate(d.getDate() - d.getDay()); d.setHours(0,0,0,0); return d; })();
@@ -3594,7 +3596,8 @@ export default function ProfileScreen() {
           </View>
 
           {/* Stats */}
-          <View style={s.statsRow}>
+          {/* מימין לשמאל, כמו באתר: "הזמנות" ראשון מימין. */}
+          <View style={[s.statsRow, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
             <View style={s.statBox}>
               <T style={s.statVal}>{(isCleaner ? incomingBks : bookings).filter(b => b.status !== 'cancelled').length}</T>
               <T style={s.statLabel}>{t.bookingsLabel}</T>
@@ -3602,7 +3605,7 @@ export default function ProfileScreen() {
             <View style={s.statDivider} />
             <View style={s.statBox}>
               <T style={s.statVal}>₪{isCleaner ? totalEarned : totalSpent}</T>
-              <T style={s.statLabel}>{isCleaner ? 'הכנסות' : t.totalSpentLabel}</T>
+              <T style={s.statLabel}>{isCleaner ? ((t as any).statIncome ?? 'הכנסות') : t.totalSpentLabel}</T>
             </View>
             <View style={s.statDivider} />
             <View style={s.statBox}>
@@ -3611,7 +3614,7 @@ export default function ProfileScreen() {
                   ? incomingBks.filter(b => b.status === 'active' && !isPastBooking(b)).length
                   : bookings.filter(b => b.status === 'pending' && !isPastBooking(b)).length}
               </T>
-              <T style={s.statLabel}>{isCleaner ? '🔄 פעיל' : t.pendingLabel}</T>
+              <T style={s.statLabel}>{isCleaner ? ((t as any).statActive ?? '🔄 פעיל') : t.pendingLabel}</T>
             </View>
           </View>
 
@@ -3765,7 +3768,7 @@ export default function ProfileScreen() {
               {/* 1. בקשות דחופות — רק אם יש */}
               {urgentRequests.length > 0 && (
                 <>
-                  <T style={[s.sectionTitle, { color: '#4C1D95', textAlign: 'center' }]}>⚡ {t.urgentTabLabel} ({urgentRequests.length})</T>
+                  <T style={[s.sectionTitle, { color: '#4C1D95', textAlign: 'center' }]}>{t.urgentTabLabel} ({urgentRequests.length})</T>
                   {urgentRequests.map((req: any) => {
                     // The day, worked out from the request's date. It printed the
                     // word stored when the request was sent, so one sent at 23:30
@@ -3815,7 +3818,7 @@ export default function ProfileScreen() {
 
               {/* 2. Dashboard */}
               <T style={[s.sectionTitle, { marginBottom: 10, textAlign: 'center' }]}>📊 {t.dashboardTitle}</T>
-              <View style={s.dashRow}>
+              <View style={[s.dashRow, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
                 <View style={s.dashCard}>
                   <T style={s.dashVal}>₪{thisMonthEarned}</T>
                   <T style={s.dashLabel}>{t.thisMonthLabel}</T>
@@ -3833,7 +3836,7 @@ export default function ProfileScreen() {
                   <T style={s.dashLabel}>{t.avgRatingLabel}</T>
                 </View>
               </View>
-              <View style={[s.dashRow, { marginTop: 10 }]}>
+              <View style={[s.dashRow, { marginTop: 10, flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
                 <View style={s.dashCard}>
                   <T style={s.dashVal}>₪{allTimeEarned}</T>
                   <T style={s.dashLabel}>{t.allTimeEarningsLabel}</T>
@@ -3908,7 +3911,7 @@ export default function ProfileScreen() {
               <View style={{ height: 1, backgroundColor: C.blueBorder, marginVertical: 20 }} />
 
               {/* 4. לוח שבועי */}
-              <T style={[s.sectionTitle, { textAlign: 'center', marginBottom: 12 }]}>🗓 {t.scheduleWeekTitle}</T>
+              <T style={[s.sectionTitle, { textAlign: 'center', marginBottom: 12 }]}>{t.scheduleWeekTitle}</T>
               <View style={{ flexDirection: 'row', gap: 4 }}>
                 {['א','ב','ג','ד','ה','ו','ש'].map((day, di) => {
                   const dayDate = new Date(weekStart);

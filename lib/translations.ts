@@ -328,7 +328,7 @@ const he = {
 
   // Chat
   chatWithPrefix: "צ'אט עם ",
-  chatPlaceholder: 'כתוב הודעה...',
+  chatPlaceholder: 'הקלד הודעה...',
   autoReply: 'תודה! אחזור אליך בהקדם 🙂',
   greetingPrefix: 'שלום! אני ',
   greetingSuffix: '. במה אוכל לעזור?',
@@ -752,7 +752,7 @@ const he = {
   deselectAll: '✕ בטל הכל',
   selectAll: '✓ בחר הכל',
   clearAll: 'נקה הכל',
-  chatInputPh: 'כתוב הודעה...',
+  chatInputPh: 'הקלד הודעה...',
   savedAddrLabel: 'כתובות שמורות:',
   serviceIncludesTitle: '📋 מה כולל השירות:',
   cityOptionalPh: 'עיר (אופציונלי)',
@@ -790,7 +790,7 @@ const he = {
   dateShort: '📅 תאריך',
   timeShort: '🕐 שעה',
   chatWithClient: '💬 שיחה עם הלקוח',
-  chatInputClientPh: 'כתוב הודעה ללקוח...',
+  chatInputClientPh: 'הקלד הודעה ללקוח...',
   approveBookingBtn: '✅ אשר הזמנה',
   overlapCheckFailed: 'לא ניתן לבדוק חפיפה כרגע. נסה שוב כשיש חיבור.',
   roleNotLoadedYet: 'הפרופיל עדיין נטען. נסה שוב בעוד רגע.',
@@ -4230,6 +4230,16 @@ const DAY_NAMES_SHORT: Record<string, string[]> = {
   uk: ['Нд', 'Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб'],
 };
 
+const STAT_WORDS: Record<string, { statIncome: string; statActive: string }> = {
+  he: { statIncome: 'הכנסות', statActive: '🔄 פעיל' },
+  en: { statIncome: 'Income', statActive: '🔄 Active' },
+  ru: { statIncome: 'Доход', statActive: '🔄 Активно' },
+  ar: { statIncome: 'الدخل', statActive: '🔄 نشط' },
+  fr: { statIncome: 'Revenus', statActive: '🔄 En cours' },
+  hi: { statIncome: 'आय', statActive: '🔄 सक्रिय' },
+  uk: { statIncome: 'Дохід', statActive: '🔄 Активно' },
+};
+
 const ALL_RIGHTS: Record<string, string> = {
   he: 'כל הזכויות שמורות',
   en: 'All rights reserved',
@@ -4263,6 +4273,7 @@ const URGENT_MESSAGES: Record<string, Record<string, string>> = {
 for (const L of Object.keys(LANG_NAMES)) {
   Object.assign((translations as any)[L], {
     ...URGENT_MESSAGES[L],
+    ...STAT_WORDS[L],
     allRightsReserved: ALL_RIGHTS[L],
     savedAddressesWord: SAVED_ADDRESSES[L],
     langNames: LANG_NAMES[L],
