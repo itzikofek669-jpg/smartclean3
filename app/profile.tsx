@@ -256,9 +256,9 @@ function createS(c: AppColors) {
     langBtnTextHi:    { fontFamily: 'NotoSansDevanagari_400Regular', fontWeight: '400', lineHeight: 24 },
 
     dayRow:           { flexDirection: 'row', alignItems: 'center', gap: 10 },
-    dayHourLabel:     { fontSize: 13, fontWeight: '800', color: c.green, minWidth: 42, textAlign: 'right' },
+    dayHourLabel:     { fontSize: 13, fontWeight: '800', color: c.blue, minWidth: 42, textAlign: 'right' },
     dayBtn:           { paddingHorizontal: 12, paddingVertical: 9, borderRadius: 10, backgroundColor: c.white, borderWidth: 1.5, borderColor: c.blueBorder, minWidth: 52, alignItems: 'center' },
-    dayBtnActive:     { backgroundColor: c.green, borderColor: c.green },
+    dayBtnActive:     { backgroundColor: c.blue, borderColor: c.blue },
     dayBtnText:       { fontSize: 12, fontWeight: '700', color: c.textDark },
     dayBtnTextActive: { color: c.white },
     hoursRow:         { flexDirection: 'row', alignItems: 'center', gap: 6 },
@@ -2858,7 +2858,8 @@ export default function ProfileScreen() {
             const currentIdx = statusOrder[b.status] ?? 0;
             return (
               <View style={{ marginTop: 10, marginBottom: 2 }}>
-                <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                {/* "ממתין" first from the right in Hebrew, as the rest of the card reads. */}
+                <View style={{ flexDirection: isRTL ? 'row-reverse' : 'row', alignItems: 'center' }}>
                   {steps.map((step, i) => (
                     <React.Fragment key={step.key}>
                       <View style={{ alignItems: 'center', flex: 1 }}>
@@ -4832,7 +4833,8 @@ export default function ProfileScreen() {
               {/* ימים ושעות עבודה */}
               <View>
                 <T style={[ep.label, { textAlign: 'center', fontSize: 15 }]}>📅 {t.availTitle}</T>
-                <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 8 }}>
+                {/* מימין לשמאל, ראשון מימין — כמו באתר. */}
+                <View style={{ flexDirection: isRTL ? 'row-reverse' : 'row', flexWrap: 'wrap', gap: 8, marginTop: 8 }}>
                   {DAYS_KEYS.map((day, i) => {
                     const d = availability[day] || { active: false, start: 9, end: 18 };
                     return (
@@ -4848,9 +4850,9 @@ export default function ProfileScreen() {
                       const d = availability[day];
                       if (!d?.active) return null;
                       return (
-                        <View key={day} style={s.dayRow}>
+                        <View key={day} style={[s.dayRow, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
                           <T style={s.dayHourLabel}>{DAYS_LABELS[i]}</T>
-                          <View style={s.hoursRow}>
+                          <View style={[s.hoursRow, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
                             <View style={s.hourCtrl}>
                               <TouchableOpacity onPress={() => updateDayHours(day, 'start', -1)} style={s.hourArrow}><T style={s.hourArrowText}>◀</T></TouchableOpacity>
                               <T style={s.hourVal}>{String(d.start).padStart(2,'0')}:00</T>
