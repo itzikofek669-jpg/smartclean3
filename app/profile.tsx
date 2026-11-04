@@ -2759,8 +2759,8 @@ export default function ProfileScreen() {
         : { borderLeftWidth: 4, borderLeftColor: statusBorderColor, borderRadius: 16, padding: 0, overflow: 'hidden' }]}>
 
         {compact ? (() => {
-          // ההיסטוריה של הלקוח — הכרטיס של האתר: סוג הניקיון ועם מי, הסטטוס, היום
-          // והשעה, הכתובת והמחיר. בלי פירוט הניקיון.
+          // ההיסטוריה — של הלקוח ושל נותן השירות באותו כרטיס (כמו באתר): סוג הניקיון
+          // ועם מי (הצד השני), הסטטוס, היום והשעה, הכתובת והמחיר. בלי פירוט הניקיון.
           const row = isRTL ? 'row-reverse' as const : 'row' as const;
           const align = isRTL ? 'right' as const : 'left' as const;
           const keys = Array.isArray(b.serviceTypes) && b.serviceTypes.length ? b.serviceTypes : String(b.serviceType || '').split(' + ').filter(Boolean);
@@ -2772,7 +2772,7 @@ export default function ProfileScreen() {
                   <T style={{ fontSize: 22 }}>{SERVICE_ICONS[keys[0]] || '🧽'}</T>
                   <View style={{ flex: 1 }}>
                     <T style={{ fontSize: 15, fontWeight: '800', color: C.textDark, textAlign: align }}>{keys.map((k: string) => t.types[k] || k).join(', ') || '—'}</T>
-                    <T style={{ fontSize: 12, color: C.textSub, textAlign: align }}>{(t as any).withCleanerLabel ?? 'עם'} {b.cleanerName || '—'}</T>
+                    <T style={{ fontSize: 12, color: C.textSub, textAlign: align }}>{(t as any).withCleanerLabel ?? 'עם'} {(forCleaner ? b.clientName : b.cleanerName) || '—'}</T>
                   </View>
                 </View>
                 <View style={getStatusStyle(st)}><T style={getStatusTextStyle(st)}>{getStatusLabel(st)}</T></View>
@@ -2944,9 +2944,9 @@ export default function ProfileScreen() {
           {/* Before / After photos — לקוח בלי תמונות לא צריך כותרת ריקה */}
           {isDone && (forCleaner || b.beforePhotos?.length > 0 || b.afterPhotos?.length > 0) && (
             <View>
-              <T style={{ fontSize: 11, fontWeight: '700', color: C.textSub, marginBottom: 6 }}>{t.photosTitle}</T>
+              <T style={{ fontSize: 11, fontWeight: '700', color: C.textSub, marginBottom: 6, textAlign: isRTL ? 'right' : 'left' }}>{t.photosTitle}</T>
               {forCleaner && (
-                <View style={{ flexDirection: 'row', gap: 8, flexWrap: 'wrap' }}>
+                <View style={{ flexDirection: isRTL ? 'row-reverse' : 'row', gap: 8, flexWrap: 'wrap' }}>
                   <TouchableOpacity style={s.photoBtn} onPress={() => uploadJobPhoto(b.id, 'before')}>
                     <T style={s.photoBtnText}>📸 {t.beforePhotosLabel}</T>
                   </TouchableOpacity>
@@ -3002,7 +3002,8 @@ export default function ProfileScreen() {
 
           {/* כל הפעולות של הכרטיס בשורה אחת, בסדר של האתר: צ'אט ראשון, ביטול אחרון */}
           <View style={cardActions}>
-            {forCleaner && cardBtn(t.chatWithClient || "💬 צ'אט", () => overSheet(() => openCleanerChat(b)), s.cardBtnOutline, s.cardBtnOutlineText)}
+            {/* בהיסטוריה כמו אצל הלקוח: אין צ'אט על הזמנה שבוטלה */}
+            {forCleaner && !(compact && b.status === 'cancelled') && cardBtn(compact ? t.chatBtn : (t.chatWithClient || "💬 צ'אט"), () => overSheet(() => openCleanerChat(b)), s.cardBtnOutline, s.cardBtnOutlineText)}
             {!forCleaner && canChatWithCleaner(b) && cardBtn(t.chatBtn, () => openBookingChat(b), s.cardBtnOutline, s.cardBtnOutlineText)}
 
             {/* Rating — רק הלקוח מדרג את המנקה (אין דירוג לקוח) */}
@@ -3699,7 +3700,7 @@ export default function ProfileScreen() {
                     </TouchableOpacity>
                   ))
                 ) : (
-                  showing.map(b => renderBookingCard(b, isCleaner, !isCleaner && bookingsTab === 'history'))
+                  showing.map(b => renderBookingCard(b, isCleaner, bookingsTab === 'history'))
                 )}
               </View>
             );
