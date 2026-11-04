@@ -63,6 +63,16 @@ service cloud.firestore {
             && (d.photos.size() < 3 || jobPhotoIsOurs(d.photos[2])));
     }
 
+    // The notes a board job or an urgent request shows every cleaner
+    // (`publicNotes`). Both products cap them at 15 words; 600 characters is
+    // that with room to spare. Unchecked, a hand-written job could carry a
+    // megabyte of text that every cleaner opening the board downloads — the
+    // photos' problem, in words.
+    function publicNotesAreBounded(d) {
+      return !('publicNotes' in d)
+        || (d.publicNotes is string && d.publicNotes.size() <= 600);
+    }
+
     // A verified address, not just a claimed one. Password sign-up accepts any
     // email and issues a token carrying it with email_verified false, so an admin
     // address with no Auth account behind it was anybody's to register — and with
@@ -533,7 +543,8 @@ service cloud.firestore {
       // products writes `pending` (bookings.ts, app/home.tsx, the urgent claim),
       // and the settlement fields belong to the closing write, which has its
       // own branch and its own cap.
-      allow create: if signedIn() && callerNotBlocked() && (
+      allow create: if signedIn() && callerNotBlocked()
+        && publicNotesAreBounded(request.resource.data) && (
         request.resource.data.get('clientUid', '') == uid()
         // `-next` ids are the recurring branch's. A client could create one
         // first and the cleaner's real next visit was then refused.
@@ -591,6 +602,11 @@ service cloud.firestore {
           && request.resource.data.keys().hasAll(['urgentRequestId'])
           && exists(/databases/$(database)/documents/urgentRequests/$(request.resource.data.urgentRequestId))
           && get(/databases/$(database)/documents/urgentRequests/$(request.resource.data.urgentRequestId)).data.get('status', '') == 'open'
+          // The notes are the client's, from the request — not text of her
+          // choosing. Absent is fine: builds already on phones do not copy them.
+          && (!('publicNotes' in request.resource.data)
+              || request.resource.data.publicNotes
+                 == get(/databases/$(database)/documents/urgentRequests/$(request.resource.data.urgentRequestId)).data.get('publicNotes', ''))
           // And by the end of this same transaction she holds it. Checking only
           // that the request was open let any account fabricate bookings
           // against a real open request without ever claiming it — as many as
@@ -780,6 +796,9 @@ service cloud.firestore {
           && request.resource.data.get('serviceType', '') == resource.data.get('serviceType', '')
           && request.resource.data.get('serviceTypes', []) == resource.data.get('serviceTypes', [])
           && request.resource.data.get('notes', '') == resource.data.get('notes', '')
+          // The client's words, which every cleaner on the board read — not the
+          // cleaner's to rewrite once the job is hers.
+          && request.resource.data.get('publicNotes', '') == resource.data.get('publicNotes', '')
           && request.resource.data.get('payment', '') == resource.data.get('payment', '')
           && request.resource.data.get('isPrivateHouse', false) == resource.data.get('isPrivateHouse', false)
           && request.resource.data.get('cleanerName', '') == resource.data.get('cleanerName', '')
@@ -916,7 +935,8 @@ service cloud.firestore {
             && bookingRatingInRange()
             && clientStatusChangeIsAllowed()
             && cleanerIsNotDestroyingABoardJob()
-            && (!changed().hasAny(['photos']) || jobPhotosAreBounded(request.resource.data)))
+            && (!changed().hasAny(['photos']) || jobPhotosAreBounded(request.resource.data))
+            && (!changed().hasAny(['publicNotes']) || publicNotesAreBounded(request.resource.data)))
         // Rating and settling a job that is already over.
         || (isParty() && bookingIsSettled() && onlyAfterTheJobFields()
             && bookingSettlementByCleaner() && billingIsPlausible()
@@ -1173,7 +1193,8 @@ service cloud.firestore {
 
       allow create: if signedIn() && callerNotBlocked()
         && request.resource.data.get('clientUid', '') == uid()
-        && jobPhotosAreBounded(request.resource.data);
+        && jobPhotosAreBounded(request.resource.data)
+        && publicNotesAreBounded(request.resource.data);
 
       // `allow update: if signedIn()` used to stand here, with the comment
       // "cleaners claim / clients edit" describing an intent the rule did not
@@ -1186,7 +1207,8 @@ service cloud.firestore {
       // the request outright.
       allow update: if isAdmin()
         // The owner edits their own request — but cannot hand it to anyone else.
-        || (urgentOwner() && urgentOwnerUnchanged() && jobPhotosAreBounded(request.resource.data))
+        || (urgentOwner() && urgentOwnerUnchanged() && jobPhotosAreBounded(request.resource.data)
+            && publicNotesAreBounded(request.resource.data))
         // A cleaner claims a request that is genuinely open, touching only the
         // claim fields, and may only claim it for themselves.
         || (signedIn() && callerIsCleaner() && callerNotBlocked() && urgentOwnerUnchanged() && onlyClaimFields()
