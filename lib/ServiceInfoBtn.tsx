@@ -90,7 +90,7 @@ function InfoModal({ open, onClose, icon, serviceKey, desc }: {
         <TouchableOpacity activeOpacity={1}>
           <View style={[styles.card, { backgroundColor: C.white, borderColor: C.blueBorder }]}>
             <View style={[styles.cardHeader, { backgroundColor: C.blue }]}>
-              <T style={styles.cardTitle}>{icon} {serviceKey}</T>
+              <T style={styles.cardTitle}>{serviceKey}</T>
             </View>
             <ScrollView style={{ maxHeight: 280 }} contentContainerStyle={{ padding: 16, gap: 10 }}>
               {desc.map((line, i) => (

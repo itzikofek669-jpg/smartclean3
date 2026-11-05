@@ -3337,7 +3337,7 @@ function BookingModal({ cleaner, visible, onClose, onBookingCreated, prebookData
                       <TouchableOpacity key={tp} accessibilityRole="checkbox" accessibilityState={{ checked: sel }} onPress={() => toggleServiceType(tp)} style={pill(sel)}>
                         {/* With what this provider charges for it — the price above and in the
                             summary follows the type chosen. */}
-                        <T style={pillText(sel)}>{TYPE_ICONS[tp] || ''} {stripEmoji(t.types[tp] || tp)} · ₪{cleaner.servicePricing?.[tp] ?? cleaner.price}</T>
+                        <T style={pillText(sel)}>{stripEmoji(t.types[tp] || tp)} · ₪{cleaner.servicePricing?.[tp] ?? cleaner.price}</T>
                       </TouchableOpacity>
                     );
                   })}
@@ -5034,6 +5034,9 @@ export default function HomeScreen() {
           // בכלל ממשיך לקבל, אחרת זה היה משתיק את כל מי שדילג על השלב הזה
           // בהרשמה. ההחלטה עצמה יושבת ב-lib/cleanerTraits, משותפת עם האתר.
           if (!worksAt(cData.availability, targetDate.getDay(), urgentHour, urgentHours, cData.availabilitySet === true)) continue;
+          // וגם לא מי שלא עובד/ת עכשיו — יום שלא עובדים בו, או לפני/אחרי השעות שהוגדרו
+          // להיום (אופק, 5.11.2026). הטלפון שקט, והבקשה מחכה בלוח. בלי שעות = עובד/ת.
+          if (!isOnShiftNow(true, cData.availability, cData.availabilitySet === true, new Date())) continue;
 
           ring.push(cd.id);
         }
@@ -6411,6 +6414,8 @@ export default function HomeScreen() {
         // 20:00–08:00: no push, and so no full-screen window either — the request
         // is on her board, where she sees it (lib/urgentRequest urgentPushQuiet).
         if (urgentPushQuiet()) return false;
+        // ומחוץ לשעות שהיא הגדירה להיום — כמו הפוש.
+        if (!isOnShiftNow(true, me.availability, me.availabilitySet, new Date())) return false;
         const start = hourOfTime(r.startTime);
         if (r.dateStr && Number.isFinite(start)) {
           if (!urgentStartAllowed(start)) return false;
@@ -7546,7 +7551,7 @@ export default function HomeScreen() {
                   return (
                     <TouchableOpacity key={tp} accessibilityRole="checkbox" accessibilityState={{ checked: active }} style={fPill(active)}
                       onPress={() => setFilterTypes(prev => active ? prev.filter(x => x !== tp) : [...prev, tp])}>
-                      <T style={fPillText(active)}>{TYPE_ICONS[tp]} {t.types[tp] || tp}</T>
+                      <T style={fPillText(active)}>{t.types[tp] || tp}</T>
                     </TouchableOpacity>
                   );
                 })}

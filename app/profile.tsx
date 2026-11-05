@@ -312,12 +312,6 @@ const SHOWN_PENDING = new Set<string>();
 // מעקב הזמנות שכבר אושרו — מונע שליחת פוש/הודעת אישור פעמיים
 const CONFIRM_SENT = new Set<string>();
 
-const SERVICE_ICONS: Record<string, string> = {
-  'ניקיון רגיל': '🏠', 'ניקוי לפסח': '🧹', 'חלונות': '🪟', 'לאחר שיפוץ': '🔨',
-  'שטיפת רכב': '🚗', 'ניקיון משרדים': '🏢', 'ניקיון אחרי אירוע': '🎉',
-  'מחסן ועליית גג': '📦', 'סידורי בגדים וארונות': '👔', 'ניקוי חדר מדרגות': '🪜',
-};
-
 const SERVICE_DETAIL: Record<string, string[]> = {
   'ניקיון רגיל': [
     '🫧 שטיפת רצפות וניגוב בכל חדרי הבית',
@@ -2773,7 +2767,6 @@ export default function ProfileScreen() {
             <View style={{ padding: 14, gap: 8 }}>
               <View style={{ flexDirection: row, alignItems: 'flex-start', justifyContent: 'space-between', gap: 8 }}>
                 <View style={{ flexDirection: row, alignItems: 'center', gap: 8, flex: 1 }}>
-                  <T style={{ fontSize: 22 }}>{SERVICE_ICONS[keys[0]] || '🧽'}</T>
                   <View style={{ flex: 1 }}>
                     <T style={{ fontSize: 15, fontWeight: '800', color: C.textDark, textAlign: align }}>{keys.map((k: string) => t.types[k] || k).join(', ') || '—'}</T>
                     <T style={{ fontSize: 12, color: C.textSub, textAlign: align }}>{(t as any).withCleanerLabel ?? 'עם'} {(forCleaner ? b.clientName : b.cleanerName) || '—'}</T>
@@ -2893,7 +2886,7 @@ export default function ProfileScreen() {
           {/* סוג שירות + פירוט */}
           {b.serviceType && (
             <View style={{ gap: 4 }}>
-              <T style={{ fontSize: 12, fontWeight: '700', color: C.textDark }}>{SERVICE_ICONS[b.serviceType] || '🧹'} {b.serviceType}</T>
+              <T style={{ fontSize: 12, fontWeight: '700', color: C.textDark }}>{t.types[b.serviceType] || b.serviceType}</T>
               {SERVICE_DETAIL[b.serviceType] && (
                 <View style={{ backgroundColor: C.bluePale, borderRadius: 8, padding: 8, borderWidth: 1, borderColor: C.blueBorder }}>
                   {SERVICE_DETAIL[b.serviceType].map((line: string, i: number) => (
