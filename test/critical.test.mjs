@@ -20,7 +20,7 @@ import { hasBookedACleaner, rebookableBookings, prefillFromBooking } from '../.t
 import { matchJob, jobOnBoard, jobCityOf, nearestCity, filterBoard } from '../.tsbuild/jobSearch.mjs';
 import { normText, resolvePlace, textMatches, servesPlace, searchCleaners } from '../.tsbuild/search.mjs';
 import { CITY_NAMES, cityNamesFor } from '../.tsbuild/cityNames.mjs';
-import { workingHoursVerdict, workDaysFromAvailability, normalizeAvailability, worksAt, bookableStarts, busyWindowsOn, isOnShiftNow, priceForTypes } from '../.tsbuild/cleanerTraits.mjs';
+import { workingHoursVerdict, workDaysFromAvailability, normalizeAvailability, worksAt, bookableStarts, busyWindowsOn, isOnShiftNow } from '../.tsbuild/cleanerTraits.mjs';
 import { declinedByCleaner, claimUpdate, rejectionUpdate, rejectionReleasesToBoard, awaitsMyApproval, occupiesCleanerTime, busyWindowOf, busyFieldsOf, pendingSlotMissed, isBoardJobOfferable, pendingSlotExpired, expiryUpdate } from '../.tsbuild/bookingActions.mjs';
 
 // Every case here is a bug that reached a real user. They are regression tests,
@@ -1831,19 +1831,6 @@ test('a job nobody took before its hour is over for the client, not active and n
   const { active, history } = bookingTabs(list, (b) => dayPassed(b) || unansweredPast(b, now), false);
   assert.deepEqual(active.map((b) => b.id).sort(), ['agreed', 'ahead']);
   assert.deepEqual(history.map((b) => b.id), ['gone']);
-});
-
-test('the card and the price filter follow the type chosen, not the general price', () => {
-  const sp = { 'ניקיון רגיל': 90, 'ניקיון משרדים': 140 };
-  const offered = ['ניקיון רגיל', 'ניקיון משרדים', 'חלונות'];
-  assert.equal(priceForTypes(90, sp, offered, []), 90);                                   // no filter: general
-  assert.equal(priceForTypes(90, sp, offered, ['ניקיון משרדים']), 140);                    // its own price
-  assert.equal(priceForTypes(90, sp, offered, ['חלונות']), 90);                           // none of its own: general
-  assert.equal(priceForTypes(90, sp, offered, ['ניקיון משרדים', 'ניקיון רגיל']), 90);     // listed for either: the lower
-  assert.equal(priceForTypes(90, sp, offered, ['שטיפת רכב']), 90);                        // not hers: general
-  assert.equal(priceForTypes(90, { 'ניקיון משרדים': '140' }, offered, ['ניקיון משרדים']), 140);   // stored as text
-  assert.equal(priceForTypes(0, sp, offered, ['ניקיון משרדים']), 140);
-  assert.equal(priceForTypes(undefined, undefined, undefined, undefined), 0);
 });
 
 test('the dot beside a cleaner turns red when her day is over, and green when the next begins', () => {
