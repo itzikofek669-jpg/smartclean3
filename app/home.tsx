@@ -43,7 +43,7 @@ import { canRepost, bookingOrigin, cancelledNotice } from '../lib/bookingOrigin'
 import { cityFromAddress } from '../lib/cityFromAddress';
 import {
   LANGUAGE_FLAGS, groupConsecutiveDays, normalizeLanguages, workDaysFromAvailability,
-  workingHoursVerdict, worksAt, bookableStarts, busyWindowsOn, isOnShiftNow,
+  workingHoursVerdict, worksAt, bookableStarts, busyWindowsOn, isOnShiftNow, priceForTypes,
 } from '../lib/cleanerTraits';
 import { filterBoard, nearestCity } from '../lib/jobSearch';
 import { notify } from '../lib/notify';
@@ -3921,7 +3921,7 @@ function ChatModal({ cleaner, visible, onClose }: any) {
 }
 
 // ─── Cleaner card ─────────────────────────────────────────────────────────────
-function CleanerCardInner({ cleaner, isSel, onSelect, onProfile, onBook, onChat, isPending, onShowOnMap, onEnlarge, onReviews }: any) {
+function CleanerCardInner({ cleaner, isSel, onSelect, onProfile, onBook, onChat, isPending, onShowOnMap, onEnlarge, onReviews, forTypes }: any) {
   const { t, flipSide, highContrast, textScale, isRTL } = useLanguage();
   const C = useAppColors();
   const s = createS(C);
@@ -3952,7 +3952,8 @@ function CleanerCardInner({ cleaner, isSel, onSelect, onProfile, onBook, onChat,
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
           {/* price pill */}
           <LinearGradient colors={['#3E8DE3', '#1E6FB8']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={s.pricePill}>
-            <T style={s.pricePillNum}>₪{cleaner.price}</T>
+            {/* Filtered by type: what she charges for it (lib/cleanerTraits priceForTypes). */}
+            <T style={s.pricePillNum}>₪{forTypes?.length ? priceForTypes(cleaner.price, cleaner.servicePricing, cleaner.types, forTypes) : cleaner.price}</T>
             <T style={s.pricePillSub}>{t.perHour}</T>
           </LinearGradient>
           {/* identity — right-aligned, fills the middle */}
@@ -5542,7 +5543,8 @@ export default function HomeScreen() {
 
   // 5. מחיר מקסימלי
   if (filterMaxPrice < 999) {
-    filtered = filtered.filter(c => Number(c.price || 0) <= filterMaxPrice);
+    // By her price for the types chosen, when the list is filtered to some.
+    filtered = filtered.filter(c => priceForTypes(c.price, c.servicePricing, c.types, filterTypes) <= filterMaxPrice);
   }
 
   // 6. דירוג מינימלי
@@ -7328,6 +7330,7 @@ export default function HomeScreen() {
               onProfile={(c: any) => { setProfileReviews(false); setProfile(c); }} onReviews={openProfileReviews} onBook={setBooking} onChat={setChatWith}
               isPending={pendingCleanerIds.has(c.id)}
               onShowOnMap={handleShowOnMap} onEnlarge={setEnlargedPhoto}
+              forTypes={filterTypes}
             />
           )}
         />

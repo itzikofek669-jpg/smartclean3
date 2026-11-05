@@ -1146,7 +1146,7 @@ export default function RegisterScreen() {
                           style={[s.pill, active && s.pillActive, { flex: 1, alignItems: 'flex-end', paddingVertical: 12 }]}
                           onPress={() => toggleItem(types, setTypes, svc.key)}
                         >
-                          <T style={[s.pillText, active && s.pillTextActive, { textAlign: 'right', fontSize: 13 }]}>{svc.icon} {t.types[svc.key] || svc.key}</T>
+                          <T style={[s.pillText, active && s.pillTextActive, { textAlign: 'right', fontSize: 13 }]}>{t.types[svc.key] || svc.key}</T>
                         </TouchableOpacity>
                         {/* שדה מחיר */}
                         <TextInput

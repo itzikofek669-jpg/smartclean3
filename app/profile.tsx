@@ -4744,7 +4744,7 @@ export default function ProfileScreen() {
                           style={[ep.pill, active && ep.pillActive, { flex: 1, alignItems: 'flex-end' }]}
                           onPress={() => toggleEdit(editTypes, setEditTypes, svc.key)}
                         >
-                          <T style={[ep.pillText, active && ep.pillTextActive, { textAlign: 'right' }]}>{svc.icon} {svc.key}</T>
+                          <T style={[ep.pillText, active && ep.pillTextActive, { textAlign: 'right' }]}>{svc.key}</T>
                         </TouchableOpacity>
                         {/* שדה מחיר */}
                         <TextInput

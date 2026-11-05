@@ -362,3 +362,29 @@ export function bookableStarts(
   for (let h = min; h < from - 1e-9; h += 0.5) if (free(h)) return { min, max, first: h, allBusy: false, fromProfile };
   return { min, max, first: from, allBusy: true, fromProfile };
 }
+
+/**
+ * A provider's hourly price for the cleaning types a client is looking for —
+ * the type filter on the list — rather than her general price (Ofek, 5.11.2026):
+ * the price on her card and the "up to ₪X" filter both follow the type chosen.
+ *
+ * Each chosen type she offers costs what she set for it (`servicePricing`), or
+ * her general price when she set nothing for it; she is listed for any of the
+ * chosen types, so the lowest of those. No type chosen, or none of them hers:
+ * her general price, as before.
+ */
+export function priceForTypes(
+  price: unknown,
+  servicePricing: unknown,
+  offered: readonly string[] | null | undefined,
+  chosen: readonly string[] | null | undefined,
+): number {
+  const base = Number(price) > 0 ? Number(price) : 0;
+  const sp = (servicePricing && typeof servicePricing === 'object' ? servicePricing : {}) as Record<string, unknown>;
+  const mine = new Set(offered ?? []);
+  const prices = (chosen ?? [])
+    .filter((t) => mine.has(t))
+    .map((t) => (Number(sp[t]) > 0 ? Number(sp[t]) : base))
+    .filter((v) => v > 0);
+  return prices.length ? Math.min(...prices) : base;
+}
