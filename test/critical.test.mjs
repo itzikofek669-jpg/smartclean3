@@ -12,7 +12,7 @@ import { canRepost, replacedByEdit, cancelledNotice } from '../.tsbuild/bookingO
 import { urgentBackOut } from '../.tsbuild/urgentRequest.mjs';
 import { startDateOf, endDateOf, bookingHours, DEFAULT_BOOKING_HOURS, sameDayOverlap, bookingHoldsHours } from '../.tsbuild/bookingSlot.mjs';
 import { readCalendarRemoval, extractPushData } from '../.tsbuild/calendarPush.mjs';
-import { isUrgentRequestLive, isUrgentRequestExpired, expiryOf, URGENT_FIRST_START_HOUR, URGENT_LAST_START_HOUR, hourOfTime, urgentStartAllowed, urgentTodayClosed, urgentFirstSlot, urgentEditContext, urgentPushPlan, urgentAlertedAfter, liveUrgentEdit, URGENT_EDIT_WINDOW_MS, urgentAlertOutcome, urgentPushQuiet, URGENT_PUSH_FIRST_HOUR, URGENT_PUSH_LAST_HOUR } from '../.tsbuild/urgentRequest.mjs';
+import { isUrgentRequestLive, isUrgentRequestExpired, expiryOf, URGENT_FIRST_START_HOUR, URGENT_LAST_START_HOUR, hourOfTime, urgentStartAllowed, urgentTodayClosed, urgentFirstSlot, urgentEditContext, urgentPushPlan, urgentAlertedAfter, liveUrgentEdit, URGENT_EDIT_WINDOW_MS, urgentAlertOutcome, urgentPushQuiet, URGENT_PUSH_FIRST_HOUR, URGENT_PUSH_LAST_HOUR, urgentExpiresAt, URGENT_TTL_MS } from '../.tsbuild/urgentRequest.mjs';
 import { splitFields, reconcile, pendingMove, publicCoord, privateKeysFor } from '../.tsbuild/profileFields.mjs';
 import { spreadStacked } from '../.tsbuild/jobUtils.mjs';
 import { pushSilence } from '../.tsbuild/pushState.mjs';
@@ -1507,6 +1507,26 @@ test('no urgent push at night: phones ring 08:00–20:00 only, the request is po
   // By day nothing changes.
   assert.equal(urgentAlertOutcome(3, 2, 0, 0, false), 'sent');
   assert.equal(urgentAlertOutcome(3, 0, 0), 'failed');
+});
+
+test('an urgent request waits on the board until the hour asked for, by day and at night', () => {
+  const at = (d, h, m = 0) => new Date(2026, 10, d, h, m);   // local time, as on the phone
+  const ms = (iso) => Date.parse(iso);
+  // By day: 10:00 for 18:00 — on the boards until 18:00, not gone at noon.
+  assert.equal(ms(urgentExpiresAt(at(5, 10), '2026-11-05', '18:00')), at(5, 18).getTime());
+  // By day for tomorrow.
+  assert.equal(ms(urgentExpiresAt(at(5, 12), '2026-11-06', '09:00')), at(6, 9).getTime());
+  // At night: 22:00 for 09:00 tomorrow — until 09:00, not gone at midnight.
+  assert.equal(ms(urgentExpiresAt(at(5, 22), '2026-11-06', '09:00')), at(6, 9).getTime());
+  // Soon: 10:00 for 10:30 — until 10:30.
+  assert.equal(ms(urgentExpiresAt(at(5, 10), '2026-11-05', '10:30')), at(5, 10, 30).getTime());
+  // An hour that cannot be read, or one already past: the old two hours.
+  assert.equal(ms(urgentExpiresAt(at(5, 23), '', '')), at(5, 23).getTime() + URGENT_TTL_MS);
+  assert.equal(ms(urgentExpiresAt(at(5, 12), '2026-11-05', '09:00')), at(5, 12).getTime() + URGENT_TTL_MS);
+  // Live until its hour, gone at it.
+  const r = { expiresAt: urgentExpiresAt(at(5, 22), '2026-11-06', '09:00'), dateStr: '2026-11-06', startTime: '09:00' };
+  assert.equal(isUrgentRequestLive(r, at(6, 7, 30)), true);
+  assert.equal(isUrgentRequestLive(r, at(6, 9)), false);
 });
 
 test('the client is told what became of the alert', () => {

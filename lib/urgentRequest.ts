@@ -185,6 +185,28 @@ export function urgentPushQuiet(now: Date = new Date()): boolean {
   return !(h >= URGENT_PUSH_FIRST_HOUR && h < URGENT_PUSH_LAST_HOUR);
 }
 
+/** How long a new urgent request stays on the boards when its hour cannot be read. */
+export const URGENT_TTL_MS = 2 * 60 * 60 * 1000;
+
+/**
+ * When a new urgent request stops being shown (its `expiresAt`, ISO): at the
+ * hour the cleaning was asked for (Ofek, 5.11.2026), by day and at night alike.
+ *
+ * It used to be two hours from sending, whatever was asked. A request sent at
+ * 22:00 for 09:00 — which rings no phone at night (urgentPushQuiet) — was gone
+ * from every board by midnight, before any cleaner woke up to look; and one sent
+ * at 10:00 for 18:00 was gone at noon, though nobody had taken it and there was
+ * still time. Now it waits on the boards, and the client's waiting card with it,
+ * until its hour — when isUrgentRequestLive stops showing it anyway.
+ *
+ * An hour that cannot be read, or one already past, falls back to the old two
+ * hours rather than to a request nobody can bound.
+ */
+export function urgentExpiresAt(now: Date, dateStr: string, startTime: string): string {
+  const start = slotOf({ dateStr, startTime });
+  return new Date(start !== null && start > now.getTime() ? start : now.getTime() + URGENT_TTL_MS).toISOString();
+}
+
 /** What an edited request carries over from the one it replaces. */
 export interface UrgentEditContext {
   /** Everyone who was already alerted about this request, in any of its versions. */

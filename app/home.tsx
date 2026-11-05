@@ -58,7 +58,7 @@ import {
   stripEmoji, countWords, limitWords, buildFullAddress,
 } from '../lib/jobUtils';
 import { compareCleaners, compareJobs, isAvailableNow, rotationRank } from '../lib/displayOrder';
-import { isUrgentRequestLive, URGENT_FIRST_START_HOUR, URGENT_LAST_START_HOUR, urgentStartAllowed, urgentTodayClosed, urgentFirstSlot, hourOfTime, urgentEditContext, urgentPushPlan, urgentAlertedAfter, liveUrgentEdit, urgentAlertOutcome, urgentPushQuiet, expiryOf, slotOf, urgentBackOut, UrgentEditContext } from '../lib/urgentRequest';
+import { isUrgentRequestLive, URGENT_FIRST_START_HOUR, URGENT_LAST_START_HOUR, urgentStartAllowed, urgentTodayClosed, urgentFirstSlot, hourOfTime, urgentEditContext, urgentPushPlan, urgentAlertedAfter, liveUrgentEdit, urgentAlertOutcome, urgentPushQuiet, urgentExpiresAt, expiryOf, slotOf, urgentBackOut, UrgentEditContext } from '../lib/urgentRequest';
 import { sameDayOverlap, bookingHoldsHours } from '../lib/bookingSlot';
 import { unansweredPast } from '../lib/bookingTabs';
 import { claimUpdate, occupiesCleanerTime, pendingSlotMissed, pendingSlotExpired, expiryUpdate, rejectionUpdate, isBoardJobOfferable, busySlotOf, declinedByCleaner } from '../lib/bookingActions';
@@ -4901,7 +4901,9 @@ export default function HomeScreen() {
         return;
       }
 
-      const expiresAt = new Date(Date.now() + 2 * 60 * 60 * 1000).toISOString();
+      // הבקשה נשארת בלוח עד שעת הניקיון שהלקוח ביקש — ביום ובלילה
+      // (lib/urgentRequest urgentExpiresAt).
+      const expiresAt = urgentExpiresAt(new Date(), dateStr, `${hh}:${mm}`);
 
       // The broadcast carries the city and a position rounded to about a
       // kilometre; the street, floor, flat and phone go in its private half in
