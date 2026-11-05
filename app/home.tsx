@@ -3335,7 +3335,9 @@ function BookingModal({ cleaner, visible, onClose, onBookingCreated, prebookData
                     const sel = serviceTypes.includes(tp);
                     return (
                       <TouchableOpacity key={tp} accessibilityRole="checkbox" accessibilityState={{ checked: sel }} onPress={() => toggleServiceType(tp)} style={pill(sel)}>
-                        <T style={pillText(sel)}>{TYPE_ICONS[tp] || ''} {t.types[tp] || tp}</T>
+                        {/* With what this provider charges for it — the price above and in the
+                            summary follows the type chosen. */}
+                        <T style={pillText(sel)}>{TYPE_ICONS[tp] || ''} {stripEmoji(t.types[tp] || tp)} · ₪{cleaner.servicePricing?.[tp] ?? cleaner.price}</T>
                       </TouchableOpacity>
                     );
                   })}
@@ -6586,6 +6588,13 @@ export default function HomeScreen() {
           workAreas:  data.workAreas   || [],
           types:      data.types       || [],
           price:      data.price       || 0,
+          // מה שנותן השירות גובה לכל סוג ניקיון — בלעדיו טופס ההזמנה ופרופיל נותן
+          // השירות הציגו את המחיר הכללי לכל סוג, אף שהאתר גבה לפי הסוג.
+          servicePricing: data.servicePricing && typeof data.servicePricing === 'object'
+            ? Object.fromEntries(Object.entries(data.servicePricing as Record<string, unknown>)
+                .map(([k, v]) => [k, Number(v)] as const)
+                .filter(([, v]) => Number.isFinite(v) && v > 0))
+            : undefined,
           rating:     data.rating      || 0,
           // כל האיותים. האפליקציה כותבת reviewCount, הקוד הישן של האתר כתב
           // reviewsCount, ושניהם כותבים היום את כולם — אבל מנקה שדורגה לפני כן
