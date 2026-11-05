@@ -43,7 +43,7 @@ import { canRepost, bookingOrigin, cancelledNotice } from '../lib/bookingOrigin'
 import { cityFromAddress } from '../lib/cityFromAddress';
 import {
   LANGUAGE_FLAGS, groupConsecutiveDays, normalizeLanguages, workDaysFromAvailability,
-  workingHoursVerdict, worksAt, bookableStarts, busyWindowsOn,
+  workingHoursVerdict, worksAt, bookableStarts, busyWindowsOn, isOnShiftNow,
 } from '../lib/cleanerTraits';
 import { filterBoard, nearestCity } from '../lib/jobSearch';
 import { notify } from '../lib/notify';
@@ -1110,9 +1110,12 @@ function CleanerProfile({ cleaner, visible, onClose, onBook, onChat, initialShow
             </View>
             <T style={s.profileName}>{cleaner.name}</T>
             <T style={s.profileCity}>📍 {t.cities[cleaner.city] || cleaner.city}</T>
-            <View style={[s.availBadge, !cleaner.available && s.availBadgeOff]}>
-              <T style={[s.availBadgeText, !cleaner.available && { color: C.textSub }]}>
-                {cleaner.available ? t.availNow : t.notAvailNow}
+            {/* Same answer as the dot on her card: "● available now" only while she is
+                inside today's hours. Booking below still follows `available` — a
+                client can book her for a time she does work. */}
+            <View style={[s.availBadge, !(cleaner.onShift ?? cleaner.available) && s.availBadgeOff]}>
+              <T style={[s.availBadgeText, !(cleaner.onShift ?? cleaner.available) && { color: C.textSub }]}>
+                {(cleaner.onShift ?? cleaner.available) ? t.availNow : t.notAvailNow}
               </T>
             </View>
             {/* The badge row -- ID verified / super cleaner / top rated -- used to
@@ -3918,6 +3921,10 @@ function CleanerCardInner({ cleaner, isSel, onSelect, onProfile, onBook, onChat,
   const C = useAppColors();
   const s = createS(C);
   const fs = (base: number) => Math.round(base * textScale);
+  // The dot beside the photo: green until her day ends, red after, green again
+  // when the next one starts. Worked out on the clock for the whole list in
+  // HomeScreen (ALL_CLEANERS), so it moves without reloading.
+  const onShift = cleaner.onShift ?? !!cleaner.available;
   // Fetched per card rather than carried on the cleaner document, so the list
   // query stays light — see lib/useAvatar. FlatList only mounts what's near the
   // viewport, which is what keeps this from becoming N requests.
@@ -3967,7 +3974,9 @@ function CleanerCardInner({ cleaner, isSel, onSelect, onProfile, onBook, onChat,
                   ? <Image source={{ uri: photoUri }} style={{ width: 52, height: 52, borderRadius: 26 }} contentFit="cover" />
                   : <T style={[s.avatarText, { fontSize: 18 }]}>{cleaner.initials}</T>}
               </LinearGradient>
-              {cleaner.available && <View style={s.onlineDot} />}
+              {/* Green while she is at work right now — available and inside the hours
+                  she set for today; red otherwise, and when her day is over. */}
+              <View style={[s.onlineDot, !onShift && { backgroundColor: '#EF4444' }]} />
             </View>
           </TouchableOpacity>
         </View>
@@ -5398,11 +5407,29 @@ export default function HomeScreen() {
   };
 
 
-  // מנקים אמיתיים ראשונים, ואחריהם 200 בוטים מפוזרים בכל הערים
-  const ALL_CLEANERS = [
-    ...realCleaners.filter(r => !CLEANERS.some(c => c.id === r.id)),
-    ...getBots(),
-  ];
+  // מנקים אמיתיים ראשונים, ואחריהם 200 בוטים מפוזרים בכל הערים.
+  // "זמין עכשיו" ו"בתוך שעות העבודה" מחושבים כאן מחדש בכל דקה (nowMs), לכל
+  // הרשימה — כמו ה-live memo באתר. onSnapshot נורה רק כשמסמך משתנה, לא כשהזמן
+  // עובר: עבודה שהסתיימה ב-12:00 השאירה את הכרטיס מעומעם ובלי כפתור הזמנה עד
+  // שמשהו אחר רענן את הרשימה. כך הנקודה, העמעום, הכפתור, הסינון והמיון רואים
+  // את אותה תשובה.
+  const demoOn = demoCleanersEnabled();
+  const ALL_CLEANERS = React.useMemo(() => {
+    const at = new Date(nowMs);
+    return [
+      ...realCleaners.filter(r => !CLEANERS.some(c => c.id === r.id)),
+      ...getBots(),
+    ].map(c => {
+      // Demo cards carry only `available`; a real cleaner's raw switch is `availableFlag`.
+      const available = isAvailableNow({
+        available: 'availableFlag' in c ? c.availableFlag : c.available,
+        busySlots: c.busySlots,
+      }, at);
+      return { ...c, available, onShift: isOnShiftNow(available, c.availability, c.availabilitySet === true, at) };
+    });
+    // demoOn: the demo list switches on/off with the flag, as it did before.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [realCleaners, nowMs, demoOn]);
 
   // ── Search autocomplete ────────────────────────────────────────────────────
   const handleSearchChange = (text: string) => {
@@ -6557,6 +6584,11 @@ export default function HomeScreen() {
           // used to compute this differently and showed the same cleaner as
           // available on one and busy on the other.
           available:  isAvailableNow(data),
+          // The raw switch and the accepted work, for the dot beside the photo,
+          // which is worked out again every minute (isOnShiftNow) — `available`
+          // is fixed when the list loads.
+          availableFlag: data.available,
+          busySlots:     Array.isArray(data.busySlots) ? data.busySlots : [],
           payment:    data.payment     || [],
           lat:        coords.lat,
           lng:        coords.lng,

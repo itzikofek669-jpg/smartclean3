@@ -17,8 +17,15 @@ import { useEffect, useState } from 'react';
 export function useNow(everyMs = 60_000): number {
   const [now, setNow] = useState(() => Date.now());
   useEffect(() => {
-    const id = setInterval(() => setNow(Date.now()), everyMs);
-    return () => clearInterval(id);
+    // Tick on the boundary — the top of the minute for 60_000 — so a cleaner whose
+    // day ends at 18:00 turns red at 18:00, not up to a minute later, and every
+    // screen that reads the clock moves together.
+    let id: ReturnType<typeof setInterval> | undefined;
+    const first = setTimeout(() => {
+      setNow(Date.now());
+      id = setInterval(() => setNow(Date.now()), everyMs);
+    }, everyMs - (Date.now() % everyMs));
+    return () => { clearTimeout(first); if (id !== undefined) clearInterval(id); };
   }, [everyMs]);
   return now;
 }

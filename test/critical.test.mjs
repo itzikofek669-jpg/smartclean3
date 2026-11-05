@@ -20,7 +20,7 @@ import { hasBookedACleaner, rebookableBookings, prefillFromBooking } from '../.t
 import { matchJob, jobOnBoard, jobCityOf, nearestCity, filterBoard } from '../.tsbuild/jobSearch.mjs';
 import { normText, resolvePlace, textMatches, servesPlace, searchCleaners } from '../.tsbuild/search.mjs';
 import { CITY_NAMES, cityNamesFor } from '../.tsbuild/cityNames.mjs';
-import { workingHoursVerdict, workDaysFromAvailability, normalizeAvailability, worksAt, bookableStarts, busyWindowsOn } from '../.tsbuild/cleanerTraits.mjs';
+import { workingHoursVerdict, workDaysFromAvailability, normalizeAvailability, worksAt, bookableStarts, busyWindowsOn, isOnShiftNow } from '../.tsbuild/cleanerTraits.mjs';
 import { declinedByCleaner, claimUpdate, rejectionUpdate, rejectionReleasesToBoard, awaitsMyApproval, occupiesCleanerTime, busyWindowOf, busyFieldsOf, pendingSlotMissed, isBoardJobOfferable, pendingSlotExpired, expiryUpdate } from '../.tsbuild/bookingActions.mjs';
 
 // Every case here is a bug that reached a real user. They are regression tests,
@@ -1788,4 +1788,20 @@ test('a job nobody took before its hour is over for the client, not active and n
   const { active, history } = bookingTabs(list, (b) => dayPassed(b) || unansweredPast(b, now), false);
   assert.deepEqual(active.map((b) => b.id).sort(), ['agreed', 'ahead']);
   assert.deepEqual(history.map((b) => b.id), ['gone']);
+});
+
+test('the dot beside a cleaner turns red when her day is over, and green when the next begins', () => {
+  // 1 Nov 2026 is a Sunday. She works Sundays 9–18 and not on Mondays.
+  const week = { sun: { active: true, start: 9, end: 18 }, mon: { active: false, start: 9, end: 18 } };
+  const at = (d, h, m = 0) => new Date(2026, 10, d, h, m);
+  assert.equal(isOnShiftNow(true, week, true, at(1, 10)), true, 'inside her hours');
+  assert.equal(isOnShiftNow(true, week, true, at(1, 17, 59)), true, 'the last minute of her day');
+  assert.equal(isOnShiftNow(true, week, true, at(1, 18)), false, 'her day is over at 18:00');
+  assert.equal(isOnShiftNow(true, week, true, at(1, 8, 59)), false, 'before her day starts');
+  assert.equal(isOnShiftNow(true, week, true, at(2, 10)), false, 'a day she does not work');
+  assert.equal(isOnShiftNow(false, week, true, at(1, 10)), false, 'switched herself off');
+  // Never set her hours: inside them, as every other check treats her.
+  assert.equal(isOnShiftNow(true, {}, false, at(1, 3)), true);
+  // Set them, to no days at all: never at work.
+  assert.equal(isOnShiftNow(true, {}, true, at(1, 10)), false);
 });

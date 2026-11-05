@@ -226,6 +226,34 @@ export function worksAt(
   return startHour >= (v.start ?? 0) && startHour < (v.end ?? 0);
 }
 
+/**
+ * The dot beside a cleaner's photo: green while she is at work right now, red
+ * otherwise.
+ *
+ * At work = available (`isAvailableNow`, passed in: the manual switch and no
+ * job underway) AND inside the hours she set for today. When her day ends the
+ * dot turns red, and green again when the next one starts. Today's window is
+ * start ≤ now < end, so at 18:00 a 9–18 day is over.
+ *
+ * Only the dot. Booking still reads availability alone: a client looking in the
+ * evening books her for tomorrow, when she will be at work, and must be able to.
+ * A cleaner who never set her hours (`unset`) counts as inside them, as every
+ * other check here treats her.
+ */
+export function isOnShiftNow(
+  availableNow: boolean,
+  availability: unknown,
+  daysChosen = false,
+  now: Date = new Date(),
+): boolean {
+  if (!availableNow) return false;
+  const h = now.getHours() + now.getMinutes() / 60;
+  const v = workingHoursVerdict(availability, now.getDay(), h, 0, daysChosen);
+  if (v.verdict === 'unset') return true;
+  if (v.verdict === 'day-off') return false;
+  return h >= (v.start ?? 0) && h < (v.end ?? 24);
+}
+
 /** Minutes from midnight of one day; `s < e`, and `e` may run past 1440. */
 export interface DayWindow { s: number; e: number }
 
