@@ -12,7 +12,7 @@ import { canRepost, replacedByEdit, cancelledNotice } from '../.tsbuild/bookingO
 import { urgentBackOut } from '../.tsbuild/urgentRequest.mjs';
 import { startDateOf, endDateOf, bookingHours, DEFAULT_BOOKING_HOURS, sameDayOverlap, bookingHoldsHours } from '../.tsbuild/bookingSlot.mjs';
 import { readCalendarRemoval, extractPushData } from '../.tsbuild/calendarPush.mjs';
-import { isUrgentRequestLive, isUrgentRequestExpired, expiryOf, URGENT_FIRST_START_HOUR, URGENT_LAST_START_HOUR, hourOfTime, urgentStartAllowed, urgentTodayClosed, urgentFirstSlot, urgentEditContext, urgentPushPlan, urgentAlertedAfter, liveUrgentEdit, URGENT_EDIT_WINDOW_MS, urgentAlertOutcome } from '../.tsbuild/urgentRequest.mjs';
+import { isUrgentRequestLive, isUrgentRequestExpired, expiryOf, URGENT_FIRST_START_HOUR, URGENT_LAST_START_HOUR, hourOfTime, urgentStartAllowed, urgentTodayClosed, urgentFirstSlot, urgentEditContext, urgentPushPlan, urgentAlertedAfter, liveUrgentEdit, URGENT_EDIT_WINDOW_MS, urgentAlertOutcome, urgentPushQuiet, URGENT_PUSH_FIRST_HOUR, URGENT_PUSH_LAST_HOUR } from '../.tsbuild/urgentRequest.mjs';
 import { splitFields, reconcile, pendingMove, publicCoord, privateKeysFor } from '../.tsbuild/profileFields.mjs';
 import { spreadStacked } from '../.tsbuild/jobUtils.mjs';
 import { pushSilence } from '../.tsbuild/pushState.mjs';
@@ -1484,6 +1484,29 @@ test('a second cleaning on hours already asked for is a clash, not only the same
   assert.equal(sameDayOverlap('noon', 2, 'noon', 2), true);
   assert.equal(sameDayOverlap('12:00', 2, '', 2), false);
   assert.equal(sameDayOverlap('', 2, '', 2), false);
+});
+
+test('no urgent push at night: phones ring 08:00–20:00 only, the request is posted at any hour', () => {
+  assert.equal(URGENT_PUSH_FIRST_HOUR, 8);
+  assert.equal(URGENT_PUSH_LAST_HOUR, 20);
+  const at = (h, m = 0) => new Date(2026, 10, 5, h, m);   // local time, as on the phone
+  assert.equal(urgentPushQuiet(at(7, 59)), true);
+  assert.equal(urgentPushQuiet(at(8, 0)), false);
+  assert.equal(urgentPushQuiet(at(12, 0)), false);
+  assert.equal(urgentPushQuiet(at(19, 59)), false);
+  assert.equal(urgentPushQuiet(at(20, 0)), true);    // 20:00 itself is quiet
+  assert.equal(urgentPushQuiet(at(23, 30)), true);
+  assert.equal(urgentPushQuiet(at(0, 0)), true);
+  assert.equal(urgentPushQuiet(at(3, 15)), true);
+  // What the client is told: on the boards, no phone rung — not "failed".
+  assert.equal(urgentAlertOutcome(3, null, 0, 0, true), 'quiet-hours');
+  assert.equal(urgentAlertOutcome(3, 0, 0, 0, true), 'quiet-hours');   // the server said so
+  assert.equal(urgentAlertOutcome(0, null, 0, 0, true), 'quiet-hours');
+  // A corrected request at night: those alerted by day see the change.
+  assert.equal(urgentAlertOutcome(1, null, 2, 0, true), 'edited');
+  // By day nothing changes.
+  assert.equal(urgentAlertOutcome(3, 2, 0, 0, false), 'sent');
+  assert.equal(urgentAlertOutcome(3, 0, 0), 'failed');
 });
 
 test('the client is told what became of the alert', () => {

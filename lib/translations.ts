@@ -4651,6 +4651,16 @@ const ADDED: Record<string, Record<string, string>> = {
     hi: 'सेवा प्रदाताओं के फ़ोन पर अलर्ट नहीं भेजा जा सका। अनुरोध उनके बोर्ड पर दिख रहा है।',
     uk: 'Не вдалося надіслати сповіщення на телефони виконавців. Запит видно в них на дошці.',
   },
+  // 20:00–08:00: an urgent request is posted and rings no phone (lib/urgentRequest urgentPushQuiet).
+  urgentAlertQuietHours: {
+    he: '🌙 בין 20:00 ל-08:00 לא נשלחות התראות לנותני השירות. הבקשה מופיעה אצלם בלוח באתר ובאפליקציה.',
+    en: '🌙 Between 20:00 and 08:00 no alerts are sent to service providers. The request appears on their board, on the website and in the app.',
+    ru: '🌙 С 20:00 до 08:00 уведомления исполнителям не отправляются. Запрос виден у них на доске на сайте и в приложении.',
+    ar: '🌙 بين الساعة 20:00 و08:00 لا تُرسل تنبيهات إلى مقدمي الخدمة. الطلب يظهر في لوحتهم على الموقع وفي التطبيق.',
+    fr: '🌙 Entre 20h00 et 08h00, aucune alerte n’est envoyée aux prestataires. La demande apparaît sur leur tableau, sur le site et dans l’application.',
+    hi: '🌙 रात 20:00 से सुबह 08:00 तक सेवा प्रदाताओं को अलर्ट नहीं भेजे जाते। अनुरोध वेबसाइट और ऐप में उनके बोर्ड पर दिखता है।',
+    uk: '🌙 З 20:00 до 08:00 сповіщення виконавцям не надсилаються. Запит видно в них на дошці на сайті та в застосунку.',
+  },
   urgentAlertNoDevice: {
     he: 'לנותני השירות שנמצאו אין התראות פעילות בטלפון. הבקשה מופיעה אצלם בלוח.',
     en: 'The service providers we found have no phone alerts switched on. The request is on their board.',

@@ -58,7 +58,7 @@ import {
   stripEmoji, countWords, limitWords, buildFullAddress,
 } from '../lib/jobUtils';
 import { compareCleaners, compareJobs, isAvailableNow, rotationRank } from '../lib/displayOrder';
-import { isUrgentRequestLive, URGENT_FIRST_START_HOUR, URGENT_LAST_START_HOUR, urgentStartAllowed, urgentTodayClosed, urgentFirstSlot, hourOfTime, urgentEditContext, urgentPushPlan, urgentAlertedAfter, liveUrgentEdit, urgentAlertOutcome, expiryOf, slotOf, urgentBackOut, UrgentEditContext } from '../lib/urgentRequest';
+import { isUrgentRequestLive, URGENT_FIRST_START_HOUR, URGENT_LAST_START_HOUR, urgentStartAllowed, urgentTodayClosed, urgentFirstSlot, hourOfTime, urgentEditContext, urgentPushPlan, urgentAlertedAfter, liveUrgentEdit, urgentAlertOutcome, urgentPushQuiet, expiryOf, slotOf, urgentBackOut, UrgentEditContext } from '../lib/urgentRequest';
 import { sameDayOverlap, bookingHoldsHours } from '../lib/bookingSlot';
 import { unansweredPast } from '../lib/bookingTabs';
 import { claimUpdate, occupiesCleanerTime, pendingSlotMissed, pendingSlotExpired, expiryUpdate, rejectionUpdate, isBoardJobOfferable, busySlotOf, declinedByCleaner } from '../lib/bookingActions';
@@ -4583,20 +4583,21 @@ export default function HomeScreen() {
   // מה קרה עם ההתראה של הבקשה שבחוץ: לכמה ביקשנו לצלצל, ולכמה השרת צלצל.
   // מוצג בכרטיס ההמתנה — קודם המסך אמר "נשלחה" ולא אמר דבר על ההתראה, וכשאף
   // טלפון לא צלצל (כי אף אחד לא עובד בשעה הזאת, למשל) זה נראה כמו תקלה.
-  const [urgentAlertInfo, setUrgentAlertInfo] = useState<{ id: string; asked: number; sent: number | null; skipped: number; before: number } | null>(null);
+  const [urgentAlertInfo, setUrgentAlertInfo] = useState<{ id: string; asked: number; sent: number | null; skipped: number; before: number; quiet?: boolean } | null>(null);
   const urgentAlertText = (outcome: NonNullable<ReturnType<typeof urgentAlertOutcome>>, sent: number | null) => {
     const tt = t as any;
     return outcome === 'sent' ? String(tt.urgentAlertSent ?? '🔔 התראה נשלחה לנותני שירות: {n}').replace('{n}', String(sent ?? 0))
       : outcome === 'edited' ? (tt.urgentAlertEdited ?? 'הבקשה עודכנה. מי שכבר קיבל התראה רואה את השינוי, בלי התראה נוספת.')
       : outcome === 'off-hours' ? (tt.urgentAlertOffHours ?? 'נותני השירות באזור לא עובדים בשעות האלה, ולכן לא נשלחה התראה לטלפון. הבקשה מופיעה אצלם בלוח.')
       : outcome === 'no-device' ? (tt.urgentAlertNoDevice ?? 'לנותני השירות שנמצאו אין התראות פעילות בטלפון. הבקשה מופיעה אצלם בלוח.')
+      : outcome === 'quiet-hours' ? (tt.urgentAlertQuietHours ?? '🌙 בין 20:00 ל-08:00 לא נשלחות התראות לנותני השירות. הבקשה מופיעה אצלם בלוח באתר ובאפליקציה.')
       : (tt.urgentAlertFailed ?? 'לא הצלחנו לשלוח התראה לטלפונים של נותני השירות. הבקשה מופיעה אצלם בלוח.');
   };
   // The card with this line sits inside the sheet that sending closes, so when
   // no phone was rung the client is told outright — a moment later, once the
   // sheet has gone.
   const announceUrgentAlert = (outcome: ReturnType<typeof urgentAlertOutcome>) => {
-    if (outcome !== 'off-hours' && outcome !== 'failed' && outcome !== 'no-device') return;
+    if (outcome !== 'off-hours' && outcome !== 'failed' && outcome !== 'no-device' && outcome !== 'quiet-hours') return;
     setTimeout(() => Alert.alert('', urgentAlertText(outcome, 0)), 600);
   };
   const urgentSheetOpen = useRef(false);
@@ -5035,6 +5036,9 @@ export default function HomeScreen() {
 
         // בעריכה: רק מי שעוד לא קיבל התראה על הבקשה הזאת (lib/urgentRequest).
         const plan = urgentPushPlan(ring, editCtx, 500);
+        // בין 20:00 ל-08:00 לא מצלצלים לאף אחד (lib/urgentRequest urgentPushQuiet):
+        // הבקשה כבר בלוח של כל המנקים, וזה הכל. השרת מחזיק באותו קו לפי שעון ישראל.
+        const quiet = urgentPushQuiet();
         const reqDoc = doc(db,'urgentRequests', reqRef.id);
         // מי שכבר קיבל התראה בגרסאות הקודמות נרשם מיד; מי שמקבל עכשיו — רק
         // אחרי שהשרת אישר שצלצל למישהו. פוש שנכשל לא "התריע" לאף אחד, ועריכה
@@ -5045,17 +5049,19 @@ export default function HomeScreen() {
           await updateDoc(reqDoc, { notifiedCleaners: notified, pushedCleaners: urgentAlertedAfter(plan, editCtx, 0) });
         } catch (err) { logError('home:urgentNotified', err); }
         const alertedBefore = editCtx?.alerted.length ?? 0;
-        setUrgentAlertInfo({ id: reqRef.id, asked: plan.push.length, sent: null, skipped: 0, before: alertedBefore });
-        if (notified.length > 0) announceUrgentAlert(urgentAlertOutcome(plan.push.length, null, alertedBefore));
+        setUrgentAlertInfo({ id: reqRef.id, asked: plan.push.length, sent: null, skipped: 0, before: alertedBefore, quiet });
+        if (notified.length > 0) announceUrgentAlert(urgentAlertOutcome(plan.push.length, null, alertedBefore, 0, quiet));
         // הפוש עצמו — דרך שרת ההתראות, רק למי שעובד/ת ביום ובשעות האלה.
-        // השרת קורא את הבקשה, בודק שהיא פתוחה ובחלון 07–22, ושהנמענים מנקים.
+        // השרת קורא את הבקשה, בודק שהיא פתוחה ובחלון 07–22, ושהנמענים מנקים —
+        // ובין 20:00 ל-08:00 (שעון ישראל) לא שולח, ועונה quiet.
         // הוא מקבל עד 500 נמענים בבקשה (MAX_URGENT_RECIPIENTS ב-worker/notify.js).
         // לא ממתינים לו: הלקוח לא מחכה שטלפונים יצלצלו.
-        if (plan.push.length) {
+        if (plan.push.length && !quiet) {
           void notify({ event: 'urgent', requestId: reqRef.id, recipients: plan.push })
             .then(r => {
-              setUrgentAlertInfo(cur => (cur && cur.id === reqRef.id ? { ...cur, sent: r.sent, skipped: r.skipped } : cur));
-              announceUrgentAlert(urgentAlertOutcome(plan.push.length, r.sent, alertedBefore, r.skipped));
+              const q = !!r.quiet;   // the server's clock had already passed 20:00
+              setUrgentAlertInfo(cur => (cur && cur.id === reqRef.id ? { ...cur, sent: r.sent, skipped: r.skipped, quiet: q } : cur));
+              announceUrgentAlert(urgentAlertOutcome(plan.push.length, r.sent, alertedBefore, r.skipped, q));
               return r.sent > 0 ? updateDoc(reqDoc, { pushedCleaners: plan.alerted }) : undefined;
             })
             .catch(err => logError('home:urgentPushed', err));
@@ -6398,6 +6404,9 @@ export default function HomeScreen() {
         // בקשה שהלקוח ערך היא אותה בקשה עם פרטים אחרים: מי שכבר קיבל/ה עליה
         // התראה רואה את השינוי בלוח, בלי חלון מסך-מלא נוסף.
         if (uid && Array.isArray(r.alertedBefore) && r.alertedBefore.includes(uid)) return false;
+        // 20:00–08:00: no push, and so no full-screen window either — the request
+        // is on her board, where she sees it (lib/urgentRequest urgentPushQuiet).
+        if (urgentPushQuiet()) return false;
         const start = hourOfTime(r.startTime);
         if (r.dateStr && Number.isFinite(start)) {
           if (!urgentStartAllowed(start)) return false;
@@ -7928,12 +7937,12 @@ export default function HomeScreen() {
                 {/* What became of the alert: how many phones rang, or why none did. */}
                 {(() => {
                   const info = urgentAlertInfo && urgentAlertInfo.id === urgentRequestId ? urgentAlertInfo : null;
-                  const outcome = info ? urgentAlertOutcome(info.asked, info.sent, info.before, info.skipped) : null;
+                  const outcome = info ? urgentAlertOutcome(info.asked, info.sent, info.before, info.skipped, info.quiet) : null;
                   if (!info || !outcome) return null;
                   const text = urgentAlertText(outcome, info.sent);
                   const good = outcome === 'sent' || outcome === 'edited';
                   return (
-                    <T style={{ fontSize: 13, fontWeight: '700', lineHeight: 19, textAlign: 'center', color: good ? '#065F46' : '#B45309' }}>{text}</T>
+                    <T style={{ fontSize: 13, fontWeight: '700', lineHeight: 19, textAlign: 'center', color: good ? '#065F46' : outcome === 'quiet-hours' ? '#3730A3' : '#B45309' }}>{text}</T>
                   );
                 })()}
                 {/* עריכה וביטול זה לצד זה, באותו גודל */}
@@ -8127,6 +8136,14 @@ export default function HomeScreen() {
             <View style={{ paddingHorizontal: 16, paddingTop: 10, paddingBottom: (Platform.OS === 'ios' ? 0 : insets.bottom) + 12, gap: 8, backgroundColor: C.bluePale, borderTopWidth: 1, borderTopColor: C.blueBorder }}>
               {urgentTried && !!urgentMissing && (
                 <T style={{ color: '#B45309', fontSize: 13, fontWeight: '800', textAlign: 'center' }}>⚠️ {urgentMissing}</T>
+              )}
+              {/* 20:00–08:00: the request goes on the boards, and no phone rings for it. */}
+              {urgentPushQuiet(new Date(nowMs)) && (
+                <View style={{ backgroundColor: '#EEF2FF', borderWidth: 1, borderColor: '#C7D2FE', borderRadius: 12, paddingHorizontal: 12, paddingVertical: 8 }}>
+                  <T style={{ fontSize: 13, color: '#3730A3', lineHeight: 20 }}>
+                    {(t as any).urgentAlertQuietHours ?? '🌙 בין 20:00 ל-08:00 לא נשלחות התראות לנותני השירות. הבקשה מופיעה אצלם בלוח באתר ובאפליקציה.'}
+                  </T>
+                </View>
               )}
               <View style={{ backgroundColor: '#EDE9FE', borderRadius: 12, paddingHorizontal: 12, paddingVertical: 7, flexDirection: 'row-reverse', justifyContent: 'space-between', alignItems: 'center' }}>
                 <T style={{ fontSize: 13, color: '#5B21B6' }}>{t.estimatedTotal}</T>

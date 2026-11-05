@@ -31,7 +31,7 @@ export type NotifyEvent =
  * were skipped. Never throws: whatever happened already happened, whether or
  * not a phone buzzes about it.
  */
-export async function notify(e: NotifyEvent): Promise<{ sent: number; skipped: number }> {
+export async function notify(e: NotifyEvent): Promise<{ sent: number; skipped: number; quiet?: boolean }> {
   const none = { sent: 0, skipped: 0 };
   try {
     const idToken = await auth.currentUser?.getIdToken();
@@ -46,7 +46,9 @@ export async function notify(e: NotifyEvent): Promise<{ sent: number; skipped: n
       return none;
     }
     const body = await res.json().catch(() => null);
-    return { sent: Number(body?.sent) || 0, skipped: Number(body?.skipped) || 0 };
+    // `quiet`: an urgent request sent between 20:00 and 08:00 Israel time —
+    // the server rang nobody on purpose (lib/urgentRequest urgentPushQuiet).
+    return { sent: Number(body?.sent) || 0, skipped: Number(body?.skipped) || 0, quiet: body?.note === 'quiet-hours' };
   } catch (err) {
     logError('notify', err);
     return none;

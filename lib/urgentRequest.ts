@@ -157,6 +157,34 @@ export function urgentTodayClosed(now: Date = new Date(), leadMinutes = 0): bool
   return urgentFirstSlot(now, leadMinutes) > URGENT_LAST_START_HOUR;
 }
 
+// ── When an urgent request may ring a phone ───────────────────────────────────
+//
+// Ofek, 5.11.2026: no pushes at night. A client may send an urgent request at
+// any hour and it reaches the cleaners' boards at once — a cleaner who looks
+// after 20:00 sees it there — but between 20:00 and 08:00 nobody's phone is
+// rung for it. This is the hour the request is SENT, not the hour the cleaning
+// starts (that is URGENT_FIRST/LAST_START_HOUR above): a request sent at 23:00
+// for 09:00 tomorrow is still sent at 23:00, and still rings no one.
+//
+// The app's full-screen pop-up follows the push, as it does for every other
+// rule here. The notification server enforces the same window in Israel time
+// (worker/notify.js) — by the hour the request was made, too, so one made at
+// night does not ring in the morning — which holds back every build that sends
+// through it (206 on). Builds before 206 sent to Expo directly and are only
+// held back once direct Expo sends are shut (push lockdown, phase D).
+
+/** First hour an urgent request may ring cleaners, local time. 8 = 08:00. */
+export const URGENT_PUSH_FIRST_HOUR = 8;
+
+/** Urgent requests ring cleaners until this hour, local time — 20:00 itself is quiet. */
+export const URGENT_PUSH_LAST_HOUR = 20;
+
+/** Is it the quiet part of the day, when an urgent request rings no phone? */
+export function urgentPushQuiet(now: Date = new Date()): boolean {
+  const h = now.getHours() + now.getMinutes() / 60;
+  return !(h >= URGENT_PUSH_FIRST_HOUR && h < URGENT_PUSH_LAST_HOUR);
+}
+
 /** What an edited request carries over from the one it replaces. */
 export interface UrgentEditContext {
   /** Everyone who was already alerted about this request, in any of its versions. */
@@ -271,19 +299,24 @@ export function urgentAlertedAfter(
  *                 or has switched them off (`skipped` covers them all).
  *   'failed'    — phones should have rung and none did, for any other reason
  *                 (the server could not be reached, or refused).
+ *   'quiet-hours' — sent between 20:00 and 08:00 (urgentPushQuiet): it is on
+ *                 the cleaners' boards, and no phone rings at night.
  *   null        — not known yet.
  *
  * `asked` is how many cleaners the server was asked to ring now, `skipped`
- * how many of them it reported having no device to ring, and `alertedBefore`
+ * how many of them it reported having no device to ring, `alertedBefore`
  * how many were rung for earlier versions of the request (0 for one that is
- * not an edit).
+ * not an edit), and `quiet` whether it went out in the quiet hours — by this
+ * device's clock, or because the server said so.
  */
 export function urgentAlertOutcome(
   asked: number,
   sent: number | null,
   alertedBefore: number,
   skipped = 0,
-): 'sent' | 'edited' | 'off-hours' | 'no-device' | 'failed' | null {
+  quiet = false,
+): 'sent' | 'edited' | 'off-hours' | 'no-device' | 'failed' | 'quiet-hours' | null {
+  if (quiet) return alertedBefore > 0 ? 'edited' : 'quiet-hours';
   if (!(asked > 0)) return alertedBefore > 0 ? 'edited' : 'off-hours';
   if (sent === null) return null;
   if (sent > 0) return 'sent';
