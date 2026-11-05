@@ -2672,10 +2672,13 @@ function BookingModal({ cleaner, visible, onClose, onBookingCreated, prebookData
   const [cancellingBooking, setCancellingBooking] = useState(false);
   const unsubBookingRef = useRef<(() => void) | null>(null);
 
-  // Dynamic pricing: if cleaner has servicePricing, use it; else use cleaner.price
+  // What this provider charges for the types chosen: each type at its own price
+  // (servicePricing) or the base price, and the dearest of them when several
+  // are chosen. A type with no price of its own counts at the base price — left
+  // out, adding a cheap type to it lowered the whole booking.
   const effectivePrice = cleaner
     ? (() => {
-        const prices = serviceTypes.map(st => cleaner.servicePricing?.[st]).filter((p: any) => p != null) as number[];
+        const prices = serviceTypes.map(st => Number(cleaner.servicePricing?.[st] ?? cleaner.price) || 0);
         return prices.length ? Math.max(...prices) : cleaner.price;
       })()
     : 0;

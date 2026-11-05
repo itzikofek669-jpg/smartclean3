@@ -383,12 +383,20 @@ service cloud.firestore {
     //
     // The profile field stays readable only until every build writes here; the
     // last migration step deletes it and forbids it.
+    // `token`: the phone's (Expo). `webToken`: this browser's (FCM), written by
+    // the website (src/lib/webPush.ts) — kept here and not on the public
+    // profile, where anyone could copy it into their own account. Either may be
+    // absent: the app writes only the first, the website only the second.
     function pushTokenSane() {
       let d = request.resource.data;
-      return d.keys().hasOnly(['token', 'updatedAt', 'platform'])
-        && d.token is string
-        && d.token.size() <= 220
-        && d.token.matches('^Expo(nent)?PushToken\\[[^\\]]+\\]$')
+      return d.keys().hasOnly(['token', 'updatedAt', 'platform', 'webToken'])
+        && (!('token' in d) || (d.token is string
+          && d.token.size() <= 220
+          && d.token.matches('^Expo(nent)?PushToken\\[[^\\]]+\\]$')))
+        && (!('webToken' in d) || (d.webToken is string
+          && d.webToken.size() >= 20
+          && d.webToken.size() <= 4096
+          && d.webToken.matches('^[A-Za-z0-9_:-]+$')))
         && d.get('updatedAt', '') is string
         && d.get('platform', '') is string
         && d.get('platform', '').size() <= 20;
