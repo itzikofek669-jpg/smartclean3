@@ -846,6 +846,10 @@ function UserCard({ user, isCleaner, onBlock, onDelete, extraBookings }: {
               📍 {user.city || '—'}{user.rating ? ` · ⭐ ${user.rating.toFixed(1)}` : ''}{user.reviewCount ? ` (${user.reviewCount})` : ''}
             </T>
           )}
+          {/* 3+ reviews of 1–2 stars: the admins were alerted (worker/notify.js review_posted). */}
+          {isCleaner && Number(user.lowReviewCount) >= 3 && (
+            <T style={[s.userSub, { color: '#DC2626', fontWeight: '800' }]}>⚠️ {user.lowReviewCount} ביקורות נמוכות</T>
+          )}
           {extraBookings !== undefined && (
             <T style={s.userSub}>📋 {extraBookings} הזמנות</T>
           )}

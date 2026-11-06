@@ -24,6 +24,8 @@ export type NotifyEvent =
   | { event: 'urgent'; requestId: string; recipients: string[] }
   | { event: 'urgent_claimed'; requestId: string }
   | { event: 'message'; chatId: string }
+  // A review was written: the server counts her 1–2 star reviews and tells the admins at 3 and 5.
+  | { event: 'review_posted'; cleanerId: string; bookingId: string }
   | { event: 'admin_broadcast'; title: string; body: string; recipients: string[] };
 
 /**

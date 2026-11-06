@@ -6816,6 +6816,8 @@ export default function HomeScreen() {
         await updateDoc(bookingRef, bookingFields);
         try { await setDoc(reviewRef, reviewFields); } catch (e) { logError('home:mandatoryReview:review', e); }
       }
+      // השרת סופר את הביקורות הנמוכות (1–2 כוכבים) ומתריע למנהל ב-3 וב-5.
+      void notify({ event: 'review_posted', cleanerId: pendingReviewBooking.cleanerId, bookingId: pendingReviewBooking.id });
       // Check if any more pending reviews
       const remaining = myBookings.filter((b: any) =>
         b.id !== pendingReviewBooking.id && b.status === 'done' && b.reviewRequired === true && !b.cleanerRating
