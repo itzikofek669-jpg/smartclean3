@@ -267,7 +267,7 @@ service cloud.firestore {
         && request.resource.data.get('role', 'client') in ['client', 'cleaner']
         && !request.resource.data.keys().hasAny([
           'rating', 'reviewCount', 'reviews', 'reviewsCount',
-          'blocked', 'blockedUntilReview', 'identityVerified', 'adminNote'
+          'blocked', 'blockedUntilReview', 'identityVerified', 'adminNote', 'lowReviewCount'
         ])
         && emailVerifiedIsHonest()
         && bioSane();
@@ -279,7 +279,9 @@ service cloud.firestore {
             // a client account wrote itself role 'cleaner' and appeared in
             // cleaner discovery, and role 'admin' passed the website's route
             // guard, which reads profile.role straight through.
-            && !changed().hasAny(['blocked', 'blockedUntilReview', 'identityVerified', 'adminNote', 'role'])
+            // lowReviewCount: the notify server's count of her 1–2 star reviews,
+            // which the admin screen flags — not hers to reset.
+            && !changed().hasAny(['blocked', 'blockedUntilReview', 'identityVerified', 'adminNote', 'role', 'lowReviewCount'])
             && (!changed().hasAny(['emailVerified']) || emailVerifiedIsHonest())
             && (!changed().hasAny(['bio']) || bioSane()))
         || (signedIn() && uid() != userId && isValidRatingUpdate(userId));
