@@ -4593,7 +4593,7 @@ export default function HomeScreen() {
     const tt = t as any;
     return outcome === 'sent' ? String(tt.urgentAlertSent ?? '🔔 התראה נשלחה לנותני שירות: {n}').replace('{n}', String(sent ?? 0))
       : outcome === 'edited' ? (tt.urgentAlertEdited ?? 'הבקשה עודכנה. מי שכבר קיבל התראה רואה את השינוי, בלי התראה נוספת.')
-      : outcome === 'off-hours' ? (tt.urgentAlertOffHours ?? 'נותני השירות באזור לא עובדים בשעות האלה, ולכן לא נשלחה התראה לטלפון. הבקשה מופיעה אצלם בלוח.')
+      : outcome === 'off-hours' ? (tt.urgentAlertOffHours ?? 'לא נשלחה התראה לטלפון, כי נותני השירות באזור לא עובדים כרגע או בשעה שביקשת. הבקשה מופיעה אצלם בלוח.')
       : outcome === 'no-device' ? (tt.urgentAlertNoDevice ?? 'לנותני השירות שנמצאו אין התראות פעילות בטלפון. הבקשה מופיעה אצלם בלוח.')
       : outcome === 'quiet-hours' ? (tt.urgentAlertQuietHours ?? '🌙 בין 20:00 ל-08:00 לא נשלחות התראות לנותני השירות. הבקשה מופיעה אצלם בלוח באתר ובאפליקציה.')
       : (tt.urgentAlertFailed ?? 'לא הצלחנו לשלוח התראה לטלפונים של נותני השירות. הבקשה מופיעה אצלם בלוח.');
@@ -5070,9 +5070,11 @@ export default function HomeScreen() {
           void notify({ event: 'urgent', requestId: reqRef.id, recipients: plan.push })
             .then(r => {
               const q = !!r.quiet;   // the server's clock had already passed 20:00
-              setUrgentAlertInfo(cur => (cur && cur.id === reqRef.id ? { ...cur, sent: r.sent, skipped: r.skipped, quiet: q } : cur));
-              announceUrgentAlert(urgentAlertOutcome(plan.push.length, r.sent, alertedBefore, r.skipped, q));
-              return r.sent > 0 ? updateDoc(reqDoc, { pushedCleaners: plan.alerted }) : undefined;
+              // The server left everyone out as off duty right now: no phone to ring.
+              const asked = r.offHours ? 0 : plan.push.length;
+              setUrgentAlertInfo(cur => (cur && cur.id === reqRef.id ? { ...cur, asked, sent: r.sent, skipped: r.skipped, quiet: q } : cur));
+              announceUrgentAlert(urgentAlertOutcome(asked, r.sent, alertedBefore, r.skipped, q));
+              return r.sent > 0 ? updateDoc(reqDoc, { pushedCleaners: urgentAlertedAfter(plan, editCtx, r.sent, r.reached) }) : undefined;
             })
             .catch(err => logError('home:urgentPushed', err));
         }

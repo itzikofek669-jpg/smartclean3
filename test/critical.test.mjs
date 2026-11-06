@@ -1464,6 +1464,12 @@ test('only an ✏️ in progress holds a push back; a push that failed alerted n
   assert.deepEqual(urgentAlertedAfter(plan, edit, 1), ['a', 'b']);
   assert.deepEqual(urgentAlertedAfter(plan, edit, 0), ['a']);
   assert.deepEqual(urgentAlertedAfter(urgentPushPlan(['x'], null), null, 0), []);
+  // When the server says who it rang, only they count — one it left out as off
+  // duty is still to be alerted when the request is corrected later.
+  const plan3 = urgentPushPlan(['b', 'c', 'd'], edit);
+  assert.deepEqual(urgentAlertedAfter(plan3, edit, 1, ['c']), ['a', 'c']);
+  assert.deepEqual(urgentAlertedAfter(plan3, edit, 0, ['c']), ['a']);              // nothing sent: as before
+  assert.deepEqual(urgentAlertedAfter(plan3, null, 2, ['b', 'd', 'stranger']), ['b', 'd']);
 });
 
 test('a second cleaning on hours already asked for is a clash, not only the same starting minute', () => {

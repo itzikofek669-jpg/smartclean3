@@ -297,13 +297,23 @@ export function urgentPushPlan(
  * Who counts as alerted once the push was attempted. The newly rung only when
  * the server rang somebody (`sent`): a push that failed outright alerted no
  * one, and the corrected request is then their first alert, not a repeat.
+ *
+ * `reached`, when the server says who it rang: only those of the newly asked.
+ * It leaves out providers who are off duty right now, and counting them as
+ * alerted cost them both the push and the pop-up when the request was later
+ * corrected during their hours.
  */
 export function urgentAlertedAfter(
   plan: { push: string[]; alerted: string[] },
   edit: UrgentEditContext | null | undefined,
   sent: number,
+  reached?: readonly string[] | null,
 ): string[] {
-  return sent > 0 ? plan.alerted : Array.from(new Set(edit?.alerted ?? []));
+  const before = Array.from(new Set(edit?.alerted ?? []));
+  if (!(sent > 0)) return before;
+  if (!reached) return plan.alerted;
+  const rung = new Set(reached);
+  return before.concat(plan.push.filter((uid) => rung.has(uid) && !before.includes(uid))).slice(-2000);
 }
 
 /**
