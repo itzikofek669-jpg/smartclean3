@@ -1723,6 +1723,10 @@ function PostJobModal({ visible, onClose, onPosted, editJob, openJobs, onEditJob
   // Editing starts from the job's own values. The modal is keyed per job
   // (see <PostJobModal key=…>), so these initialisers run for each one.
   const ej = editJob?.id ? editJob : null;
+  // Home closes this form and says so the moment the job is taken; a save still
+  // in flight then must not say it a second time.
+  const visibleRef = useRef(visible);
+  visibleRef.current = visible;
   const ejDate = (() => {
     const [y, m, d] = String(ej?.bookingDate || '').split('-').map(Number);
     return y && m && d ? new Date(y, m - 1, d) : null;
@@ -1956,7 +1960,7 @@ function PostJobModal({ visible, onClose, onPosted, editJob, openJobs, onEditJob
       setSvcOpen(false); setTried(false);
     } catch (err: any) {
       if (err?.message === 'JOB_TAKEN') {
-        Alert.alert('', (t as any).jobEditTakenMsg ?? 'נותן שירות כבר לקח את העבודה, ולכן אי אפשר לערוך אותה. אפשר לדבר איתו בצ\'אט או לבטל את ההזמנה.');
+        if (visibleRef.current) Alert.alert('', (t as any).jobEditTakenMsg ?? 'נותן שירות כבר לקח את העבודה, ולכן אי אפשר לערוך אותה. אפשר לדבר איתו בצ\'אט או לבטל את ההזמנה.');
         onClose();
         return;
       }
@@ -4496,6 +4500,22 @@ export default function HomeScreen() {
   // key, and that must not happen while the previous one is still sliding away.
   const postJobClosedAt = useRef(0);
   const closePostJob = () => { postJobClosedAt.current = Date.now(); setPostJobOpen(false); };
+  // A cleaner took the job while its edit form was open: the form closes — from
+  // here a change is agreed with the cleaner in chat, not by editing the job.
+  // cleanerId only: saving the edit itself marks this job cancelled (replacedBy).
+  useEffect(() => {
+    const id = postJobOpen ? editJob?.id : null;
+    if (!id) return;
+    let fired = false;
+    const unsub = onSnapshot(doc(db, 'bookings', id), snap => {
+      if (fired || !snap.data()?.cleanerId) return;
+      fired = true;
+      unsub();
+      closePostJob();
+      Alert.alert('', (t as any).jobEditTakenMsg ?? 'נותן שירות כבר לקח את העבודה, ולכן אי אפשר לערוך אותה. אפשר לדבר איתו בצ\'אט או לבטל את ההזמנה.');
+    }, err => logError('home:editJobWatch', err));
+    return unsub;
+  }, [postJobOpen, editJob?.id]);
   // The client's own jobs on the board that nobody has taken yet — what "ניקיון
   // בזמן שלך" lists with an ✏️ beside each (set by the bookings listener below).
   const [myOpenJobs, setMyOpenJobs] = useState<any[]>([]);
@@ -4582,6 +4602,9 @@ export default function HomeScreen() {
   const [urgentWaiting,   setUrgentWaiting]   = useState(false);
   const [urgentRequestId, setUrgentRequestId] = useState<string|null>(null);
   const [urgentFoundName, setUrgentFoundName] = useState('');
+  // Who took it: the found card opens a chat with them — once taken, a change
+  // is agreed there, not by editing the request.
+  const [urgentFoundUid, setUrgentFoundUid] = useState('');
   const [urgentSavedAddresses, setUrgentSavedAddresses] = useState<SavedAddress[]>([]);
   // ✏️ מושך את הבקשה ושולח אותה מתוקנת. לנותני השירות זו אותה בקשה עם פרטים
   // אחרים, לא קריאה שנייה: מי שכבר קיבל עליה התראה לא מקבל עוד אחת — השינוי
@@ -4698,6 +4721,7 @@ export default function HomeScreen() {
           // החלון סגור (חזרו למסך הראשי אחרי השליחה): ההודעה מגיעה בפוש ובפופאפ
           // האישור, ופתיחה חוזרת מראה טופס חדש — לא כרטיס "נמצא".
           setUrgentFoundName(urgentSheetOpen.current ? (d.takenByName || '') : '');
+          setUrgentFoundUid(String(d.takenByUid || d.takenBy || ''));
           setUrgentWaiting(false);
           if (!urgentSheetOpen.current) resetUrgentChoices();
           stop();
@@ -8007,6 +8031,15 @@ export default function HomeScreen() {
                 <T style={{ fontSize: 52 }}>🎉</T>
                 <T style={{ fontSize: 20, fontWeight: '900', color: '#065F46', textAlign: 'center' }}>{t.urgentFoundMsg}</T>
                 <T style={{ fontSize: 16, color: '#065F46', fontWeight: '700' }}>{urgentFoundName}</T>
+                <T style={{ fontSize: 14, color: '#065F46', textAlign: 'center' }}>{(t as any).urgentChangeInChat ?? 'רוצה לשנות משהו? מעכשיו זה בצ\'אט מול נותן השירות.'}</T>
+                {urgentFoundUid !== '' && (
+                  <TouchableOpacity
+                    style={{ backgroundColor: C.white, borderRadius: 12, paddingVertical: 12, paddingHorizontal: 30, borderWidth: 1.5, borderColor: C.green }}
+                    onPress={() => { const uid2 = urgentFoundUid, name2 = urgentFoundName; setUrgentOpen(false); setUrgentFoundName(''); setUrgentFoundUid(''); setUrgentRequestId(null); setUrgentAddress(''); setUrgentServiceTypes([]); setUrgentServiceDropOpen(false); setUrgentPhotos([]); setUrgentNotes(''); openClientChat(uid2, name2); }}
+                  >
+                    <T style={{ fontSize: 15, fontWeight: '900', color: '#065F46' }}>{t.chatBtn}</T>
+                  </TouchableOpacity>
+                )}
                 <TouchableOpacity
                   style={{ backgroundColor: C.green, borderRadius: 12, paddingVertical: 14, paddingHorizontal: 36, marginTop: 6 }}
                   onPress={() => { setUrgentOpen(false); setUrgentFoundName(''); setUrgentRequestId(null); setUrgentAddress(''); setUrgentServiceTypes([]); setUrgentServiceDropOpen(false); setUrgentPhotos([]); setUrgentNotes(''); }}
