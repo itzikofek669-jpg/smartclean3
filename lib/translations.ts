@@ -4661,6 +4661,8 @@ const ADDED: Record<string, Record<string, string>> = {
     hi: '🌙 रात 20:00 से सुबह 08:00 तक सेवा प्रदाताओं को अलर्ट नहीं भेजे जाते। अनुरोध वेबसाइट और ऐप में उनके बोर्ड पर दिखता है।',
     uk: '🌙 З 20:00 до 08:00 сповіщення виконавцям не надсилаються. Запит видно в них на дошці на сайті та в застосунку.',
   },
+  // A provider in the middle of a job right now: the book button, instead of "unavailable".
+  busyNowBtn: { he: 'תפוס כרגע', en: 'Busy right now', ru: 'Сейчас занят(а)', ar: 'مشغول الآن', fr: 'Occupé(e) en ce moment', hi: 'अभी व्यस्त', uk: 'Зараз зайнятий(а)' },
   urgentAlertNoDevice: {
     he: 'לנותני השירות שנמצאו אין התראות פעילות בטלפון. הבקשה מופיעה אצלם בלוח.',
     en: 'The service providers we found have no phone alerts switched on. The request is on their board.',

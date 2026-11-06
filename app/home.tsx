@@ -1280,7 +1280,7 @@ function CleanerProfile({ cleaner, visible, onClose, onBook, onChat, initialShow
             style={[s.footerBook, !cleaner.available && { backgroundColor: C.blueBorder }]}
             disabled={!cleaner.available}
             onPress={() => { onClose(); onBook(cleaner); }}>
-            <T style={s.footerBookText}>{cleaner.available ? t.bookNowBtn : t.notAvailBtn}</T>
+            <T style={s.footerBookText}>{cleaner.available ? t.bookNowBtn : cleaner.busyNow ? ((t as any).busyNowBtn ?? 'תפוס כרגע') : t.notAvailBtn}</T>
           </TouchableOpacity>
         </View>
       </SafeAreaView>
@@ -3391,6 +3391,19 @@ function BookingModal({ cleaner, visible, onClose, onBookingCreated, prebookData
                     .replace('{start}', hhmm(v.start!)).replace('{end}', hhmm(v.end!));
               return <T style={{ fontSize: 12.5, color: '#DC2626', fontWeight: '700', textAlign: 'right', marginTop: 6 }}>⛔ {msg}</T>;
             })()}
+            {/* The hour on the clock runs into a job she already has that day — said
+                now, as the working hours are, not only after "book" (isCleanerBusy
+                refuses the same thing there). */}
+            {!bookWindow?.allBusy && (() => {
+              const s0 = startHour * 60;
+              const e0 = s0 + hours * 60;
+              if (!busyWindowsOn(cleanerSlots ?? [], ymd(bookingDate)).some(b => s0 < b.e && e0 > b.s)) return null;
+              return (
+                <T style={{ fontSize: 12.5, color: '#DC2626', fontWeight: '700', textAlign: 'right', marginTop: 6 }}>
+                  ⛔ {t.cleanerBusyMsg ?? 'נותן השירות תפוס/ה בשעות אלה — נסה שעה אחרת'}
+                </T>
+              );
+            })()}
 
 
             {/* מספר שעות */}
@@ -4037,11 +4050,11 @@ function CleanerCardInner({ cleaner, isSel, onSelect, onProfile, onBook, onChat,
               disabled={!cleaner.available}
               onPress={() => cleaner.available && onBook(cleaner)}
               accessibilityRole="button"
-              accessibilityLabel={cleaner.available ? `הזמן את ${cleaner.name}` : 'לא זמין כרגע'}
+              accessibilityLabel={cleaner.available ? `הזמן את ${cleaner.name}` : cleaner.busyNow ? 'תפוס כרגע' : 'לא זמין כרגע'}
               accessibilityState={{ disabled: !cleaner.available }}
             >
               <T style={s.actionBtnPrimaryText} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.6}>
-                {cleaner.available ? t.bookBtnShort : t.notAvailBtn}
+                {cleaner.available ? t.bookBtnShort : cleaner.busyNow ? ((t as any).busyNowBtn ?? 'תפוס כרגע') : t.notAvailBtn}
               </T>
             </TouchableOpacity>
           </View>
@@ -5439,11 +5452,11 @@ export default function HomeScreen() {
       ...getBots(),
     ].map(c => {
       // Demo cards carry only `available`; a real cleaner's raw switch is `availableFlag`.
-      const available = isAvailableNow({
-        available: 'availableFlag' in c ? c.availableFlag : c.available,
-        busySlots: c.busySlots,
-      }, at);
-      return { ...c, available, onShift: isOnShiftNow(available, c.availability, c.availabilitySet === true, at) };
+      const raw = 'availableFlag' in c ? c.availableFlag : c.available;
+      const available = isAvailableNow({ available: raw, busySlots: c.busySlots }, at);
+      // busyNow: switched on, but in the middle of a job right now — the button
+      // says "busy right now" rather than "unavailable".
+      return { ...c, available, busyNow: raw !== false && !available, onShift: isOnShiftNow(available, c.availability, c.availabilitySet === true, at) };
     });
     // demoOn: the demo list switches on/off with the flag, as it did before.
     // eslint-disable-next-line react-hooks/exhaustive-deps
