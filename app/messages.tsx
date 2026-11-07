@@ -823,7 +823,7 @@ export default function MessagesScreen() {
   useEffect(() => {
     const sub = BackHandler.addEventListener('hardwareBackPress', () => {
       if (convSelecting) { cancelConvSelection(); return true; }
-      if (activeChatId)  { setActiveChatId(''); return true; }
+      if (activeChatId)  { closeChat(); return true; }
       if (router.canGoBack()) router.back(); else router.replace('/home');
       return true;
     });
@@ -884,15 +884,30 @@ export default function MessagesScreen() {
       toggleConvSelect(conv.chatId);
       return;
     }
+    openedFromLink.current = false;   // from this list: closing comes back to it
     setActiveChatId(conv.chatId);
     setActiveOtherUid(conv.otherUid);
     setActiveOtherName(conv.otherName);
+  };
+
+  // Opened from another screen (a card, a booking, a push) through the params:
+  // closing the chat goes straight back there. It used to drop to this list
+  // first, so leaving a conversation took two or three presses.
+  const openedFromLink = useRef(false);
+  const closeChat = () => {
+    setActiveChatId('');
+    if (!openedFromLink.current) return;
+    openedFromLink.current = false;
+    // Once the chat's sheet has slid away: leaving a screen while its Modal is
+    // still up can strand the sheet on iOS (as onDecided below).
+    setTimeout(() => { if (router.canGoBack()) router.back(); else router.replace('/home'); }, 350);
   };
 
   // פתיחת צ'אט אוטומטית מתוך פופ-אפ "הודעה חדשה" (ניווט עם פרמטרים)
   useEffect(() => {
     const cid = String(params.openChatId || '');
     if (cid) {
+      openedFromLink.current = true;
       setActiveChatId(cid);
       setActiveOtherUid(String(params.openOtherUid || ''));
       setActiveOtherName(String(params.openOtherName || ''));
@@ -1101,7 +1116,7 @@ export default function MessagesScreen() {
         otherUid={activeOtherUid}
         otherName={activeOtherName}
         visible={!!activeChatId}
-        onClose={() => setActiveChatId('')}
+        onClose={closeChat}
         // Approved or rejected from the chat: out of the chat and back to the
         // main screen, as on the website. dismissTo goes back to the home screen
         // already under this one rather than stacking a second copy of it. Only
