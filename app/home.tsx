@@ -5116,11 +5116,12 @@ export default function HomeScreen() {
             .catch(err => logError('home:urgentPushed', err));
         }
 
+        // אף מנקה לא מתאים כרגע (אזור, מחיר, תפוס): הבקשה נשארת בלוח בכל זאת,
+        // עד שעת הניקיון (urgentExpiresAt) — מי שיתפנה או יצטרף יוכל לקחת אותה
+        // (אופק, 7.11.2026). קודם היא בוטלה כאן. בלי שורת התראה בכרטיס: לא נשאל איש.
         if (notified.length === 0) {
-          Alert.alert('', t.urgentNoCleaners);
-          await updateDoc(doc(db,'urgentRequests', reqRef.id), { status: 'expired' });
-          urgentSendingNow.current = false; setUrgentSending(false);
-          return;
+          setUrgentAlertInfo(null);
+          setTimeout(() => Alert.alert('', (t as any).urgentNoneMatched ?? 'כרגע אין נותן שירות פנוי שמתאים לבקשה (אזור, מחיר או שעות). הבקשה פורסמה בלוח ותישאר שם עד שעת הניקיון — מי שיתפנה או יצטרף יוכל לקחת אותה.'), 600);
         }
         } // סוף else (אחרי 20:00 לא שולחים)
       } catch (err) {
