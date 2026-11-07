@@ -39,6 +39,7 @@ import { resolvePhoto } from '../lib/photos';
 import { useAvatar } from '../lib/useAvatar';
 import { fetchPortfolio } from '../lib/portfolio';
 import { demoCleanersEnabled } from '../lib/demoMode';
+import { confirmLangChange } from '../lib/confirmLang';
 import { canRepost, bookingOrigin, cancelledNotice } from '../lib/bookingOrigin';
 import { cityFromAddress } from '../lib/cityFromAddress';
 import {
@@ -833,7 +834,7 @@ function DrawerMenu({ visible, onClose, onProfile, onLogout, onMessages, onRepor
                 <TouchableOpacity
                   key={l.code}
                   style={[ds.langItem, lang === l.code && ds.langItemActive]}
-                  onPress={() => { setLang(l.code); setShowLangs(false); }}
+                  onPress={() => { setShowLangs(false); if (l.code !== lang) confirmLangChange(t, l.nativeName, () => setLang(l.code)); }}
                   accessibilityRole="radio"
                   accessibilityState={{ checked: lang === l.code }}
                   accessibilityLabel={l.label}
@@ -1017,7 +1018,7 @@ function CleanerTraitsSection({ cleaner, s, t }: any) {
   }
   if (languages.length > 0) {
     rows.push({
-      label: t.traitLanguages ?? 'שפות',
+      label: t.traitLanguages ?? 'דובר שפות',
       value: languages.map((c: string) => `${LANGUAGE_FLAGS[c as never] ?? ''} ${t.langNames?.[c] ?? c}`.trim()).join(', '),
     });
   }

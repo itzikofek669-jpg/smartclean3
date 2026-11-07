@@ -30,6 +30,7 @@ import { logError } from '../lib/logError';
 import { devicePosition } from '../lib/devicePosition';
 import { claimPhone } from '../lib/accountChecks';
 import { sendVerificationEmail } from '../lib/emailVerification';
+import { confirmLangChange } from '../lib/confirmLang';
 
 const NAV_BAR_HEIGHT = Platform.OS === 'android'
   ? Math.max(0, Dimensions.get('screen').height - Dimensions.get('window').height - (StatusBar.currentHeight || 0))
@@ -1001,7 +1002,7 @@ export default function RegisterScreen() {
                     key={l.key}
                     label={`${l.flag} ${l.label}`}
                     active={prefLang === l.key}
-                    onPress={() => { setPrefLang(l.key); setLang(l.key as Lang); }}
+                    onPress={() => { if (l.key === lang) { setPrefLang(l.key); return; } confirmLangChange(t, l.label, () => { setPrefLang(l.key); setLang(l.key as Lang); }); }}
                     devanagari={false}
                   />
                 ))}
@@ -1241,7 +1242,7 @@ export default function RegisterScreen() {
                       key={l.key}
                       label={`${l.flag} ${l.label}`}
                       active={prefLang === l.key}
-                      onPress={() => { setPrefLang(l.key); setLang(l.key as Lang); }}
+                      onPress={() => { if (l.key === lang) { setPrefLang(l.key); return; } confirmLangChange(t, l.label, () => { setPrefLang(l.key); setLang(l.key as Lang); }); }}
                       devanagari={false}
                     />
                   ))}

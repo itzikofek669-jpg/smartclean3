@@ -4655,7 +4655,7 @@ export default function ProfileScreen() {
 
               {/* שפות — נשמרות כקודים, כך שלקוח רואה אותן בשפה שלו */}
               <View>
-                <T style={ep.label}>{(t as any).traitLanguages ?? 'שפות'}</T>
+                <T style={ep.label}>{(t as any).traitLanguages ?? 'דובר שפות'}</T>
                 <View style={{ flexDirection: isRTL ? 'row-reverse' : 'row', flexWrap: 'wrap', gap: 8 }}>
                   {LANGUAGE_CODES.map(code => {
                     const on = editLanguages.includes(code);
