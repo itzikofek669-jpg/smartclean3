@@ -22,7 +22,7 @@ import { logError } from '../lib/logError';
 import { notify } from '../lib/notify';
 import { fetchBookingDetails } from '../lib/bookingDetails';
 // Firebase Storage לא נדרש — תמונות ואודיו נשמרים כ-base64 ב-Firestore
-import * as ImagePicker from 'expo-image-picker';
+import { pickPhotoUri } from '../lib/JobPhotos';
 import * as ImageManipulator from 'expo-image-manipulator';
 import * as FileSystem from 'expo-file-system/legacy';
 import { readVoiceNote } from '../lib/voiceNotes';
@@ -299,19 +299,11 @@ function InlineChatModal({ chatId, otherUid, otherName, visible, onClose, onDeci
   };
 
   const sendImage = async () => {
-    const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (!perm.granted) return Alert.alert('', t.galleryPermDenied);
-    const res = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
-      allowsEditing: false,
-      quality: 1,
-      base64: false,
-      exif: false,
-    });
-    if (res.canceled || !res.assets[0]) return;
+    // Camera or gallery (lib/JobPhotos pickPhotoUri).
+    const srcUri = await pickPhotoUri(t);
+    if (!srcUri) return;
     // Resize + compress so the image always fits Firestore's ~700KB base64 limit
     // (iOS photos are large; rejecting them was the "image too large" error).
-    const srcUri = res.assets[0].uri;
     let base64Data: string | null | undefined;
     try {
       const steps: { width: number; compress: number }[] = [

@@ -51,6 +51,32 @@ function askSource(t: any): Promise<Source | null> {
 }
 
 /**
+ * Camera or gallery, asked first, then the photo's local uri — or null when the
+ * user cancelled or refused the permission (after saying so). The chats used
+ * the gallery alone: Android's newer photo picker has no camera in it, so the
+ * camera button there could no longer take a photo.
+ */
+export async function pickPhotoUri(t: any): Promise<string | null> {
+  const source = await askSource(t);
+  if (!source) return null;
+  if (Platform.OS === 'ios') await new Promise(resolve => setTimeout(resolve, 400));
+  const perm = source === 'camera'
+    ? await ImagePicker.requestCameraPermissionsAsync()
+    : await ImagePicker.requestMediaLibraryPermissionsAsync();
+  if (!perm.granted) {
+    Alert.alert(t.error, source === 'camera' ? t.cameraPermDenied : t.galleryPermDenied);
+    return null;
+  }
+  const opts: ImagePicker.ImagePickerOptions = {
+    mediaTypes: ImagePicker.MediaTypeOptions.Images, allowsEditing: false, quality: 1, base64: false, exif: false,
+  };
+  const res = source === 'camera'
+    ? await ImagePicker.launchCameraAsync(opts)
+    : await ImagePicker.launchImageLibraryAsync(opts);
+  return res.canceled || !res.assets[0] ? null : res.assets[0].uri;
+}
+
+/**
  * One photo, taken or picked, as a compressed JPEG data URL — or null when the
  * user cancelled or it could not be read (after saying so).
  */

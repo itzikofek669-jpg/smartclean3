@@ -48,7 +48,7 @@ import {
 import { filterBoard, nearestCity } from '../lib/jobSearch';
 import { notify } from '../lib/notify';
 import { devicePosition } from '../lib/devicePosition';
-import { JobPhotosField, jobPhotosOf } from '../lib/JobPhotos';
+import { JobPhotosField, jobPhotosOf, pickPhotoUri } from '../lib/JobPhotos';
 import { normText, resolvePlace, searchCleaners } from '../lib/search';
 import {
   CITY_COORDS, CITY_KEYS_BY_LEN, REGION_CENTER, regionFromLat,
@@ -83,7 +83,6 @@ import { TAB_BAR_CONTENT_HEIGHT } from '../lib/BottomTabBar';
 import { removeBookingFromCalendar } from '../lib/calendarSync';
 // expo-audio — הקלטה והשמעה של הודעות קוליות (SDK 54, מחליף את expo-av)
 import { useAudioRecorder, createAudioPlayer, RecordingPresets, setAudioModeAsync, AudioModule } from 'expo-audio';
-import * as ImagePicker from 'expo-image-picker';
 import * as ImageManipulator from 'expo-image-manipulator';
 import * as FileSystem from 'expo-file-system/legacy';
 import { readVoiceNote } from '../lib/voiceNotes';
@@ -3012,14 +3011,13 @@ function BookingModal({ cleaner, visible, onClose, onBookingCreated, prebookData
   // שליחת תמונה בצ'אט המוטמע
   const sendInlineImage = async () => {
     if (!bookedDetails?.cleanerUid) return;
-    const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (!perm.granted) return Alert.alert(t.error, t.galleryPermDenied);
-    const res = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ImagePicker.MediaTypeOptions.Images, allowsEditing: false, quality: 1, base64: false, exif: false });
-    if (res.canceled || !res.assets[0]) return;
+    // Camera or gallery (lib/JobPhotos pickPhotoUri).
+    const srcUri = await pickPhotoUri(t);
+    if (!srcUri) return;
     let base64Data: string | null | undefined;
     try {
       for (const st of [{ width: 1080, compress: 0.5 }, { width: 900, compress: 0.4 }, { width: 720, compress: 0.35 }]) {
-        const out = await ImageManipulator.manipulateAsync(res.assets[0].uri, [{ resize: { width: st.width } }], { compress: st.compress, format: ImageManipulator.SaveFormat.JPEG, base64: true });
+        const out = await ImageManipulator.manipulateAsync(srcUri, [{ resize: { width: st.width } }], { compress: st.compress, format: ImageManipulator.SaveFormat.JPEG, base64: true });
         base64Data = out.base64;
         if (base64Data && base64Data.length <= 700_000) break;
       }
@@ -3575,7 +3573,7 @@ function BookingModal({ cleaner, visible, onClose, onBookingCreated, prebookData
                 <T style={{ fontSize: 16, fontWeight: '900', color: C.blue }}>{(t as any).totalSummaryLabel ?? 'סה״כ'}</T>
                 <T style={{ fontSize: 16, fontWeight: '900', color: C.blue }}>₪{total}</T>
               </View>
-              <T style={{ fontSize: 12, color: C.textSub, textAlign: 'center', lineHeight: 17 }}>{(t as any).priceByBookedHours ?? 'המחיר לפי השעות שהוזמנו — גם אם הניקיון מסתיים מוקדם.'}</T>
+              <T style={{ fontSize: 13.5, fontWeight: '700', color: C.textDark, textAlign: 'center', lineHeight: 19, marginTop: 4 }}>{(t as any).priceByBookedHours ?? 'המחיר לפי השעות שהוזמנו — גם אם הניקיון מסתיים מוקדם.'}</T>
             </View>
 
             {/* אשר הזמנה / ביטול — זה לצד זה */}
@@ -3736,21 +3734,14 @@ function ChatModal({ cleaner, visible, onClose }: any) {
   };
 
   const sendImage = async () => {
-    const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (!perm.granted) return Alert.alert(t.error, t.galleryPermDenied);
-    const res = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
-      allowsEditing: false,
-      quality: 1,
-      base64: false,
-      exif: false,
-    });
-    if (res.canceled || !res.assets[0]) return;
+    // Camera or gallery (lib/JobPhotos pickPhotoUri).
+    const srcUri = await pickPhotoUri(t);
+    if (!srcUri) return;
     // resize + compress so it always fits Firestore's ~700KB base64 limit
     let base64Data: string | null | undefined;
     try {
       for (const st of [{ width: 1080, compress: 0.5 }, { width: 900, compress: 0.4 }, { width: 720, compress: 0.35 }]) {
-        const out = await ImageManipulator.manipulateAsync(res.assets[0].uri, [{ resize: { width: st.width } }], { compress: st.compress, format: ImageManipulator.SaveFormat.JPEG, base64: true });
+        const out = await ImageManipulator.manipulateAsync(srcUri, [{ resize: { width: st.width } }], { compress: st.compress, format: ImageManipulator.SaveFormat.JPEG, base64: true });
         base64Data = out.base64;
         if (base64Data && base64Data.length <= 700_000) break;
       }
