@@ -2002,20 +2002,16 @@ export default function ProfileScreen() {
     try {
       const now = new Date().toISOString();
 
-      // חישוב שעות ותשלום אמיתיים
-      let actualHours = b.hours;
-      let actualTotal = b.total;
+      // השעות — הזמן שעבר בפועל, לידיעה בלבד (הכרטיס מראה התחלה/סיום/משך).
+      // הסכום — מה שסוכם, גם כשהעבודה הסתיימה מוקדם (אופק, 7.11.2026): חיוב לפי
+      // הדקות שעברו נתן "₪1" למנקה שסיימה אחרי כמה דקות. זמן נוסף לא נגבה מעצמו;
+      // הוא יבוא כהארכה שהלקוח מאשר. אותו כלל באתר (lib/cleanerActions endJob).
+      let actualHours = Number(b.hours) || 0;
       if (b.startedAt) {
-        const diffMs      = new Date(now).getTime() - new Date(b.startedAt).getTime();
-        const diffHours   = diffMs / 3600000;
-        actualHours       = Math.round(diffHours * 10) / 10; // עיגול לעשירית
-        const pricePerHour = b.hours > 0 ? b.total / b.hours : 0;
-        actualTotal       = Math.round(pricePerHour * diffHours);
+        const diffHours = (new Date(now).getTime() - new Date(b.startedAt).getTime()) / 3600000;
+        actualHours = Math.max(0, Math.round(diffHours * 10) / 10); // עיגול לעשירית
       }
-      // בתוך התקרה ש-billingIsPlausible אוכף — פעמיים המחיר המוסכם ועוד 100.
-      // חיוב לפי זמן שעבר נתן למנקה ששכחה ללחוץ "סיום" לחרוג ממנה, ואז הכתיבה
-      // שסוגרת את העבודה נדחתה לתמיד. השעות נשארות אמיתיות; החיוב נעצר בתקרה.
-      actualTotal = Math.min(Number(actualTotal) || 0, (Number(b.total) || 0) * 2 + 100);
+      const actualTotal = Number(b.total) || 0;
 
       await updateDoc(doc(db, 'bookings', b.id), {
         status: 'done', finishedAt: now, actualHours, actualTotal,
@@ -2748,7 +2744,9 @@ export default function ProfileScreen() {
     // אין עריכה, והתווית "פג תוקף" (lib/bookingSlot, כמו באתר).
     const overdue = !forCleaner && unansweredPast(b);
     const unclosedPastJob = pastDay && (b.status === 'confirmed' || b.status === 'onway');
-    const hours = isDone && b.actualHours != null ? b.actualHours : b.hours;
+    // The hours booked — what the price is for. The time actually worked is in the
+    // start/end/duration chips below.
+    const hours = b.hours;
     const total = isDone && b.actualTotal != null ? b.actualTotal : b.total;
 
     return (
@@ -2830,9 +2828,6 @@ export default function ProfileScreen() {
           <View style={{ flexDirection: isRTL ? 'row-reverse' : 'row', flexWrap: 'wrap', gap: 6 }}>
             <View style={s.detailPill}>
               <T style={s.detailPillText}>⏱ {hours} {t.hoursUnit}</T>
-              {isDone && b.actualHours != null && b.actualHours !== b.hours && (
-                <T style={{ fontSize: 10, color: C.textSub, textDecorationLine: 'line-through' }}> ({b.hours})</T>
-              )}
             </View>
             <View style={s.detailPill}>
               <T style={s.detailPillText}>{PAY_ICONS[b.payment] || '💳'} {b.payment === 'bit' ? t.payBit : b.payment === 'cash' ? t.payCash : b.payment === 'paybox' ? t.payPaybox : b.payment === 'bank' ? t.payBank : b.payment === 'card' ? t.payCard : b.payment}</T>
@@ -3032,14 +3027,22 @@ export default function ProfileScreen() {
             {forCleaner && b.status === 'onway' && cardBtn(`↩️ ${(t as any).undoOnWayBtn ?? 'ביטול "אני בדרך"'}`, () => handleUndoProgress(b), s.cardBtnQuiet, s.cardBtnQuietText)}
             {forCleaner && (isActive || unclosedPastJob) && cardBtn(
               `✅ ${t.endCleaningBtn}`,
-              () => Alert.alert(
-                '✅ סיום ניקיון',
-                'האם לסמן את הניקיון כמושלם?\nפעולה זו תעדכן את הלקוח ותפתח את מסך התשלום.',
-                [
-                  { text: 'ביטול', style: 'cancel' },
-                  { text: '✅ כן, סיים ניקיון', onPress: () => handleEndCleaning(b) },
-                ]
-              ),
+              () => {
+                // Under 15 minutes since "start": asked whether it is really over.
+                // Either way the amount shown is the agreed one (handleEndCleaning).
+                const tt = t as any;
+                const mins = b.startedAt ? Math.max(0, Math.floor((Date.now() - new Date(b.startedAt).getTime()) / 60000)) : null;
+                const early = mins !== null && mins < 15;
+                const amount = String(tt.endAmountAgreed ?? 'הסכום נשאר כפי שסוכם: ₪{x}.').replace('{x}', String(Number(b.total) || 0));
+                Alert.alert(
+                  early ? (tt.endEarlyTitle ?? 'סיימת כבר?') : (tt.endConfirmTitle ?? 'לסיים את העבודה?'),
+                  early ? `${String(tt.endEarlyStarted ?? 'העבודה התחילה לפני {m} דקות.').replace('{m}', String(mins))}\n${amount}` : amount,
+                  [
+                    { text: early ? (tt.endNotYetBtn ?? 'עוד לא') : (t.cancel ?? 'ביטול'), style: 'cancel' },
+                    { text: early ? (tt.endYesBtn ?? 'כן, סיימתי') : (tt.endFinishBtn ?? 'סיום'), onPress: () => handleEndCleaning(b) },
+                  ],
+                );
+              },
               { backgroundColor: C.green },
             )}
             {/* The short label, as on the site: the long one takes two lines at this

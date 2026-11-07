@@ -3575,6 +3575,7 @@ function BookingModal({ cleaner, visible, onClose, onBookingCreated, prebookData
                 <T style={{ fontSize: 16, fontWeight: '900', color: C.blue }}>{(t as any).totalSummaryLabel ?? 'סה״כ'}</T>
                 <T style={{ fontSize: 16, fontWeight: '900', color: C.blue }}>₪{total}</T>
               </View>
+              <T style={{ fontSize: 12, color: C.textSub, textAlign: 'center', lineHeight: 17 }}>{(t as any).priceByBookedHours ?? 'המחיר לפי השעות שהוזמנו — גם אם הניקיון מסתיים מוקדם.'}</T>
             </View>
 
             {/* אשר הזמנה / ביטול — זה לצד זה */}
