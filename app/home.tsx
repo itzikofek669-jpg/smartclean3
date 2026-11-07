@@ -41,6 +41,7 @@ import { fetchPortfolio } from '../lib/portfolio';
 import { demoCleanersEnabled } from '../lib/demoMode';
 import { confirmLangChange } from '../lib/confirmLang';
 import { endJob } from '../lib/endJob';
+import { allCityNames as cityAllNames } from '../lib/cityNames';
 import { canRepost, bookingOrigin, cancelledNotice } from '../lib/bookingOrigin';
 import { cityFromAddress } from '../lib/cityFromAddress';
 import {
@@ -4357,13 +4358,21 @@ export default function HomeScreen() {
       ...ALL_CLEANERS.map((c: any) => String(c.city || '')),
       ...Object.keys(CITY_COORDS),
     ])).filter(Boolean);
-    const matches = names.filter(c => c.toLowerCase().includes(q));
+    // Found by any of a town's names and offered in the screen's language
+    // (Ofek, 7.11.2026: it stayed Hebrew after the language changed). The
+    // filter reads a translated name too — resolvePlace below.
+    const nq = normText(text);
+    const seen = new Set<string>();
+    const matches = names
+      .map(c => ({ shown: cityNameOf(c) || c, keys: [c, ...cityAllNames(c)].map(n => normText(n)).filter(Boolean) }))
+      .filter(m => !!nq && m.keys.some(k => k.includes(nq)))
+      .filter(m => (seen.has(m.shown) ? false : (seen.add(m.shown), true)));
     matches.sort((a, b) => {
-      const ap = a.toLowerCase().startsWith(q) ? 0 : 1;
-      const bp = b.toLowerCase().startsWith(q) ? 0 : 1;
-      return ap !== bp ? ap - bp : a.localeCompare(b, 'he');
+      const ap = a.keys.some(k => k.startsWith(nq)) ? 0 : 1;
+      const bp = b.keys.some(k => k.startsWith(nq)) ? 0 : 1;
+      return ap !== bp ? ap - bp : a.shown.localeCompare(b.shown, lang);
     });
-    setFilterCitySugg(matches.slice(0, 6));
+    setFilterCitySugg(matches.slice(0, 6).map(m => m.shown));
     setShowFilterCitySugg(matches.length > 0);
   };
 
@@ -5599,10 +5608,13 @@ export default function HomeScreen() {
       .filter(c => String(c.name || '').toLowerCase().includes(sq))
       .slice(0, 3)
       .map(c => ({ label: String(c.name), icon: '🧹' }));
+    // The service in the screen's language, found by either name: it was
+    // offered in Hebrew whatever the language (Ofek, 7.11.2026).
+    const svcShown = (tp: string) => String((t.types as any)?.[tp] || tp);
     const types   = Array.from(new Set(ALL_CLEANERS.flatMap(c => Array.isArray(c.types) ? c.types : [])))
-      .filter(tp => String(tp).toLowerCase().includes(sq))
+      .filter(tp => String(tp).toLowerCase().includes(sq) || normText(svcShown(String(tp))).includes(nq))
       .slice(0, 3)
-      .map(tp => ({ label: String(tp), icon: '🔧' }));
+      .map(tp => ({ label: svcShown(String(tp)), icon: '🔧' }));
     const combined = [...cities, ...names, ...types].slice(0, 8);
     setSearchSugg(combined);
     setShowSearchSugg(combined.length > 0);
