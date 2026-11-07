@@ -5350,15 +5350,19 @@ export default function HomeScreen() {
   // Seen once dismissed, not once shown. Marking it when it appeared lost it for
   // good if the app closed over it or a second cancellation replaced it — and
   // this popup is the app's only repost button.
-  const markCancelledSeen = (id?: string) => {
+  // One or several at once: several calls in the same moment each read the list
+  // before the others wrote it, and the ids they added were lost.
+  const markCancelledSeen = (id?: string | string[]) => {
     const me = auth.currentUser?.uid;
-    if (!me || !id) return;
+    const add = (Array.isArray(id) ? id : [id]).filter((x): x is string => !!x);
+    if (!me || !add.length) return;
     const key = `seen_cancelled_${me}`;
     SecureStore.getItemAsync(key)
       .then(raw => {
         let ids: string[] = [];
         try { ids = raw ? JSON.parse(raw) : []; } catch { ids = []; }
-        return ids.includes(id) ? undefined : SecureStore.setItemAsync(key, JSON.stringify([...ids, id].slice(-200)));
+        const fresh = add.filter(x => !ids.includes(x));
+        return fresh.length ? SecureStore.setItemAsync(key, JSON.stringify([...ids, ...fresh].slice(-200))) : undefined;
       })
       .catch(() => {});
   };
@@ -6643,6 +6647,9 @@ export default function HomeScreen() {
     const lastHeld = new Map<string, boolean>();
     const unsub = onSnapshot(q, snap => {
       const missed: any[] = [];
+      // Left unannounced because the slot was booked again: seen, for good — or
+      // it would pop on a later open once the new booking went (review finding).
+      const quietlySeen: string[] = [];
       // The client's jobs still waiting on the board, soonest first — the list
       // "ניקיון בזמן שלך" shows with an ✏️ beside each.
       setMyOpenJobs(snap.docs
@@ -6682,7 +6689,9 @@ export default function HomeScreen() {
           if (data.status === 'confirmed') seenConfirmedRef.current.add(d.id);
           if (data.status === 'cancelled') {
             seenCancelledRef.current.add(d.id);
-            if (data.cancelledBy === 'cleaner' && !reposted.has(d.id) && !slotRebooked(data)) missed.push({ id: d.id, ...data });
+            if (data.cancelledBy === 'cleaner' && !reposted.has(d.id)) {
+              if (slotRebooked(data)) quietlySeen.push(d.id); else missed.push({ id: d.id, ...data });
+            }
           }
           return;
         }
@@ -6704,11 +6713,13 @@ export default function HomeScreen() {
         // ביטול ביוזמת המנקה — הלקוח נשאר בלי מנקה, אז מציגים לו את מלוא פרטי
         // ההזמנה שבוטלה ומציעים לפרסם אותה מחדש.
         if (data.status === 'cancelled' && data.cancelledBy === 'cleaner'
-            && !seenCancelledRef.current.has(d.id) && !reposted.has(d.id) && !slotRebooked(data)) {
+            && !seenCancelledRef.current.has(d.id) && !reposted.has(d.id)) {
           seenCancelledRef.current.add(d.id);
-          setCancelledPopup((cur: any) => cur ?? { id: d.id, ...data });
+          if (slotRebooked(data)) quietlySeen.push(d.id);
+          else setCancelledPopup((cur: any) => cur ?? { id: d.id, ...data });
         }
       });
+      if (quietlySeen.length) markCancelledSeen(quietlySeen);
       if (initialLoad && missed.length) announceMissedCancellation(missed);
       initialLoad = false;
     }, err => {
@@ -7873,7 +7884,10 @@ export default function HomeScreen() {
       </Modal>
 
       {/* ── ביקורת חובה ── */}
-      <Modal visible={showMandatoryReview} transparent animationType="fade">
+      {/* After any cancellation or confirmation news, not over it: shown under the
+          review, that news surfaced the moment the review closed and read as the
+          review's own result — "your cleaning was declined" (Ofek, 7.11.2026). */}
+      <Modal visible={showMandatoryReview && !cancelledPopup && !confirmedPopup} transparent animationType="fade">
         <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.7)', justifyContent: 'center', alignItems: 'center', padding: 24 }}>
           <View style={{ backgroundColor: C.white, borderRadius: 24, padding: 24, width: '100%', maxWidth: 360 }}>
             <T style={{ fontSize: 20, fontWeight: '900', color: C.textDark, textAlign: 'center', marginBottom: 6 }}>
