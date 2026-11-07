@@ -4426,7 +4426,7 @@ export default function HomeScreen() {
   // right after "התחל" on the profile (opened from a notification, no screen
   // under it), and that first list would otherwise read as an entry.
   const askable = (rows: any[], skipId?: string) => rows.filter(x =>
-    x.id !== skipId && !(x.startedAt && Date.now() - new Date(x.startedAt).getTime() < 5 * 60000));
+    x.id !== skipId && !(x.startedAt && Date.now() - new Date(x.startedAt).getTime() < 15 * 60000));
   const promptEndJob = (skipId?: string) => {
     const b = askable(activeJobsRef.current, skipId)[0];
     const uid = auth.currentUser?.uid;
@@ -4483,12 +4483,16 @@ export default function HomeScreen() {
   useEffect(() => {
     // From the background only: a permission dialog or the notification shade
     // also passes through 'inactive' and back, and that is not a new entry.
-    let wasBackground = false;
+    // And not after a short trip out — the camera for a chat photo, a call to
+    // the client, Bit: that is the middle of the job, not coming back to the
+    // app. Away three minutes or more counts as a new entry.
+    let wentAt = 0;
     const sub = AppState.addEventListener('change', state => {
-      if (state === 'background') { wasBackground = true; return; }
-      if (state !== 'active' || !wasBackground) return;
-      wasBackground = false;
-      promptEndJobRef.current();
+      if (state === 'background') { wentAt = Date.now(); return; }
+      if (state !== 'active' || !wentAt) return;
+      const away = Date.now() - wentAt;
+      wentAt = 0;
+      if (away >= 3 * 60000) promptEndJobRef.current();
     });
     return () => sub.remove();
   }, []);
@@ -4591,7 +4595,9 @@ export default function HomeScreen() {
       fired = true;
       unsub();
       closePostJob();
-      Alert.alert('', (t as any).jobEditTakenMsg ?? 'נותן שירות כבר לקח את העבודה, ולכן אי אפשר לערוך אותה. אפשר לדבר איתו בצ\'אט או לבטל את ההזמנה.');
+      // Once the form's sheet has slid away: an Alert raised under a closing
+      // sheet can be dropped on iOS.
+      setTimeout(() => Alert.alert('', (t as any).jobEditTakenMsg ?? 'נותן שירות כבר לקח את העבודה, ולכן אי אפשר לערוך אותה. אפשר לדבר איתו בצ\'אט או לבטל את ההזמנה.'), 600);
     }, err => logError('home:editJobWatch', err));
     return unsub;
   }, [postJobOpen, editJob?.id]);
@@ -8118,7 +8124,7 @@ export default function HomeScreen() {
                 {urgentFoundUid !== '' && (
                   <TouchableOpacity
                     style={{ backgroundColor: C.white, borderRadius: 12, paddingVertical: 12, paddingHorizontal: 30, borderWidth: 1.5, borderColor: C.green }}
-                    onPress={() => { const uid2 = urgentFoundUid, name2 = urgentFoundName; setUrgentOpen(false); setUrgentFoundName(''); setUrgentFoundUid(''); setUrgentRequestId(null); setUrgentAddress(''); setUrgentServiceTypes([]); setUrgentServiceDropOpen(false); setUrgentPhotos([]); setUrgentNotes(''); openClientChat(uid2, name2); }}
+                    onPress={() => { const uid2 = urgentFoundUid, name2 = urgentFoundName; setUrgentOpen(false); setUrgentFoundName(''); setUrgentFoundUid(''); setUrgentRequestId(null); setUrgentAddress(''); setUrgentServiceTypes([]); setUrgentServiceDropOpen(false); setUrgentPhotos([]); setUrgentNotes(''); setTimeout(() => openClientChat(uid2, name2), 400); }}
                   >
                     <T style={{ fontSize: 15, fontWeight: '900', color: '#065F46' }}>{t.chatBtn}</T>
                   </TouchableOpacity>

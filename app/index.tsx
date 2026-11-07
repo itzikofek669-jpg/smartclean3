@@ -245,7 +245,7 @@ export default function LoginScreen() {
               <TouchableOpacity
                 key={l.code}
                 style={[s.langMenuItem, lang === l.code && s.langMenuItemActive]}
-                onPress={() => { setShowLangMenu(false); if (l.code !== lang) confirmLangChange(t, l.nativeName, () => setLang(l.code)); }}
+                onPress={() => { setShowLangMenu(false); if (l.code !== lang) setTimeout(() => confirmLangChange(t, l.nativeName, () => setLang(l.code)), 400); }}
               >
                 <T style={s.langMenuFlag}>{l.flag}</T>
                 <T style={[s.langMenuName, lang === l.code && s.langMenuNameActive]}>{l.nativeName}</T>

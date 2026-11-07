@@ -2077,6 +2077,16 @@ export default function ProfileScreen() {
         // The score still stands on the job, as it did before this was one write.
         await updateDoc(bookingRef, { cleanerRating: stars });
       }
+      // The review itself, as the mandatory review on the home screen writes it:
+      // the server counts her 1–2 star reviews from these documents, and a
+      // rating given here was missing from that count (the admin alert at 3).
+      try {
+        await setDoc(doc(db, 'users', rateTarget.cleanerId, 'reviews', rateTarget.id), {
+          authorId: uid, stars, rating: stars, text: '',
+          authorName: userName, clientName: userName, createdAt: new Date().toISOString(),
+        });
+        void notify({ event: 'review_posted', cleanerId: rateTarget.cleanerId, bookingId: rateTarget.id });
+      } catch (err) { logError('profile:submitRating:review', err); }
       setBookings(prev => prev.map(b =>
         b.id === rateTarget.id ? { ...b, cleanerRating: stars } : b
       ));
