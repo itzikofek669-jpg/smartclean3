@@ -40,6 +40,7 @@ import { useAvatar } from '../lib/useAvatar';
 import { fetchPortfolio } from '../lib/portfolio';
 import { demoCleanersEnabled } from '../lib/demoMode';
 import { confirmLangChange } from '../lib/confirmLang';
+import { endJob } from '../lib/endJob';
 import { canRepost, bookingOrigin, cancelledNotice } from '../lib/bookingOrigin';
 import { cityFromAddress } from '../lib/cityFromAddress';
 import {
@@ -4406,6 +4407,91 @@ export default function HomeScreen() {
   const myUrgentProfileRef = useRef<{ availability: unknown; availabilitySet: boolean; coords: { lat: number; lng: number } | null; maxKm: number; price: number }>(
     { availability: undefined, availabilitySet: false, coords: null, maxKm: 30, price: 0 },
   );
+  const myNameRef = useRef('');
+
+  // ── "סיימת את העבודה?" (Ofek, 7.11.2026) ─────────────────────────────────
+  // A job she started and never closed: each time she comes into the app, one
+  // question with "סיימתי עבודה" — it closes the job (lib/endJob, the agreed
+  // amount) and she stays here, on the home screen. "עוד לא" asks again on her
+  // next entry; once nothing is left open, it does not come back. Her time is
+  // free again when the booked hours end whether she answers or not — that is
+  // busySlots, which end on the booked hour, not on this button.
+  // null until her bookings first arrive: that first list is the entry.
+  const [myActiveJobs, setMyActiveJobs] = useState<any[] | null>(null);
+  const activeJobsRef = useRef<any[]>([]);
+  activeJobsRef.current = myActiveJobs ?? [];
+  const endPromptOpen = useRef(false);
+  const endPromptAsked = useRef(false);   // asked on this entry already
+  // Started in the last few minutes: not asked about. Home can mount afresh
+  // right after "התחל" on the profile (opened from a notification, no screen
+  // under it), and that first list would otherwise read as an entry.
+  const askable = (rows: any[], skipId?: string) => rows.filter(x =>
+    x.id !== skipId && !(x.startedAt && Date.now() - new Date(x.startedAt).getTime() < 5 * 60000));
+  const promptEndJob = (skipId?: string) => {
+    const b = askable(activeJobsRef.current, skipId)[0];
+    const uid = auth.currentUser?.uid;
+    if (!b || !uid || endPromptOpen.current) return;
+    endPromptOpen.current = true;
+    endPromptAsked.current = true;
+    const tt = t as any;
+    const [, mo, d] = String(b.bookingDate || '').split('-');
+    const when = `${d && mo ? `${d}/${mo}` : ''}${b.startTime ? ` · ${b.startTime}` : ''}`;
+    const what = String(tt.endPopupJob ?? '{service} אצל {client} · {when}')
+      .replace('{service}', String(b.serviceType || '').split(' + ')[0] || (tt.cleaningWord ?? 'ניקיון'))
+      .replace('{client}', b.clientName || (tt.clientWord ?? 'לקוח'))
+      .replace('{when}', when);
+    const amount = String(tt.endAmountAgreed ?? 'הסכום נשאר כפי שסוכם: ₪{x}.').replace('{x}', String(Number(b.total) || 0));
+    Alert.alert(
+      tt.endPopupTitle ?? 'סיימת את העבודה?',
+      `${what}\n${amount}`,
+      [
+        { text: tt.endPopupLater ?? 'עוד לא', style: 'cancel', onPress: () => { endPromptOpen.current = false; } },
+        {
+          text: tt.endPopupDone ?? '✅ סיימתי עבודה',
+          onPress: async () => {
+            try {
+              const me = myUrgentProfileRef.current;
+              const ended = await endJob(b, { uid, name: myNameRef.current, availability: me.availability, availabilitySet: me.availabilitySet });
+              if (ended) showToast(tt.endPopupOk ?? 'העבודה סומנה כגמורה');
+              endPromptOpen.current = false;
+              // Another one still open: asked about now, not on some later
+              // change to her bookings (which might be her pressing "התחל").
+              promptEndJob(b.id);
+            } catch (err) {
+              logError('home:endPopup', err);
+              Alert.alert(t.error, t.updateStatusError);
+              endPromptOpen.current = false;
+            }
+          },
+        },
+      ],
+      { cancelable: false },
+    );
+  };
+  // On entry — the first list of her jobs. NOT when a job turns active while
+  // she is here: pressing "התחל" must not be answered with "did you finish?".
+  useEffect(() => {
+    if (myActiveJobs === null || endPromptAsked.current) return;
+    endPromptAsked.current = true;
+    promptEndJob();
+  }, [myActiveJobs]);
+  // The listener below is made once; this keeps it calling the current one
+  // (the current language among other things).
+  const promptEndJobRef = useRef(promptEndJob);
+  promptEndJobRef.current = promptEndJob;
+  // Back into the app from the background: a new entry.
+  useEffect(() => {
+    // From the background only: a permission dialog or the notification shade
+    // also passes through 'inactive' and back, and that is not a new entry.
+    let wasBackground = false;
+    const sub = AppState.addEventListener('change', state => {
+      if (state === 'background') { wasBackground = true; return; }
+      if (state !== 'active' || !wasBackground) return;
+      wasBackground = false;
+      promptEndJobRef.current();
+    });
+    return () => sub.remove();
+  }, []);
   // למה הטלפון של נותן/ת השירות לא יצלצל, אם לא (lib/pushState): כיבוי בפרופיל
   // מגיע מהמסמך שלה, וההרשאה — מהמערכת, בכל חזרה לאפליקציה.
   const [pushOptedOut, setPushOptedOut] = useState(false);
@@ -5803,6 +5889,7 @@ export default function HomeScreen() {
         setPushOptedOut(data.pushOptOut === true);
         if (data.pushToken) setPushUnregistered(false);   // יש טוקן — הטלפון רשום
         if (role === 'cleaner') {
+          myNameRef.current = data.name || '';
           setMyMaxKm(Number(data.maxDistance) > 0 ? Number(data.maxDistance) : 30);
           let coords: { lat: number; lng: number } | null = null;
           try { coords = getCoordsForCleaner(data); setMyCleanerCoords(coords); } catch (_) {}
@@ -5846,6 +5933,8 @@ export default function HomeScreen() {
 
             const pendingDocs = all.filter(b => b.status === 'pending');
             const count = pendingDocs.length;
+            // Started and not closed — the "סיימת את העבודה?" popup above.
+            setMyActiveJobs(all.filter(b => b.status === 'active'));
             setCleanerPendingIds(pendingDocs.map(b => b.id));
             // חלונות תפוסים. לא "אושרו" אלא "תופסים את הזמן": עבודה שהמנקה
             // תפסה מהלוח היא ממתינה עד שתאשר, אבל היא כבר ירדה מהלוח ואיש אחר
