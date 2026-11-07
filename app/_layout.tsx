@@ -220,7 +220,16 @@ export default function RootLayout() {
       // הקשה על פוש דחוף = "אני לוקח/ת" → לפרופיל → קבלה אוטומטית + מסך אישור/צ'אט (overlay מכסה את ההבזק)
       router.push({ pathname: '/profile', params: { tab: 'urgent', acceptReqId: data.requestId || '' } });
     } else if (data.type === 'message') {
-      router.push('/messages');
+      // The conversation itself, not the list above it: the chat id names both
+      // sides, and the push's title is the sender's name (worker/notify.js).
+      const me = auth.currentUser?.uid || '';
+      const cid = String(data.chatId || '');
+      const other = cid.split('_').find(x => x && x !== me) || '';
+      if (cid && other) {
+        router.push({ pathname: '/messages', params: { openChatId: cid, openOtherUid: other, openOtherName: String(data._title || '') } });
+      } else {
+        router.push('/messages');
+      }
     }
   };
 
@@ -545,7 +554,9 @@ export default function RootLayout() {
     // לחיצה על התראה כשהאפליקציה סגורה/ברקע
     const responseSub = Notifications.addNotificationResponseReceivedListener(response => {
       try {
-        const data = response.notification.request.content.data as any;
+        const content = response.notification.request.content;
+        // The title rides along: for a chat message it is the sender's name.
+        const data = { ...(content.data as any), _title: content.title || '' };
         // אם האפליקציה עוד לא מוכנה (נפתחה מהלחיצה) — נשמור ונבצע כשתהיה מוכנה
         if (!readyRef.current) { pendingNavRef.current = data; return; }
         navForNotification(data);
@@ -578,7 +589,8 @@ export default function RootLayout() {
       launchHandledRef.current = true;
       Notifications.getLastNotificationResponseAsync().then((resp: any) => {
         if (!resp) return;
-        const data = resp?.notification?.request?.content?.data;
+        const content = resp?.notification?.request?.content;
+        const data = content?.data ? { ...content.data, _title: content.title || '' } : null;
         if (data) setTimeout(() => navForNotification(data), 350);
       }).catch(() => {});
     }

@@ -799,18 +799,24 @@ export default function RegisterScreen() {
       if (role === 'client' && city.trim().length >= 5) {
         try {
           const { setItemAsync } = await import('expo-secure-store');
-          // פצל את הכתובת המלאה לרחוב ועיר לטעינה נכונה בטופס הזמנה
-          const fullAddr = (data.address || city.trim());
-          const lastComma = fullAddr.lastIndexOf(',');
-          const addrStreetPart = lastComma > 0 ? fullAddr.slice(0, lastComma).trim() : fullAddr;
-          const addrCityPart   = lastComma > 0 ? fullAddr.slice(lastComma + 1).trim() : '';
+          // Street and town from the address as typed ("רחוב 3, עיר"), and the
+          // floor and flat from their own fields. Split from the full address
+          // ("…, קומה 7, דירה 26") the town came out as "דירה 26", and every
+          // booking from it said so to the cleaner (review, 7.11.2026).
+          const typed = city.trim();
+          const fullAddr = (data.address || typed);
+          const lastComma = typed.lastIndexOf(',');
+          const addrStreetPart = lastComma > 0 ? typed.slice(0, lastComma).trim() : typed;
+          const addrCityPart   = lastComma > 0 ? typed.slice(lastComma + 1).trim() : '';
           // Onto the account, not the device: registering on one phone and
           // booking on another used to lose this.
           await upsertStructuredAddress({
             address: fullAddr,
             street: addrStreetPart,
             city: addrCityPart,
-            floor: '', apt: '', isPrivate: false,
+            floor: isPrivateHouse ? '' : clientFloor.trim(),
+            apt: isPrivateHouse ? '' : clientApt.trim(),
+            isPrivate: isPrivateHouse,
           });
         } catch (_) {}
       }

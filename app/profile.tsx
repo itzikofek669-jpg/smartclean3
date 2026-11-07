@@ -383,7 +383,7 @@ const SERVICE_DETAIL: Record<string, string[]> = {
 
 const DAYS_KEYS = ['sun','mon','tue','wed','thu','fri','sat'] as const;
 
-const LOCALE_MAP: Record<string, string> = { he: 'he-IL', en: 'en-GB', ru: 'ru-RU', ar: 'ar-SA', fr: 'fr-FR', hi: 'hi-IN' };
+const LOCALE_MAP: Record<string, string> = { he: 'he-IL', en: 'en-GB', ru: 'ru-RU', ar: 'ar-IL', fr: 'fr-FR', hi: 'hi-IN', uk: 'uk-UA' };
 
 /**
  * A booking date is a wall-clock day, not an instant.
@@ -1832,12 +1832,18 @@ export default function ProfileScreen() {
         participantNames: { [uid]: userName, [chatClientUid]: chatClientName },
         unreadBy: arrayUnion(chatClientUid), deletedFor: [],
       }, { merge: true });
+      void notify({ event: 'message', chatId });   // an image or a voice note rings like text
     } catch (err: any) {
       Alert.alert(t.imageSendError, err?.message || t.error);
     }
   };
 
+  // Held down right now? The recorder starts only after the permission and setup
+  // awaits; a finger lifted before that reached the stop first, found nothing
+  // recording, and the recording then started and never stopped (review).
+  const cleanerHoldRef = useRef(false);
   const startCleanerRecording = async () => {
+    cleanerHoldRef.current = true;
     setChatIsRecording(true);   // instant feedback
     try {
       if (!cleanerMicReadyRef.current) {
@@ -1848,11 +1854,13 @@ export default function ProfileScreen() {
       // playback may have switched the session to playback mode — switch back
       await setAudioModeAsync({ allowsRecording: true, playsInSilentMode: true });
       await cleanerRecorder.prepareToRecordAsync();
+      if (!cleanerHoldRef.current) { setChatIsRecording(false); return; }
       cleanerRecorder.record();
     } catch (_) { setChatIsRecording(false); }
   };
 
   const stopAndSendCleanerRecording = async () => {
+    cleanerHoldRef.current = false;
     if (!cleanerRecorder.isRecording) { setChatIsRecording(false); return; }
     setChatIsRecording(false);
     const chatId = [uid, chatClientUid].sort().join('_');
@@ -1885,6 +1893,7 @@ export default function ProfileScreen() {
         lastSenderUid: uid,
         unreadBy: arrayUnion(chatClientUid), deletedFor: [],
       }, { merge: true });
+      void notify({ event: 'message', chatId });   // an image or a voice note rings like text
     } catch (_) { Alert.alert(t.error, t.audioSendError); }
   };
 

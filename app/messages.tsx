@@ -355,7 +355,12 @@ function InlineChatModal({ chatId, otherUid, otherName, visible, onClose, onDeci
     }
   };
 
+  // Held down right now? The recorder starts only after the permission and setup
+  // awaits; a finger lifted before that reached the stop first, found nothing
+  // recording, and the recording then started and never stopped (review).
+  const recHoldRef = useRef(false);
   const startRecording = async () => {
+    recHoldRef.current = true;
     setIsRecording(true);   // instant UI feedback (don't wait on async setup)
     try {
       if (!micReadyRef.current) {
@@ -366,11 +371,13 @@ function InlineChatModal({ chatId, otherUid, otherName, visible, onClose, onDeci
       // playback may have switched the session to playback mode — switch back
       await setAudioModeAsync({ allowsRecording: true, playsInSilentMode: true });
       await audioRecorder.prepareToRecordAsync();
+      if (!recHoldRef.current) { setIsRecording(false); return; }
       audioRecorder.record();
     } catch (_) { setIsRecording(false); }
   };
 
   const stopAndSendRecording = async () => {
+    recHoldRef.current = false;
     if (!audioRecorder.isRecording) { setIsRecording(false); return; }
     setIsRecording(false);
     try {
@@ -405,6 +412,7 @@ function InlineChatModal({ chatId, otherUid, otherName, visible, onClose, onDeci
           // תשובה אמור לראות אותה שוב — זו המשמעות של להסתיר, בניגוד למחוק.
           deletedFor: [],
         }, { merge: true });
+        void notify({ event: 'message', chatId });   // an image or a voice note rings like text
       } catch (err: any) {
         Alert.alert(t.error, err?.message || t.audioSendError);
       }
@@ -512,8 +520,27 @@ function InlineChatModal({ chatId, otherUid, otherName, visible, onClose, onDeci
     return () => sub.remove();
   }, [visible, msgSelecting]);
 
+  // A voice note still playing stops with the chat: nothing stopped it before,
+  // and it played on over whatever screen came next (review).
+  useEffect(() => {
+    if (visible) return;
+    if (playerRef.current) {
+      try { playerRef.current.remove(); } catch (_) {}
+      playerRef.current = null;
+    }
+    setPlayingId(null);
+  }, [visible]);
+  useEffect(() => () => {
+    if (playerRef.current) { try { playerRef.current.remove(); } catch (_) {} playerRef.current = null; }
+  }, []);
+
+  // Android's back button inside an open Modal reaches onRequestClose, not
+  // BackHandler: with messages selected it closed the whole chat instead of
+  // clearing the selection (review).
+  const requestClose = () => { if (msgSelecting) cancelSelection(); else onClose(); };
+
   return (
-    <Modal visible={visible} animationType="slide" presentationStyle="pageSheet" onRequestClose={onClose}>
+    <Modal visible={visible} animationType="slide" presentationStyle="pageSheet" onRequestClose={requestClose}>
       <SafeAreaView style={{ flex: 1, backgroundColor: C.bluePale }}>
 
         {/* ── Header ── */}
@@ -800,7 +827,7 @@ function InlineChatModal({ chatId, otherUid, otherName, visible, onClose, onDeci
 export default function MessagesScreen() {
   const router = useRouter();
   const { t, lang, flipSide, isRTL }  = useLanguage();
-  const LOCALE_MAP: Record<string, string> = { he: 'he-IL', en: 'en-GB', ru: 'ru-RU', ar: 'ar-SA', fr: 'fr-FR', hi: 'hi-IN' };
+  const LOCALE_MAP: Record<string, string> = { he: 'he-IL', en: 'en-GB', ru: 'ru-RU', ar: 'ar-IL', fr: 'fr-FR', hi: 'hi-IN', uk: 'uk-UA' };
   const C = useAppColors();
   const s = createS(C);
   const insets = useSafeAreaInsets();

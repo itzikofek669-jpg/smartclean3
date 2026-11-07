@@ -2689,7 +2689,7 @@ function BookingModal({ cleaner, visible, onClose, onBookingCreated, prebookData
       })()
     : 0;
   const total   = effectivePrice * hours;
-  const LOCALE_MAP: Record<string, string> = { he: 'he-IL', en: 'en-GB', ru: 'ru-RU', ar: 'ar-SA', fr: 'fr-FR', hi: 'hi-IN' };
+  const LOCALE_MAP: Record<string, string> = { he: 'he-IL', en: 'en-GB', ru: 'ru-RU', ar: 'ar-IL', fr: 'fr-FR', hi: 'hi-IN', uk: 'uk-UA' };
   const fmtDate = (d: Date) => d.toLocaleDateString(LOCALE_MAP[lang] || 'he-IL', { day: '2-digit', month: '2-digit', year: 'numeric' });
 
   const handleBook = async () => {
@@ -2972,6 +2972,9 @@ function BookingModal({ cleaner, visible, onClose, onBookingCreated, prebookData
     if (inlineChatUnsubRef.current) inlineChatUnsubRef.current();
     const q = query(collection(db, 'chats', chatId, 'messages'), orderBy('createdAt', 'asc'));
     prevInlineMsgCount.current = 0;
+    // This chat is on screen: no "new message" popup about it, and no push
+    // (lib/chatPresence) — as in every other chat.
+    setActiveChat(chatId);
     inlineChatUnsubRef.current = onSnapshot(q, snap => {
       const msgs = snap.docs.map(d => ({ id: d.id, ...d.data() })) as any[];
       setInlineChatMsgs(msgs);
@@ -2982,7 +2985,7 @@ function BookingModal({ cleaner, visible, onClose, onBookingCreated, prebookData
       }
       prevInlineMsgCount.current = msgs.length;
     }, () => {});
-    return () => { if (inlineChatUnsubRef.current) inlineChatUnsubRef.current(); };
+    return () => { if (inlineChatUnsubRef.current) inlineChatUnsubRef.current(); setActiveChat(null); };
   }, [showWaiting, showSuccess, bookedDetails?.cleanerUid]);
 
   const sendInlineChat = async () => {
@@ -3002,6 +3005,8 @@ function BookingModal({ cleaner, visible, onClose, onBookingCreated, prebookData
         participants: [clientUid, bookedDetails.cleanerUid].sort(),
         lastMessage: msg,
         lastMessageAt: new Date().toISOString(),
+        // Who wrote last: the other side's "new message" popup goes by it.
+        lastSenderUid: clientUid,
         unreadBy: arrayUnion(bookedDetails.cleanerUid), deletedFor: [],
       }, { merge: true });
       setTimeout(() => inlineChatScroll.current?.scrollToEnd({ animated: true }), 200);
@@ -3034,22 +3039,30 @@ function BookingModal({ cleaner, visible, onClose, onBookingCreated, prebookData
     try {
       await addDoc(collection(db, 'chats', chatId, 'messages'), { type: 'image', imageBase64: `data:image/jpeg;base64,${base64Data}`, from: 'client', fromUid: clientUid, createdAt: new Date().toISOString() });
       await setDoc(doc(db, 'chats', chatId), { participants: [clientUid, otherUid].sort(), lastMessage: t.chatImageMsg, lastMessageAt: new Date().toISOString(), lastSenderUid: clientUid, unreadBy: arrayUnion(otherUid), deletedFor: [] }, { merge: true });
+      void notify({ event: 'message', chatId });   // an image or a voice note rings like text
       setTimeout(() => inlineChatScroll.current?.scrollToEnd({ animated: true }), 200);
     } catch (err: any) { Alert.alert(t.imageSendError, err?.message || t.error); }
   };
 
   // הקלטה קולית בצ'אט המוטמע
+  // Held down right now? The recorder starts only after the permission and setup
+  // awaits; a finger lifted before that reached the stop first, found nothing
+  // recording, and the recording then started and never stopped (review).
+  const inlineHoldRef = useRef(false);
   const startInlineRecording = async () => {
+    inlineHoldRef.current = true;
     try {
       const perm = await AudioModule.requestRecordingPermissionsAsync();
       if (!perm.granted) return Alert.alert(t.error, t.micPermDenied);
       await setAudioModeAsync({ allowsRecording: true, playsInSilentMode: true });
       await inlineRecorder.prepareToRecordAsync();
+      if (!inlineHoldRef.current) { setInlineRecording(false); return; }
       inlineRecorder.record();
       setInlineRecording(true);
     } catch (err) { logError('home:write', err); }
   };
   const stopInlineRecording = async () => {
+    inlineHoldRef.current = false;
     if (!inlineRecorder.isRecording) { setInlineRecording(false); return; }
     setInlineRecording(false);
     try {
@@ -3069,6 +3082,7 @@ function BookingModal({ cleaner, visible, onClose, onBookingCreated, prebookData
       setInlineChatOpen(true);
       await addDoc(collection(db, 'chats', chatId, 'messages'), { type: 'audio', audioBase64, from: 'client', fromUid: clientUid, createdAt: new Date().toISOString() });
       await setDoc(doc(db, 'chats', chatId), { participants: [clientUid, otherUid].sort(), lastMessage: t.chatVoiceMsg, lastMessageAt: new Date().toISOString(), lastSenderUid: clientUid, unreadBy: arrayUnion(otherUid), deletedFor: [] }, { merge: true });
+      void notify({ event: 'message', chatId });   // an image or a voice note rings like text
       setTimeout(() => inlineChatScroll.current?.scrollToEnd({ animated: true }), 200);
     } catch (_) { Alert.alert(t.error, t.audioSendError); }
   };
@@ -3694,18 +3708,25 @@ function ChatModal({ cleaner, visible, onClose }: any) {
     } catch (err) { logError('home:write', err); }
   };
 
+  // Held down right now? The recorder starts only after the permission and setup
+  // awaits; a finger lifted before that reached the stop first, found nothing
+  // recording, and the recording then started and never stopped (review).
+  const recHoldRef = useRef(false);
   const startRecording = async () => {
+    recHoldRef.current = true;
     try {
       const perm = await AudioModule.requestRecordingPermissionsAsync();
       if (!perm.granted) return Alert.alert(t.error, t.micPermDenied);
       await setAudioModeAsync({ allowsRecording: true, playsInSilentMode: true });
       await audioRecorder.prepareToRecordAsync();
+      if (!recHoldRef.current) { setIsRecording(false); return; }
       audioRecorder.record();
       setIsRecording(true);
     } catch (_) {}
   };
 
   const stopAndSendRecording = async () => {
+    recHoldRef.current = false;
     if (!audioRecorder.isRecording) { setIsRecording(false); return; }
     setIsRecording(false);
     try {
@@ -3733,6 +3754,7 @@ function ChatModal({ cleaner, visible, onClose }: any) {
         lastSenderUid: clientUid,
         unreadBy: arrayUnion(otherUid), deletedFor: [],
       }, { merge: true });
+      void notify({ event: 'message', chatId });   // an image or a voice note rings like text
     } catch (_) { Alert.alert(t.error, t.audioSendError); }
   };
 
@@ -3766,6 +3788,7 @@ function ChatModal({ cleaner, visible, onClose }: any) {
         lastSenderUid: clientUid,
         unreadBy: arrayUnion(otherUid), deletedFor: [],
       }, { merge: true });
+      void notify({ event: 'message', chatId });   // an image or a voice note rings like text
     } catch (err: any) {
       Alert.alert(t.imageSendError, err?.message || t.error);
     }
@@ -4461,7 +4484,9 @@ export default function HomeScreen() {
             try {
               const me = myUrgentProfileRef.current;
               const ended = await endJob(b, { uid, name: myNameRef.current, availability: me.availability, availabilitySet: me.availabilitySet });
-              if (ended) showToast(tt.endPopupOk ?? 'העבודה סומנה כגמורה');
+              // Already closed (by the other phone, or automatically after the
+              // booked hours): said so, rather than nothing at all.
+              showToast(ended ? (tt.endPopupOk ?? 'העבודה סומנה כגמורה') : (tt.endPopupAlready ?? 'העבודה כבר סומנה כגמורה'));
               endPromptOpen.current = false;
               // Another one still open: asked about now, not on some later
               // change to her bookings (which might be her pressing "התחל").
