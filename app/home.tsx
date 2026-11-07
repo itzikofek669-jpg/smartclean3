@@ -6653,6 +6653,16 @@ export default function HomeScreen() {
       // Bookings the client already reposted, from here or the website, need no
       // offer to repost them.
       const reposted = new Set(snap.docs.map(x => (x.data() as any)?.repostedFrom).filter(Boolean));
+      // A slot the client has booked again since — the same date and hour, still
+      // live — is not news: "נדחתה" about it, after the new booking was approved,
+      // read as if the new one had been turned down (Ofek, 7.11.2026: it surfaced
+      // the moment a review closed, and looked like the review had done it).
+      const LIVE = ['pending', 'confirmed', 'onway', 'active', 'done'];
+      const liveSlots = new Set(snap.docs
+        .map(x => x.data() as any)
+        .filter(x => LIVE.includes(String(x?.status)) && x?.bookingDate)
+        .map(x => `${x.bookingDate}|${x.startTime || ''}`));
+      const slotRebooked = (x: any) => liveSlots.has(`${x?.bookingDate || ''}|${x?.startTime || ''}`);
       snap.docs.forEach(d => {
         const data = d.data();
         const wasHeld = lastHeld.get(d.id) === true;
@@ -6672,7 +6682,7 @@ export default function HomeScreen() {
           if (data.status === 'confirmed') seenConfirmedRef.current.add(d.id);
           if (data.status === 'cancelled') {
             seenCancelledRef.current.add(d.id);
-            if (data.cancelledBy === 'cleaner' && !reposted.has(d.id)) missed.push({ id: d.id, ...data });
+            if (data.cancelledBy === 'cleaner' && !reposted.has(d.id) && !slotRebooked(data)) missed.push({ id: d.id, ...data });
           }
           return;
         }
@@ -6694,7 +6704,7 @@ export default function HomeScreen() {
         // ביטול ביוזמת המנקה — הלקוח נשאר בלי מנקה, אז מציגים לו את מלוא פרטי
         // ההזמנה שבוטלה ומציעים לפרסם אותה מחדש.
         if (data.status === 'cancelled' && data.cancelledBy === 'cleaner'
-            && !seenCancelledRef.current.has(d.id) && !reposted.has(d.id)) {
+            && !seenCancelledRef.current.has(d.id) && !reposted.has(d.id) && !slotRebooked(data)) {
           seenCancelledRef.current.add(d.id);
           setCancelledPopup((cur: any) => cur ?? { id: d.id, ...data });
         }
