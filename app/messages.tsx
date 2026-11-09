@@ -285,7 +285,7 @@ function InlineChatModal({ chatId, otherUid, otherName, visible, onClose, onDeci
           lastMessage: msg,
           lastMessageAt: new Date().toISOString(),
           lastSenderUid: myUid,
-          participantNames: { [myUid]: myName, [otherUid]: otherName },
+          participantNames: { [myUid]: myName, ...(otherName ? { [otherUid]: otherName } : {}) },
           unreadBy: arrayUnion(otherUid),
           // הודעה חדשה מחזירה את השרשור לשני הצדדים. מי שהסתיר שיחה וקיבל
           // תשובה אמור לראות אותה שוב — זו המשמעות של להסתיר, בניגוד למחוק.
@@ -342,7 +342,7 @@ function InlineChatModal({ chatId, otherUid, otherName, visible, onClose, onDeci
         lastMessage: t.chatImageMsg,
         lastMessageAt: new Date().toISOString(),
         lastSenderUid: myUid,
-        participantNames: { [myUid]: myName, [otherUid]: otherName },
+        participantNames: { [myUid]: myName, ...(otherName ? { [otherUid]: otherName } : {}) },
         unreadBy: arrayUnion(otherUid),
         // הודעה חדשה מחזירה את השרשור לשני הצדדים. ראה sendTextMessage.
         deletedFor: [],
@@ -406,7 +406,7 @@ function InlineChatModal({ chatId, otherUid, otherName, visible, onClose, onDeci
           lastMessage: t.chatVoiceMsg,
           lastMessageAt: new Date().toISOString(),
           lastSenderUid: myUid,
-          participantNames: { [myUid]: myName, [otherUid]: otherName },
+          participantNames: { [myUid]: myName, ...(otherName ? { [otherUid]: otherName } : {}) },
           unreadBy: arrayUnion(otherUid),
           // הודעה חדשה מחזירה את השרשור לשני הצדדים. מי שהסתיר שיחה וקיבל
           // תשובה אמור לראות אותה שוב — זו המשמעות של להסתיר, בניגוד למחוק.
@@ -936,8 +936,16 @@ export default function MessagesScreen() {
     if (cid) {
       openedFromLink.current = true;
       setActiveChatId(cid);
-      setActiveOtherUid(String(params.openOtherUid || ''));
+      const ouid = String(params.openOtherUid || '');
+      setActiveOtherUid(ouid);
       setActiveOtherName(String(params.openOtherName || ''));
+      // No name with the link (a push carries none): the real one, from the
+      // profile. An empty name is never written to the shared thread (above).
+      if (!params.openOtherName && ouid) {
+        getDoc(doc(db, 'users', ouid))
+          .then(snap => { const n = String(snap.data()?.name || ''); if (n) setActiveOtherName(cur => cur || n); })
+          .catch(() => {});
+      }
     }
   }, [params.openChatId]);
 

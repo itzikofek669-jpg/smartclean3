@@ -226,7 +226,9 @@ export default function RootLayout() {
       const cid = String(data.chatId || '');
       const other = cid.split('_').find(x => x && x !== me) || '';
       if (cid && other) {
-        router.push({ pathname: '/messages', params: { openChatId: cid, openOtherUid: other, openOtherName: String(data._title || '') } });
+        // No name from the push: its title is "💬 <name>", built for display;
+        // the chat looks the name up from the profile (messages.tsx).
+        router.push({ pathname: '/messages', params: { openChatId: cid, openOtherUid: other } });
       } else {
         router.push('/messages');
       }
