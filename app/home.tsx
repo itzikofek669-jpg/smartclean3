@@ -17,7 +17,7 @@ import { useNow } from '../lib/useNow';
 import { markHasBooked } from '../lib/firstBooking';
 import { hasBookedACleaner, rebookableBookings, prefillFromBooking } from '../lib/rebookList';
 import { withBookingDetails, migrateOpenJobDetails, fetchBookingDetails, urgentDetailsRef } from '../lib/bookingDetails';
-import { trNow } from '../lib/trNow';
+import { trNow, isRtlNow } from '../lib/trNow';
 import { fetchOwnProfile, migrateProfile, ownPhone, publicCoord } from '../lib/privateProfile';
 
 import { Image } from 'expo-image';
@@ -685,7 +685,7 @@ function Stars({ rating, size = 13 }: { rating: number; size?: number }) {
   const C = useAppColors();
   const { isRTL } = useLanguage();
   return (
-    <View style={{ flexDirection: isRTL ? 'row-reverse' : 'row', gap: 1 }}>
+    <View style={{ flexDirection: 'row-reverse', gap: 1 }}>
       {[1,2,3,4,5].map(i => (
         <T key={i} style={{ color: i <= Math.round(rating) ? C.gold : C.grayBorder, fontSize: size }}>★</T>
       ))}
@@ -1155,7 +1155,7 @@ function CleanerProfile({ cleaner, visible, onClose, onBook, onChat, initialShow
           {cleaner.bringSupplies !== null && cleaner.bringSupplies !== undefined && (
             <View style={s.profileSection}>
               <T style={s.profileSectionTitle}>{t.suppliesDisplay}</T>
-              <View style={{ flexDirection: isRTL ? 'row-reverse' : 'row', justifyContent: 'center' }}>
+              <View style={{ flexDirection: 'row-reverse', justifyContent: 'center' }}>
                 <View style={{ backgroundColor: cleaner.bringSupplies ? '#D1FAE5' : '#FEF3C7', borderRadius: 20, paddingHorizontal: 14, paddingVertical: 7, borderWidth: 1, borderColor: cleaner.bringSupplies ? '#6EE7B7' : '#FCD34D' }}>
                   <T style={{ fontSize: 14, fontWeight: '700', color: cleaner.bringSupplies ? '#065F46' : '#92400E' }}>
                     {cleaner.bringSupplies ? t.suppliesCleaner : t.suppliesClient}
@@ -1190,7 +1190,7 @@ function CleanerProfile({ cleaner, visible, onClose, onBook, onChat, initialShow
                 return (
                   // השירות בתחילת השורה והמחיר בסופה: מימין לשמאל בעברית ובערבית. האפליקציה
                   // לא מפעילה forceRTL, ושורה רגילה שמה את המחיר מימין.
-                  <View key={tp} style={{ flexDirection: isRTL ? 'row-reverse' : 'row', alignItems: 'center', gap: 8, alignSelf: 'stretch' }}>
+                  <View key={tp} style={{ flexDirection: 'row-reverse', alignItems: 'center', gap: 8, alignSelf: 'stretch' }}>
                     <View style={{ flex: 1 }}>
                       <ServiceInfoBtn
                         serviceKey={tp}
@@ -1213,12 +1213,12 @@ function CleanerProfile({ cleaner, visible, onClose, onBook, onChat, initialShow
           </View>
           <View style={s.profileSection}>
             <T style={s.profileSectionTitle}>{t.paymentLabel}</T>
-            <View style={{ flexDirection: isRTL ? 'row-reverse' : 'row', flexWrap: 'wrap', gap: 8, justifyContent: 'center' }}>
-              {cleaner.payment.map((p: string) => <View key={p} style={[s.payPill, p === 'paybox' && { flexDirection: isRTL ? 'row-reverse' : 'row', alignItems: 'center', gap: 3 }]}>{p === 'paybox' && <PayboxIcon size={13} />}<T style={s.payPillText}>{p === 'paybox' ? t.payPaybox : `${PAY_ICONS[p] || '💳'} ${p === 'bit' ? t.payBit : p === 'cash' ? t.payCash : p === 'bank' ? t.payBank : p === 'card' ? t.payCard : p === 'kochavit' ? ((t as any).payKochavit ?? 'כוכבית') : p}`}</T></View>)}
+            <View style={{ flexDirection: 'row-reverse', flexWrap: 'wrap', gap: 8, justifyContent: 'center' }}>
+              {cleaner.payment.map((p: string) => <View key={p} style={[s.payPill, p === 'paybox' && { flexDirection: 'row-reverse', alignItems: 'center', gap: 3 }]}>{p === 'paybox' && <PayboxIcon size={13} />}<T style={s.payPillText}>{p === 'paybox' ? t.payPaybox : `${PAY_ICONS[p] || '💳'} ${p === 'bit' ? t.payBit : p === 'cash' ? t.payCash : p === 'bank' ? t.payBank : p === 'card' ? t.payCard : p === 'kochavit' ? ((t as any).payKochavit ?? 'כוכבית') : p}`}</T></View>)}
             </View>
           </View>
           <View style={s.profileSection} onLayout={e => { reviewsY.current = e.nativeEvent.layout.y; }}>
-            <View style={{ flexDirection: isRTL ? 'row-reverse' : 'row', justifyContent: 'center', alignItems: 'center', marginBottom: 12, gap: 10 }}>
+            <View style={{ flexDirection: 'row-reverse', justifyContent: 'center', alignItems: 'center', marginBottom: 12, gap: 10 }}>
               <T style={s.profileSectionTitle}>{t.reviewsSuffix} ({loadedReviews.length > 0 ? loadedReviews.length : cleaner.reviews})</T>
               <TouchableOpacity onPress={() => setShowReviews(true)}><T style={s.seeAllBtn}>{t.seeAllBtn}</T></TouchableOpacity>
             </View>
@@ -1322,7 +1322,7 @@ function Toast({ msg, visible, type = 'success' }: { msg: string; visible: boole
       style={{
         position: 'absolute', bottom: insets.bottom + 70, left: 20, right: 20, zIndex: 9999,
         backgroundColor: bg, borderRadius: 14, paddingVertical: 14, paddingHorizontal: 18,
-        flexDirection: isRTL ? 'row-reverse' : 'row', alignItems: 'center', gap: 10, elevation: 12,
+        flexDirection: 'row-reverse', alignItems: 'center', gap: 10, elevation: 12,
         shadowColor: '#000', shadowOpacity: 0.18, shadowRadius: 10,
         opacity, transform: [{ translateY }],
       }}
@@ -1346,7 +1346,7 @@ function AnimatedStarPicker({ value, onChange }: { value: number; onChange: (v: 
     ]).start();
   };
   return (
-    <View style={{ flexDirection: isRTL ? 'row-reverse' : 'row', justifyContent: 'center', gap: 10, marginBottom: 16 }}>
+    <View style={{ flexDirection: 'row-reverse', justifyContent: 'center', gap: 10, marginBottom: 16 }}>
       {[0,1,2,3,4].map(i => (
         <TouchableOpacity key={i} onPress={() => handlePress(i)}>
           <Animated.Text style={{ fontSize: 36, color: i < value ? C.gold : C.grayBorder, transform: [{ scale: scales[i] }] }}>★</Animated.Text>
@@ -1490,20 +1490,20 @@ function CalendarPicker({ visible, value, onChange, onClose }: {
               shadowColor:'#000', shadowOpacity:0.2, shadowRadius:12, elevation:10 }}>
 
             {/* Header */}
-            <View style={{ flexDirection: isRTL ? 'row-reverse' : 'row', alignItems:'center', justifyContent:'space-between', marginBottom:16 }}>
+            <View style={{ flexDirection: 'row-reverse', alignItems:'center', justifyContent:'space-between', marginBottom:16 }}>
               <TouchableOpacity accessibilityRole="button" accessibilityLabel={trNow('a11yPrev')} onPress={prevMonth} style={{ padding:8 }}>
-                <T style={{ fontSize:20, color:'#2563EB', fontWeight:'900' }}>{isRTL ? '›' : '‹'}</T>
+                <T style={{ fontSize:20, color:'#2563EB', fontWeight:'900' }}>{'›'}</T>
               </TouchableOpacity>
               <T style={{ fontSize:17, fontWeight:'900', color:'#1E3A5F' }}>
                 {monthTitle(viewYear, viewMonth, lang)}
               </T>
               <TouchableOpacity accessibilityRole="button" accessibilityLabel={trNow('a11yNext')} onPress={nextMonth} style={{ padding:8 }}>
-                <T style={{ fontSize:20, color:'#2563EB', fontWeight:'900' }}>{isRTL ? '‹' : '›'}</T>
+                <T style={{ fontSize:20, color:'#2563EB', fontWeight:'900' }}>{'‹'}</T>
               </TouchableOpacity>
             </View>
 
             {/* Day names */}
-            <View style={{ flexDirection: isRTL ? 'row-reverse' : 'row', marginBottom:6 }}>
+            <View style={{ flexDirection: 'row-reverse', marginBottom:6 }}>
               {((t as any).dayNamesShort as string[]).map((d, i) => (
                 <View key={i} style={{ flex:1, alignItems:'center' }}>
                   <T style={{ fontSize:12, fontWeight:'700', color:'#94A3B8' }}>{d}</T>
@@ -1513,7 +1513,7 @@ function CalendarPicker({ visible, value, onChange, onClose }: {
 
             {/* Grid */}
             {Array.from({ length: cells.length / 7 }, (_, row) => (
-              <View key={row} style={{ flexDirection: isRTL ? 'row-reverse' : 'row', marginBottom:4 }}>
+              <View key={row} style={{ flexDirection: 'row-reverse', marginBottom:4 }}>
                 {cells.slice(row * 7, row * 7 + 7).map((day, col) => {
                   if (!day) return <View key={col} style={{ flex:1 }} />;
                   const cellDate = new Date(viewYear, viewMonth, day);
@@ -1590,7 +1590,7 @@ function MultiCalendarPicker({ selected, onChange, label }: {
     <View>
       {/* כפתור פתיחה */}
       <TouchableOpacity
-        style={{ flexDirection: isRTL ? 'row-reverse' : 'row', alignItems: 'center', justifyContent: 'space-between',
+        style={{ flexDirection: 'row-reverse', alignItems: 'center', justifyContent: 'space-between',
           backgroundColor: open ? '#2563EB' : '#F1F5F9', borderRadius: 12, padding: 12,
           borderWidth: 1, borderColor: open ? '#2563EB' : '#B5D4F4' }}
         onPress={() => setOpen(o => !o)}
@@ -1603,11 +1603,11 @@ function MultiCalendarPicker({ selected, onChange, label }: {
 
       {/* תאריכים שנבחרו */}
       {selected.length > 0 && (
-        <View style={{ flexDirection: isRTL ? 'row-reverse' : 'row', flexWrap: 'wrap', gap: 6, marginTop: 8 }}>
+        <View style={{ flexDirection: 'row-reverse', flexWrap: 'wrap', gap: 6, marginTop: 8 }}>
           {selected.map(k => (
             <TouchableOpacity key={k}
               style={{ backgroundColor: '#EFF6FF', borderRadius: 20, paddingHorizontal: 10, paddingVertical: 4,
-                borderWidth: 1, borderColor: '#2563EB', flexDirection: isRTL ? 'row-reverse' : 'row', alignItems: 'center', gap: 4 }}
+                borderWidth: 1, borderColor: '#2563EB', flexDirection: 'row-reverse', alignItems: 'center', gap: 4 }}
               onPress={() => onChange(selected.filter(d => d !== k))}
             >
               <Text style={{ fontSize: 12, color: '#2563EB', fontWeight: '700' }}>{fmtDateKey(k)}</Text>
@@ -1630,20 +1630,20 @@ function MultiCalendarPicker({ selected, onChange, label }: {
           shadowColor: '#000', shadowOpacity: 0.08, shadowRadius: 8, elevation: 4 }}>
 
           {/* ניווט חודש */}
-          <View style={{ flexDirection: isRTL ? 'row-reverse' : 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+          <View style={{ flexDirection: 'row-reverse', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
             <TouchableOpacity accessibilityRole="button" accessibilityLabel={trNow('a11yPrev')} onPress={prevMonth} style={{ padding: 8 }}>
-              <Text style={{ fontSize: 22, color: '#2563EB', fontWeight: '900' }}>{isRTL ? '›' : '‹'}</Text>
+              <Text style={{ fontSize: 22, color: '#2563EB', fontWeight: '900' }}>{'›'}</Text>
             </TouchableOpacity>
             <Text style={{ fontSize: 15, fontWeight: '900', color: '#1E3A5F' }}>
               {monthTitle(viewYear, viewMonth, lang)}
             </Text>
             <TouchableOpacity accessibilityRole="button" accessibilityLabel={trNow('a11yNext')} onPress={nextMonth} style={{ padding: 8 }}>
-              <Text style={{ fontSize: 22, color: '#2563EB', fontWeight: '900' }}>{isRTL ? '‹' : '›'}</Text>
+              <Text style={{ fontSize: 22, color: '#2563EB', fontWeight: '900' }}>{'‹'}</Text>
             </TouchableOpacity>
           </View>
 
           {/* שמות ימים */}
-          <View style={{ flexDirection: isRTL ? 'row-reverse' : 'row', marginBottom: 4 }}>
+          <View style={{ flexDirection: 'row-reverse', marginBottom: 4 }}>
             {((t as any).dayNamesShort as string[]).map((d, i) => (
               <View key={i} style={{ flex: 1, alignItems: 'center' }}>
                 <Text style={{ fontSize: 11, fontWeight: '700', color: '#94A3B8' }}>{d}</Text>
@@ -1653,7 +1653,7 @@ function MultiCalendarPicker({ selected, onChange, label }: {
 
           {/* גריד */}
           {Array.from({ length: cells.length / 7 }, (_, row) => (
-            <View key={row} style={{ flexDirection: isRTL ? 'row-reverse' : 'row', marginBottom: 2 }}>
+            <View key={row} style={{ flexDirection: 'row-reverse', marginBottom: 2 }}>
               {cells.slice(row * 7, row * 7 + 7).map((day, col) => {
                 if (!day) return <View key={col} style={{ flex: 1 }} />;
                 const cellDate = new Date(viewYear, viewMonth, day);
@@ -2298,11 +2298,11 @@ function InlineBookingChat({ open, onToggle, messages, text, onChangeText, onSen
     <View style={{ width: '100%', borderRadius: 18, borderWidth: 1.5, borderColor, overflow: 'hidden', marginBottom: 4 }}>
       {/* Header — toggle */}
       <TouchableOpacity
-        style={{ flexDirection: isRTL ? 'row-reverse' : 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: bgColor, paddingHorizontal: 14, paddingVertical: 10 }}
+        style={{ flexDirection: 'row-reverse', alignItems: 'center', justifyContent: 'space-between', backgroundColor: bgColor, paddingHorizontal: 14, paddingVertical: 10 }}
         onPress={onToggle}
         activeOpacity={0.8}
       >
-        <View style={{ flexDirection: isRTL ? 'row-reverse' : 'row', alignItems: 'center', gap: 8 }}>
+        <View style={{ flexDirection: 'row-reverse', alignItems: 'center', gap: 8 }}>
           <T style={{ fontSize: 17 }}>💬</T>
           <T style={{ fontSize: 14, fontWeight: '800', color: accentColor }}>{t.questionForCleaner}</T>
           {messages.length > 0 && (
@@ -2379,7 +2379,7 @@ function InlineBookingChat({ open, onToggle, messages, text, onChangeText, onSen
                 value={text}
                 onChangeText={onChangeText}
                 placeholderTextColor="#9CA3AF"
-                textAlign="right"
+                textAlign={isRtlNow() ? 'right' : 'left'}
                 onSubmitEditing={onSend}
                 returnKeyType="send"
               />
@@ -3151,27 +3151,27 @@ function BookingModal({ cleaner, visible, onClose, onBookingCreated, prebookData
 
             {/* כרטיס פרטי הזמנה */}
             <View style={{ backgroundColor: '#fff', borderRadius: 16, padding: 14, width: '100%', gap: 8, borderWidth: 1, borderColor: '#FED7AA', elevation: 3 }}>
-              <View style={{ flexDirection: isRTL ? 'row-reverse' : 'row', justifyContent: 'space-between' }}>
+              <View style={{ flexDirection: 'row-reverse', justifyContent: 'space-between' }}>
                 <T style={{ color: '#6B7280', fontSize: 13 }}>{t.cleanerLabel}</T>
                 <T style={{ fontWeight: '800', color: '#1C1917', fontSize: 13 }}>🧹 {bookedDetails.name}</T>
               </View>
               <View style={{ height: 1, backgroundColor: '#FED7AA' }} />
-              <View style={{ flexDirection: isRTL ? 'row-reverse' : 'row', justifyContent: 'space-between' }}>
+              <View style={{ flexDirection: 'row-reverse', justifyContent: 'space-between' }}>
                 <T style={{ color: '#6B7280', fontSize: 13 }}>{t.dateAndTimeLabel}</T>
                 <T style={{ fontWeight: '800', color: '#1C1917', fontSize: 13 }}>📅 {bookedDetails.dateStr} · {bookedDetails.startTime}</T>
               </View>
               <View style={{ height: 1, backgroundColor: '#FED7AA' }} />
-              <View style={{ flexDirection: isRTL ? 'row-reverse' : 'row', justifyContent: 'space-between' }}>
+              <View style={{ flexDirection: 'row-reverse', justifyContent: 'space-between' }}>
                 <T style={{ color: '#6B7280', fontSize: 13 }}>{t.hoursUnit}</T>
                 <T style={{ fontWeight: '800', color: '#1C1917', fontSize: 13 }}>⏱️ {bookedDetails.hours} {t.hoursUnit}</T>
               </View>
               <View style={{ height: 1, backgroundColor: '#FED7AA' }} />
-              <View style={{ flexDirection: isRTL ? 'row-reverse' : 'row', justifyContent: 'space-between' }}>
+              <View style={{ flexDirection: 'row-reverse', justifyContent: 'space-between' }}>
                 <T style={{ color: '#6B7280', fontSize: 13 }}>{t.totalLabel}</T>
                 <T style={{ fontWeight: '900', color: '#EA580C', fontSize: 17 }}>₪{bookedDetails.total}</T>
               </View>
               <View style={{ height: 1, backgroundColor: '#FED7AA' }} />
-              <View style={{ flexDirection: isRTL ? 'row-reverse' : 'row', justifyContent: 'space-between' }}>
+              <View style={{ flexDirection: 'row-reverse', justifyContent: 'space-between' }}>
                 <T style={{ color: '#6B7280', fontSize: 13 }}>{t.addressLabel}</T>
                 <T style={{ fontWeight: '700', color: '#1C1917', fontSize: 13, maxWidth: '60%', textAlign: 'right' }}>{bookedDetails.address}</T>
               </View>
@@ -3251,22 +3251,22 @@ function BookingModal({ cleaner, visible, onClose, onBookingCreated, prebookData
 
             {/* כרטיס פרטים */}
             <View style={{ backgroundColor: '#fff', borderRadius: 16, padding: 14, width: '100%', gap: 8, borderWidth: 1, borderColor: '#A7F3D0', elevation: 3 }}>
-              <View style={{ flexDirection: isRTL ? 'row-reverse' : 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+              <View style={{ flexDirection: 'row-reverse', justifyContent: 'space-between', alignItems: 'center' }}>
                 <T style={{ fontSize: 13, color: '#6B7280' }}>{t.cleanerLabel}</T>
                 <T style={{ fontSize: 13.5, fontWeight: '800', color: '#065F46' }}>🧹 {bookedDetails.name}</T>
               </View>
               <View style={{ height: 1, backgroundColor: '#D1FAE5' }} />
-              <View style={{ flexDirection: isRTL ? 'row-reverse' : 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+              <View style={{ flexDirection: 'row-reverse', justifyContent: 'space-between', alignItems: 'center' }}>
                 <T style={{ fontSize: 13, color: '#6B7280' }}>{t.dateAndTimeLabel}</T>
                 <T style={{ fontSize: 13, fontWeight: '800', color: '#065F46' }}>📅 {bookedDetails.dateStr} · {bookedDetails.startTime}</T>
               </View>
               <View style={{ height: 1, backgroundColor: '#D1FAE5' }} />
-              <View style={{ flexDirection: isRTL ? 'row-reverse' : 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+              <View style={{ flexDirection: 'row-reverse', justifyContent: 'space-between', alignItems: 'center' }}>
                 <T style={{ fontSize: 13, color: '#6B7280' }}>{t.hoursUnit}</T>
                 <T style={{ fontSize: 13.5, fontWeight: '800', color: '#065F46' }}>⏱️ {bookedDetails.hours} {t.hoursUnit}</T>
               </View>
               <View style={{ height: 1, backgroundColor: '#D1FAE5' }} />
-              <View style={{ flexDirection: isRTL ? 'row-reverse' : 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+              <View style={{ flexDirection: 'row-reverse', justifyContent: 'space-between', alignItems: 'center' }}>
                 <T style={{ fontSize: 13, color: '#6B7280' }}>{t.totalLabel}</T>
                 <T style={{ fontSize: 17, fontWeight: '900', color: '#059669' }}>₪{bookedDetails.total}</T>
               </View>
@@ -3489,16 +3489,16 @@ function BookingModal({ cleaner, visible, onClose, onBookingCreated, prebookData
                 placeholderTextColor={C.textSub}
               />
               {/* סוג דיור */}
-              <View style={{ flexDirection: isRTL ? 'row-reverse' : 'row', gap: 10 }}>
+              <View style={{ flexDirection: 'row-reverse', gap: 10 }}>
                 <TouchableOpacity
-                  style={{ flex: 1, flexDirection: isRTL ? 'row-reverse' : 'row', alignItems: 'center', gap: 8, backgroundColor: !addrPrivate ? C.blue : C.bluePale, borderRadius: 12, padding: 12, borderWidth: 1.5, borderColor: !addrPrivate ? C.blue : C.blueBorder }}
+                  style={{ flex: 1, flexDirection: 'row-reverse', alignItems: 'center', gap: 8, backgroundColor: !addrPrivate ? C.blue : C.bluePale, borderRadius: 12, padding: 12, borderWidth: 1.5, borderColor: !addrPrivate ? C.blue : C.blueBorder }}
                   onPress={() => setAddrPrivate(false)}
                 >
                   <T style={{ fontSize: 18 }}>{!addrPrivate ? '🔵' : '⚪'}</T>
                   <T style={{ fontWeight: '700', color: !addrPrivate ? C.white : C.textDark, fontSize: 14 }}>{t.apartmentLabel}</T>
                 </TouchableOpacity>
                 <TouchableOpacity
-                  style={{ flex: 1, flexDirection: isRTL ? 'row-reverse' : 'row', alignItems: 'center', gap: 8, backgroundColor: addrPrivate ? C.blue : C.bluePale, borderRadius: 12, padding: 12, borderWidth: 1.5, borderColor: addrPrivate ? C.blue : C.blueBorder }}
+                  style={{ flex: 1, flexDirection: 'row-reverse', alignItems: 'center', gap: 8, backgroundColor: addrPrivate ? C.blue : C.bluePale, borderRadius: 12, padding: 12, borderWidth: 1.5, borderColor: addrPrivate ? C.blue : C.blueBorder }}
                   onPress={() => setAddrPrivate(true)}
                 >
                   <T style={{ fontSize: 18 }}>{addrPrivate ? '🔵' : '⚪'}</T>
@@ -3507,7 +3507,7 @@ function BookingModal({ cleaner, visible, onClose, onBookingCreated, prebookData
               </View>
               {/* קומה + דירה (רק אם לא בית פרטי) */}
               {!addrPrivate && (
-                <View style={{ flexDirection: isRTL ? 'row-reverse' : 'row', gap: 10 }}>
+                <View style={{ flexDirection: 'row-reverse', gap: 10 }}>
                   <TextInput
                     style={[s.input, { flex: 1, textAlign: 'right' }]}
                     placeholder={t.floorPh}
@@ -3922,7 +3922,7 @@ function ChatModal({ cleaner, visible, onClose }: any) {
                 </View>
               )}
               <TouchableOpacity accessibilityRole="button" accessibilityLabel={(t as any).sendBtn} style={[s.sendBtn, !text.trim() && { opacity: 0.5 }]} onPress={send}><T style={s.sendBtnText} numberOfLines={1}>{(t as any).sendBtn}</T></TouchableOpacity>
-              <TextInput style={s.chatInput} placeholder={t.chatPlaceholder} value={text} onChangeText={setText} placeholderTextColor={C.textSub} textAlign="right" onSubmitEditing={send} />
+              <TextInput style={s.chatInput} placeholder={t.chatPlaceholder} value={text} onChangeText={setText} placeholderTextColor={C.textSub} textAlign={isRtlNow() ? 'right' : 'left'} onSubmitEditing={send} />
               <TouchableOpacity accessibilityRole="button" accessibilityLabel={trNow('a11yAttachPhoto')}
                 style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: C.blueLight, alignItems: 'center', justifyContent: 'center', borderWidth: 1.5, borderColor: C.blueBorder }}
                 onPress={sendImage}
@@ -4024,7 +4024,7 @@ function CleanerCardInner({ cleaner, isSel, onSelect, onProfile, onBook, onChat,
 
         {/* שירותים — פילים קומפקטיים אחד ליד השני, פירוט נפתח בלחיצה (בלי ℹ) */}
         {/* שירותים — תגיות קטנות לפי רוחב התוכן, בלי איקונים, נצמדות */}
-        <View style={{ flexDirection: isRTL ? 'row-reverse' : 'row', flexWrap: 'wrap', gap: 5, justifyContent: 'center' }}>
+        <View style={{ flexDirection: 'row-reverse', flexWrap: 'wrap', gap: 5, justifyContent: 'center' }}>
           {cleaner.types.map((tp: string) => (
             <ServiceInfoBtn
               key={tp}
@@ -4048,8 +4048,8 @@ function CleanerCardInner({ cleaner, isSel, onSelect, onProfile, onBook, onChat,
       </View>
       {isSel && (
         <View style={s.cardExpanded}>
-          <View style={{ flexDirection: isRTL ? 'row-reverse' : 'row', gap: 5, flexWrap: 'wrap', justifyContent: 'center', marginBottom: 10 }}>
-            {cleaner.payment.map((p: string) => <View key={p} style={[s.payChip, p === 'paybox' && { flexDirection: isRTL ? 'row-reverse' : 'row', alignItems: 'center', gap: 3 }]}>{p === 'paybox' && <PayboxIcon size={12} />}<T style={s.payChipText}>{p === 'paybox' ? t.payPaybox : `${PAY_ICONS[p] || '💳'} ${p === 'bit' ? t.payBit : p === 'cash' ? t.payCash : p === 'bank' ? t.payBank : p === 'card' ? t.payCard : p === 'kochavit' ? ((t as any).payKochavit ?? 'כוכבית') : p}`}</T></View>)}
+          <View style={{ flexDirection: 'row-reverse', gap: 5, flexWrap: 'wrap', justifyContent: 'center', marginBottom: 10 }}>
+            {cleaner.payment.map((p: string) => <View key={p} style={[s.payChip, p === 'paybox' && { flexDirection: 'row-reverse', alignItems: 'center', gap: 3 }]}>{p === 'paybox' && <PayboxIcon size={12} />}<T style={s.payChipText}>{p === 'paybox' ? t.payPaybox : `${PAY_ICONS[p] || '💳'} ${p === 'bit' ? t.payBit : p === 'cash' ? t.payCash : p === 'bank' ? t.payBank : p === 'card' ? t.payCard : p === 'kochavit' ? ((t as any).payKochavit ?? 'כוכבית') : p}`}</T></View>)}
           </View>
           <View style={{ flexDirection: flipSide ? 'row-reverse' : 'row', gap: 8 }}>
             <TouchableOpacity
@@ -4103,7 +4103,7 @@ function QuickRebookModal({ visible, onClose, myBookings, bookingsState, allClea
   // The app never calls forceRTL, so a plain row and unaligned text run left to
   // right even in Hebrew — the card read mirrored next to the website's. Every
   // row and line here follows the language instead.
-  const row = isRTL ? 'row-reverse' as const : 'row' as const;
+  const row = 'row-reverse' as const;
   const align = isRTL ? 'right' as const : 'left' as const;
   const C = useAppColors();
   const s = createS(C);
@@ -4358,7 +4358,7 @@ export default function HomeScreen() {
   const [filterVisible,  setFilterVisible]  = useState(false);
   // The website's filter (FilterModal): centred titles, round pills, chosen = filled blue.
   const fLabel = { fontSize: 13, fontWeight: '800' as const, color: C.textDark, textAlign: 'center' as const, marginBottom: 8 };
-  const fPills = { flexDirection: (isRTL ? 'row-reverse' : 'row') as 'row' | 'row-reverse', flexWrap: 'wrap' as const, justifyContent: 'center' as const, gap: 8 };
+  const fPills = { flexDirection: ('row-reverse') as 'row' | 'row-reverse', flexWrap: 'wrap' as const, justifyContent: 'center' as const, gap: 8 };
   const fPill = (on: boolean) => ({
     paddingHorizontal: 14, paddingVertical: 8, borderRadius: 999, borderWidth: 1.5,
     borderColor: on ? C.blue : C.blueBorder, backgroundColor: on ? C.blue : C.white,
@@ -7158,7 +7158,7 @@ export default function HomeScreen() {
           {/* באנר הזמנה חדשה — מופיע רק כשמגיעה הזמנה בזמן שהמנקה מחובר */}
           {myRole === 'cleaner' && newBookingFlash && (
             <TouchableOpacity
-              style={{ backgroundColor: '#059669', borderRadius: 14, padding: 14, marginBottom: 8, flexDirection: isRTL ? 'row-reverse' : 'row', alignItems: 'center', gap: 10, elevation: 6, shadowColor: '#000', shadowOpacity: 0.2, shadowRadius: 10, shadowOffset: { width: 0, height: 4 } }}
+              style={{ backgroundColor: '#059669', borderRadius: 14, padding: 14, marginBottom: 8, flexDirection: 'row-reverse', alignItems: 'center', gap: 10, elevation: 6, shadowColor: '#000', shadowOpacity: 0.2, shadowRadius: 10, shadowOffset: { width: 0, height: 4 } }}
               onPress={() => { setNewBookingFlash(false); router.push({ pathname: '/profile', params: { tab: 'bookings', confirmBookingId: newBookingId } }); }}
               activeOpacity={0.88}
             >
@@ -7167,7 +7167,7 @@ export default function HomeScreen() {
                 <T style={{ color: '#fff', fontSize: 15, fontWeight: '900' }}>{t.newBookingArrived}</T>
                 <T style={{ color: 'rgba(255,255,255,0.85)', fontSize: 12 }}>{t.tapToViewAndApprove}</T>
               </View>
-              <T style={{ fontSize: 20 }}>←</T>
+              <T style={{ fontSize: 20 }}>{isRtlNow() ? '←' : '→'}</T>
             </TouchableOpacity>
           )}
 
@@ -7177,7 +7177,7 @@ export default function HomeScreen() {
               בלי התראות הוא לא שומע שנותן השירות אישר, ביטל או כתב לו. */}
           {!!myRole && pushSilence(pushOptedOut, pushPermitted, pushUnregistered) && (
             <TouchableOpacity
-              style={{ backgroundColor: '#DC2626', borderRadius: 14, padding: 14, marginBottom: 8, flexDirection: isRTL ? 'row-reverse' : 'row', alignItems: 'center', gap: 10, opacity: pushTurningOn ? 0.7 : 1 }}
+              style={{ backgroundColor: '#DC2626', borderRadius: 14, padding: 14, marginBottom: 8, flexDirection: 'row-reverse', alignItems: 'center', gap: 10, opacity: pushTurningOn ? 0.7 : 1 }}
               onPress={handleTurnPushOn}
               disabled={pushTurningOn}
               activeOpacity={0.88}
@@ -7193,7 +7193,7 @@ export default function HomeScreen() {
               </View>
               {pushTurningOn
                 ? <ActivityIndicator size="small" color="#fff" />
-                : <T style={{ fontSize: 20, color: '#fff' }}>←</T>}
+                : <T style={{ fontSize: 20, color: '#fff' }}>{isRtlNow() ? '←' : '→'}</T>}
             </TouchableOpacity>
           )}
 
@@ -7235,7 +7235,7 @@ export default function HomeScreen() {
                 value={search}
                 onChangeText={handleSearchChange}
                 placeholderTextColor={C.textSub}
-                textAlign="right"
+                textAlign={isRtlNow() ? 'right' : 'left'}
                 // "חיפוש" במקלדת סוגר אותה ואת ההצעות. הן כיסו את התוצאות, כך
                 // שחיפוש שעבד נראה כאילו לא קרה כלום.
                 returnKeyType="search"
@@ -7394,13 +7394,13 @@ export default function HomeScreen() {
                 style={{ borderRadius: 16, marginBottom: 4, overflow: 'hidden', elevation: 4, shadowColor: '#1E6FB8', shadowOpacity: 0.35, shadowRadius: 8, shadowOffset: { width: 0, height: 3 } }}
                 activeOpacity={0.85}
               >
-                <LinearGradient colors={['#3E8DE3', '#1E5FA8']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={{ padding: 14, flexDirection: isRTL ? 'row-reverse' : 'row', alignItems: 'center', gap: 12 }}>
+                <LinearGradient colors={['#3E8DE3', '#1E5FA8']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={{ padding: 14, flexDirection: 'row-reverse', alignItems: 'center', gap: 12 }}>
                   <T style={{ fontSize: 26 }}>♻️</T>
                   <View style={{ flex: 1, alignItems: 'center' }}>
                     <T style={{ color: '#fff', fontSize: 14, fontWeight: '900', textAlign: 'center' }}>{t.prevBookingsShort}</T>
                     <T style={{ color: 'rgba(255,255,255,0.85)', fontSize: 11, marginTop: 1, textAlign: 'center' }}>{t.rebookSubtitle}</T>
                   </View>
-                  <T style={{ color: 'rgba(255,255,255,0.75)', fontSize: 20 }}>{isRTL ? '‹' : '›'}</T>
+                  <T style={{ color: 'rgba(255,255,255,0.75)', fontSize: 20 }}>{'‹'}</T>
                 </LinearGradient>
               </TouchableOpacity>
           ) : null}
@@ -7666,7 +7666,7 @@ export default function HomeScreen() {
                 accessibilityRole="button"
                 onPress={() => { setFilterMinRating(0); setFilterMaxPrice(999); setFilterAvailOnly(false); setFilterTypes([]); setFilterCity(''); setRegion('all'); showToast(t.filterReset, 'info'); }}
                 activeOpacity={0.85}
-                style={{ flexDirection: isRTL ? 'row-reverse' : 'row', alignItems: 'center', gap: 4, backgroundColor: '#FF8A00', paddingHorizontal: 14, paddingVertical: 8, borderRadius: 20 }}>
+                style={{ flexDirection: 'row-reverse', alignItems: 'center', gap: 4, backgroundColor: '#FF8A00', paddingHorizontal: 14, paddingVertical: 8, borderRadius: 20 }}>
                 <T style={{ color: '#fff', fontSize: 13 }}>↺</T>
                 <T style={{ color: '#fff', fontSize: 13, fontWeight: '800' }}>{t.filterReset}</T>
               </TouchableOpacity>
@@ -7726,7 +7726,7 @@ export default function HomeScreen() {
             </View>
 
             {/* זמינים עכשיו בלבד */}
-            <View style={{ flexDirection: isRTL ? 'row-reverse' : 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: C.blueLight, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 10, borderWidth: 1, borderColor: C.blueBorder }}>
+            <View style={{ flexDirection: 'row-reverse', alignItems: 'center', justifyContent: 'space-between', backgroundColor: C.blueLight, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 10, borderWidth: 1, borderColor: C.blueBorder }}>
               <T style={{ fontSize: 14, fontWeight: '700', color: C.textDark }}>{t.filterAvailLabel}</T>
               <Switch
                 value={filterAvailOnly}
@@ -7815,7 +7815,7 @@ export default function HomeScreen() {
         <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center', padding: 28 }}>
           <View style={{ backgroundColor: C.white, borderRadius: 20, padding: 20, width: '100%', maxWidth: 360 }}>
             {/* כותרת — ברק אחד בצד שמאל */}
-            <View style={{ flexDirection: isRTL ? 'row-reverse' : 'row', alignItems: 'center', justifyContent: 'center', gap: 8, marginBottom: 12 }}>
+            <View style={{ flexDirection: 'row-reverse', alignItems: 'center', justifyContent: 'center', gap: 8, marginBottom: 12 }}>
               <T style={{ fontSize: 22 }}>⚡</T>
               <T style={{ fontSize: 18, fontWeight: '900', color: '#7C3AED' }}>{String(t.urgentTabLabel || 'דחופות').replace(/⚡/g, '').trim()}</T>
             </View>
@@ -7846,7 +7846,7 @@ export default function HomeScreen() {
                 </>
               );
             })()}
-            <View style={{ flexDirection: isRTL ? 'row-reverse' : 'row', gap: 10 }}>
+            <View style={{ flexDirection: 'row-reverse', gap: 10 }}>
               <TouchableOpacity
                 style={{ flex: 1, backgroundColor: '#10B981', borderRadius: 12, paddingVertical: 13, alignItems: 'center' }}
                 onPress={() => { const id = urgentPopupReq?.id; setUrgentPopupReq(null); if (id) router.push({ pathname: '/profile', params: { tab: 'urgent', acceptReqId: id } }); }}
@@ -7868,7 +7868,7 @@ export default function HomeScreen() {
       <Modal visible={!!newBookingModal} transparent animationType="fade" onRequestClose={() => setNewBookingModal(null)}>
         <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center', padding: 28 }}>
           <View style={{ backgroundColor: C.white, borderRadius: 20, padding: 20, width: '100%', maxWidth: 360 }}>
-            <View style={{ flexDirection: isRTL ? 'row-reverse' : 'row', alignItems: 'center', justifyContent: 'center', gap: 8, marginBottom: 12 }}>
+            <View style={{ flexDirection: 'row-reverse', alignItems: 'center', justifyContent: 'center', gap: 8, marginBottom: 12 }}>
               <T style={{ fontSize: 22 }}>🔔</T>
               <T style={{ fontSize: 18, fontWeight: '900', color: C.blueDark }}>{t.newBookingTitle || 'הזמנה חדשה'}</T>
             </View>
@@ -7891,7 +7891,7 @@ export default function HomeScreen() {
                 </View>
               );
             })()}
-            <View style={{ flexDirection: isRTL ? 'row-reverse' : 'row', gap: 10 }}>
+            <View style={{ flexDirection: 'row-reverse', gap: 10 }}>
               <TouchableOpacity
                 style={{ flex: 1, backgroundColor: '#10B981', borderRadius: 12, paddingVertical: 13, alignItems: 'center' }}
                 onPress={() => { const id = newBookingModal?.id; setNewBookingModal(null); markPendingSeen(); if (id) router.push({ pathname: '/profile', params: { tab: 'bookings', confirmBookingId: id } }); }}
@@ -7983,18 +7983,18 @@ export default function HomeScreen() {
             {/* כרטיס פרטים */}
             {confirmedPopup && (
               <View style={{ backgroundColor: '#F0FDF4', borderRadius: 16, padding: 16, width: '100%', gap: 10, borderWidth: 1, borderColor: '#A7F3D0' }}>
-                <View style={{ flexDirection: isRTL ? 'row-reverse' : 'row', justifyContent: 'space-between' }}>
+                <View style={{ flexDirection: 'row-reverse', justifyContent: 'space-between' }}>
                   <Text style={{ fontSize: 13, color: '#6B7280' }}>🧹 {t.cleanerLabel || 'נותן שירות'}</Text>
                   <Text style={{ fontSize: 13, fontWeight: '800', color: '#065F46' }}>{confirmedPopup.cleanerName}</Text>
                 </View>
                 {confirmedPopup.bookingDate ? (
-                  <View style={{ flexDirection: isRTL ? 'row-reverse' : 'row', justifyContent: 'space-between' }}>
+                  <View style={{ flexDirection: 'row-reverse', justifyContent: 'space-between' }}>
                     <Text style={{ fontSize: 13, color: '#6B7280' }}>📅 {t.dateLabel || 'תאריך'}</Text>
                     <Text style={{ fontSize: 13, fontWeight: '700', color: '#065F46' }}>{confirmedPopup.bookingDate}  {confirmedPopup.startTime || ''}</Text>
                   </View>
                 ) : null}
                 {confirmedPopup.hours ? (
-                  <View style={{ flexDirection: isRTL ? 'row-reverse' : 'row', justifyContent: 'space-between' }}>
+                  <View style={{ flexDirection: 'row-reverse', justifyContent: 'space-between' }}>
                     <Text style={{ fontSize: 13, color: '#6B7280' }}>⏱️ {t.hoursLabel || 'שעות'}</Text>
                     <Text style={{ fontSize: 13, fontWeight: '700', color: '#065F46' }}>{confirmedPopup.hours} {t.hoursUnit}</Text>
                   </View>
@@ -8038,13 +8038,13 @@ export default function HomeScreen() {
             {cancelledPopup && (
               <View style={{ backgroundColor: '#FEF2F2', borderRadius: 16, padding: 16, width: '100%', gap: 10, borderWidth: 1, borderColor: '#FECACA' }}>
                 {!!cancelledPopup.cleanerName && (
-                  <View style={{ flexDirection: isRTL ? 'row-reverse' : 'row', justifyContent: 'space-between' }}>
+                  <View style={{ flexDirection: 'row-reverse', justifyContent: 'space-between' }}>
                     <Text style={{ fontSize: 13, color: '#6B7280' }}>🧹 {t.cleanerLabel || 'נותן שירות'}</Text>
                     <Text style={{ fontSize: 13, fontWeight: '800', color: '#991B1B' }}>{cancelledPopup.cleanerName}</Text>
                   </View>
                 )}
                 {!!cancelledPopup.serviceType && (
-                  <View style={{ flexDirection: isRTL ? 'row-reverse' : 'row', justifyContent: 'space-between' }}>
+                  <View style={{ flexDirection: 'row-reverse', justifyContent: 'space-between' }}>
                     <Text style={{ fontSize: 13, color: '#6B7280' }}>🧴 {(t as any).serviceTypeLabel ?? t.servicesLabel ?? 'סוג שירות'}</Text>
                     <Text style={{ fontSize: 13, fontWeight: '700', color: '#991B1B', flexShrink: 1, textAlign: 'left' }} numberOfLines={2}>
                       {String(cancelledPopup.serviceType).split(' + ').map((k: string) => t.types?.[k] || k).join(', ')}
@@ -8052,7 +8052,7 @@ export default function HomeScreen() {
                   </View>
                 )}
                 {!!cancelledPopup.bookingDate && (
-                  <View style={{ flexDirection: isRTL ? 'row-reverse' : 'row', justifyContent: 'space-between' }}>
+                  <View style={{ flexDirection: 'row-reverse', justifyContent: 'space-between' }}>
                     <Text style={{ fontSize: 13, color: '#6B7280' }}>📅 {t.dateLabel || 'תאריך'}</Text>
                     <Text style={{ fontSize: 13, fontWeight: '700', color: '#991B1B' }}>
                       {formatJobDate(cancelledPopup.bookingDate)} {(t as any).atHour ?? 'בשעה'} {cancelledPopup.startTime || ''}
@@ -8060,19 +8060,19 @@ export default function HomeScreen() {
                   </View>
                 )}
                 {!!cancelledPopup.hours && (
-                  <View style={{ flexDirection: isRTL ? 'row-reverse' : 'row', justifyContent: 'space-between' }}>
+                  <View style={{ flexDirection: 'row-reverse', justifyContent: 'space-between' }}>
                     <Text style={{ fontSize: 13, color: '#6B7280' }}>⏱️ {t.hoursLabel || 'שעות'}</Text>
                     <Text style={{ fontSize: 13, fontWeight: '700', color: '#991B1B' }}>{cancelledPopup.hours} {t.hoursUnit}</Text>
                   </View>
                 )}
                 {!!cancelledPopup.address && (
-                  <View style={{ flexDirection: isRTL ? 'row-reverse' : 'row', justifyContent: 'space-between' }}>
+                  <View style={{ flexDirection: 'row-reverse', justifyContent: 'space-between' }}>
                     <Text style={{ fontSize: 13, color: '#6B7280' }}>📍 {t.addressLabel || 'כתובת'}</Text>
                     <Text style={{ fontSize: 13, fontWeight: '700', color: '#991B1B', flexShrink: 1, textAlign: 'left' }} numberOfLines={2}>{cancelledPopup.address}</Text>
                   </View>
                 )}
                 {cancelledPopup.total != null && (
-                  <View style={{ flexDirection: isRTL ? 'row-reverse' : 'row', justifyContent: 'space-between' }}>
+                  <View style={{ flexDirection: 'row-reverse', justifyContent: 'space-between' }}>
                     <Text style={{ fontSize: 13, color: '#6B7280' }}>💰 {(t as any).totalShort ?? 'סה"כ'}</Text>
                     <Text style={{ fontSize: 13, fontWeight: '800', color: '#991B1B' }}>₪{cancelledPopup.total}</Text>
                   </View>
@@ -8331,9 +8331,9 @@ export default function HomeScreen() {
                 {/* תשלום */}
                 <View style={{ gap: 6 }}>
                   <T style={s.fieldLabel}>{t.paymentMethodLabel}</T>
-                  <View style={{ flexDirection: isRTL ? 'row-reverse' : 'row', gap: 8 }}>
+                  <View style={{ flexDirection: 'row-reverse', gap: 8 }}>
                     {(['cash','bit','paybox','bank'] as const).map(p => (
-                      <TouchableOpacity key={p} style={[s.hourBtn, { flex: 1, flexDirection: isRTL ? 'row-reverse' : 'row', justifyContent: 'center', alignItems: 'center', gap: 4 }, urgentPayment === p && { backgroundColor: '#7C3AED', borderColor: '#7C3AED' }]} onPress={() => setUrgentPayment(p)}>
+                      <TouchableOpacity key={p} style={[s.hourBtn, { flex: 1, flexDirection: 'row-reverse', justifyContent: 'center', alignItems: 'center', gap: 4 }, urgentPayment === p && { backgroundColor: '#7C3AED', borderColor: '#7C3AED' }]} onPress={() => setUrgentPayment(p)}>
                         {p === 'paybox' && <PayboxIcon size={16} color={urgentPayment === p ? '#fff' : PAYBOX_BLUE} />}
                         <T
                           style={[{ fontSize: 13, fontWeight: '700', color: C.textDark, textAlign: 'center' }, urgentPayment === p && { color: C.white }]}
@@ -8407,7 +8407,7 @@ export default function HomeScreen() {
                 <TouchableOpacity
                   key={opt.key}
                   onPress={() => setReportType(opt.key)}
-                  style={{ flexDirection: isRTL ? 'row-reverse' : 'row', alignItems: 'center', gap: 12, backgroundColor: reportType === opt.key ? C.blue : C.white, borderRadius: 12, padding: 14, borderWidth: 1.5, borderColor: reportType === opt.key ? C.blue : C.grayBorder }}
+                  style={{ flexDirection: 'row-reverse', alignItems: 'center', gap: 12, backgroundColor: reportType === opt.key ? C.blue : C.white, borderRadius: 12, padding: 14, borderWidth: 1.5, borderColor: reportType === opt.key ? C.blue : C.grayBorder }}
                 >
                   <T style={{ fontSize: 20 }}>{reportType === opt.key ? '🔵' : '⚪'}</T>
                   <T style={{ fontSize: 15, fontWeight: '700', color: reportType === opt.key ? C.white : C.textDark }}>{opt.label}</T>

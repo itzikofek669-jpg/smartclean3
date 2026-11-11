@@ -29,7 +29,7 @@ export default function AccessibilityModal({ visible, onClose }: Props) {
   const Row = ({ icon, label, sublabel, right }: {
     icon: string; label: string; sublabel?: string; right: React.ReactNode
   }) => (
-    <View style={[ms.row, { flexDirection: isRTL ? 'row-reverse' : 'row', backgroundColor: bgRow, borderColor: border, borderWidth: highContrast ? 2 : 1 }]}>
+    <View style={[ms.row, { flexDirection: 'row-reverse', backgroundColor: bgRow, borderColor: border, borderWidth: highContrast ? 2 : 1 }]}>
       <T style={[ms.rowIcon, { fontSize: fs(22) }]}>{icon}</T>
       <View style={{ flex: 1 }}>
         <T style={[ms.rowLabel, { color: txt, fontSize: fs(15) }]}>{label}</T>
@@ -84,12 +84,12 @@ export default function AccessibilityModal({ visible, onClose }: Props) {
           />
 
           {/* גודל טקסט */}
-          <View style={[ms.row, ms.scaleRow, { flexDirection: isRTL ? 'row-reverse' : 'row', backgroundColor: bgRow, borderColor: border, borderWidth: highContrast ? 2 : 1 }]}>
+          <View style={[ms.row, ms.scaleRow, { flexDirection: 'row-reverse', backgroundColor: bgRow, borderColor: border, borderWidth: highContrast ? 2 : 1 }]}>
             <T style={[ms.rowIcon, { fontSize: fs(22) }]}>Aa</T>
             <View style={{ flex: 1 }}>
               <T style={[ms.rowLabel, { color: txt, fontSize: fs(15) }]}>{t.textSizeLabel || 'גודל טקסט'}</T>
             </View>
-            <View style={[ms.scaleBtns, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
+            <View style={[ms.scaleBtns, { flexDirection: 'row-reverse' }]}>
               {SCALES.map(sc => (
                 <TouchableOpacity
                   key={sc.v}

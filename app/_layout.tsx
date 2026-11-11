@@ -16,7 +16,7 @@ import { primeCalendarPermission, addBookingToCalendar, removeBookingFromCalenda
 // defined at module scope there, and a cold start triggered by a push must find
 // it already defined. See lib/calendarTask.ts.
 import { registerCalendarPushTask } from '../lib/calendarTask';
-import { LanguageProvider } from '../lib/LanguageContext';
+import { LanguageProvider, useLanguage } from '../lib/LanguageContext';
 import { ThemeProvider } from '../lib/ThemeContext';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { useFonts, NotoSansDevanagari_400Regular } from '@expo-google-fonts/noto-sans-devanagari';
@@ -609,6 +609,7 @@ export default function RootLayout() {
       <View style={ls.root}>
         <ThemeProvider>
           <LanguageProvider>
+            <LayoutDirection>
             <ErrorBoundary context="root">
               <Stack screenOptions={{ headerShown: false }} />
               {/* אחרי ה-Stack ומעליו: מנקה בלי הרשאת מיקום מקבל נעילה על כל
@@ -618,11 +619,23 @@ export default function RootLayout() {
               {/* מעל שער המיקום: אימות המייל הוא התנאי הבסיסי יותר. */}
               <EmailVerifyGate />
             </ErrorBoundary>
+            </LayoutDirection>
           </LanguageProvider>
         </ThemeProvider>
       </View>
     </SafeAreaProvider>
   );
+}
+
+/**
+ * The app is drawn right to left by hand (row-reverse, right-aligned text) on
+ * the left-to-right engine. For English, Russian, French, Hindi and Ukrainian
+ * the whole tree is mirrored here instead of every card being rewritten: the
+ * layout follows the language (Ofek, 11.11.2026). Hebrew and Arabic: as drawn.
+ */
+function LayoutDirection({ children }: { children: React.ReactNode }) {
+  const { isRTL } = useLanguage();
+  return <View style={{ flex: 1, direction: isRTL ? 'ltr' : 'rtl' }}>{children}</View>;
 }
 
 const ls = StyleSheet.create({

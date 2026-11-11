@@ -367,7 +367,7 @@ function RegisterFreeBanner({ label1, sub1, label2, sub2, color1, color2, bg1, b
   return (
     <View style={{ backgroundColor: '#fff', borderRadius: 18, marginBottom: 14, paddingVertical: 14, paddingHorizontal: 12, borderWidth: 1.5, borderColor: '#6EE7B7', elevation: 3, shadowColor: '#10B981', shadowOpacity: 0.15, shadowRadius: 8, shadowOffset: { width: 0, height: 3 } }}>
       <Text style={{ fontSize: 13, fontWeight: '900', color: '#065F46', textAlign: 'center', marginBottom: 10 }}>{trNow('freeForever')}</Text>
-      <View style={{ flexDirection: isRTL ? 'row-reverse' : 'row', gap: 10 }}>
+      <View style={{ flexDirection: 'row-reverse', gap: 10 }}>
         <View style={{ flex: 1, backgroundColor: bg1, borderRadius: 14, paddingVertical: 12, alignItems: 'center', borderWidth: 1.5, borderColor: border1 }}>
           <Animated.Text style={{ fontSize: 26, fontWeight: '900', color: color1, transform: [{ scale: p1 }] }}>{label1}</Animated.Text>
           <Text style={{ fontSize: 11, fontWeight: '700', color: color1, marginTop: 2 }}>{sub1}</Text>
@@ -1059,7 +1059,7 @@ export default function RegisterScreen() {
 
                 <View style={s.field}>
                   <T style={s.label}>{t.mobileLabel}</T>
-                  <View style={{ flexDirection: isRTL ? 'row-reverse' : 'row', gap: 10 }}>
+                  <View style={{ flexDirection: 'row-reverse', gap: 10 }}>
                     <TouchableOpacity
                       style={[s.pill, isMobile && s.pillActive, { flex: 1, alignItems: 'center', justifyContent: 'center', paddingVertical: 12 }]}
                       onPress={() => setIsMobile(true)}>
@@ -1082,7 +1082,7 @@ export default function RegisterScreen() {
                 {/* מרחק הגעה מקסימלי */}
                 <View style={s.field}>
                   <T style={s.label}>{t.maxDistanceLabel}</T>
-                  <View style={{ flexDirection: isRTL ? 'row-reverse' : 'row', flexWrap: 'wrap', gap: 8, marginTop: 4, justifyContent: 'center' }}>
+                  <View style={{ flexDirection: 'row-reverse', flexWrap: 'wrap', gap: 8, marginTop: 4, justifyContent: 'center' }}>
                     {[5, 10, 20, 30, 50, 999].map(km => (
                       <TouchableOpacity
                         key={km}
@@ -1128,7 +1128,7 @@ export default function RegisterScreen() {
 
                 <View style={s.field}>
                   <T style={s.label}>{t.suppliesLabel}</T>
-                  <View style={{ flexDirection: isRTL ? 'row-reverse' : 'row', gap: 10 }}>
+                  <View style={{ flexDirection: 'row-reverse', gap: 10 }}>
                     <TouchableOpacity
                       style={[s.pill, bringSupplies && s.pillActive, { flex: 1, alignItems: 'center', justifyContent: 'center', paddingVertical: 12 }]}
                       onPress={() => setBringSupplies(true)}>

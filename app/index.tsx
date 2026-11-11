@@ -1,3 +1,4 @@
+import { isRtlNow } from '../lib/trNow';
 import React, { useState, useEffect } from 'react';
 import { confirmLangChange } from '../lib/confirmLang';
 import {
@@ -177,7 +178,7 @@ export default function LoginScreen() {
               keyboardType="email-address"
               autoCapitalize="none"
               placeholderTextColor={C.sub}
-              textAlign="right"
+              textAlign={isRtlNow() ? 'right' : 'left'}
             />
           </View>
 
@@ -191,7 +192,7 @@ export default function LoginScreen() {
                 onChangeText={setPassword}
                 secureTextEntry={!showPass}
                 placeholderTextColor={C.sub}
-                textAlign="right"
+                textAlign={isRtlNow() ? 'right' : 'left'}
               />
               <TouchableOpacity
                 onPress={() => setShowPass(v => !v)}

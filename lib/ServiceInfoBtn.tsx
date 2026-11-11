@@ -33,7 +33,7 @@ export default function ServiceInfoBtn({ serviceKey, inlinePill, label, pillStyl
       <>
         <TouchableOpacity
           onPress={() => (onPressOverride ? onPressOverride() : setOpen(true))}
-          style={[pillStyle, { flexDirection: isRTL ? 'row-reverse' : 'row', alignItems: 'center', gap: 4 }]}
+          style={[pillStyle, { flexDirection: 'row-reverse', alignItems: 'center', gap: 4 }]}
           accessibilityRole="button"
           accessibilityLabel={trNow('a11yServiceDetails', { label: label ?? '' })}
         >

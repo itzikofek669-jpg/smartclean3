@@ -154,8 +154,10 @@ export function T({ style, children, ...props }: TextProps) {
  * הראשון יעמוד מימין. האפליקציה לא מפעילה RTL של המערכת, ולכן כל שורה שלא הופכים
  * נשארת משמאל לימין. מקבלים רק את המפתחות שצריך: יש שורות שכבר נכתבו הפוכות.
  */
-export function rtlRows<S extends Record<string, any>>(styles: S, isRTL: boolean, keys: (keyof S)[]): S {
-  if (!isRTL) return styles;
+export function rtlRows<S extends Record<string, any>>(styles: S, _isRTL: boolean, keys: (keyof S)[]): S {
+  // Always: the app is laid out right to left, and the five left-to-right
+  // languages get the whole tree mirrored at the root (LayoutDirection in
+  // app/_layout.tsx) — flipping here too would undo it.
   const out: any = { ...styles };
   for (const k of keys) {
     if (out[k] && out[k].flexDirection === 'row') out[k] = { ...out[k], flexDirection: 'row-reverse' };

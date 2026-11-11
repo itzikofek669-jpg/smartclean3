@@ -62,7 +62,7 @@ import { useNow } from '../lib/useNow';
 import { withBookingDetails, migrateOpenJobDetails, fetchBookingDetails, backfillClientPhone, needsPhoneBackfill, urgentDetailsRef } from '../lib/bookingDetails';
 import { batchProfile, fetchOwnProfile, idPhotoRef, ownPhone } from '../lib/privateProfile';
 import { firstError, validateName, validatePhone, validatePrice, validateAge, validateDistance, normalizePhone } from '../lib/validate';
-import { trNow } from '../lib/trNow';
+import { trNow, isRtlNow } from '../lib/trNow';
 import { serviceLinesFor } from '../lib/serviceLines';
 import { claimPhone, releasePhone } from '../lib/accountChecks';
 import { isUrgentRequestLive, isUrgentRequestExpired, releasedByMe } from '../lib/urgentRequest';
@@ -425,7 +425,7 @@ function StarPicker({ value, onChange }: { value: number; onChange: (n: number) 
   const C = useAppColors();
   const { isRTL } = useLanguage();
   return (
-    <View style={{ flexDirection: isRTL ? 'row-reverse' : 'row', gap: 6 }}>
+    <View style={{ flexDirection: 'row-reverse', gap: 6 }}>
       {[1,2,3,4,5].map(i => (
         <TouchableOpacity key={i} onPress={() => onChange(i)}>
           <T style={{ fontSize: 30, color: i <= value ? C.gold : C.blueBorder }}>★</T>
@@ -2629,7 +2629,7 @@ export default function ProfileScreen() {
 
   /** Camera and gallery side by side, in the edit-profile sheet. */
   const sourceButtons = (onPick: (source: 'gallery' | 'camera') => void) => (
-    <View style={[ep.sourceRow, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
+    <View style={[ep.sourceRow, { flexDirection: 'row-reverse' }]}>
       <TouchableOpacity style={ep.sourceBtn} onPress={() => onPick('camera')}>
         <T style={ep.sourceBtnText}>📷 {t.cameraOption}</T>
       </TouchableOpacity>
@@ -2641,7 +2641,7 @@ export default function ProfileScreen() {
 
   // row-reverse in Hebrew and Arabic: the app never calls forceRTL, so a plain row
   // would put the first button on the physical left.
-  const cardActions = [s.cardActions, { flexDirection: isRTL ? 'row-reverse' : 'row' } as const];
+  const cardActions = [s.cardActions, { flexDirection: 'row-reverse' } as const];
   // hitSlop keeps the tap area near finger size now that the button itself is small.
   const cardBtn = (label: string, onPress: () => void, box?: object, text?: object) => (
     <TouchableOpacity style={[s.cardBtn, box]} hitSlop={{ top: 4, bottom: 4 }} onPress={onPress}>
@@ -2686,7 +2686,7 @@ export default function ProfileScreen() {
         {compact ? (() => {
           // ההיסטוריה — של הלקוח ושל נותן השירות באותו כרטיס (כמו באתר): סוג הניקיון
           // ועם מי (הצד השני), הסטטוס, היום והשעה, הכתובת והמחיר. בלי פירוט הניקיון.
-          const row = isRTL ? 'row-reverse' as const : 'row' as const;
+          const row = 'row-reverse' as const;
           const align = isRTL ? 'right' as const : 'left' as const;
           const keys = Array.isArray(b.serviceTypes) && b.serviceTypes.length ? b.serviceTypes : String(b.serviceType || '').split(' + ').filter(Boolean);
           const st = overdue ? 'expired' : b.status;
@@ -2710,8 +2710,8 @@ export default function ProfileScreen() {
           );
         })() : (<>
         {/* ── שורה עליונה: שם + מחיר ── */}
-        <View style={{ flexDirection: isRTL ? 'row-reverse' : 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 14, paddingTop: 14, paddingBottom: 8 }}>
-          <View style={{ flexDirection: isRTL ? 'row-reverse' : 'row', alignItems: 'center', gap: 10, flex: 1 }}>
+        <View style={{ flexDirection: 'row-reverse', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 14, paddingTop: 14, paddingBottom: 8 }}>
+          <View style={{ flexDirection: 'row-reverse', alignItems: 'center', gap: 10, flex: 1 }}>
             <View style={[s.bookingAvatar, { backgroundColor: statusBorderColor }]}>
               <T style={s.bookingAvatarText}>{personName.charAt(0)}</T>
             </View>
@@ -2737,7 +2737,7 @@ export default function ProfileScreen() {
 
           {/* תאריך + שעה */}
           {(b.bookingDate || b.startTime) && (
-            <View style={{ flexDirection: isRTL ? 'row-reverse' : 'row', alignItems: 'center', gap: 6 }}>
+            <View style={{ flexDirection: 'row-reverse', alignItems: 'center', gap: 6 }}>
               <T style={{ fontSize: 13, color: C.textDark, fontWeight: '700' }}>
                 📅 {b.bookingDate ? dateOnly(b.bookingDate).toLocaleDateString(LOCALE_MAP[lang] || 'he-IL', { weekday: 'short', day: '2-digit', month: '2-digit', year: '2-digit' }) : ''}
                 {b.startTime ? `  🕐 ${b.startTime}` : ''}
@@ -2754,7 +2754,7 @@ export default function ProfileScreen() {
           })()}
 
           {/* שעות + תשלום + סטטוס */}
-          <View style={{ flexDirection: isRTL ? 'row-reverse' : 'row', flexWrap: 'wrap', gap: 6 }}>
+          <View style={{ flexDirection: 'row-reverse', flexWrap: 'wrap', gap: 6 }}>
             <View style={s.detailPill}>
               <T style={s.detailPillText}>⏱ {hours} {t.hoursUnit}</T>
             </View>
@@ -2782,7 +2782,7 @@ export default function ProfileScreen() {
             return (
               <View style={{ marginTop: 10, marginBottom: 2 }}>
                 {/* "ממתין" first from the right in Hebrew, as the rest of the card reads. */}
-                <View style={{ flexDirection: isRTL ? 'row-reverse' : 'row', alignItems: 'center' }}>
+                <View style={{ flexDirection: 'row-reverse', alignItems: 'center' }}>
                   {steps.map((step, i) => (
                     <React.Fragment key={step.key}>
                       <View style={{ alignItems: 'center', flex: 1 }}>
@@ -2832,7 +2832,7 @@ export default function ProfileScreen() {
 
           {/* תשלום אושר */}
           {b.paymentStatus === 'paid' && (
-            <View style={{ flexDirection: isRTL ? 'row-reverse' : 'row', alignItems: 'center', gap: 6, backgroundColor: '#D1FAE5', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 5 }}>
+            <View style={{ flexDirection: 'row-reverse', alignItems: 'center', gap: 6, backgroundColor: '#D1FAE5', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 5 }}>
               <T style={{ fontSize: 12, fontWeight: '800', color: '#065F46' }}>{t.paymentApproved}</T>
             </View>
           )}
@@ -2871,7 +2871,7 @@ export default function ProfileScreen() {
             <View>
               <T style={{ fontSize: 11, fontWeight: '700', color: C.textSub, marginBottom: 6, textAlign: isRTL ? 'right' : 'left' }}>{t.photosTitle}</T>
               {forCleaner && (
-                <View style={{ flexDirection: isRTL ? 'row-reverse' : 'row', gap: 8, flexWrap: 'wrap' }}>
+                <View style={{ flexDirection: 'row-reverse', gap: 8, flexWrap: 'wrap' }}>
                   <TouchableOpacity style={s.photoBtn} onPress={() => uploadJobPhoto(b.id, 'before')}>
                     <T style={s.photoBtnText}>📸 {t.beforePhotosLabel}</T>
                   </TouchableOpacity>
@@ -3045,7 +3045,7 @@ export default function ProfileScreen() {
                 {!keyboardOpen && (<>
                 {/* ─── כרטיס הזמנה קומפקטי ─── */}
                 <View style={{ backgroundColor: C.blueLight, marginHorizontal: 12, marginTop: 10, borderRadius: 16, padding: 14, gap: 6, borderWidth: 1.5, borderColor: C.blueBorder }}>
-                  <View style={{ flexDirection: isRTL ? 'row-reverse' : 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <View style={{ flexDirection: 'row-reverse', alignItems: 'center', justifyContent: 'space-between' }}>
                     <T style={{ fontSize: 15, fontWeight: '900', color: C.textDark }}>👤 {pendingConfirmBooking.clientName}</T>
                     <T style={{ fontSize: 16, fontWeight: '900', color: C.blue }}>₪{pendingConfirmBooking.total}</T>
                   </View>
@@ -3070,7 +3070,7 @@ export default function ProfileScreen() {
                       : (pendingConfirmBooking.serviceType ? String(pendingConfirmBooking.serviceType).split(' + ').map((st: string) => t.types[st] || st).join(', ') : ''));
                     return svc ? <T style={{ fontSize: 13, fontWeight: '800', color: C.blue }}>{svc}</T> : null;
                   })()}
-                  <View style={{ flexDirection: isRTL ? 'row-reverse' : 'row', flexWrap: 'wrap', gap: 10 }}>
+                  <View style={{ flexDirection: 'row-reverse', flexWrap: 'wrap', gap: 10 }}>
                     <T style={{ fontSize: 12, color: C.textSub }}>📅 {pendingConfirmBooking.bookingDate}  🕐 {pendingConfirmBooking.startTime}</T>
                     <T style={{ fontSize: 12, color: C.textSub }}>⏱️ {pendingConfirmBooking.hours} {t.hoursUnit}</T>
                     <T style={{ fontSize: 12, color: C.textSub }}>
@@ -3081,7 +3081,7 @@ export default function ProfileScreen() {
 
                 {/* ─── כפתור שינוי שעה ─── */}
                 <TouchableOpacity
-                  style={{ flexDirection: isRTL ? 'row-reverse' : 'row', alignItems: 'center', gap: 8, marginHorizontal: 12, marginTop: 10, backgroundColor: '#F59E0B', borderRadius: 14, paddingHorizontal: 18, paddingVertical: 13, alignSelf: isRTL ? 'flex-end' : 'flex-start', elevation: 3, shadowColor: '#92400E', shadowOpacity: 0.25, shadowRadius: 6, shadowOffset: { width: 0, height: 3 } }}
+                  style={{ flexDirection: 'row-reverse', alignItems: 'center', gap: 8, marginHorizontal: 12, marginTop: 10, backgroundColor: '#F59E0B', borderRadius: 14, paddingHorizontal: 18, paddingVertical: 13, alignSelf: 'flex-end', elevation: 3, shadowColor: '#92400E', shadowOpacity: 0.25, shadowRadius: 6, shadowOffset: { width: 0, height: 3 } }}
                   onPress={() => setShowPendingTimeChange(v => !v)}
                   activeOpacity={0.82}
                 >
@@ -3201,7 +3201,7 @@ export default function ProfileScreen() {
                         <View style={{ alignItems: isMe ? 'flex-end' : 'flex-start' }}>
                           <TouchableOpacity
                             onPress={() => playCleanerAudio(item, item.id)}
-                            style={{ flexDirection: isRTL ? 'row-reverse' : 'row', alignItems: 'center', gap: 6, backgroundColor: isMe ? C.blue : C.white, borderRadius: 16, paddingHorizontal: 14, paddingVertical: 10, maxWidth: '80%', borderWidth: isMe ? 0 : 1, borderColor: C.blueBorder, elevation: 1 }}
+                            style={{ flexDirection: 'row-reverse', alignItems: 'center', gap: 6, backgroundColor: isMe ? C.blue : C.white, borderRadius: 16, paddingHorizontal: 14, paddingVertical: 10, maxWidth: '80%', borderWidth: isMe ? 0 : 1, borderColor: C.blueBorder, elevation: 1 }}
                           >
                             <T style={{ fontSize: 22 }}>{isPlaying ? '⏸' : '▶️'}</T>
                             <T style={{ color: isMe ? '#fff' : C.textDark, fontSize: 13 }}>🎤 {isPlaying ? t.recordingAudio ?? trNow('voicePlaying') : trNow('voiceMessageLabel')}</T>
@@ -3299,7 +3299,7 @@ export default function ProfileScreen() {
                     );
                   }
                   return (
-                <View style={{ flexDirection: isRTL ? 'row-reverse' : 'row', gap: 10, paddingHorizontal: 12, paddingTop: 10, paddingBottom: keyboardOpen ? 8 : insets.bottom + 10, backgroundColor: C.white, borderTopWidth: 1, borderTopColor: C.blueBorder }}>
+                <View style={{ flexDirection: 'row-reverse', gap: 10, paddingHorizontal: 12, paddingTop: 10, paddingBottom: keyboardOpen ? 8 : insets.bottom + 10, backgroundColor: C.white, borderTopWidth: 1, borderTopColor: C.blueBorder }}>
                   <TouchableOpacity
                     style={{ flex: 1, backgroundColor: '#10B981', borderRadius: 14, paddingVertical: 14, alignItems: 'center' }}
                     onPress={() => handleConfirmBooking(pendingConfirmBooking)}
@@ -3382,7 +3382,7 @@ export default function ProfileScreen() {
                   <View style={{ backgroundColor: C.blueLight, borderRadius: 16, padding: 16, gap: 12, borderWidth: 1.5, borderColor: C.blueBorder }}>
 
                     {/* שם מנקה + סטטוס */}
-                    <View style={{ flexDirection: isRTL ? 'row-reverse' : 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <View style={{ flexDirection: 'row-reverse', justifyContent: 'space-between', alignItems: 'center' }}>
                       <T style={{ fontSize: 17, fontWeight: '900', color: C.textDark }}>🧹 {b.cleanerName || trNow('providerWord')}</T>
                       <View style={{ backgroundColor: statusColor, borderRadius: 10, paddingHorizontal: 10, paddingVertical: 4 }}>
                         <T style={{ fontSize: 12, fontWeight: '800', color: '#fff' }}>{getStatusLabel(b.status)}</T>
@@ -3395,7 +3395,7 @@ export default function ProfileScreen() {
                     <T style={{ fontSize: 15, color: C.textDark, lineHeight: 22 }}>📍 {b.address}</T>
 
                     {/* תאריך + שעה */}
-                    <View style={{ flexDirection: isRTL ? 'row-reverse' : 'row', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                    <View style={{ flexDirection: 'row-reverse', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
                       <T style={{ fontSize: 15, fontWeight: '700', color: C.textDark }}>
                         📅 {b.bookingDate ? new Date(b.bookingDate).toLocaleDateString(LOCALE_MAP[lang] || 'he-IL', { weekday: 'long', day: '2-digit', month: '2-digit', year: '2-digit' }) : b.bookingDate}
                       </T>
@@ -3403,7 +3403,7 @@ export default function ProfileScreen() {
                     </View>
 
                     {/* שעות + תשלום */}
-                    <View style={{ flexDirection: isRTL ? 'row-reverse' : 'row', gap: 16, flexWrap: 'wrap' }}>
+                    <View style={{ flexDirection: 'row-reverse', gap: 16, flexWrap: 'wrap' }}>
                       <T style={{ fontSize: 15, fontWeight: '700', color: C.textDark }}>⏱️ {b.hours} {t.hoursUnit}</T>
                       <T style={{ fontSize: 15, fontWeight: '700', color: C.textDark }}>
                         {PAY_ICONS[b.payment] || '💳'} {b.payment === 'bit' ? t.payBit : b.payment === 'cash' ? t.payCash : b.payment === 'paybox' ? t.payPaybox : b.payment === 'bank' ? t.payBank : b.payment === 'card' ? t.payCard : b.payment}
@@ -3411,7 +3411,7 @@ export default function ProfileScreen() {
                     </View>
 
                     {/* סה"כ */}
-                    <View style={{ flexDirection: isRTL ? 'row-reverse' : 'row', justifyContent: 'space-between', alignItems: 'center', borderTopWidth: 1, borderTopColor: C.blueBorder, paddingTop: 10 }}>
+                    <View style={{ flexDirection: 'row-reverse', justifyContent: 'space-between', alignItems: 'center', borderTopWidth: 1, borderTopColor: C.blueBorder, paddingTop: 10 }}>
                       <T style={{ fontSize: 14, color: C.textSub }}>{t.totalLabel}</T>
                       <T style={{ fontSize: 24, fontWeight: '900', color: C.blue }}>₪{b.total}</T>
                     </View>
@@ -3461,27 +3461,27 @@ export default function ProfileScreen() {
               <>
                 {/* כרטיס פרטים */}
                 <View style={{ backgroundColor: C.blueLight, borderRadius: 16, padding: 18, gap: 13 }}>
-                  <View style={{ flexDirection: isRTL ? 'row-reverse' : 'row', alignItems: 'center', gap: 10 }}>
+                  <View style={{ flexDirection: 'row-reverse', alignItems: 'center', gap: 10 }}>
                     <T style={{ fontSize: 20 }}>👤</T>
                     <T style={{ fontSize: 18, fontWeight: '900', color: C.textDark }}>{confirmedBookingView.clientName}</T>
                   </View>
-                  <View style={{ flexDirection: isRTL ? 'row-reverse' : 'row', alignItems: 'center', gap: 10 }}>
+                  <View style={{ flexDirection: 'row-reverse', alignItems: 'center', gap: 10 }}>
                     <T style={{ fontSize: 18 }}>📍</T>
                     <T style={{ fontSize: 16, color: C.textDark, flex: 1, lineHeight: 22 }}>{confirmedBookingView.address}</T>
                   </View>
-                  <View style={{ flexDirection: isRTL ? 'row-reverse' : 'row', alignItems: 'center', gap: 10 }}>
+                  <View style={{ flexDirection: 'row-reverse', alignItems: 'center', gap: 10 }}>
                     <T style={{ fontSize: 18 }}>📅</T>
                     <T style={{ fontSize: 17, fontWeight: '700', color: C.textDark }}>{confirmedBookingView.bookingDate}</T>
                     <T style={{ fontSize: 18 }}>🕐</T>
                     <T style={{ fontSize: 17, fontWeight: '700', color: C.textDark }}>{confirmedBookingView.startTime}</T>
                   </View>
-                  <View style={{ flexDirection: isRTL ? 'row-reverse' : 'row', gap: 20, flexWrap: 'wrap' }}>
+                  <View style={{ flexDirection: 'row-reverse', gap: 20, flexWrap: 'wrap' }}>
                     <T style={{ fontSize: 16, fontWeight: '700', color: C.textDark }}>⏱️ {confirmedBookingView.hours} {t.hoursUnit}</T>
                     <T style={{ fontSize: 16, fontWeight: '700', color: C.textDark }}>
                       {PAY_ICONS[confirmedBookingView.payment] || '💳'} {confirmedBookingView.payment === 'bit' ? t.payBit : confirmedBookingView.payment === 'cash' ? t.payCash : confirmedBookingView.payment === 'paybox' ? t.payPaybox : confirmedBookingView.payment === 'bank' ? t.payBank : confirmedBookingView.payment === 'card' ? t.payCard : confirmedBookingView.payment}
                     </T>
                   </View>
-                  <View style={{ flexDirection: isRTL ? 'row-reverse' : 'row', justifyContent: 'space-between', alignItems: 'center', borderTopWidth: 1.5, borderTopColor: C.blueBorder, paddingTop: 12, marginTop: 2 }}>
+                  <View style={{ flexDirection: 'row-reverse', justifyContent: 'space-between', alignItems: 'center', borderTopWidth: 1.5, borderTopColor: C.blueBorder, paddingTop: 12, marginTop: 2 }}>
                     <T style={{ fontSize: 15, fontWeight: '700', color: C.textSub }}>{t.totalLabel}</T>
                     <T style={{ fontSize: 26, fontWeight: '900', color: C.blue }}>₪{confirmedBookingView.total}</T>
                   </View>
@@ -3534,7 +3534,7 @@ export default function ProfileScreen() {
 
           {/* Stats */}
           {/* מימין לשמאל, כמו באתר: "הזמנות" ראשון מימין. */}
-          <View style={[s.statsRow, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
+          <View style={[s.statsRow, { flexDirection: 'row-reverse' }]}>
             <View style={s.statBox}>
               <T style={s.statVal}>{(isCleaner ? incomingBks : bookings).filter(b => b.status !== 'cancelled').length}</T>
               <T style={s.statLabel}>{t.bookingsLabel}</T>
@@ -3559,7 +3559,7 @@ export default function ProfileScreen() {
               בלי זה מתג יכול להיראות דלוק אצל מי שכיבה אותו. */}
           {isCleaner && isAvailable !== null && (
             <TouchableOpacity
-              style={[s.statusCard, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}
+              style={[s.statusCard, { flexDirection: 'row-reverse' }]}
               onPress={toggleAvailable}
               activeOpacity={0.8}
               accessibilityRole="switch"
@@ -3591,7 +3591,7 @@ export default function ProfileScreen() {
             ];
             return (
               <View style={s.section} onLayout={e => jumpToBookings(e.nativeEvent.layout.y)}>
-                <View style={[s.seg, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
+                <View style={[s.seg, { flexDirection: 'row-reverse' }]}>
                   {tabs.map(tab => {
                     const on = bookingsTab === tab.key;
                     return (
@@ -3723,7 +3723,7 @@ export default function ProfileScreen() {
                       : '';
                     return (
                       <View key={req.id} style={{ backgroundColor: '#F5F3FF', borderRadius: 16, padding: 16, marginBottom: 12, borderWidth: 2, borderColor: '#7C3AED', gap: 8 }}>
-                        <View style={{ flexDirection: isRTL ? 'row-reverse' : 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <View style={{ flexDirection: 'row-reverse', justifyContent: 'space-between', alignItems: 'center' }}>
                           <T style={{ fontSize: 16, fontWeight: '900', color: '#4C1D95' }}>{t.urgentCardTitle}</T>
                           <View style={{ alignItems: 'flex-end', gap: 2 }}>
                             <T style={{ fontSize: 11, color: '#6D28D9', fontWeight: '700' }}>⏳ {trNow('durMin', { m: expiresIn })}</T>
@@ -3733,7 +3733,7 @@ export default function ProfileScreen() {
                         <T style={{ fontSize: 14, color: C.textDark, fontWeight: '700' }}>👤 {req.clientName}</T>
                         <T style={{ fontSize: 13, color: C.textDark }}>📍 {req.address || req.addrCity}</T>
                         {req.publicNotes ? <T style={{ fontSize: 13, color: C.textDark, backgroundColor: '#FFFBEB', borderWidth: 1, borderColor: '#FDE68A', borderRadius: 10, paddingHorizontal: 10, paddingVertical: 6 }}>📝 {req.publicNotes}</T> : null}
-                        <View style={{ flexDirection: isRTL ? 'row-reverse' : 'row', gap: 12 }}>
+                        <View style={{ flexDirection: 'row-reverse', gap: 12 }}>
                           <T style={{ fontSize: 12, color: C.textSub }}>📅 {urgentDayLabel(req)} {req.startTime}</T>
                           <T style={{ fontSize: 12, color: C.textSub }}>⏱️ {req.hours} {t.hoursUnit}</T>
                           <T style={{ fontSize: 12, color: C.textSub }}>₪{req.total}</T>
@@ -3756,7 +3756,7 @@ export default function ProfileScreen() {
 
               {/* 2. Dashboard */}
               <T style={[s.sectionTitle, { marginBottom: 10, textAlign: 'center' }]}>📊 {t.dashboardTitle}</T>
-              <View style={[s.dashRow, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
+              <View style={[s.dashRow, { flexDirection: 'row-reverse' }]}>
                 <View style={s.dashCard}>
                   <T style={s.dashVal}>₪{thisMonthEarned}</T>
                   <T style={s.dashLabel}>{t.thisMonthLabel}</T>
@@ -3774,7 +3774,7 @@ export default function ProfileScreen() {
                   <T style={s.dashLabel}>{t.avgRatingLabel}</T>
                 </View>
               </View>
-              <View style={[s.dashRow, { marginTop: 10, flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
+              <View style={[s.dashRow, { marginTop: 10, flexDirection: 'row-reverse' }]}>
                 <View style={s.dashCard}>
                   <T style={s.dashVal}>₪{allTimeEarned}</T>
                   <T style={s.dashLabel}>{t.allTimeEarningsLabel}</T>
@@ -3786,7 +3786,7 @@ export default function ProfileScreen() {
               </View>
               <View style={{ marginTop: 16 }}>
                 <T style={[s.sectionTitle, { textAlign: 'center' }]}>{t.earningsChartLabel}</T>
-                <View style={{ flexDirection: isRTL ? 'row-reverse' : 'row', alignItems: 'flex-end', gap: 6, height: 100, marginTop: 8 }}>
+                <View style={{ flexDirection: 'row-reverse', alignItems: 'flex-end', gap: 6, height: 100, marginTop: 8 }}>
                   {monthlyEarnings.map((val, i) => {
                     const pct = val / maxMonthly;
                     const barH = Math.max(pct * 80, val > 0 ? 4 : 0);
@@ -3850,7 +3850,7 @@ export default function ProfileScreen() {
 
               {/* 4. לוח שבועי */}
               <T style={[s.sectionTitle, { textAlign: 'center', marginBottom: 12 }]}>{t.scheduleWeekTitle}</T>
-              <View style={{ flexDirection: isRTL ? 'row-reverse' : 'row', gap: 4 }}>
+              <View style={{ flexDirection: 'row-reverse', gap: 4 }}>
                 {((t as any).dayNamesShort || ['א','ב','ג','ד','ה','ו','ש']).map((day: string, di: number) => {
                   const dayDate = new Date(weekStart);
                   dayDate.setDate(weekStart.getDate() + di);
@@ -3894,7 +3894,7 @@ export default function ProfileScreen() {
                     <T style={s.emptyText}>{t.portfolioEmpty}</T>
                   </View>
                 ) : (
-                  <View style={{ flexDirection: isRTL ? 'row-reverse' : 'row', flexWrap: 'wrap', gap: 8 }}>
+                  <View style={{ flexDirection: 'row-reverse', flexWrap: 'wrap', gap: 8 }}>
                     {portfolio.map((uri, i) => (
                       <TouchableOpacity key={i} onLongPress={() => removePortfolioPhoto(i)}>
                         <Image source={{ uri }} style={{ width: 88, height: 88, borderRadius: 14 }} contentFit="cover" />
@@ -4028,7 +4028,7 @@ export default function ProfileScreen() {
             </View>
 
             {/* טאבים */}
-            <View style={{ flexDirection: isRTL ? 'row-reverse' : 'row', gap: 8, marginBottom: 16 }}>
+            <View style={{ flexDirection: 'row-reverse', gap: 8, marginBottom: 16 }}>
               {(['bit','paybox','bank'] as const).map(tab => (
                 <TouchableOpacity
                   key={tab}
@@ -4159,7 +4159,7 @@ export default function ProfileScreen() {
                     ].filter(r => r.value).map(row => (
                       <TouchableOpacity
                         key={row.key}
-                        style={{ flexDirection: isRTL ? 'row-reverse' : 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: C.blueLight, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 12, borderWidth: 1, borderColor: C.blueBorder }}
+                        style={{ flexDirection: 'row-reverse', alignItems: 'center', justifyContent: 'space-between', backgroundColor: C.blueLight, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 12, borderWidth: 1, borderColor: C.blueBorder }}
                         onPress={() => {
                           Clipboard.setString(row.value);
                           setPayCopied(row.key);
@@ -4299,7 +4299,7 @@ export default function ProfileScreen() {
                   value={chatInput}
                   onChangeText={setChatInput}
                   placeholderTextColor={C.textSub}
-                  textAlign="right"
+                  textAlign={isRtlNow() ? 'right' : 'left'}
                   onSubmitEditing={sendCleanerMessage}
                 />
                 <TouchableOpacity accessibilityRole="button" accessibilityLabel={trNow('a11yAttachPhoto')}
@@ -4400,7 +4400,7 @@ export default function ProfileScreen() {
                       multiline
                     />
                   </View>
-                  <View style={{ flexDirection: isRTL ? 'row-reverse' : 'row', gap: 10 }}>
+                  <View style={{ flexDirection: 'row-reverse', gap: 10 }}>
                     <TouchableOpacity
                       style={{ flex: 1, backgroundColor: C.grayBg, borderRadius: 12, paddingVertical: 13, alignItems: 'center', borderWidth: 1, borderColor: C.grayBorder }}
                       onPress={() => setInsuranceOpen(false)}
@@ -4451,7 +4451,7 @@ export default function ProfileScreen() {
               {/* שם */}
               <View>
                 <T style={ep.label}>{t.editFullNameLabel}</T>
-                <TextInput style={ep.input} value={editName} onChangeText={setEditName} placeholder={t.editFullNameLabel} placeholderTextColor={C.textSub} textAlign="right" />
+                <TextInput style={ep.input} value={editName} onChangeText={setEditName} placeholder={t.editFullNameLabel} placeholderTextColor={C.textSub} textAlign={isRtlNow() ? 'right' : 'left'} />
               </View>
 
               {/* כתובת מלאה — לקוח בלבד */}
@@ -4468,7 +4468,7 @@ export default function ProfileScreen() {
                       onChangeText={setEditCity}
                       placeholder={t.cityExamplePh}
                       placeholderTextColor={C.textSub}
-                      textAlign="right"
+                      textAlign={isRtlNow() ? 'right' : 'left'}
                     />
                   </View>
 
@@ -4481,21 +4481,21 @@ export default function ProfileScreen() {
                       onChangeText={setEditStreet}
                       placeholder={t.streetExamplePh}
                       placeholderTextColor={C.textSub}
-                      textAlign="right"
+                      textAlign={isRtlNow() ? 'right' : 'left'}
                     />
                   </View>
 
                   {/* סוג דיור */}
-                  <View style={{ flexDirection: isRTL ? 'row-reverse' : 'row', gap: 10 }}>
+                  <View style={{ flexDirection: 'row-reverse', gap: 10 }}>
                     <TouchableOpacity
-                      style={{ flex: 1, flexDirection: isRTL ? 'row-reverse' : 'row', alignItems: 'center', gap: 8, backgroundColor: !editAddrPrivate ? C.blue : C.bluePale, borderRadius: 12, padding: 12, borderWidth: 1.5, borderColor: !editAddrPrivate ? C.blue : C.blueBorder }}
+                      style={{ flex: 1, flexDirection: 'row-reverse', alignItems: 'center', gap: 8, backgroundColor: !editAddrPrivate ? C.blue : C.bluePale, borderRadius: 12, padding: 12, borderWidth: 1.5, borderColor: !editAddrPrivate ? C.blue : C.blueBorder }}
                       onPress={() => setEditAddrPrivate(false)}
                     >
                       <T style={{ fontSize: 16 }}>{!editAddrPrivate ? '🔵' : '⚪'}</T>
                       <T style={{ fontWeight: '700', color: !editAddrPrivate ? C.white : C.textDark, fontSize: 14 }}>{t.apartmentLabel}</T>
                     </TouchableOpacity>
                     <TouchableOpacity
-                      style={{ flex: 1, flexDirection: isRTL ? 'row-reverse' : 'row', alignItems: 'center', gap: 8, backgroundColor: editAddrPrivate ? C.blue : C.bluePale, borderRadius: 12, padding: 12, borderWidth: 1.5, borderColor: editAddrPrivate ? C.blue : C.blueBorder }}
+                      style={{ flex: 1, flexDirection: 'row-reverse', alignItems: 'center', gap: 8, backgroundColor: editAddrPrivate ? C.blue : C.bluePale, borderRadius: 12, padding: 12, borderWidth: 1.5, borderColor: editAddrPrivate ? C.blue : C.blueBorder }}
                       onPress={() => setEditAddrPrivate(true)}
                     >
                       <T style={{ fontSize: 16 }}>{editAddrPrivate ? '🔵' : '⚪'}</T>
@@ -4505,7 +4505,7 @@ export default function ProfileScreen() {
 
                   {/* קומה + דירה */}
                   {!editAddrPrivate && (
-                    <View style={{ flexDirection: isRTL ? 'row-reverse' : 'row', gap: 10 }}>
+                    <View style={{ flexDirection: 'row-reverse', gap: 10 }}>
                       <View style={{ flex: 1 }}>
                         <T style={[ep.label, { fontSize: 12, color: C.textSub }]}>{t.floorPh}</T>
                         <TextInput
@@ -4515,7 +4515,7 @@ export default function ProfileScreen() {
                           placeholder="3"
                           keyboardType="numeric"
                           placeholderTextColor={C.textSub}
-                          textAlign="right"
+                          textAlign={isRtlNow() ? 'right' : 'left'}
                         />
                       </View>
                       <View style={{ flex: 1 }}>
@@ -4527,7 +4527,7 @@ export default function ProfileScreen() {
                           placeholder="12"
                           keyboardType="numeric"
                           placeholderTextColor={C.textSub}
-                          textAlign="right"
+                          textAlign={isRtlNow() ? 'right' : 'left'}
                         />
                       </View>
                     </View>
@@ -4548,7 +4548,7 @@ export default function ProfileScreen() {
               {/* טלפון */}
               <View>
                 <T style={ep.label}>{t.editPhoneLabel}</T>
-                <TextInput style={ep.input} value={editPhone} onChangeText={setEditPhone} placeholder="05X-XXXXXXX" keyboardType="phone-pad" placeholderTextColor={C.textSub} textAlign="right" />
+                <TextInput style={ep.input} value={editPhone} onChangeText={setEditPhone} placeholder="05X-XXXXXXX" keyboardType="phone-pad" placeholderTextColor={C.textSub} textAlign={isRtlNow() ? 'right' : 'left'} />
               </View>
 
               {/* שדות מנקה בלבד */}
@@ -4557,7 +4557,7 @@ export default function ProfileScreen() {
               {/* כתובת מנקה מלאה — מתחת לטלפון */}
               <View>
                 <T style={ep.label}>{t.cleanerAddressLabel}</T>
-                <TextInput style={ep.input} value={editCleanerAddress} onChangeText={setEditCleanerAddress} placeholder={t.cleanerAddressPlaceholder} placeholderTextColor={C.textSub} textAlign="right" />
+                <TextInput style={ep.input} value={editCleanerAddress} onChangeText={setEditCleanerAddress} placeholder={t.cleanerAddressPlaceholder} placeholderTextColor={C.textSub} textAlign={isRtlNow() ? 'right' : 'left'} />
               </View>
 
               {/* גיל + אזרחות — כמו בהרשמה */}
@@ -4587,7 +4587,7 @@ export default function ProfileScreen() {
               {/* שפות — נשמרות כקודים, כך שלקוח רואה אותן בשפה שלו */}
               <View>
                 <T style={ep.label}>{(t as any).traitLanguages ?? 'דובר שפות'}</T>
-                <View style={{ flexDirection: isRTL ? 'row-reverse' : 'row', flexWrap: 'wrap', gap: 8 }}>
+                <View style={{ flexDirection: 'row-reverse', flexWrap: 'wrap', gap: 8 }}>
                   {LANGUAGE_CODES.map(code => {
                     const on = editLanguages.includes(code);
                     return (
@@ -4626,14 +4626,14 @@ export default function ProfileScreen() {
                   placeholder={t.editBioShortPlaceholder}
                   multiline
                   placeholderTextColor={C.textSub}
-                  textAlign="right"
+                  textAlign={isRtlNow() ? 'right' : 'left'}
                 />
               </View>
 
               {/* נייד */}
               <View>
                 <T style={ep.label}>{t.editMobileLabel}</T>
-                <View style={{ flexDirection: isRTL ? 'row-reverse' : 'row', gap: 10 }}>
+                <View style={{ flexDirection: 'row-reverse', gap: 10 }}>
                   {[{ v: true, label: t.editMobileYes }, { v: false, label: t.editMobileNo }].map(opt => (
                     <TouchableOpacity key={String(opt.v)} style={[ep.pill, editIsMobile === opt.v && ep.pillActive, { flex: 1, alignItems: 'center', paddingVertical: 12 }]} onPress={() => setEditIsMobile(opt.v)}>
                       <T style={[ep.pillText, editIsMobile === opt.v && ep.pillTextActive]}>{opt.label}</T>
@@ -4645,7 +4645,7 @@ export default function ProfileScreen() {
               {/* ציוד */}
               <View>
                 <T style={ep.label}>{t.suppliesLabel}</T>
-                <View style={{ flexDirection: isRTL ? 'row-reverse' : 'row', gap: 10 }}>
+                <View style={{ flexDirection: 'row-reverse', gap: 10 }}>
                   {[{ v: true, label: t.suppliesYesShort }, { v: false, label: t.suppliesNoShort }].map(opt => (
                     <TouchableOpacity key={String(opt.v)} style={[ep.pill, editBringSupplies === opt.v && ep.pillActive, { flex: 1, alignItems: 'center', paddingVertical: 12 }]} onPress={() => setEditBringSupplies(opt.v)}>
                       <T style={[ep.pillText, editBringSupplies === opt.v && ep.pillTextActive]}>{opt.label}</T>
@@ -4704,7 +4704,7 @@ export default function ProfileScreen() {
               <View>
                 <T style={ep.label}>{t.editPaymentLabel}</T>
                 {/* ארבעה כפתורים קטנים בשורה אחת */}
-                <View style={{ flexDirection: isRTL ? 'row-reverse' : 'row', gap: 6, marginTop: 6 }}>
+                <View style={{ flexDirection: 'row-reverse', gap: 6, marginTop: 6 }}>
                   {[{ key: 'cash', label: '💵 ' + t.payCash }, { key: 'bit', label: '📱 ' + t.payBit }, { key: 'paybox', label: '💜 ' + t.payPaybox }, { key: 'bank', label: '🏦 ' + t.payBank }].map(p => (
                     <TouchableOpacity key={p.key} style={[ep.pill, editPayment.includes(p.key) && ep.pillActive, { flex: 1, alignItems: 'center', paddingHorizontal: 4, paddingVertical: 7 }]} onPress={() => toggleEdit(editPayment, setEditPayment, p.key)}>
                       <T numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75} style={[ep.pillText, { fontSize: 12 }, editPayment.includes(p.key) && ep.pillTextActive]}>{p.label}</T>
@@ -4746,13 +4746,13 @@ export default function ProfileScreen() {
                 <View style={{ backgroundColor: C.white, borderRadius: 12, padding: 14, borderWidth: 1, borderColor: C.blueBorder, gap: 10, marginTop: 6 }}>
                   <T style={{ fontSize: 12, color: C.textSub, lineHeight: 18 }}>{t.idVerifyInfo}</T>
                   {idVerified ? (
-                    <View style={{ flexDirection: isRTL ? 'row-reverse' : 'row', alignItems: 'center', gap: 10, backgroundColor: '#DCFCE7', borderRadius: 12, padding: 12 }}>
+                    <View style={{ flexDirection: 'row-reverse', alignItems: 'center', gap: 10, backgroundColor: '#DCFCE7', borderRadius: 12, padding: 12 }}>
                       <T style={{ fontSize: 22 }}>🪪</T>
                       <T style={{ fontSize: 14, fontWeight: '900', color: '#15803D' }}>{t.idVerifyDone}</T>
                     </View>
                   ) : idSubmitted ? (
                     <View style={{ gap: 8 }}>
-                      <View style={{ flexDirection: isRTL ? 'row-reverse' : 'row', alignItems: 'center', gap: 10, backgroundColor: '#FEF3C7', borderRadius: 12, padding: 12 }}>
+                      <View style={{ flexDirection: 'row-reverse', alignItems: 'center', gap: 10, backgroundColor: '#FEF3C7', borderRadius: 12, padding: 12 }}>
                         <T style={{ fontSize: 22 }}>⏳</T>
                         <T style={{ flex: 1, fontSize: 14, fontWeight: '800', color: '#92400E' }}>{(t as any).idVerifyPending ?? 'ממתין לאישור'}</T>
                       </View>
@@ -4775,7 +4775,7 @@ export default function ProfileScreen() {
               <View>
                 <T style={[ep.label, { textAlign: 'center', fontSize: 15 }]}>📅 {t.availTitle}</T>
                 {/* מימין לשמאל, ראשון מימין — כמו באתר. */}
-                <View style={{ flexDirection: isRTL ? 'row-reverse' : 'row', flexWrap: 'wrap', gap: 8, marginTop: 8 }}>
+                <View style={{ flexDirection: 'row-reverse', flexWrap: 'wrap', gap: 8, marginTop: 8 }}>
                   {DAYS_KEYS.map((day, i) => {
                     const d = availability[day] || { active: false, start: 9, end: 18 };
                     return (
@@ -4791,9 +4791,9 @@ export default function ProfileScreen() {
                       const d = availability[day];
                       if (!d?.active) return null;
                       return (
-                        <View key={day} style={[s.dayRow, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
+                        <View key={day} style={[s.dayRow, { flexDirection: 'row-reverse' }]}>
                           <T style={s.dayHourLabel}>{DAYS_LABELS[i]}</T>
-                          <View style={[s.hoursRow, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
+                          <View style={[s.hoursRow, { flexDirection: 'row-reverse' }]}>
                             <View style={s.hourCtrl}>
                               <TouchableOpacity onPress={() => updateDayHours(day, 'start', -1)} style={s.hourArrow}><T style={s.hourArrowText}>◀</T></TouchableOpacity>
                               <T style={s.hourVal}>{String(d.start).padStart(2,'0')}:00</T>
@@ -4852,7 +4852,7 @@ export default function ProfileScreen() {
                   key={opt.key}
                   onPress={() => setReportType(opt.key as any)}
                   style={{
-                    flexDirection: isRTL ? 'row-reverse' : 'row', alignItems: 'center', gap: 12,
+                    flexDirection: 'row-reverse', alignItems: 'center', gap: 12,
                     backgroundColor: reportType === opt.key ? C.blue : C.white,
                     borderRadius: 12, padding: 14,
                     borderWidth: 1.5, borderColor: reportType === opt.key ? C.blue : C.blueBorder,

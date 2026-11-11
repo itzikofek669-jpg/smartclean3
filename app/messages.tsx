@@ -1,3 +1,4 @@
+import { isRtlNow } from '../lib/trNow';
 import React, { useState, useEffect, useRef } from 'react';
 import {
   View, Text, StyleSheet, FlatList, TouchableOpacity, TextInput,
@@ -640,7 +641,7 @@ function InlineChatModal({ chatId, otherUid, otherName, visible, onClose, onDeci
                   </View>
                 );
               })()}
-              <View style={{ flexDirection: isRTL ? 'row-reverse' : 'row', gap: 10 }}>
+              <View style={{ flexDirection: 'row-reverse', gap: 10 }}>
                 <TouchableOpacity
                   disabled={deciding}
                   accessibilityRole="button"
@@ -725,7 +726,7 @@ function InlineChatModal({ chatId, otherUid, otherName, visible, onClose, onDeci
                       style={[
                         cs.bubble,
                         isMe ? cs.bubbleMe : cs.bubbleOther,
-                        { flexDirection: isRTL ? 'row-reverse' : 'row', alignItems: 'center', gap: 8, paddingVertical: 10 },
+                        { flexDirection: 'row-reverse', alignItems: 'center', gap: 8, paddingVertical: 10 },
                       ]}
                       onPress={() => playAudio(m.audioBase64, m.audioUrl, m.id)}
                     >
@@ -783,7 +784,7 @@ function InlineChatModal({ chatId, otherUid, otherName, visible, onClose, onDeci
                 value={text}
                 onChangeText={setText}
                 placeholderTextColor={C.textSub}
-                textAlign="right"
+                textAlign={isRtlNow() ? 'right' : 'left'}
                 onSubmitEditing={send}
               />
               <TouchableOpacity accessibilityRole="button" accessibilityLabel={t.a11yAttachPhoto}
@@ -1056,7 +1057,7 @@ export default function MessagesScreen() {
         <>
           {/* רצועת מידע במצב בחירה */}
           {convSelecting && (
-            <View style={{ backgroundColor: '#FEF2F2', paddingHorizontal: 16, paddingVertical: 8, flexDirection: isRTL ? 'row-reverse' : 'row', justifyContent: 'space-between', alignItems: 'center', borderBottomWidth: 1, borderColor: '#FCA5A5' }}>
+            <View style={{ backgroundColor: '#FEF2F2', paddingHorizontal: 16, paddingVertical: 8, flexDirection: 'row-reverse', justifyContent: 'space-between', alignItems: 'center', borderBottomWidth: 1, borderColor: '#FCA5A5' }}>
               <TouchableOpacity onPress={() => {
                 if (selectedConvs.size === conversations.length) {
                   setSelectedConvs(new Set());

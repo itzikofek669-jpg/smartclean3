@@ -25,3 +25,8 @@ export function trNow(key: string, vars?: Record<string, string | number>): stri
   for (const [k, v] of Object.entries(vars ?? {})) text = text.split('{' + k + '}').join(String(v));
   return text;
 }
+
+/** Hebrew and Arabic read right to left; the other five left to right. */
+export function isRtlNow(): boolean {
+  return current === 'he' || current === 'ar';
+}
