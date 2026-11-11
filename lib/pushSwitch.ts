@@ -77,6 +77,13 @@ export async function turnPushOn(uid: string): Promise<PushOnResult> {
   // never be refreshed, and the server would go on skipping the account.
   // Phase D: the token only in the private copy; the public field is cleared.
   await updateDoc(doc(db, 'users', uid), { pushToken: '', pushOptOut: false });
-  await setDoc(pushTokenRef(uid), pushTokenDoc(token)).catch(err => logError('pushSwitch:private', err));
+  // The private copy is the one the notification server reads: if it was not
+  // written, the phone cannot be reached, and the switch must not say "on".
+  try {
+    await setDoc(pushTokenRef(uid), pushTokenDoc(token));
+  } catch (err) {
+    logError('pushSwitch:private', err);
+    return 'no-token';
+  }
   return 'on';
 }
