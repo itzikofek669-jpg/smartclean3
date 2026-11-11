@@ -5559,16 +5559,6 @@ export default function HomeScreen() {
   const [isBlocked,            setIsBlocked]            = useState(false);
   const [pendingReviewBooking, setPendingReviewBooking] = useState<any>(null);
   const [showMandatoryReview,  setShowMandatoryReview]  = useState(false);
-  // The calendar offer, once the help has been seen or closed and no review is
-  // waiting — never on top of either (see helpChecked above).
-  useEffect(() => {
-    if (calendarOffered.current || !helpChecked || boardHelpOpen || showMandatoryReview) return;
-    const timer = setTimeout(() => {
-      calendarOffered.current = true;
-      void primeCalendarPermission();
-    }, 1200);
-    return () => clearTimeout(timer);
-  }, [helpChecked, boardHelpOpen, showMandatoryReview]);
   const [mandatoryStars,       setMandatoryStars]       = useState(0);
   const [mandatoryComment,     setMandatoryComment]     = useState('');
   const [mandatorySubmitting,  setMandatorySubmitting]  = useState(false);
@@ -6576,6 +6566,18 @@ export default function HomeScreen() {
 
   // ── פופאפ ניקוי דחוף למנקה — גם במסך הראשי ────────────────────────────────
   const [urgentPopupReq, setUrgentPopupReq] = useState<any>(null);
+  // The calendar offer, once the help has been seen or closed and nothing else
+  // is on screen — no review, popup, new booking, urgent request or block.
+  // First sign-in stacked four windows (see helpChecked above).
+  useEffect(() => {
+    if (calendarOffered.current || !helpChecked || boardHelpOpen || showMandatoryReview
+      || isBlocked || confirmedPopup || cancelledPopup || newBookingModal || urgentPopupReq) return;
+    const timer = setTimeout(() => {
+      calendarOffered.current = true;
+      void primeCalendarPermission();
+    }, 1200);
+    return () => clearTimeout(timer);
+  }, [helpChecked, boardHelpOpen, showMandatoryReview, isBlocked, confirmedPopup, cancelledPopup, newBookingModal, urgentPopupReq]);
   const shownUrgentRef = useRef<Set<string>>(new Set()); // בקשות שכבר הוצגו — לא להקפיץ שוב
   const urgentInitedRef = useRef(false);
   useEffect(() => {
