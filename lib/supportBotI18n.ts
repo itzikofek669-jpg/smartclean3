@@ -64,7 +64,7 @@ const QR: Record<string, L> = {
 /** Free text: words that point at a topic, per language (lower case). */
 const KW: Record<string, Record<BotLang, string[]>> = {
   greet: {
-    en: ['hello', 'hi ', 'hey', 'good morning', 'good evening', 'good afternoon'],
+    en: ['hello', ' hi ', ' hey ', 'good morning', 'good evening', 'good afternoon'],
     ru: ['привет', 'здравств', 'добрый', 'доброе'],
     ar: ['مرحبا', 'مرحبًا', 'السلام', 'اهلا', 'أهلا', 'صباح', 'مساء'],
     fr: ['bonjour', 'salut', 'bonsoir', 'coucou'],
@@ -96,7 +96,7 @@ const KW: Record<string, Record<BotLang, string[]>> = {
     uk: ['отримую оплат', 'отримати оплат', 'мені платять'],
   },
   commission: {
-    en: ['commission', 'fee', 'cut', 'percent'],
+    en: ['commission', ' fee ', ' fees ', 'percent'],
     ru: ['комисс', 'процент'],
     ar: ['عمولة', 'نسبة', 'رسوم'],
     fr: ['commission', 'frais', 'pourcentage'],
@@ -120,7 +120,7 @@ const KW: Record<string, Record<BotLang, string[]>> = {
     uk: ['більше замовлень', 'більше роботи', 'дошка', 'немає замовлень'],
   },
   invoices: {
-    en: ['invoice', 'receipt', 'tax'],
+    en: ['invoice', 'receipt', ' tax ', ' taxes '],
     ru: ['счёт', 'счет-факт', 'чек', 'налог'],
     ar: ['فاتورة', 'إيصال', 'ضريبة', 'ضرائب'],
     fr: ['facture', 'reçu', 'impôt', 'taxe'],
@@ -160,7 +160,7 @@ const KW: Record<string, Record<BotLang, string[]>> = {
     uk: ['термін', 'сьогодні', 'прямо зараз'],
   },
   price: {
-    en: ['price', 'cost', 'how much', 'rate', 'expensive', 'cheap'],
+    en: ['price', ' cost', 'how much', ' rate', 'expensive', 'cheap'],
     ru: ['цена', 'стоим', 'сколько', 'тариф', 'дорого'],
     ar: ['سعر', 'تكلفة', 'بكم', 'كم يكلف', 'كم السعر', 'كم التكلفة', 'تعرفة', 'غالي'],
     fr: ['prix', 'coût', 'coute', 'coûte', 'combien', 'tarif'],
@@ -176,7 +176,7 @@ const KW: Record<string, Record<BotLang, string[]>> = {
     uk: ['виконав', 'прибиральн', 'хто прийде', 'телефон'],
   },
   payment: {
-    en: ['pay', 'cash', 'bit', 'paybox', 'bank transfer', 'card'],
+    en: [' pay ', 'payment', ' paying', 'cash', 'paybox', 'bank transfer', ' card'],
     ru: ['оплат', 'налич', 'карт', 'перевод'],
     ar: ['دفع', 'أدفع', 'نقد', 'بطاقة', 'تحويل'],
     fr: ['payer', 'paiement', 'espèces', 'carte', 'virement'],
@@ -192,7 +192,7 @@ const KW: Record<string, Record<BotLang, string[]>> = {
     uk: ['замовити', 'нове замовлення', 'викликати'],
   },
   rating: {
-    en: ['rate', 'rating', 'review', 'stars'],
+    en: [' rate ', 'rating', 'review', 'stars'],
     ru: ['оцен', 'отзыв', 'звезд'],
     ar: ['تقييم', 'مراجعة', 'نجوم', 'نجمة'],
     fr: ['noter', 'note', 'avis', 'étoile'],
@@ -565,6 +565,10 @@ export function isBotLang(lang: string): lang is BotLang {
 }
 
 export function botWelcomeI18n(ctx: I18nBotCtx, lang: BotLang): I18nBotResp {
+  return settle(welcomeFor(ctx, lang), lang);
+}
+
+function welcomeFor(ctx: I18nBotCtx, lang: BotLang): I18nBotResp {
   const name = ctx.userName || '';
   if (ctx.role === 'cleaner' || ctx.role === 'admin') {
     return { text: t('welcomeCleaner', lang, { name }), quickReplies: q(lang, 'myBookings', 'earnings', 'gettingPaid', 'availability', 'contact') };

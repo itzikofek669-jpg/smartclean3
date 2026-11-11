@@ -1,4 +1,4 @@
-import { trNow } from '../lib/trNow';
+import { trNow, chevron } from '../lib/trNow';
 import { botReplyI18n, botWelcomeI18n, isBotLang } from '../lib/supportBotI18n';
 import React, { useEffect, useRef, useState } from 'react';
 import {
@@ -1069,7 +1069,7 @@ export default function SupportScreen() {
       }
       if (!role) {
         // בלי תפקיד אין למי לענות. עדיף להגיד את זה מאשר לענות כלקוח.
-        pushBotMessage('הפרופיל עדיין נטען. נסה שוב בעוד רגע.');
+        pushBotMessage(trNow('botProfileLoading'));
         return;
       }
 
@@ -1223,7 +1223,7 @@ export default function SupportScreen() {
       const ctx = contextRef.current;
       if (!ctx.role) {
         // עדיין לא ידוע אם זו מנקה או לקוח. עונים את זה, לא מנחשים.
-        pushBotMessage('הפרופיל עדיין נטען. נסה שוב בעוד רגע.');
+        pushBotMessage(trNow('botProfileLoading'));
         return;
       }
       const response = getBotResponse(trimmed, { ...ctx, fromButton });
@@ -1295,7 +1295,7 @@ export default function SupportScreen() {
       {/* Header */}
       <View style={[s.header, flipSide && { flexDirection: 'row-reverse' }]}>
         <TouchableOpacity onPress={() => router.back()} style={s.backBtn}>
-          <T style={s.backBtnText}>‹</T>
+          <T style={s.backBtnText}>{chevron('‹')}</T>
         </TouchableOpacity>
         <View style={s.headerCenter}>
           <View style={s.headerAvatar}>

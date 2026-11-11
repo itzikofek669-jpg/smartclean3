@@ -18,7 +18,7 @@ import { useNow } from '../lib/useNow';
 import { markHasBooked } from '../lib/firstBooking';
 import { hasBookedACleaner, rebookableBookings, prefillFromBooking } from '../lib/rebookList';
 import { withBookingDetails, migrateOpenJobDetails, fetchBookingDetails, urgentDetailsRef } from '../lib/bookingDetails';
-import { trNow, isRtlNow } from '../lib/trNow';
+import { trNow, isRtlNow, chevron } from '../lib/trNow';
 import { fetchOwnProfile, migrateProfile, ownPhone, publicCoord } from '../lib/privateProfile';
 
 import { Image } from 'expo-image';
@@ -720,13 +720,15 @@ function DrawerMenu({ visible, onClose, onProfile, onLogout, onMessages, onRepor
   // flipSide=false → פאנל בצד ימין פיזי:  left = W - PANEL_W
   // flipSide=true  → פאנל בצד שמאל פיזי: left = 0
   const panelLeft = flipSide ? 0 : W - PANEL_W;
-  // כיוון אנימציה: יוצא מחוץ למסך ואז נכנס ל-0
-  const offscreen  = flipSide ? -PANEL_W : PANEL_W;
+  // כיוון אנימציה: יוצא מחוץ למסך ואז נכנס ל-0. translateX פיזי, ו-start
+  // מתהפך עם השורש בשפות משמאל לימין — שם הפאנל בצד השמאלי ויוצא שמאלה.
+  const onLeft = isRTL ? flipSide : !flipSide;
+  const offscreen  = onLeft ? -PANEL_W : PANEL_W;
 
   const slideAnim = useAnimatedValue(offscreen);
 
   useEffect(() => {
-    const off = flipSide ? -PANEL_W : PANEL_W;
+    const off = (isRTL ? flipSide : !flipSide) ? -PANEL_W : PANEL_W;
     if (visible) {
       // תמיד נתחיל מחוץ למסך — מונע "תקיעות" אחרי החלפת שפה
       slideAnim.setValue(off);
@@ -735,7 +737,7 @@ function DrawerMenu({ visible, onClose, onProfile, onLogout, onMessages, onRepor
       Animated.timing(slideAnim, { toValue: off, useNativeDriver: true, duration: 200 }).start();
       setShowLangs(false);
     }
-  }, [visible, flipSide]);
+  }, [visible, flipSide, isRTL]);
 
   // Toggle row helper
   const ToggleRow = ({ icon, label, value, onToggle }: { icon: string; label: string; value: boolean; onToggle: () => void }) => (
@@ -790,7 +792,7 @@ function DrawerMenu({ visible, onClose, onProfile, onLogout, onMessages, onRepor
           >
             <T style={ds.itemIcon}>👤</T>
             <T style={ds.itemText}>{t.drawerProfile}</T>
-            <T style={ds.itemArrow}>‹</T>
+            <T style={ds.itemArrow}>{chevron('‹')}</T>
           </TouchableOpacity>
 
           {onAccessibility && (
@@ -802,7 +804,7 @@ function DrawerMenu({ visible, onClose, onProfile, onLogout, onMessages, onRepor
             >
               <T style={ds.itemIcon}>♿</T>
               <T style={[ds.itemText, { flex: 1 }]}>{t.accessibilityTitle || 'נגישות'}</T>
-              <T style={ds.itemArrow}>‹</T>
+              <T style={ds.itemArrow}>{chevron('‹')}</T>
             </TouchableOpacity>
           )}
 
@@ -814,7 +816,7 @@ function DrawerMenu({ visible, onClose, onProfile, onLogout, onMessages, onRepor
           >
             <T style={ds.itemIcon}>📅</T>
             <T style={[ds.itemText, { flex: 1 }]}>{t.activeBookingsTitle}</T>
-            <T style={ds.itemArrow}>‹</T>
+            <T style={ds.itemArrow}>{chevron('‹')}</T>
           </TouchableOpacity>
 
           {/* בלי "היסטוריית הזמנות" נפרד: ההיסטוריה היא לשונית בחלון ההזמנות
@@ -859,7 +861,7 @@ function DrawerMenu({ visible, onClose, onProfile, onLogout, onMessages, onRepor
           >
             <T style={ds.itemIcon}>💬</T>
             <T style={[ds.itemText, { flex: 1 }]}>{t.drawerMessages}</T>
-            <T style={ds.itemArrow}>‹</T>
+            <T style={ds.itemArrow}>{chevron('‹')}</T>
           </TouchableOpacity>
 
           <TouchableOpacity
@@ -870,7 +872,7 @@ function DrawerMenu({ visible, onClose, onProfile, onLogout, onMessages, onRepor
           >
             <T style={ds.itemIcon}>👨‍💼</T>
             <T style={[ds.itemText, { flex: 1 }]}>{t.drawerSupport}</T>
-            <T style={ds.itemArrow}>‹</T>
+            <T style={ds.itemArrow}>{chevron('‹')}</T>
           </TouchableOpacity>
 
           {/* ── קבוצת פעולות רגישות ── */}
@@ -881,7 +883,7 @@ function DrawerMenu({ visible, onClose, onProfile, onLogout, onMessages, onRepor
             accessibilityLabel={t.reportBtn}
           >
             <T style={[ds.itemText, { flex: 1, color: '#EF4444' }]}>{t.reportBtn}</T>
-            <T style={ds.itemArrow}>‹</T>
+            <T style={ds.itemArrow}>{chevron('‹')}</T>
           </TouchableOpacity>
 
           <TouchableOpacity
@@ -1493,13 +1495,13 @@ function CalendarPicker({ visible, value, onChange, onClose }: {
             {/* Header */}
             <View style={{ flexDirection: 'row-reverse', alignItems:'center', justifyContent:'space-between', marginBottom:16 }}>
               <TouchableOpacity accessibilityRole="button" accessibilityLabel={trNow('a11yPrev')} onPress={prevMonth} style={{ padding:8 }}>
-                <T style={{ fontSize:20, color:'#2563EB', fontWeight:'900' }}>{'›'}</T>
+                <T style={{ fontSize:20, color:'#2563EB', fontWeight:'900' }}>{chevron('›')}</T>
               </TouchableOpacity>
               <T style={{ fontSize:17, fontWeight:'900', color:'#1E3A5F' }}>
                 {monthTitle(viewYear, viewMonth, lang)}
               </T>
               <TouchableOpacity accessibilityRole="button" accessibilityLabel={trNow('a11yNext')} onPress={nextMonth} style={{ padding:8 }}>
-                <T style={{ fontSize:20, color:'#2563EB', fontWeight:'900' }}>{'‹'}</T>
+                <T style={{ fontSize:20, color:'#2563EB', fontWeight:'900' }}>{chevron('‹')}</T>
               </TouchableOpacity>
             </View>
 
@@ -1633,13 +1635,13 @@ function MultiCalendarPicker({ selected, onChange, label }: {
           {/* ניווט חודש */}
           <View style={{ flexDirection: 'row-reverse', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
             <TouchableOpacity accessibilityRole="button" accessibilityLabel={trNow('a11yPrev')} onPress={prevMonth} style={{ padding: 8 }}>
-              <Text style={{ fontSize: 22, color: '#2563EB', fontWeight: '900' }}>{'›'}</Text>
+              <Text style={{ fontSize: 22, color: '#2563EB', fontWeight: '900' }}>{chevron('›')}</Text>
             </TouchableOpacity>
             <Text style={{ fontSize: 15, fontWeight: '900', color: '#1E3A5F' }}>
               {monthTitle(viewYear, viewMonth, lang)}
             </Text>
             <TouchableOpacity accessibilityRole="button" accessibilityLabel={trNow('a11yNext')} onPress={nextMonth} style={{ padding: 8 }}>
-              <Text style={{ fontSize: 22, color: '#2563EB', fontWeight: '900' }}>{'‹'}</Text>
+              <Text style={{ fontSize: 22, color: '#2563EB', fontWeight: '900' }}>{chevron('‹')}</Text>
             </TouchableOpacity>
           </View>
 
@@ -7401,7 +7403,7 @@ export default function HomeScreen() {
                     <T style={{ color: '#fff', fontSize: 14, fontWeight: '900', textAlign: 'center' }}>{t.prevBookingsShort}</T>
                     <T style={{ color: 'rgba(255,255,255,0.85)', fontSize: 11, marginTop: 1, textAlign: 'center' }}>{t.rebookSubtitle}</T>
                   </View>
-                  <T style={{ color: 'rgba(255,255,255,0.75)', fontSize: 20 }}>{'‹'}</T>
+                  <T style={{ color: 'rgba(255,255,255,0.75)', fontSize: 20 }}>{chevron('‹')}</T>
                 </LinearGradient>
               </TouchableOpacity>
           ) : null}

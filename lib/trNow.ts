@@ -30,3 +30,13 @@ export function trNow(key: string, vars?: Record<string, string | number>): stri
 export function isRtlNow(): boolean {
   return current === 'he' || current === 'ar';
 }
+
+/**
+ * ‹ or › as drawn for Hebrew, the right way round in every language. Android
+ * mirrors a lone ‹ › under the mirrored root and iOS does not, so the glyph is
+ * chosen here and pinned left-to-right with a mark that draws nothing.
+ */
+export function chevron(heGlyph: '‹' | '›'): string {
+  if (isRtlNow()) return heGlyph;
+  return '\u200E' + (heGlyph === '‹' ? '›' : '‹');
+}

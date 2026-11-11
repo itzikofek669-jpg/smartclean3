@@ -2682,7 +2682,7 @@ export default function ProfileScreen() {
     return (
       <View key={b.id} style={[s.bookingCard, compact
         ? { borderRadius: 16, padding: 0, overflow: 'hidden' }
-        : { ...(isRTL ? { borderEndWidth: 4, borderEndColor: statusBorderColor } : { borderStartWidth: 4, borderStartColor: statusBorderColor }), borderRadius: 16, padding: 0, overflow: 'hidden' }]}>
+        : { borderEndWidth: 4, borderEndColor: statusBorderColor, borderRadius: 16, padding: 0, overflow: 'hidden' }]}>
 
         {compact ? (() => {
           // ההיסטוריה — של הלקוח ושל נותן השירות באותו כרטיס (כמו באתר): סוג הניקיון
