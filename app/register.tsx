@@ -21,6 +21,7 @@ import {
   firstError, validateName, validateEmail, validatePassword,
   validatePhone, validateAge, validateDistance, validatePrice, normalizePhone,
 } from '../lib/validate';
+import { trNow } from '../lib/trNow';
 import { useLanguage, T, useAppColors, AppColors, rtlRows } from '../lib/LanguageContext';
 import BackIcon from '../lib/BackIcon';
 import { Lang } from '../lib/translations';
@@ -288,7 +289,7 @@ function TermsModal({ visible, onClose, closeLabel, title, terms }: { visible: b
       <SafeAreaView style={{ flex: 1, backgroundColor: C.white }}>
         <View style={tm.header}>
           <T style={tm.title}>{title}</T>
-          <TouchableOpacity accessibilityRole="button" accessibilityLabel="סגור" onPress={onClose} style={tm.closeBtn}>
+          <TouchableOpacity accessibilityRole="button" accessibilityLabel={trNow('closeBtn')} onPress={onClose} style={tm.closeBtn}>
             <T style={{ color: C.white, fontSize: 18 }}>✕</T>
           </TouchableOpacity>
         </View>
@@ -365,7 +366,7 @@ function RegisterFreeBanner({ label1, sub1, label2, sub2, color1, color2, bg1, b
   }, []);
   return (
     <View style={{ backgroundColor: '#fff', borderRadius: 18, marginBottom: 14, paddingVertical: 14, paddingHorizontal: 12, borderWidth: 1.5, borderColor: '#6EE7B7', elevation: 3, shadowColor: '#10B981', shadowOpacity: 0.15, shadowRadius: 8, shadowOffset: { width: 0, height: 3 } }}>
-      <Text style={{ fontSize: 13, fontWeight: '900', color: '#065F46', textAlign: 'center', marginBottom: 10 }}>🎉 A&M Clean — חינמי לחלוטין</Text>
+      <Text style={{ fontSize: 13, fontWeight: '900', color: '#065F46', textAlign: 'center', marginBottom: 10 }}>{trNow('freeForever')}</Text>
       <View style={{ flexDirection: isRTL ? 'row-reverse' : 'row', gap: 10 }}>
         <View style={{ flex: 1, backgroundColor: bg1, borderRadius: 14, paddingVertical: 12, alignItems: 'center', borderWidth: 1.5, borderColor: border1 }}>
           <Animated.Text style={{ fontSize: 26, fontWeight: '900', color: color1, transform: [{ scale: p1 }] }}>{label1}</Animated.Text>
@@ -681,12 +682,12 @@ export default function RegisterScreen() {
     } catch (e: any) {
       console.error('[REGISTER AUTH ERROR]', e.code, e.message);
       const msg =
-        e.code === 'auth/email-already-in-use' ? `${t.regErrEmailInUse}\n\nנסה להתחבר עם המייל הזה במקום` :
+        e.code === 'auth/email-already-in-use' ? `${t.regErrEmailInUse}\n\n${t.regErrEmailInUseHint}` :
         e.code === 'auth/invalid-email'         ? t.regErrInvalidEmail :
         e.code === 'auth/weak-password'         ? t.regErrWeakPassword :
         e.code === 'auth/network-request-failed' ? t.errNoInternet :
         e.code === 'auth/too-many-requests'      ? t.errTooMany :
-        `שגיאת הרשמה (${e.code || e.message || 'unknown'})`;
+        t.regErrGeneric.replace('{code}', String(e.code || e.message || 'unknown'));
       Alert.alert(t.error, msg);
       setLoading(false);
       return;
@@ -860,7 +861,7 @@ export default function RegisterScreen() {
     } catch (e: any) {
       console.error('[REGISTER FIRESTORE ERROR]', e.code, e.message);
       logError('register:afterAuth', e);
-      Alert.alert(t.error, `שגיאת שמירת פרופיל (${e.code || e.message || 'unknown'})\nהחשבון נוצר — נסה להתחבר ולפנות לתמיכה`);
+      Alert.alert(t.error, t.regErrProfileSave.replace('{code}', String(e.code || e.message || 'unknown')));
     } finally {
       setLoading(false);
     }
@@ -918,7 +919,7 @@ export default function RegisterScreen() {
             <T style={s.label}>{t.passwordLabel}</T>
             <View style={{ position: 'relative', justifyContent: 'center' }}>
               <TextInput style={[s.input, missPass && s.inputError, { paddingLeft: 44 }]} placeholder={t.passwordHint} value={password} onChangeText={setPassword} secureTextEntry={!showPassword} placeholderTextColor={C.sub} textAlign={isRTL ? 'right' : 'left'} />
-              <TouchableOpacity onPress={() => setShowPassword(v => !v)} style={{ position: 'absolute', left: 10, padding: 6 }} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }} accessibilityLabel={showPassword ? 'הסתר סיסמה' : 'הצג סיסמה'}>
+              <TouchableOpacity onPress={() => setShowPassword(v => !v)} style={{ position: 'absolute', left: 10, padding: 6 }} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }} accessibilityLabel={showPassword ? t.a11yHidePassword : t.a11yShowPassword}>
                 <Text style={{ fontSize: 20 }}>{showPassword ? '🙈' : '👁️'}</Text>
               </TouchableOpacity>
             </View>

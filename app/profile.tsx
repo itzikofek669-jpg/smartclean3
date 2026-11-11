@@ -62,6 +62,8 @@ import { useNow } from '../lib/useNow';
 import { withBookingDetails, migrateOpenJobDetails, fetchBookingDetails, backfillClientPhone, needsPhoneBackfill, urgentDetailsRef } from '../lib/bookingDetails';
 import { batchProfile, fetchOwnProfile, idPhotoRef, ownPhone } from '../lib/privateProfile';
 import { firstError, validateName, validatePhone, validatePrice, validateAge, validateDistance, normalizePhone } from '../lib/validate';
+import { trNow } from '../lib/trNow';
+import { serviceLinesFor } from '../lib/serviceLines';
 import { claimPhone, releasePhone } from '../lib/accountChecks';
 import { isUrgentRequestLive, isUrgentRequestExpired, releasedByMe } from '../lib/urgentRequest';
 import { rejectionUpdate, occupiesCleanerTime, awaitsMyApproval, rejectionReleasesToBoard, busyFieldsOf } from '../lib/bookingActions';
@@ -413,9 +415,9 @@ function calcDuration(startIso: string, endIso: string): string {
   const totalMins = Math.round(diffMs / 60000);
   const h = Math.floor(totalMins / 60);
   const m = totalMins % 60;
-  if (h === 0) return `${m} דק'`;
-  if (m === 0) return `${h} שע'`;
-  return `${h}:${String(m).padStart(2,'0')} שע'`;
+  if (h === 0) return trNow('durMin', { m });
+  if (m === 0) return trNow('durHour', { h });
+  return trNow('durHourMin', { h, mm: String(m).padStart(2,'0') });
 }
 
 // ─── Star Rating Component ────────────────────────────────────────────────────
@@ -790,7 +792,7 @@ export default function ProfileScreen() {
     // point the shared image/voice senders at this client so the modal's
     // 📷/🎤 buttons write to the same chat
     setChatClientUid(clientUid);
-    setChatClientName(pendingConfirmBooking.clientName || 'לקוח');
+    setChatClientName(pendingConfirmBooking.clientName || t.clientWord);
     setActiveChat(chatId);   // המנקה בצ'אט ההזמנה הזה — לא להקפיץ פופ-אפ
     const q = query(collection(db, 'chats', chatId, 'messages'), orderBy('createdAt', 'asc'));
     pendingChatUnsubRef.current = onSnapshot(q, snap => {
@@ -824,7 +826,7 @@ export default function ProfileScreen() {
   const suggestTimeChange = async () => {
     const datePart = pendingNewDate || pendingPickerDate.toLocaleDateString(LOCALE_MAP[lang] || 'he-IL', { day: '2-digit', month: '2-digit', year: 'numeric' });
     const timePart = pendingNewTime || pendingPickerDate.toLocaleTimeString(LOCALE_MAP[lang] || 'he-IL', { hour: '2-digit', minute: '2-digit' });
-    const msg = `🔄 הצעה לשינוי זמן:\n📅 תאריך: ${datePart}\n🕐 שעה: ${timePart}\n\nהאם מתאים לך?`;
+    const msg = trNow('timeProposalMsg', { date: datePart, time: timePart });
     await sendPendingChat(msg);
     setShowPendingTimeChange(false);
     setPendingNewDate('');
@@ -1498,8 +1500,8 @@ export default function ProfileScreen() {
       } catch (e: any) { Alert.alert(t.error, e?.message); }
     };
     Alert.alert(t.addPhotoBtn, '', [
-      { text: '🖼️ גלריה',   onPress: () => doUpload('gallery') },
-      { text: '📷 מצלמה',   onPress: () => doUpload('camera')  },
+      { text: `🖼️ ${t.galleryOption}`,   onPress: () => doUpload('gallery') },
+      { text: `📷 ${t.cameraOption}`,   onPress: () => doUpload('camera')  },
       { text: t.cancel, style: 'cancel' },
     ]);
   };
@@ -1641,7 +1643,7 @@ export default function ProfileScreen() {
   const pickIdPhoto = () => {
     Alert.alert(t.idVerifyTitle, t.idVerifyInfo, [
       {
-        text: '🖼️ גלריה',
+        text: `🖼️ ${t.galleryOption}`,
         onPress: async () => {
           const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
           if (!perm.granted) return Alert.alert(t.error, t.galleryPermDenied);
@@ -1653,7 +1655,7 @@ export default function ProfileScreen() {
         },
       },
       {
-        text: '📷 מצלמה',
+        text: `📷 ${t.cameraOption}`,
         onPress: async () => {
           const perm = await ImagePicker.requestCameraPermissionsAsync();
           if (!perm.granted) return Alert.alert(t.error, t.cameraPermDenied);
@@ -1719,15 +1721,15 @@ export default function ProfileScreen() {
         // Build URLs first
         const mapsUrl  = b.address ? `https://maps.google.com/?q=${encodeURIComponent(b.address)}` : null;
         const rawPhone = await clientPhoneOf(b, clientData);
-        const waMsg    = encodeURIComponent(`שלום! 🚗 אני בדרך אליך לכתובת ${b.address || ''}`);
+        const waMsg    = encodeURIComponent(trNow('waOnMyWay', { address: b.address || '' }));
         const waUrl    = rawPhone ? `https://wa.me/972${rawPhone}?text=${waMsg}` : null;
 
         // Ask the cleaner what to open
-        const buttons: any[] = [{ text: 'לא עכשיו', style: 'cancel' }];
-        if (mapsUrl) buttons.push({ text: '📍 פתח מפות', onPress: () => Linking.openURL(mapsUrl) });
-        if (waUrl)   buttons.push({ text: '💬 שלח WhatsApp', onPress: () => Linking.openURL(waUrl) });
+        const buttons: any[] = [{ text: trNow('notNowBtn'), style: 'cancel' }];
+        if (mapsUrl) buttons.push({ text: trNow('openMapsBtn'), onPress: () => Linking.openURL(mapsUrl) });
+        if (waUrl)   buttons.push({ text: trNow('sendWhatsappBtn'), onPress: () => Linking.openURL(waUrl) });
         if (mapsUrl && waUrl) buttons.push({
-          text: '📍 מפות + 💬 WhatsApp',
+          text: trNow('mapsAndWhatsappBtn'),
           onPress: () => { Linking.openURL(mapsUrl); setTimeout(() => Linking.openURL(waUrl!), 600); },
         });
 
@@ -1743,7 +1745,7 @@ export default function ProfileScreen() {
   const openCleanerChat = (b: any) => {
     setChatMessages([]);
     setChatClientUid(b.clientUid);
-    setChatClientName(b.clientName || 'לקוח');
+    setChatClientName(b.clientName || t.clientWord);
     setChatOpen(true);
   };
 
@@ -2270,8 +2272,8 @@ export default function ProfileScreen() {
         // שלח גם הודעת צ'אט אוטומטית ללקוח
         const chatId = [uid, b.clientUid].sort().join('_');
         const chatMsg = dateChanged
-          ? `✅ אישרתי את ההזמנה עם שינוי זמן:\n📅 ${dateLabel}  🕐 ${timeLabel}\nנתראה בקרוב! תודה על ההזמנה 🧹`
-          : `✅ אישרתי את ההזמנה!\n📅 ${dateLabel}  🕐 ${timeLabel}\nנתראה בקרוב! תודה על ההזמנה 🧹`;
+          ? trNow('approvedMsgChanged', { date: dateLabel, time: timeLabel })
+          : trNow('approvedMsg', { date: dateLabel, time: timeLabel });
         await addDoc(collection(db, 'chats', chatId, 'messages'), {
           text: chatMsg, from: 'cleaner', fromUid: uid,
           createdAt: new Date().toISOString(),
@@ -2289,7 +2291,7 @@ export default function ProfileScreen() {
         }, { merge: true });
       } catch (err) { logError('profile:write', err); }
     } catch (e: any) {
-      Alert.alert(t.error, e?.message || 'שגיאה');
+      Alert.alert(t.error, e?.message || t.error);
     }
   };
 
@@ -2366,7 +2368,7 @@ export default function ProfileScreen() {
   };
 
   const handleTogglePush = async () => {
-    if (!uid) { Alert.alert(t.error, 'לא מחובר'); return; }
+    if (!uid) { Alert.alert(t.error, trNow('notSignedIn')); return; }
     const tt = t as any;
     if (hasPushToken) {
       // ── כיבוי — רק אחרי שאלה ──────────────────────────────────────────────
@@ -2405,7 +2407,7 @@ export default function ProfileScreen() {
         Alert.alert(t.error, tt.pushNoTokenMsg ?? 'לא ניתן לקבל טוקן להתראות.');
       }
     } catch (e: any) {
-      Alert.alert(t.error, e?.message || 'פעולה נכשלה');
+      Alert.alert(t.error, e?.message || trNow('actionFailed'));
     }
     setPushToggleLoading(false);
   };
@@ -2424,7 +2426,7 @@ export default function ProfileScreen() {
       await deleteDoc(pushTokenRef(uid)).catch(err => logError('profile:pushTokenDelete', err));
       setHasPushToken(false);
     } catch (e: any) {
-      Alert.alert(t.error, e?.message || 'פעולה נכשלה');
+      Alert.alert(t.error, e?.message || trNow('actionFailed'));
     }
     setPushToggleLoading(false);
   };
@@ -2582,7 +2584,7 @@ export default function ProfileScreen() {
               void notify({ event: released ? 'booking_released' : 'booking_cancelled', bookingId: b.id });
             }
           } catch (e: any) {
-            Alert.alert(t.error, e?.message || 'שגיאה');
+            Alert.alert(t.error, e?.message || t.error);
           }
         },
       },
@@ -2662,7 +2664,7 @@ export default function ProfileScreen() {
       b.status === 'confirmed' ? '#8B5CF6' :
       b.status === 'cancelled' ? '#EF4444' : C.blueBorder;
 
-    const personName = forCleaner ? (b.clientName || 'לקוח') : (b.cleanerName || 'נותן שירות');
+    const personName = forCleaner ? (b.clientName || t.clientWord) : (b.cleanerName || trNow('providerWord'));
     // יום העבודה עבר: "בדרך" ו"התחל" על עבודה משבוע שעבר היו שולחים ללקוח פוש.
     // אבל היא לא יכולה להיתקע: מנקה ששכחה ללחוץ עדיין מסיימת אותה, ומה שלא קרה
     // היא מבטלת. "סיום" בלי "התחל" מחייב לפי השעות שסוכמו (handleEndCleaning).
@@ -2811,7 +2813,7 @@ export default function ProfileScreen() {
               <T style={{ fontSize: 12, fontWeight: '700', color: C.textDark }}>{t.types[b.serviceType] || b.serviceType}</T>
               {SERVICE_DETAIL[b.serviceType] && (
                 <View style={{ backgroundColor: C.bluePale, borderRadius: 8, padding: 8, borderWidth: 1, borderColor: C.blueBorder }}>
-                  {SERVICE_DETAIL[b.serviceType].map((line: string, i: number) => (
+                  {serviceLinesFor(b.serviceType, lang).map((line: string, i: number) => (
                     <T key={i} style={{ fontSize: 11, color: C.textDark, lineHeight: 18 }}>{line}</T>
                   ))}
                 </View>
@@ -2910,7 +2912,7 @@ export default function ProfileScreen() {
           {/* Review deadline countdown */}
           {isDone && !forCleaner && b.reviewRequired && !b.cleanerRating && b.reviewDeadline && (
             <T style={{ color: '#EF4444', fontSize: 12, textAlign: 'right' }}>
-              ⏰ {t.reviewDeadlineDays}: {Math.max(0, Math.ceil((new Date(b.reviewDeadline).getTime() - nowMs) / 86400000))} ימים
+              ⏰ {t.reviewDeadlineDays}: {trNow('daysCount', { n: Math.max(0, Math.ceil((new Date(b.reviewDeadline).getTime() - nowMs) / 86400000)) })}
             </T>
           )}
 
@@ -2978,7 +2980,7 @@ export default function ProfileScreen() {
 
             {/* Payment received button */}
             {forCleaner && b.paymentStatus && b.paymentStatus !== 'paid' && ['confirmed', 'onway', 'active', 'done'].includes(b.status) && cardBtn(
-              `${b.payment === 'bit' ? '💙 אישור תשלום Bit' : b.payment === 'card' ? '💳 אישור תשלום כרטיס' : '💵 קיבלתי מזומן'} ✓`,
+              `${trNow(b.payment === 'bit' ? 'payConfirmBit' : b.payment === 'card' ? 'payConfirmCard' : 'payConfirmCash')} ✓`,
               () => handlePaymentReceived(b),
               s.cardBtnOutline, s.cardBtnOutlineText,
             )}
@@ -3016,7 +3018,7 @@ export default function ProfileScreen() {
         <View style={{ flex: 1, backgroundColor: C.blueDark, alignItems: 'center', justifyContent: 'center', gap: 16 }}>
           <T style={{ fontSize: 44 }}>⚡</T>
           <ActivityIndicator size="large" color="#fff" />
-          <T style={{ fontSize: 16, fontWeight: '900', color: '#fff' }}>מקבל/ת את ההזמנה הדחופה…</T>
+          <T style={{ fontSize: 16, fontWeight: '900', color: '#fff' }}>{trNow('acceptingUrgent')}</T>
         </View>
       </Modal>
 
@@ -3033,7 +3035,7 @@ export default function ProfileScreen() {
             {/* ─── Header ─── (insets.top because SafeAreaView is 0 inside a Modal) */}
             <View style={{ backgroundColor: '#FFF7ED', paddingHorizontal: 16, paddingTop: insets.top + 12, paddingBottom: 12, borderBottomWidth: 1.5, borderBottomColor: '#FED7AA' }}>
               <T style={{ fontSize: 16, fontWeight: '900', color: '#92400E', textAlign: 'center' }}>
-                📥 הזמנה חדשה ממתינה לאישורך
+                {trNow('newBookingAwaiting')}
               </T>
             </View>
 
@@ -3202,7 +3204,7 @@ export default function ProfileScreen() {
                             style={{ flexDirection: isRTL ? 'row-reverse' : 'row', alignItems: 'center', gap: 6, backgroundColor: isMe ? C.blue : C.white, borderRadius: 16, paddingHorizontal: 14, paddingVertical: 10, maxWidth: '80%', borderWidth: isMe ? 0 : 1, borderColor: C.blueBorder, elevation: 1 }}
                           >
                             <T style={{ fontSize: 22 }}>{isPlaying ? '⏸' : '▶️'}</T>
-                            <T style={{ color: isMe ? '#fff' : C.textDark, fontSize: 13 }}>🎤 {isPlaying ? t.recordingAudio ?? 'מנגן...' : 'הודעה קולית'}</T>
+                            <T style={{ color: isMe ? '#fff' : C.textDark, fontSize: 13 }}>🎤 {isPlaying ? t.recordingAudio ?? trNow('voicePlaying') : trNow('voiceMessageLabel')}</T>
                           </TouchableOpacity>
                           <T style={{ fontSize: 10, color: C.textSub, marginTop: 2 }}>{timeLabel}</T>
                         </View>
@@ -3260,13 +3262,13 @@ export default function ProfileScreen() {
                     </TouchableOpacity>
                   ) : (
                     <>
-                      <TouchableOpacity accessibilityRole="button" accessibilityLabel="צרף תמונה"
+                      <TouchableOpacity accessibilityRole="button" accessibilityLabel={trNow('a11yAttachPhoto')}
                         style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: C.blueLight, alignItems: 'center', justifyContent: 'center' }}
                         onPress={sendCleanerImage}
                       >
                         <T style={{ fontSize: 20 }}>📷</T>
                       </TouchableOpacity>
-                      <TouchableOpacity accessibilityRole="button" accessibilityLabel="הקלט הודעה קולית"
+                      <TouchableOpacity accessibilityRole="button" accessibilityLabel={trNow('a11yRecordVoice')}
                         style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: chatIsRecording ? '#EF4444' : '#25D366', alignItems: 'center', justifyContent: 'center' }}
                         onPressIn={startCleanerRecording}
                         onPressOut={stopAndSendCleanerRecording}
@@ -3287,7 +3289,7 @@ export default function ProfileScreen() {
                       <View style={{ paddingHorizontal: 12, paddingTop: 10, paddingBottom: keyboardOpen ? 8 : insets.bottom + 10, backgroundColor: C.white, borderTopWidth: 1, borderTopColor: C.blueBorder, gap: 8 }}>
                         {urgentTakenByOther && (
                           <View style={{ backgroundColor: '#FEF2F2', borderWidth: 1.5, borderColor: '#FCA5A5', borderRadius: 12, paddingVertical: 10, alignItems: 'center' }}>
-                            <T style={{ fontSize: 14, fontWeight: '900', color: '#DC2626' }}>⚡ ההזמנה נלקחה על ידי נותן שירות אחר/ת</T>
+                            <T style={{ fontSize: 14, fontWeight: '900', color: '#DC2626' }}>{trNow('urgentTakenByOther')}</T>
                           </View>
                         )}
                         <TouchableOpacity style={{ backgroundColor: C.blue, borderRadius: 14, paddingVertical: 14, alignItems: 'center' }} onPress={() => setPendingConfirmBooking(null)}>
@@ -3364,7 +3366,7 @@ export default function ProfileScreen() {
 
             {/* כותרת */}
             <T style={{ fontSize: 18, fontWeight: '900', color: C.textDark, textAlign: 'center' }}>
-              📋 פרטי הזמנה
+              {trNow('bookingDetailsTitle')}
             </T>
 
             {activeBookingDetail && (() => {
@@ -3381,7 +3383,7 @@ export default function ProfileScreen() {
 
                     {/* שם מנקה + סטטוס */}
                     <View style={{ flexDirection: isRTL ? 'row-reverse' : 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-                      <T style={{ fontSize: 17, fontWeight: '900', color: C.textDark }}>🧹 {b.cleanerName || 'נותן שירות'}</T>
+                      <T style={{ fontSize: 17, fontWeight: '900', color: C.textDark }}>🧹 {b.cleanerName || trNow('providerWord')}</T>
                       <View style={{ backgroundColor: statusColor, borderRadius: 10, paddingHorizontal: 10, paddingVertical: 4 }}>
                         <T style={{ fontSize: 12, fontWeight: '800', color: '#fff' }}>{getStatusLabel(b.status)}</T>
                       </View>
@@ -3452,7 +3454,7 @@ export default function ProfileScreen() {
 
             {/* כותרת */}
             <T style={{ fontSize: 19, fontWeight: '900', color: C.textDark, textAlign: 'center' }}>
-              ✅ ההזמנה אושרה!
+              {trNow('bookingApprovedBanner')}
             </T>
 
             {confirmedBookingView && (
@@ -3724,7 +3726,7 @@ export default function ProfileScreen() {
                         <View style={{ flexDirection: isRTL ? 'row-reverse' : 'row', justifyContent: 'space-between', alignItems: 'center' }}>
                           <T style={{ fontSize: 16, fontWeight: '900', color: '#4C1D95' }}>{t.urgentCardTitle}</T>
                           <View style={{ alignItems: 'flex-end', gap: 2 }}>
-                            <T style={{ fontSize: 11, color: '#6D28D9', fontWeight: '700' }}>⏳ {expiresIn} דק׳</T>
+                            <T style={{ fontSize: 11, color: '#6D28D9', fontWeight: '700' }}>⏳ {trNow('durMin', { m: expiresIn })}</T>
                             {receivedAt ? <T style={{ fontSize: 10, color: '#9CA3AF' }}>{t.receivedAtLabel}{receivedAt}</T> : null}
                           </View>
                         </View>
@@ -3821,7 +3823,7 @@ export default function ProfileScreen() {
                   )}
                   {incomingBks.filter(b => (b.status === 'active' || b.status === 'onway') && !isPastBooking(b)).length > 0 && (
                     <View style={s.activeBadge}>
-                      <T style={s.activeBadgeText}>🔄 {incomingBks.filter(b => (b.status === 'active' || b.status === 'onway') && !isPastBooking(b)).length} פעיל</T>
+                      <T style={s.activeBadgeText}>🔄 {trNow('activeCount', { n: incomingBks.filter(b => (b.status === 'active' || b.status === 'onway') && !isPastBooking(b)).length })}</T>
                     </View>
                   )}
                 </View>
@@ -3849,7 +3851,7 @@ export default function ProfileScreen() {
               {/* 4. לוח שבועי */}
               <T style={[s.sectionTitle, { textAlign: 'center', marginBottom: 12 }]}>{t.scheduleWeekTitle}</T>
               <View style={{ flexDirection: isRTL ? 'row-reverse' : 'row', gap: 4 }}>
-                {['א','ב','ג','ד','ה','ו','ש'].map((day, di) => {
+                {((t as any).dayNamesShort || ['א','ב','ג','ד','ה','ו','ש']).map((day: string, di: number) => {
                   const dayDate = new Date(weekStart);
                   dayDate.setDate(weekStart.getDate() + di);
                   const dayBks = weekBookings.filter(b => {
@@ -3995,7 +3997,7 @@ export default function ProfileScreen() {
               )}
               {savedAddrs.length >= 5 && (
                 <T style={{ fontSize: 12, color: C.textSub, textAlign: 'center', marginTop: 8 }}>
-                  הגעת למקסימום 5 כתובות — מחק כתובת ישנה כדי להוסיף חדשה
+                  {trNow('maxAddresses')}
                 </T>
               )}
             </View>
@@ -4064,7 +4066,7 @@ export default function ProfileScreen() {
                       onPress={() => {
                         const phone = cleanerBitPhone.replace(/\D/g, '').replace(/^0/, '');
                         const msg = encodeURIComponent(
-                          `שלום ${paySheetClientName}! 👋\nהניקיון הסתיים ✅\nלתשלום ₪${paySheetAmount} ב-Bit:\n💙 ${cleanerBitPhone}\nשם: ${userName}`
+                          trNow('payReqHello', { name: paySheetClientName }) + '\n' + trNow('payReqBit', { amount: paySheetAmount, phone: cleanerBitPhone, me: userName })
                         );
                         if (paySheetClientPhone) Linking.openURL(`https://wa.me/972${paySheetClientPhone}?text=${msg}`);
                         else Alert.alert('', t.noClientPhone);
@@ -4116,7 +4118,7 @@ export default function ProfileScreen() {
                           ? `${cleanerPayboxLink}&amount=${paySheetAmount}`
                           : `${cleanerPayboxLink}?amount=${paySheetAmount}`;
                         const msg = encodeURIComponent(
-                          `שלום ${paySheetClientName}! 👋\nהניקיון הסתיים ✅\nלתשלום ₪${paySheetAmount} ב-Paybox:\n💜 ${link}`
+                          trNow('payReqHello', { name: paySheetClientName }) + '\n' + trNow('payReqPaybox', { amount: paySheetAmount, link })
                         );
                         if (paySheetClientPhone) Linking.openURL(`https://wa.me/972${paySheetClientPhone}?text=${msg}`);
                         else Linking.openURL(link);
@@ -4177,13 +4179,13 @@ export default function ProfileScreen() {
                       style={{ backgroundColor: '#1E3A5F', borderRadius: 14, paddingVertical: 14, alignItems: 'center', marginTop: 4 }}
                       onPress={() => {
                         const details =
-                          `שלום ${paySheetClientName}! 👋\nהניקיון הסתיים ✅\n\n` +
-                          `💳 לתשלום ₪${paySheetAmount} בהעברה בנקאית:\n` +
-                          (cleanerBankName    ? `שם: ${cleanerBankName}\n` : '') +
-                          (cleanerBankNum     ? `בנק: ${cleanerBankNum}\n` : '') +
-                          (cleanerBankBranch  ? `סניף: ${cleanerBankBranch}\n` : '') +
-                          (cleanerBankAccount ? `חשבון: ${cleanerBankAccount}\n` : '') +
-                          `\nתודה! 🙏`;
+                          trNow('payReqHello', { name: paySheetClientName }) + '\n\n' +
+                          trNow('payReqBank', { amount: paySheetAmount }) + '\n' +
+                          (cleanerBankName    ? trNow('payReqName', { v: cleanerBankName }) + '\n' : '') +
+                          (cleanerBankNum     ? trNow('payReqBankNo', { v: cleanerBankNum }) + '\n' : '') +
+                          (cleanerBankBranch  ? trNow('payReqBranch', { v: cleanerBankBranch }) + '\n' : '') +
+                          (cleanerBankAccount ? trNow('payReqAccount', { v: cleanerBankAccount }) + '\n' : '') +
+                          '\n' + trNow('payReqThanks');
                         const msg = encodeURIComponent(details);
                         if (paySheetClientPhone) Linking.openURL(`https://wa.me/972${paySheetClientPhone}?text=${msg}`);
                         else Alert.alert('', t.noClientPhone);
@@ -4252,7 +4254,7 @@ export default function ProfileScreen() {
                     >
                       <T style={{ fontSize: 22 }}>{isPlaying ? '⏸' : '▶️'}</T>
                       <T style={{ color: isMe ? C.textDark : C.white, fontSize: 13, marginLeft: 6 }}>
-                        🎤 {isPlaying ? 'מנגן...' : 'הודעה קולית'}
+                        🎤 {isPlaying ? trNow('voicePlaying') : trNow('voiceMessageLabel')}
                       </T>
                     </TouchableOpacity>
                   </View>
@@ -4300,13 +4302,13 @@ export default function ProfileScreen() {
                   textAlign="right"
                   onSubmitEditing={sendCleanerMessage}
                 />
-                <TouchableOpacity accessibilityRole="button" accessibilityLabel="צרף תמונה"
+                <TouchableOpacity accessibilityRole="button" accessibilityLabel={trNow('a11yAttachPhoto')}
                   style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: C.blueLight, alignItems: 'center', justifyContent: 'center', marginHorizontal: 4 }}
                   onPress={sendCleanerImage}
                 >
                   <T style={{ fontSize: 20 }}>📷</T>
                 </TouchableOpacity>
-                <TouchableOpacity accessibilityRole="button" accessibilityLabel="הקלט הודעה קולית"
+                <TouchableOpacity accessibilityRole="button" accessibilityLabel={trNow('a11yRecordVoice')}
                   style={[s.chatMicBtn, chatIsRecording && s.chatMicBtnRecording, { backgroundColor: chatIsRecording ? '#EF4444' : '#25D366', borderWidth: 0 }]}
                   onPressIn={startCleanerRecording}
                   onPressOut={stopAndSendCleanerRecording}
@@ -4866,7 +4868,7 @@ export default function ProfileScreen() {
             {reportType !== 'bug' && (
               <View style={{ gap: 6 }}>
                 <T style={{ fontSize: 13, fontWeight: '700', color: C.textDark, textAlign: isRTL ? 'right' : 'left' }}>
-                  {reportType === 'cleaner' ? '🧹 שם נותן השירות' : '👤 שם הלקוח'}
+                  {reportType === 'cleaner' ? trNow('reportCleanerName') : trNow('reportClientName')}
                 </T>
                 <TextInput
                   style={{ backgroundColor: C.white, borderRadius: 10, padding: 12, fontSize: 14, color: C.textDark, borderWidth: 1, borderColor: C.blueBorder }}

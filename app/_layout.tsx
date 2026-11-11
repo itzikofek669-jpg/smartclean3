@@ -23,6 +23,7 @@ import { useFonts, NotoSansDevanagari_400Regular } from '@expo-google-fonts/noto
 import ErrorBoundary from '../lib/ErrorBoundary';
 import LocationGate from '../lib/LocationGate';
 import EmailVerifyGate from '../lib/EmailVerifyGate';
+import { trNow } from '../lib/trNow';
 
 // Hide the Expo Go push-notification warnings (remote push isn't supported in
 // Expo Go since SDK 53; works in a real build). Avoids the red error overlay.
@@ -443,11 +444,11 @@ export default function RootLayout() {
         ? `${formatCancelDate(b.bookingDate)}${b.startTime ? ` ${b.startTime}` : ''}`
         : '';
       Alert.alert(
-        '❌ ההזמנה בוטלה',
-        `הלקוח ביטל את ההזמנה${b.clientName ? ` — ${b.clientName}` : ''}.`
+        trNow('clientCancelledTitle'),
+        trNow('clientCancelledBody', { name: b.clientName ? ` — ${b.clientName}` : '' })
         + (when ? `\n${when}` : '')
-        + '\nהשעה התפנתה ביומן שלך.',
-        [{ text: 'הבנתי' }],
+        + '\n' + trNow('slotFreedInCalendar'),
+        [{ text: trNow('gotItBtn') }],
       );
     };
 
@@ -537,9 +538,9 @@ export default function RootLayout() {
             popped = true;
             const otherUid  = (Array.isArray(c.participants) ? c.participants.find((p: string) => p !== uid) : '') || '';
             const otherName = (c.participantNames && c.participantNames[otherUid]) || '';
-            Alert.alert('📩 הודעה חדשה', 'קיבלת הודעה חדשה.', [
-              { text: 'סגור', style: 'cancel' },
-              { text: 'פתח צ\'אט', onPress: () => {
+            Alert.alert(trNow('newMsgTitle'), trNow('newMsgBody'), [
+              { text: trNow('closeBtn'), style: 'cancel' },
+              { text: trNow('openChatBtn'), onPress: () => {
                 if (!readyRef.current) return;
                 router.push({ pathname: '/messages', params: { openChatId: c.id, openOtherUid: otherUid, openOtherName: otherName } });
               } },

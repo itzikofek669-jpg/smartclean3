@@ -27,6 +27,7 @@ import { auth } from './firebase';
 // lib/bookingSlot.ts.
 import { startDateOf, endDateOf } from './bookingSlot';
 import { fetchDetailsWhenReadable } from './bookingDetails';
+import { trNow } from './trNow';
 
 /**
  * SecureStore key holding the created event id for a booking, per signed-in user.
@@ -149,12 +150,11 @@ export async function primeCalendarPermission(): Promise<void> {
 
     const proceed = await new Promise<boolean>(resolve => {
       Alert.alert(
-        '📅 סנכרון עם היומן',
-        'נוסיף את ההזמנות המאושרות שלך ליומן המכשיר, עם תזכורת שעה לפני. '
-        + 'אפשר לאשר עכשיו — או לדלג ולהחליט בהמשך.',
+        trNow('calSyncTitle'),
+        trNow('calSyncBody'),
         [
-          { text: 'לא עכשיו', style: 'cancel', onPress: () => resolve(false) },
-          { text: 'אישור', onPress: () => resolve(true) },
+          { text: trNow('notNowBtn'), style: 'cancel', onPress: () => resolve(false) },
+          { text: trNow('okBtn'), onPress: () => resolve(true) },
         ],
         { cancelable: true, onDismiss: () => resolve(false) },
       );
@@ -225,13 +225,13 @@ export async function markCalendarWarned(bookingId: string, role: string): Promi
  */
 export function calendarSyncMessage(r: CalendarSyncResult): string {
   if (r === 'denied') {
-    return 'ההזמנה לא נוספה ליומן — לא ניתנה הרשאה. אפשר לאשר בהגדרות המכשיר.';
+    return trNow('calErrDenied');
   }
   if (r === 'no-calendar') {
-    return 'ההזמנה לא נוספה ליומן — לא נמצא יומן שניתן לכתוב אליו במכשיר.';
+    return trNow('calErrNoCalendar');
   }
   if (r === 'error') {
-    return 'ההזמנה לא נוספה ליומן. אפשר להוסיף אותה ידנית.';
+    return trNow('calErrGeneric');
   }
   return '';
 }
@@ -321,7 +321,7 @@ async function addBookingToCalendarInner(
 
     const other = opts.role === 'cleaner' ? b.clientName : b.cleanerName;
     const title = opts.title
-      ?? `🧹 ${b.serviceType || 'ניקיון'}${other ? ` — ${other}` : ''}`;
+      ?? `🧹 ${b.serviceType || trNow('cleaningDefault')}${other ? ` — ${other}` : ''}`;
 
     const eventId = await Calendar.createEventAsync(calendarId, {
       title,

@@ -17,6 +17,7 @@ import { useNow } from '../lib/useNow';
 import { markHasBooked } from '../lib/firstBooking';
 import { hasBookedACleaner, rebookableBookings, prefillFromBooking } from '../lib/rebookList';
 import { withBookingDetails, migrateOpenJobDetails, fetchBookingDetails, urgentDetailsRef } from '../lib/bookingDetails';
+import { trNow } from '../lib/trNow';
 import { fetchOwnProfile, migrateProfile, ownPhone, publicCoord } from '../lib/privateProfile';
 
 import { Image } from 'expo-image';
@@ -759,7 +760,7 @@ function DrawerMenu({ visible, onClose, onProfile, onLogout, onMessages, onRepor
         style={ds.backdrop}
         onPress={onClose}
         activeOpacity={1}
-        accessibilityLabel="סגור תפריט"
+        accessibilityLabel={trNow('a11yCloseMenu')}
         accessibilityRole="button"
       />
       {/* left מחושב בפיקסלים פיזיים — לא מושפע מ-RTL כלל */}
@@ -777,7 +778,7 @@ function DrawerMenu({ visible, onClose, onProfile, onLogout, onMessages, onRepor
           />
         </View>
 
-        <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingBottom: NAV_BAR_HEIGHT + 24 }} accessibilityLabel="תפריט ניווט">
+        <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingBottom: NAV_BAR_HEIGHT + 24 }} accessibilityLabel={trNow('a11yNavMenu')}>
 
           {/* ── קבוצה ראשית ── */}
           <TouchableOpacity
@@ -864,7 +865,7 @@ function DrawerMenu({ visible, onClose, onProfile, onLogout, onMessages, onRepor
             style={ds.item}
             onPress={() => { onClose(); onSupport(); }}
             accessibilityRole="button"
-            accessibilityLabel="תמיכה"
+            accessibilityLabel={trNow('a11ySupport')}
           >
             <T style={ds.itemIcon}>👨‍💼</T>
             <T style={[ds.itemText, { flex: 1 }]}>{t.drawerSupport}</T>
@@ -929,7 +930,7 @@ function ReviewsModal({ cleaner, visible, onClose }: any) {
     <Modal visible={visible} animationType="slide" presentationStyle="pageSheet" onRequestClose={onClose}>
       <SafeAreaView style={{ flex: 1, backgroundColor: C.bluePale }}>
         <View style={s.modalHeader}>
-          <TouchableOpacity accessibilityRole="button" accessibilityLabel="סגור" onPress={onClose} style={s.closeBtn}><T style={{ color: C.white, fontSize: 18 }}>✕</T></TouchableOpacity>
+          <TouchableOpacity accessibilityRole="button" accessibilityLabel={trNow('closeBtn')} onPress={onClose} style={s.closeBtn}><T style={{ color: C.white, fontSize: 18 }}>✕</T></TouchableOpacity>
           <T style={s.modalTitle}>{t.reviewsSuffix} — {cleaner.name}</T>
           <View style={{ width: 36 }} />
         </View>
@@ -1095,7 +1096,7 @@ function CleanerProfile({ cleaner, visible, onClose, onBook, onChat, initialShow
     <Modal visible={visible} animationType="slide" presentationStyle="pageSheet" onRequestClose={onClose}>
       <SafeAreaView style={{ flex: 1, backgroundColor: C.bluePale }}>
         <View style={s.profileHeader}>
-          <TouchableOpacity accessibilityRole="button" accessibilityLabel="חזור" onPress={onClose} style={s.closeBtn}><BackIcon size={24} color={C.white} /></TouchableOpacity>
+          <TouchableOpacity accessibilityRole="button" accessibilityLabel={trNow('a11yBack')} onPress={onClose} style={s.closeBtn}><BackIcon size={24} color={C.white} /></TouchableOpacity>
           <T style={s.profileHeaderTitle}>{t.cleanerProfileTitle}</T>
           <View style={{ width: 36 }} />
         </View>
@@ -1424,7 +1425,7 @@ function AddressAutocomplete({ value, onChange, placeholder, onFocus, error }: {
     <View style={{ position: 'relative', zIndex: 999 }}>
       <TextInput
         style={[s.input, { textAlign: 'right' }, error && { borderColor: '#DC2626', borderWidth: 1.5 }]}
-        placeholder={placeholder ?? 'הכנס כתובת'}
+        placeholder={placeholder ?? trNow('addressPlaceholder')}
         placeholderTextColor={C.textSub}
         value={value}
         onChangeText={handleChange}
@@ -1490,13 +1491,13 @@ function CalendarPicker({ visible, value, onChange, onClose }: {
 
             {/* Header */}
             <View style={{ flexDirection: isRTL ? 'row-reverse' : 'row', alignItems:'center', justifyContent:'space-between', marginBottom:16 }}>
-              <TouchableOpacity accessibilityRole="button" accessibilityLabel="הקודם" onPress={prevMonth} style={{ padding:8 }}>
+              <TouchableOpacity accessibilityRole="button" accessibilityLabel={trNow('a11yPrev')} onPress={prevMonth} style={{ padding:8 }}>
                 <T style={{ fontSize:20, color:'#2563EB', fontWeight:'900' }}>{isRTL ? '›' : '‹'}</T>
               </TouchableOpacity>
               <T style={{ fontSize:17, fontWeight:'900', color:'#1E3A5F' }}>
                 {monthTitle(viewYear, viewMonth, lang)}
               </T>
-              <TouchableOpacity accessibilityRole="button" accessibilityLabel="הבא" onPress={nextMonth} style={{ padding:8 }}>
+              <TouchableOpacity accessibilityRole="button" accessibilityLabel={trNow('a11yNext')} onPress={nextMonth} style={{ padding:8 }}>
                 <T style={{ fontSize:20, color:'#2563EB', fontWeight:'900' }}>{isRTL ? '‹' : '›'}</T>
               </TouchableOpacity>
             </View>
@@ -1630,13 +1631,13 @@ function MultiCalendarPicker({ selected, onChange, label }: {
 
           {/* ניווט חודש */}
           <View style={{ flexDirection: isRTL ? 'row-reverse' : 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
-            <TouchableOpacity accessibilityRole="button" accessibilityLabel="הקודם" onPress={prevMonth} style={{ padding: 8 }}>
+            <TouchableOpacity accessibilityRole="button" accessibilityLabel={trNow('a11yPrev')} onPress={prevMonth} style={{ padding: 8 }}>
               <Text style={{ fontSize: 22, color: '#2563EB', fontWeight: '900' }}>{isRTL ? '›' : '‹'}</Text>
             </TouchableOpacity>
             <Text style={{ fontSize: 15, fontWeight: '900', color: '#1E3A5F' }}>
               {monthTitle(viewYear, viewMonth, lang)}
             </Text>
-            <TouchableOpacity accessibilityRole="button" accessibilityLabel="הבא" onPress={nextMonth} style={{ padding: 8 }}>
+            <TouchableOpacity accessibilityRole="button" accessibilityLabel={trNow('a11yNext')} onPress={nextMonth} style={{ padding: 8 }}>
               <Text style={{ fontSize: 22, color: '#2563EB', fontWeight: '900' }}>{isRTL ? '‹' : '›'}</Text>
             </TouchableOpacity>
           </View>
@@ -1686,7 +1687,7 @@ function MultiCalendarPicker({ selected, onChange, label }: {
           <TouchableOpacity onPress={() => setOpen(false)}
             style={{ marginTop: 12, backgroundColor: '#2563EB', borderRadius: 12, padding: 11, alignItems: 'center' }}>
             <Text style={{ color: '#fff', fontWeight: '700', fontSize: 14 }}>
-              {selected.length > 0 ? `✓ אישור (${selected.length} תאריכים)` : 'סגור'}
+              {selected.length > 0 ? trNow('datesConfirmBtn', { n: selected.length }) : trNow('closeBtn')}
             </Text>
           </TouchableOpacity>
         </View>
@@ -1993,7 +1994,7 @@ function PostJobModal({ visible, onClose, onPosted, editJob, openJobs, onEditJob
     <Modal visible={visible} animationType="slide" presentationStyle="pageSheet" onRequestClose={onClose}>
       <SafeAreaView style={{ flex: 1, backgroundColor: C.bluePale }}>
         <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: C.blueDark, padding: 16 }}>
-          <TouchableOpacity accessibilityRole="button" accessibilityLabel="סגור" onPress={onClose} style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: 'rgba(255,255,255,0.2)', alignItems: 'center', justifyContent: 'center' }}>
+          <TouchableOpacity accessibilityRole="button" accessibilityLabel={trNow('closeBtn')} onPress={onClose} style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: 'rgba(255,255,255,0.2)', alignItems: 'center', justifyContent: 'center' }}>
             <T style={{ color: '#fff', fontSize: 18 }}>✕</T>
           </TouchableOpacity>
           <T style={{ fontSize: 17, fontWeight: '900', color: '#fff' }}>{editJob?.id ? `✏️ ${(t as any).editJobTitle ?? 'עריכת מודעה'}` : `📢 ${(t as any).postJobTitle ?? 'פרסם עבודה פתוחה'}`}</T>
@@ -2228,11 +2229,11 @@ function SpinnerPicker({ value, onChange, values, display, compact, accent = '#7
   if (compact) {
     return (
       <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', minHeight: 46, backgroundColor: C.white, borderRadius: 12, borderWidth: 1.5, borderColor: C.blueBorder, paddingHorizontal: 2 }}>
-        <TouchableOpacity accessibilityRole="button" accessibilityLabel="הפחת" onPress={dec} disabled={idx === 0} style={{ paddingHorizontal: 8, paddingVertical: 8 }}>
+        <TouchableOpacity accessibilityRole="button" accessibilityLabel={trNow('a11yDecrease')} onPress={dec} disabled={idx === 0} style={{ paddingHorizontal: 8, paddingVertical: 8 }}>
           <T style={{ fontSize: 18, color: idx === 0 ? '#CBD5E1' : accent }}>−</T>
         </TouchableOpacity>
         <T numberOfLines={1} maxFontSizeMultiplier={1.2} style={{ fontSize: 14, fontWeight: '800', color: C.textDark }}>{label}</T>
-        <TouchableOpacity accessibilityRole="button" accessibilityLabel="הוסף" onPress={inc} disabled={idx === values.length - 1} style={{ paddingHorizontal: 8, paddingVertical: 8 }}>
+        <TouchableOpacity accessibilityRole="button" accessibilityLabel={trNow('a11yIncrease')} onPress={inc} disabled={idx === values.length - 1} style={{ paddingHorizontal: 8, paddingVertical: 8 }}>
           <T style={{ fontSize: 18, color: idx === values.length - 1 ? '#CBD5E1' : accent }}>+</T>
         </TouchableOpacity>
       </View>
@@ -2241,14 +2242,14 @@ function SpinnerPicker({ value, onChange, values, display, compact, accent = '#7
   return (
     <View style={{ flexDirection: 'row', alignItems: 'center', gap: 0, alignSelf: 'center',
       backgroundColor: '#F1F5F9', borderRadius: 16, overflow: 'hidden', borderWidth: 1.5, borderColor: '#2563EB' }}>
-      <TouchableOpacity accessibilityRole="button" accessibilityLabel="הפחת" onPress={dec} disabled={idx === 0}
+      <TouchableOpacity accessibilityRole="button" accessibilityLabel={trNow('a11yDecrease')} onPress={dec} disabled={idx === 0}
         style={{ paddingHorizontal: 20, paddingVertical: 14, backgroundColor: idx === 0 ? '#E2E8F0' : '#EDE9FE' }}>
         <T style={{ fontSize: 22, fontWeight: '900', color: idx === 0 ? '#CBD5E1' : '#7C3AED' }}>−</T>
       </TouchableOpacity>
       <View style={{ paddingHorizontal: 28, paddingVertical: 14, backgroundColor: '#fff', minWidth: 90, alignItems: 'center' }}>
         <T style={{ fontSize: 26, fontWeight: '900', color: '#2563EB' }}>{label}</T>
       </View>
-      <TouchableOpacity accessibilityRole="button" accessibilityLabel="הוסף" onPress={inc} disabled={idx === values.length - 1}
+      <TouchableOpacity accessibilityRole="button" accessibilityLabel={trNow('a11yIncrease')} onPress={inc} disabled={idx === values.length - 1}
         style={{ paddingHorizontal: 20, paddingVertical: 14, backgroundColor: idx === values.length - 1 ? '#E2E8F0' : '#EDE9FE' }}>
         <T style={{ fontSize: 22, fontWeight: '900', color: idx === values.length - 1 ? '#CBD5E1' : '#7C3AED' }}>+</T>
       </TouchableOpacity>
@@ -2269,7 +2270,7 @@ function TimeWheelPicker({ value, onChange, minHour = 7, maxHour = 23.5, compact
 }
 
 function HoursWheelPicker({ value, onChange, values, compact, accent }: { value: number; onChange: (v: number) => void; values: number[]; compact?: boolean; accent?: string }) {
-  return <SpinnerPicker value={value} onChange={onChange} values={values} display={compact ? undefined : v => `${v} ש'`} compact={compact} accent={accent} />;
+  return <SpinnerPicker value={value} onChange={onChange} values={values} display={compact ? undefined : v => trNow('hoursAbbr', { n: v })} compact={compact} accent={accent} />;
 }
 
 // ─── InlineBookingChat — צ'אט מוטבע במסך המתנה / אישור ─────────────────────
@@ -2328,7 +2329,7 @@ function InlineBookingChat({ open, onToggle, messages, text, onChangeText, onSen
               <View style={{ alignItems: 'center', paddingVertical: 16 }}>
                 <T style={{ fontSize: 28, marginBottom: 6 }}>👋</T>
                 <T style={{ fontSize: 13, color: '#9CA3AF', textAlign: 'center' }}>
-                  שלח הודעה לנותן השירות — הוא/היא יענה בהקדם
+                  {trNow('chatEmptyHint')}
                 </T>
               </View>
             ) : (
@@ -2354,7 +2355,7 @@ function InlineBookingChat({ open, onToggle, messages, text, onChangeText, onSen
                       paddingVertical: 8,
                     }}>
                       <T style={{ fontSize: 13, color: isMe ? '#fff' : '#1F2937', lineHeight: 18 }}>
-                        {m.type === 'audio' ? '🎤 הודעה קולית' : m.text}
+                        {m.type === 'audio' ? `🎤 ${trNow('voiceMessageLabel')}` : m.text}
                       </T>
                     </View>
                   </View>
@@ -2384,7 +2385,7 @@ function InlineBookingChat({ open, onToggle, messages, text, onChangeText, onSen
               />
               {/* תמונה */}
               {onSendImage && (
-                <TouchableOpacity accessibilityRole="button" accessibilityLabel="צרף תמונה"
+                <TouchableOpacity accessibilityRole="button" accessibilityLabel={trNow('a11yAttachPhoto')}
                   style={{ width: 38, height: 38, borderRadius: 19, backgroundColor: '#EEF2FF', borderWidth: 1, borderColor: '#C7D2FE', alignItems: 'center', justifyContent: 'center' }}
                   onPress={onSendImage}
                 >
@@ -2393,7 +2394,7 @@ function InlineBookingChat({ open, onToggle, messages, text, onChangeText, onSen
               )}
               {/* הקלטה קולית — לחיצה ארוכה */}
               {onStartRecording && onStopRecording && (
-                <TouchableOpacity accessibilityRole="button" accessibilityLabel="הקלט הודעה קולית"
+                <TouchableOpacity accessibilityRole="button" accessibilityLabel={trNow('a11yRecordVoice')}
                   style={{ width: 38, height: 38, borderRadius: 19, backgroundColor: isRecording ? '#EF4444' : '#25D366', alignItems: 'center', justifyContent: 'center' }}
                   onPressIn={onStartRecording}
                   onPressOut={onStopRecording}
@@ -2942,8 +2943,8 @@ function BookingModal({ cleaner, visible, onClose, onBookingCreated, prebookData
           if (reminderDate > new Date()) {
             await Notifs.scheduleNotificationAsync({
               content: {
-                title: `🧹 ניקיון מחר — ${cleaner.name}`,
-                body:  `מחר ב-${startTimeStr} · ${address}`,
+                title: trNow('reminderTomorrowTitle', { name: cleaner.name }),
+                body:  trNow('reminderTomorrowBody', { time: startTimeStr, address }),
                 sound: true,
               },
               trigger: { date: reminderDate } as any,
@@ -3336,7 +3337,7 @@ function BookingModal({ cleaner, visible, onClose, onBookingCreated, prebookData
     <Modal visible={visible} animationType="slide" presentationStyle="pageSheet" onRequestClose={handleClose}>
       <SafeAreaView style={{ flex: 1, backgroundColor: C.bluePale }}>
         <View style={s.modalHeader}>
-          <TouchableOpacity accessibilityRole="button" accessibilityLabel="סגור" onPress={handleClose} style={s.closeBtn}><T style={{ color: C.white, fontSize: 18 }}>✕</T></TouchableOpacity>
+          <TouchableOpacity accessibilityRole="button" accessibilityLabel={trNow('closeBtn')} onPress={handleClose} style={s.closeBtn}><T style={{ color: C.white, fontSize: 18 }}>✕</T></TouchableOpacity>
           <T style={s.modalTitle}>{(t as any).bookingCleaningTitle ?? 'הזמנת ניקיון'}</T>
           <View style={{ width: 36 }} />
         </View>
@@ -3563,7 +3564,7 @@ function BookingModal({ cleaner, visible, onClose, onBookingCreated, prebookData
               <View style={{ flexDirection: 'row-reverse', flexWrap: 'wrap', gap: 8, justifyContent: 'center' }}>
                 {(cleaner.payment || []).map((p: string) => {
                   const PAY_LABEL: Record<string,string> = {
-                    cash: t.payCash, bit: t.payBit, paybox: 'PayBox', bank: 'בנקאי', card: 'כרטיס'
+                    cash: t.payCash, bit: t.payBit, paybox: 'PayBox', bank: t.payBank, card: t.payCard
                   };
                   return (
                     <TouchableOpacity key={p} accessibilityRole="button" accessibilityState={{ selected: payment === p }} onPress={() => setPayment(p)} style={[pill(payment === p), { flexDirection: 'row-reverse', alignItems: 'center', gap: 6 }]}>
@@ -3838,7 +3839,7 @@ function ChatModal({ cleaner, visible, onClose }: any) {
         {/* safe-area-context insets are 0 inside a Modal — use insets.top directly */}
         <View style={{ backgroundColor: C.blueDark, paddingTop: insets.top }}>
           <View style={s.modalHeader}>
-            <TouchableOpacity accessibilityRole="button" accessibilityLabel="סגור" onPress={onClose} style={s.closeBtn}><T style={{ color: C.white, fontSize: 18 }}>✕</T></TouchableOpacity>
+            <TouchableOpacity accessibilityRole="button" accessibilityLabel={trNow('closeBtn')} onPress={onClose} style={s.closeBtn}><T style={{ color: C.white, fontSize: 18 }}>✕</T></TouchableOpacity>
             <T style={s.modalTitle}>{t.chatWithPrefix}{cleaner.name}</T>
             <View style={{ width: 36 }} />
           </View>
@@ -3898,7 +3899,7 @@ function ChatModal({ cleaner, visible, onClose }: any) {
                     >
                       <T style={{ fontSize: 22 }}>{isPlaying ? '⏸' : '▶️'}</T>
                       <T style={{ color: isMe ? C.textDark : C.white, fontSize: 13, marginLeft: 6 }}>
-                        🎤 {isPlaying ? 'מנגן...' : 'הודעה קולית'}
+                        🎤 {isPlaying ? trNow('voicePlaying') : trNow('voiceMessageLabel')}
                       </T>
                     </TouchableOpacity>
                   </View>
@@ -3922,13 +3923,13 @@ function ChatModal({ cleaner, visible, onClose }: any) {
               )}
               <TouchableOpacity accessibilityRole="button" accessibilityLabel={(t as any).sendBtn} style={[s.sendBtn, !text.trim() && { opacity: 0.5 }]} onPress={send}><T style={s.sendBtnText} numberOfLines={1}>{(t as any).sendBtn}</T></TouchableOpacity>
               <TextInput style={s.chatInput} placeholder={t.chatPlaceholder} value={text} onChangeText={setText} placeholderTextColor={C.textSub} textAlign="right" onSubmitEditing={send} />
-              <TouchableOpacity accessibilityRole="button" accessibilityLabel="צרף תמונה"
+              <TouchableOpacity accessibilityRole="button" accessibilityLabel={trNow('a11yAttachPhoto')}
                 style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: C.blueLight, alignItems: 'center', justifyContent: 'center', borderWidth: 1.5, borderColor: C.blueBorder }}
                 onPress={sendImage}
               >
                 <T style={{ fontSize: 20 }}>📷</T>
               </TouchableOpacity>
-              <TouchableOpacity accessibilityRole="button" accessibilityLabel="הקלט הודעה קולית"
+              <TouchableOpacity accessibilityRole="button" accessibilityLabel={trNow('a11yRecordVoice')}
                 style={[s.micBtn, isRecording && s.micBtnRecording, { backgroundColor: isRecording ? '#EF4444' : '#25D366', borderWidth: 0 }]}
                 onPressIn={startRecording}
                 onPressOut={stopAndSendRecording}
@@ -3979,8 +3980,8 @@ function CleanerCardInner({ cleaner, isSel, onSelect, onProfile, onBook, onChat,
       onLongPress={() => onProfile(cleaner)}
       activeOpacity={0.85}
       accessibilityRole="button"
-      accessibilityLabel={`${cleaner.name}${cleaner.rating ? `, דירוג ${cleaner.rating.toFixed(1)}` : ''}${cleaner.available ? ', זמין' : ', לא זמין'}`}
-      accessibilityHint="לחיצה להצגה במפה ולפרטים, לחיצה על השם להרחבה, לחיצה ארוכה לפרופיל"
+      accessibilityLabel={`${cleaner.name}${cleaner.rating ? trNow('a11yRatingPart', { r: cleaner.rating.toFixed(1) }) : ''}${trNow(cleaner.available ? 'a11yAvailable' : 'a11yUnavailable')}`}
+      accessibilityHint={trNow('a11yCleanerHint')}
     >
       <View style={{ gap: 8 }}>
         {/* top row: price pill (left) · identity (right) · gradient avatar (far right) */}
@@ -3992,7 +3993,7 @@ function CleanerCardInner({ cleaner, isSel, onSelect, onProfile, onBook, onChat,
           </LinearGradient>
           {/* identity — right-aligned, fills the middle */}
           <View style={{ flex: 1, alignItems: 'flex-end', gap: 2 }}>
-            <TouchableOpacity onPress={() => onSelect(cleaner.id)} activeOpacity={0.7} style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }} accessibilityLabel={`הרחב כרטיס של ${cleaner.name}`}>
+            <TouchableOpacity onPress={() => onSelect(cleaner.id)} activeOpacity={0.7} style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }} accessibilityLabel={trNow('a11yExpandCard', { name: cleaner.name })}>
               {cleaner.identityVerified && (
                 <View style={s.verifiedBadge}><MaterialIcons name="check" size={11} color="#fff" /></View>
               )}
@@ -4007,7 +4008,7 @@ function CleanerCardInner({ cleaner, isSel, onSelect, onProfile, onBook, onChat,
             </View>
           </View>
           {/* gradient avatar */}
-          <TouchableOpacity onPress={() => photoUri && onEnlarge?.(photoUri)} activeOpacity={0.8} accessibilityLabel={`הגדל תמונה של ${cleaner.name}`}>
+          <TouchableOpacity onPress={() => photoUri && onEnlarge?.(photoUri)} activeOpacity={0.8} accessibilityLabel={trNow('a11yEnlargePhoto', { name: cleaner.name })}>
             <View style={{ position: 'relative' }}>
               <LinearGradient colors={['#5BA8F0', '#1E6FB8']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={[s.avatarLg, !cleaner.available && { opacity: 0.75 }]}>
                 {photoUri
@@ -4055,7 +4056,7 @@ function CleanerCardInner({ cleaner, isSel, onSelect, onProfile, onBook, onChat,
               style={s.actionBtn}
               onPress={() => onProfile(cleaner)}
               accessibilityRole="button"
-              accessibilityLabel={`פרופיל של ${cleaner.name}`}
+              accessibilityLabel={trNow('a11yProfileOf', { name: cleaner.name })}
             >
               <T style={[s.actionBtnText, { fontSize: fs(14), color: highContrast ? HC.blue : C.blue }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7}>{t.profileBtn}</T>
             </TouchableOpacity>
@@ -4063,7 +4064,7 @@ function CleanerCardInner({ cleaner, isSel, onSelect, onProfile, onBook, onChat,
               style={s.actionBtn}
               onPress={() => onChat(cleaner)}
               accessibilityRole="button"
-              accessibilityLabel={`פתח צ'אט עם ${cleaner.name}`}
+              accessibilityLabel={trNow('a11yChatWith', { name: cleaner.name })}
             >
               <T style={{ fontSize: 26 }}>{t.chatBtnShort}</T>
             </TouchableOpacity>
@@ -4072,7 +4073,7 @@ function CleanerCardInner({ cleaner, isSel, onSelect, onProfile, onBook, onChat,
               disabled={!cleaner.available}
               onPress={() => cleaner.available && onBook(cleaner)}
               accessibilityRole="button"
-              accessibilityLabel={cleaner.available ? `הזמן את ${cleaner.name}` : cleaner.busyNow ? 'תפוס כרגע' : 'לא זמין כרגע'}
+              accessibilityLabel={cleaner.available ? trNow('a11yBook', { name: cleaner.name }) : trNow(cleaner.busyNow ? 'a11yBusyNow' : 'a11yUnavailableNow')}
               accessibilityState={{ disabled: !cleaner.available }}
             >
               <T style={s.actionBtnPrimaryText} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.6}>
@@ -4156,7 +4157,7 @@ function QuickRebookModal({ visible, onClose, myBookings, bookingsState, allClea
       <SafeAreaView style={{ flex: 1, backgroundColor: C.bluePale }}>
         {/* Header */}
         <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: '#1E5FA8', padding: 16 }}>
-          <TouchableOpacity accessibilityRole="button" accessibilityLabel="סגור" onPress={onClose} style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: 'rgba(255,255,255,0.25)', alignItems: 'center', justifyContent: 'center' }}>
+          <TouchableOpacity accessibilityRole="button" accessibilityLabel={trNow('closeBtn')} onPress={onClose} style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: 'rgba(255,255,255,0.25)', alignItems: 'center', justifyContent: 'center' }}>
             <T style={{ color: '#fff', fontSize: 18, fontWeight: '700' }}>✕</T>
           </TouchableOpacity>
           <T style={{ fontSize: 17, fontWeight: '900', color: '#fff' }}>{t.prevBookingsTitle}</T>
@@ -4186,13 +4187,13 @@ function QuickRebookModal({ visible, onClose, myBookings, bookingsState, allClea
             <>
               <View style={{ backgroundColor: '#E8F1FB', borderRadius: 14, padding: 12, borderWidth: 1, borderColor: '#C7DEF5' }}>
                 <T style={{ fontSize: 13, color: '#1E5FA8', textAlign: 'center', lineHeight: 20 }}>
-                  ♻️ בחר הזמנה קודמת ← פתח טופס הזמנה עם אותו נותן שירות
+                  {trNow('rebookPickHint')}
                 </T>
               </View>
               {pastBookings.map((b: any) => {
                 const statusColor = b.status === 'done' ? '#065F46' : b.status === 'confirmed' ? '#1D4ED8' : '#92400E';
                 const statusBg    = b.status === 'done' ? '#D1FAE5' : b.status === 'confirmed' ? '#DBEAFE' : '#FEF3C7';
-                const statusLabel = b.status === 'done' ? '✅ הושלם' : b.status === 'confirmed' ? '✓ אושר' : b.status === 'active' ? '🔵 פעיל' : '⏳ ממתין';
+                const statusLabel = trNow(b.status === 'done' ? 'stDone' : b.status === 'confirmed' ? 'stConfirmed' : b.status === 'active' ? 'stActive' : 'stPending');
                 return (
                   <View key={b.id} style={{ backgroundColor: C.white, borderRadius: 18, padding: 16, borderWidth: 1.5, borderColor: C.blueBorder, gap: 10, elevation: 2, shadowColor: '#000', shadowOpacity: 0.06, shadowRadius: 6 }}>
                     {/* שורת כותרת + סטטוס + כפתור מחיקה */}
@@ -7006,9 +7007,9 @@ export default function HomeScreen() {
       setPendingReviewBooking(null);
       setMandatoryStars(0);
       setMandatoryComment('');
-      showToast('✅ הביקורת נשלחה — תודה!');
+      showToast(trNow('reviewSentToast'));
     } catch (_) {
-      showToast(t.error + ' — שגיאה בשליחת הביקורת', 'error');
+      showToast(t.error + ' — ' + trNow('reviewSendFailed'), 'error');
     } finally {
       setMandatorySubmitting(false);
     }
@@ -7084,7 +7085,7 @@ export default function HomeScreen() {
                 onPress={() => router.push('/messages')}
                 style={s.msgIconBtn}
                 accessibilityRole="button"
-                accessibilityLabel={unreadCount > 0 ? `הודעות — ${unreadCount} חדשות` : 'הודעות'}
+                accessibilityLabel={unreadCount > 0 ? trNow('a11yMessagesUnread', { n: unreadCount }) : trNow('a11yMessages')}
               >
                 <T style={s.msgIconText}>💬</T>
                 {unreadCount > 0 && (
@@ -7099,7 +7100,7 @@ export default function HomeScreen() {
                   onPress={() => setFilterVisible(true)}
                   style={[s.urgentHeaderBtn, { backgroundColor: activeFilterCount > 0 ? C.blue : '#EEF4FB' }]}
                   accessibilityRole="button"
-                  accessibilityLabel={activeFilterCount > 0 ? `${t.filterBtn} — ${activeFilterCount} פילטרים פעילים` : t.filterBtn}
+                  accessibilityLabel={activeFilterCount > 0 ? trNow('a11yFiltersActive', { label: t.filterBtn, n: activeFilterCount }) : t.filterBtn}
                 >
                   <T style={[s.urgentHeaderBtnText, { color: activeFilterCount > 0 ? '#fff' : C.blueDark }]} numberOfLines={1}>
                     {stripEmoji(t.filterBtn)}{activeFilterCount > 0 ? ` (${activeFilterCount})` : ''}
@@ -7147,8 +7148,8 @@ export default function HomeScreen() {
               onPress={() => setDrawer(true)}
               style={[s.hamburgerBtn, { flexShrink: 0 }]}
               accessibilityRole="button"
-              accessibilityLabel="פתח תפריט"
-              accessibilityHint="פותח תפריט ניווט"
+              accessibilityLabel={trNow('a11yOpenMenu')}
+              accessibilityHint={trNow('a11yNavMenu')}
             >
               <T style={s.hamburgerText}>≡</T>
             </TouchableOpacity>
@@ -7199,7 +7200,7 @@ export default function HomeScreen() {
           {/* באנר הזמנות ממתינות למנקה */}
           {myRole === 'cleaner' && cleanerPendingCount > 0 && hasUnseenPending && (
             <View style={{ backgroundColor: '#F59E0B', borderRadius: 12, padding: 12, marginBottom: 8, flexDirection: 'row', alignItems: 'center', gap: 10 }}>
-              <TouchableOpacity onPress={markPendingSeen} style={{ padding: 2 }} accessibilityLabel="סגור">
+              <TouchableOpacity onPress={markPendingSeen} style={{ padding: 2 }} accessibilityLabel={trNow('closeBtn')}>
                 <T style={{ fontSize: 18, color: '#fff', fontWeight: '900' }}>✕</T>
               </TouchableOpacity>
               <TouchableOpacity style={{ flex: 1, flexDirection: 'row', alignItems: 'center', gap: 10 }} onPress={() => { markPendingSeen(); router.push('/profile'); }}>
@@ -7415,16 +7416,16 @@ export default function HomeScreen() {
               <T style={[s.empty, { marginBottom: 12 }]}>{t.noCleaners}</T>
               {(() => {
                 const reasons: string[] = [];
-                if (search.trim())       reasons.push(`🔍 אין נותני שירות שתואמים ל"${search.trim()}"`);
-                if (filterCity.trim())   reasons.push(`📍 אין נותני שירות בעיר "${filterCity.trim()}"`);
-                if (filterMaxPrice < 999) reasons.push(`💰 המחיר המקסימלי שבחרת (₪${filterMaxPrice}) אולי נמוך מדי`);
-                if (filterMinRating > 0)  reasons.push(`⭐ הדירוג המינימלי שבחרת (${filterMinRating}+) אולי גבוה מדי`);
-                if (filterAvailOnly)      reasons.push(`🟢 סימנת "זמינים בלבד" — נסה/י לבטל`);
-                if (filterTypes.length > 0) reasons.push(`🔧 אין נותני שירות לסוג השירות שבחרת`);
-                if (reasons.length === 0) return <T style={{ fontSize: 12, color: C.textSub, textAlign: 'center' }}>נסה/י להרחיב את אזור החיפוש</T>;
+                if (search.trim())       reasons.push(trNow('nrSearch', { q: search.trim() }));
+                if (filterCity.trim())   reasons.push(trNow('nrCity', { city: filterCity.trim() }));
+                if (filterMaxPrice < 999) reasons.push(trNow('nrPrice', { price: filterMaxPrice }));
+                if (filterMinRating > 0)  reasons.push(trNow('nrRating', { r: filterMinRating }));
+                if (filterAvailOnly)      reasons.push(trNow('nrAvail'));
+                if (filterTypes.length > 0) reasons.push(trNow('nrTypes'));
+                if (reasons.length === 0) return <T style={{ fontSize: 12, color: C.textSub, textAlign: 'center' }}>{trNow('nrWiden')}</T>;
                 return (
                   <View style={{ backgroundColor: C.bluePale, borderRadius: 12, padding: 12, gap: 4, borderWidth: 1, borderColor: C.blueBorder, alignSelf: 'stretch' }}>
-                    <T style={{ fontSize: 13, fontWeight: '800', color: C.textDark, textAlign: 'center', marginBottom: 2 }}>סיבות אפשריות:</T>
+                    <T style={{ fontSize: 13, fontWeight: '800', color: C.textDark, textAlign: 'center', marginBottom: 2 }}>{trNow('nrReasons')}</T>
                     {reasons.map((r, i) => <T key={i} style={{ fontSize: 12, color: C.textDark, textAlign: 'right' }}>{r}</T>)}
                   </View>
                 );
@@ -7480,7 +7481,7 @@ export default function HomeScreen() {
                         <View style={s.jobFactRow}>
                           {(!!area || typeof j._distKm === 'number') && (
                             <View style={s.jobFact}>
-                              <T style={s.jobFactText}>📍 {[area, typeof j._distKm === 'number' ? `${j._distKm < 1 ? '<1' : Math.round(j._distKm)} ק"מ` : ''].filter(Boolean).join(' · ')}</T>
+                              <T style={s.jobFactText}>📍 {[area, typeof j._distKm === 'number' ? `${j._distKm < 1 ? '<1' : Math.round(j._distKm)} ${trNow('kmUnit')}` : ''].filter(Boolean).join(' · ')}</T>
                             </View>
                           )}
                           {!!j.clientName && <View style={s.jobFact}><T style={s.jobFactText}>👤 {j.clientName}</T></View>}
@@ -7505,7 +7506,7 @@ export default function HomeScreen() {
                       <TouchableOpacity style={[s.jobBtn, s.jobBtnGhost]} onPress={() => openClientChat(j.clientUid, j.clientName)}>
                         <T style={s.jobBtnGhostText} numberOfLines={1}>{(t as any).chatBeforeBtn ?? 'צ\'אט עם הלקוח'}</T>
                       </TouchableOpacity>
-                      <TouchableOpacity style={[s.jobBtn, s.jobBtnDismiss]} onPress={() => setHiddenJobIds(prev => new Set(prev).add(j._id))} accessibilityLabel="הסתר">
+                      <TouchableOpacity style={[s.jobBtn, s.jobBtnDismiss]} onPress={() => setHiddenJobIds(prev => new Set(prev).add(j._id))} accessibilityLabel={trNow('a11yHide')}>
                         <T style={s.jobBtnDismissText}>✕</T>
                       </TouchableOpacity>
                     </View>
@@ -7791,7 +7792,7 @@ export default function HomeScreen() {
                 onPress={() => setPhotoViewerIdx(i => (i - 1 + photoViewerUris.length) % photoViewerUris.length)}
                 style={{ backgroundColor: 'rgba(255,255,255,0.2)', borderRadius: 20, padding: 10 }}
                 accessibilityRole="button"
-                accessibilityLabel="הקודם"
+                accessibilityLabel={trNow('a11yPrev')}
               >
                 <T style={{ color: C.white, fontSize: 16 }}>◀</T>
               </TouchableOpacity>
@@ -7800,7 +7801,7 @@ export default function HomeScreen() {
                 onPress={() => setPhotoViewerIdx(i => (i + 1) % photoViewerUris.length)}
                 style={{ backgroundColor: 'rgba(255,255,255,0.2)', borderRadius: 20, padding: 10 }}
                 accessibilityRole="button"
-                accessibilityLabel="הבא"
+                accessibilityLabel={trNow('a11yNext')}
               >
                 <T style={{ color: C.white, fontSize: 16 }}>▶</T>
               </TouchableOpacity>
@@ -7850,13 +7851,13 @@ export default function HomeScreen() {
                 style={{ flex: 1, backgroundColor: '#10B981', borderRadius: 12, paddingVertical: 13, alignItems: 'center' }}
                 onPress={() => { const id = urgentPopupReq?.id; setUrgentPopupReq(null); if (id) router.push({ pathname: '/profile', params: { tab: 'urgent', acceptReqId: id } }); }}
               >
-                <T style={{ color: '#fff', fontWeight: '900', fontSize: 14 }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8}>{"כניסה לצ'אט ואישור"}</T>
+                <T style={{ color: '#fff', fontWeight: '900', fontSize: 14 }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8}>{trNow('enterChatApprove')}</T>
               </TouchableOpacity>
               <TouchableOpacity
                 style={{ flex: 1, backgroundColor: '#FEE2E2', borderRadius: 12, paddingVertical: 13, alignItems: 'center', borderWidth: 1.5, borderColor: '#FCA5A5' }}
                 onPress={() => setUrgentPopupReq(null)}
               >
-                <T style={{ color: '#DC2626', fontWeight: '900', fontSize: 15 }}>דחה</T>
+                <T style={{ color: '#DC2626', fontWeight: '900', fontSize: 15 }}>{t.rejectBtn}</T>
               </TouchableOpacity>
             </View>
           </View>
@@ -7895,7 +7896,7 @@ export default function HomeScreen() {
                 style={{ flex: 1, backgroundColor: '#10B981', borderRadius: 12, paddingVertical: 13, alignItems: 'center' }}
                 onPress={() => { const id = newBookingModal?.id; setNewBookingModal(null); markPendingSeen(); if (id) router.push({ pathname: '/profile', params: { tab: 'bookings', confirmBookingId: id } }); }}
               >
-                <T style={{ color: '#fff', fontWeight: '900', fontSize: 14 }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8}>{"💬 כניסה לצ'אט ואישור"}</T>
+                <T style={{ color: '#fff', fontWeight: '900', fontSize: 14 }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8}>{`💬 ${trNow('enterChatApprove')}`}</T>
               </TouchableOpacity>
               <TouchableOpacity
                 style={{ flex: 0.6, backgroundColor: '#EEF4FB', borderRadius: 12, paddingVertical: 13, alignItems: 'center', borderWidth: 1.5, borderColor: C.blueBorder }}
@@ -7959,7 +7960,7 @@ export default function HomeScreen() {
               style={{ paddingVertical: 12, alignItems: 'center', marginTop: 4 }}
               onPress={() => { setShowMandatoryReview(false); setIsBlocked(false); setMandatoryStars(0); setMandatoryComment(''); }}
             >
-              <T style={{ fontSize: 14, fontWeight: '700', color: C.textSub }}>אחר כך</T>
+              <T style={{ fontSize: 14, fontWeight: '700', color: C.textSub }}>{trNow('laterBtn')}</T>
             </TouchableOpacity>
           </View>
         </View>

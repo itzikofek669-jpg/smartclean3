@@ -1,3 +1,4 @@
+import { trNow } from './trNow';
 import React, { Component, type ErrorInfo, type ReactNode } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, ScrollView } from 'react-native';
 import { logError } from './logError';
@@ -47,9 +48,9 @@ export default class ErrorBoundary extends Component<Props, State> {
     return (
       <View style={s.wrap}>
         <Text style={s.emoji}>😕</Text>
-        <Text style={s.title}>משהו השתבש</Text>
+        <Text style={s.title}>{trNow('errBoundaryTitle')}</Text>
         <Text style={s.body}>
-          נתקלנו בתקלה בהצגת המסך. אפשר לנסות שוב — הנתונים שלך לא נפגעו.
+          {trNow('errBoundaryBody')}
         </Text>
 
         {/* Re-rendering the subtree usually clears a transient failure without
@@ -58,9 +59,9 @@ export default class ErrorBoundary extends Component<Props, State> {
           style={s.btn}
           onPress={this.reset}
           accessibilityRole="button"
-          accessibilityLabel="נסה שוב"
+          accessibilityLabel={trNow('tryAgainBtn')}
         >
-          <Text style={s.btnText}>נסה שוב</Text>
+          <Text style={s.btnText}>{trNow('tryAgainBtn')}</Text>
         </TouchableOpacity>
 
         {__DEV__ && (

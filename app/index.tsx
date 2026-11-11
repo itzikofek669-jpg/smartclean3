@@ -128,14 +128,14 @@ export default function LoginScreen() {
       await SecureStore.deleteItemAsync('remember_pass').catch(() => {});
     } catch (e: any) {
       const msg =
-        e.code === 'auth/user-not-found'      ? 'משתמש לא קיים — בדוק אם ההרשמה הושלמה' :
-        e.code === 'auth/wrong-password'      ? 'סיסמה שגויה' :
-        e.code === 'auth/invalid-email'       ? 'כתובת email לא תקינה' :
-        e.code === 'auth/invalid-credential'  ? 'אימייל או סיסמה שגויים — נסה שוב' :
-        e.code === 'auth/too-many-requests'   ? 'יותר מדי ניסיונות — המתן כמה דקות ונסה שוב' :
-        e.code === 'auth/network-request-failed' ? 'בעיית רשת — בדוק חיבור אינטרנט' :
-        e.code === 'auth/user-disabled'       ? 'החשבון הושבת — פנה לתמיכה' :
-        `שגיאת כניסה (${e.code || e.message || 'unknown'})`;
+        e.code === 'auth/user-not-found'      ? t.loginErrUserNotFound :
+        e.code === 'auth/wrong-password'      ? t.loginErrWrongPassword :
+        e.code === 'auth/invalid-email'       ? t.loginErrInvalidEmail :
+        e.code === 'auth/invalid-credential'  ? t.loginErrInvalidCred :
+        e.code === 'auth/too-many-requests'   ? t.loginErrTooMany :
+        e.code === 'auth/network-request-failed' ? t.loginErrNetwork :
+        e.code === 'auth/user-disabled'       ? t.loginErrDisabled :
+        t.loginErrGeneric.replace('{code}', String(e.code || e.message || 'unknown'));
       Alert.alert(t.error, msg);
     } finally {
       setLoading(false);

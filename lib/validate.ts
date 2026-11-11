@@ -12,8 +12,10 @@
  * booking whose total is nonsense, or a map pin that matches every search in
  * the country.
  *
- * Each function returns a Hebrew error string, or null when the value is fine.
+ * Each function returns an error in the user's language (lib/trNow), or null
+ * when the value is fine.
  */
+import { trNow } from './trNow';
 
 /** Strip formatting and normalise a +972 prefix to a leading 0. */
 export function normalizePhone(raw: string): string {
@@ -28,9 +30,9 @@ export function normalizePhone(raw: string): string {
  */
 export function validatePhone(raw: string, required = true): string | null {
   const v = normalizePhone(raw);
-  if (!v) return required ? 'נא למלא מספר טלפון' : null;
+  if (!v) return required ? trNow('vErrPhoneRequired') : null;
   if (!/^0(5\d{8}|[2-4,8-9]\d{7})$/.test(v)) {
-    return 'מספר טלפון לא תקין (לדוגמה: 050-1234567)';
+    return trNow('vErrPhoneInvalid');
   }
   return null;
 }
@@ -38,8 +40,8 @@ export function validatePhone(raw: string, required = true): string | null {
 /** Email — light structural check; Firebase Auth does the authoritative one. */
 export function validateEmail(raw: string): string | null {
   const v = String(raw || '').trim();
-  if (!v) return 'נא למלא כתובת אימייל';
-  if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(v)) return 'כתובת אימייל לא תקינה';
+  if (!v) return trNow('vErrEmailRequired');
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(v)) return trNow('vErrEmailInvalid');
   return null;
 }
 
@@ -50,8 +52,8 @@ export function validateEmail(raw: string): string | null {
  */
 export function validatePassword(raw: string): string | null {
   const v = String(raw || '');
-  if (v.length < 8) return 'הסיסמה חייבת להכיל לפחות 8 תווים';
-  if (!/[A-Za-z֐-׿]/.test(v) || !/\d/.test(v)) return 'הסיסמה חייבת לכלול אות וספרה';
+  if (v.length < 8) return trNow('vErrPasswordShort');
+  if (!/[A-Za-z֐-׿]/.test(v) || !/\d/.test(v)) return trNow('vErrPasswordWeak');
   return null;
 }
 
@@ -61,11 +63,11 @@ export const PRICE_MAX = 500;
 /** Hourly rate in shekels. */
 export function validatePrice(raw: string | number, required = true): string | null {
   const s = String(raw ?? '').trim();
-  if (!s) return required ? 'נא למלא מחיר לשעה' : null;
+  if (!s) return required ? trNow('vErrPriceRequired') : null;
   const n = Number(s);
-  if (!isFinite(n)) return 'מחיר לא תקין';
+  if (!isFinite(n)) return trNow('vErrPriceInvalid');
   if (n < PRICE_MIN || n > PRICE_MAX) {
-    return `מחיר לשעה חייב להיות בין ₪${PRICE_MIN} ל-₪${PRICE_MAX}`;
+    return trNow('vErrPriceRange', { min: PRICE_MIN, max: PRICE_MAX });
   }
   return null;
 }
@@ -73,11 +75,11 @@ export function validatePrice(raw: string | number, required = true): string | n
 /** Age. 18 is the floor because the terms require it. */
 export function validateAge(raw: string | number, required = false): string | null {
   const s = String(raw ?? '').trim();
-  if (!s) return required ? 'נא למלא גיל' : null;
+  if (!s) return required ? trNow('vErrAgeRequired') : null;
   const n = Number(s);
-  if (!Number.isInteger(n)) return 'גיל לא תקין';
-  if (n < 18) return 'הגיל המינימלי הוא 18';
-  if (n > 99) return 'גיל לא תקין';
+  if (!Number.isInteger(n)) return trNow('vErrAgeInvalid');
+  if (n < 18) return trNow('vErrAgeMin', { min: 18 });
+  if (n > 99) return trNow('vErrAgeInvalid');
   return null;
 }
 
@@ -86,17 +88,17 @@ export function validateDistance(raw: string | number): string | null {
   const s = String(raw ?? '').trim();
   if (!s) return null;
   const n = Number(s);
-  if (!isFinite(n)) return 'מרחק לא תקין';
-  if (n < 1 || n > 200) return 'טווח הגעה חייב להיות בין 1 ל-200 ק"מ';
+  if (!isFinite(n)) return trNow('vErrDistanceInvalid');
+  if (n < 1 || n > 200) return trNow('vErrDistanceRange', { min: 1, max: 200 });
   return null;
 }
 
 /** A person's name. */
 export function validateName(raw: string): string | null {
   const v = String(raw || '').trim();
-  if (!v) return 'נא למלא שם מלא';
-  if (v.length < 2) return 'השם קצר מדי';
-  if (v.length > 60) return 'השם ארוך מדי';
+  if (!v) return trNow('vErrNameRequired');
+  if (v.length < 2) return trNow('vErrNameShort');
+  if (v.length > 60) return trNow('vErrNameLong');
   return null;
 }
 

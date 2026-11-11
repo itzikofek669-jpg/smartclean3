@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
+import { setTrLang } from './trNow';
 import { Text as RNText, TextProps, StyleSheet as RNStyleSheet } from 'react-native';
 import * as SecureStore from 'expo-secure-store';
 import translations, { Lang, Translations } from './translations';
@@ -46,7 +47,7 @@ export function LanguageProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     (async () => {
       const savedLang = await SecureStore.getItemAsync(STORAGE_KEY).catch(() => null);
-      if (savedLang && VALID_LANGS.includes(savedLang as Lang)) setLangState(savedLang as Lang);
+      if (savedLang && VALID_LANGS.includes(savedLang as Lang)) { setLangState(savedLang as Lang); setTrLang(savedLang as Lang); }
 
       const savedFlip = await SecureStore.getItemAsync(FLIP_KEY).catch(() => null);
       if (savedFlip === 'true') setFlipSideState(true);
@@ -61,6 +62,7 @@ export function LanguageProvider({ children }: { children: React.ReactNode }) {
 
   const setLang = (l: Lang) => {
     setLangState(l);
+    setTrLang(l);
     SecureStore.setItemAsync(STORAGE_KEY, l).catch(() => {});
   };
 

@@ -1,9 +1,11 @@
+import { trNow } from './trNow';
 import React, { useState } from 'react';
 import {
   View, TouchableOpacity, Modal, StyleSheet, ScrollView,
 } from 'react-native';
 import { T, useAppColors, useLanguage } from './LanguageContext';
 import { SERVICE_ICONS, SERVICE_DESCRIPTIONS } from './serviceDescriptions';
+import { serviceLinesFor } from './serviceLines';
 
 interface Props {
   serviceKey: string;
@@ -20,9 +22,9 @@ interface Props {
 
 export default function ServiceInfoBtn({ serviceKey, inlinePill, label, pillStyle, pillTextStyle, hideInfo, onPressOverride }: Props) {
   const C = useAppColors();
-  const { isRTL } = useLanguage();
+  const { isRTL, lang } = useLanguage();
   const [open, setOpen] = useState(false);
-  const desc = SERVICE_DESCRIPTIONS[serviceKey];
+  const desc = SERVICE_DESCRIPTIONS[serviceKey] ? serviceLinesFor(serviceKey, lang) : undefined;
   const icon = SERVICE_ICONS[serviceKey] || '🧹';
 
   // ─── מצב פיל מובנה ───────────────────────────────────────────────────────
@@ -33,7 +35,7 @@ export default function ServiceInfoBtn({ serviceKey, inlinePill, label, pillStyl
           onPress={() => (onPressOverride ? onPressOverride() : setOpen(true))}
           style={[pillStyle, { flexDirection: isRTL ? 'row-reverse' : 'row', alignItems: 'center', gap: 4 }]}
           accessibilityRole="button"
-          accessibilityLabel={`${label} — לחץ לפרטים`}
+          accessibilityLabel={trNow('a11yServiceDetails', { label: label ?? '' })}
         >
           {desc && !hideInfo && <T style={{ fontSize: 10, color: C.blue, fontWeight: '700' }}>ℹ </T>}
           <T style={pillTextStyle} numberOfLines={1}>{label}</T>
@@ -61,7 +63,7 @@ export default function ServiceInfoBtn({ serviceKey, inlinePill, label, pillStyl
         hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
         style={styles.btn}
         accessibilityRole="button"
-        accessibilityLabel={`פרטים על ${serviceKey}`}
+        accessibilityLabel={trNow('a11yServiceAbout', { name: serviceKey })}
       >
         <T style={[styles.icon, { color: C.blue }]}>ℹ</T>
       </TouchableOpacity>

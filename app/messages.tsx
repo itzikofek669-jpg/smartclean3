@@ -546,10 +546,10 @@ function InlineChatModal({ chatId, otherUid, otherName, visible, onClose, onDeci
         {/* ── Header ── */}
         {msgSelecting ? (
           <View style={[cs.header, { backgroundColor: '#1E293B' }, flipSide && { flexDirection: 'row-reverse' }]}>
-            <TouchableOpacity accessibilityRole="button" accessibilityLabel="סגור" onPress={cancelSelection} style={cs.closeBtn}>
+            <TouchableOpacity accessibilityRole="button" accessibilityLabel={t.closeBtn} onPress={cancelSelection} style={cs.closeBtn}>
               <T style={{ color: '#fff', fontSize: 18 }}>✕</T>
             </TouchableOpacity>
-            <T style={cs.headerTitle}>{selectedMsgs.size} נבחרו</T>
+            <T style={cs.headerTitle}>{t.selectedCount.replace('{n}', String(selectedMsgs.size))}</T>
             <TouchableOpacity
               onPress={deleteSelected}
               disabled={deleting || selectedMsgs.size === 0}
@@ -560,7 +560,7 @@ function InlineChatModal({ chatId, otherUid, otherName, visible, onClose, onDeci
           </View>
         ) : (
           <View style={[cs.header, flipSide && { flexDirection: 'row-reverse' }]}>
-            <TouchableOpacity accessibilityRole="button" accessibilityLabel="חזור" onPress={onClose} style={cs.closeBtn}>
+            <TouchableOpacity accessibilityRole="button" accessibilityLabel={t.a11yBack} onPress={onClose} style={cs.closeBtn}>
               <BackIcon size={24} color={C.white} />
             </TouchableOpacity>
             <T style={cs.headerTitle}>{t.chatWithPrefix}{otherName}</T>
@@ -731,7 +731,7 @@ function InlineChatModal({ chatId, otherUid, otherName, visible, onClose, onDeci
                     >
                       <T style={{ fontSize: 22 }}>{playingId === m.id ? '⏸' : '▶️'}</T>
                       <T style={{ color: isMe ? C.textDark : C.white, fontSize: 13 }}>
-                        🎤 {playingId === m.id ? 'מנגן...' : 'הודעה קולית'}
+                        🎤 {playingId === m.id ? t.voicePlaying : t.voiceMessageLabel}
                       </T>
                     </TouchableOpacity>
                   ) : (
@@ -786,13 +786,13 @@ function InlineChatModal({ chatId, otherUid, otherName, visible, onClose, onDeci
                 textAlign="right"
                 onSubmitEditing={send}
               />
-              <TouchableOpacity accessibilityRole="button" accessibilityLabel="צרף תמונה"
+              <TouchableOpacity accessibilityRole="button" accessibilityLabel={t.a11yAttachPhoto}
                 style={{ width: 42, height: 42, backgroundColor: C.blueLight, borderRadius: 21, alignItems: 'center', justifyContent: 'center', borderWidth: 1.5, borderColor: C.blueBorder }}
                 onPress={sendImage}
               >
                 <T style={{ fontSize: 20 }}>📷</T>
               </TouchableOpacity>
-              <TouchableOpacity accessibilityRole="button" accessibilityLabel="הקלט הודעה קולית"
+              <TouchableOpacity accessibilityRole="button" accessibilityLabel={t.a11yRecordVoice}
                 style={{
                   width: 42, height: 42, borderRadius: 21, alignItems: 'center', justifyContent: 'center',
                   backgroundColor: isRecording ? '#EF4444' : '#25D366',
@@ -1013,11 +1013,11 @@ export default function MessagesScreen() {
       {/* ── Header ── */}
       {convSelecting ? (
         <View style={[s.header, { paddingTop: (Platform.OS === 'ios' ? insets.top : (StatusBar.currentHeight || 0)) + 12, backgroundColor: '#1E293B' }, flipSide && { flexDirection: 'row-reverse' }]}>
-          <TouchableOpacity accessibilityRole="button" accessibilityLabel="סגור" onPress={cancelConvSelection} style={s.backBtn}>
+          <TouchableOpacity accessibilityRole="button" accessibilityLabel={t.closeBtn} onPress={cancelConvSelection} style={s.backBtn}>
             <T style={{ color: C.white, fontSize: 18 }}>✕</T>
           </TouchableOpacity>
           <T style={s.headerTitle}>
-            {selectedConvs.size > 0 ? `${selectedConvs.size} שיחות נבחרו` : 'בחר שיחות'}
+            {selectedConvs.size > 0 ? t.convsSelected.replace('{n}', String(selectedConvs.size)) : t.selectConvs}
           </T>
           <TouchableOpacity
             onPress={deleteSelectedConvs}
@@ -1138,7 +1138,7 @@ export default function MessagesScreen() {
               >
                 {convDeleting
                   ? <ActivityIndicator color="#fff" />
-                  : <T style={{ color: '#fff', fontWeight: '900', fontSize: 16 }}>🗑 מחק {selectedConvs.size} שיחות</T>
+                  : <T style={{ color: '#fff', fontWeight: '900', fontSize: 16 }}>{t.deleteConvsBtn.replace('{n}', String(selectedConvs.size))}</T>
                 }
               </TouchableOpacity>
             </View>

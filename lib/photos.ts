@@ -1,3 +1,4 @@
+import { trNow } from './trNow';
 import { doc, getDoc, setDoc, deleteDoc } from 'firebase/firestore';
 import * as FileSystem from 'expo-file-system/legacy';
 import { db } from './firebase';
@@ -39,7 +40,7 @@ export const MAX_AVATAR_CHARS = 250_000;
 
 export class AvatarTooLargeError extends Error {
   constructor() {
-    super('התמונה גדולה מדי — נסה/י תמונה קטנה יותר.');
+    super(trNow('photoTooLarge'));
     this.name = 'AvatarTooLargeError';
   }
 }
