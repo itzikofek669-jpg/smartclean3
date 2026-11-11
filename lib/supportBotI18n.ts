@@ -605,7 +605,7 @@ function replyFor(input: string, ctx: I18nBotCtx, lang: BotLang): I18nBotResp {
   const order = isCleaner
     ? ['earnings', 'gettingPaid', 'commission', 'availability', 'getJobs', 'invoices', 'myBookings', 'cancel', 'rating', 'safety', 'account', 'language', 'contact', 'thanks', 'greet', 'payment', 'urgent']
     : ['status', 'myBookings', 'cancel', 'urgent', 'price', 'provider', 'gettingPaid', 'payment', 'join', 'book', 'rating', 'included', 'safety', 'account', 'language', 'contact', 'thanks', 'greet'];
-  let topic = quickTopic(input) ?? topicOf(msg, lang, order);
+  const topic = quickTopic(input) ?? topicOf(msg, lang, order);
   if (topic === 'menu') return { text: t('menu', lang), quickReplies: menu };
 
   if (isCleaner) {
