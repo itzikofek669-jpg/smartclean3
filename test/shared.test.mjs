@@ -94,6 +94,8 @@ const SHARED_PAIRS = [
   ['lib/cityNames.ts',     'src/lib/cityNames.ts'],
   // "What the cleaning includes" in every language (translation sweep, 11.11.2026).
   ['lib/serviceLines.ts',  'src/lib/serviceLines.ts'],
+  // The support assistant in the six languages that are not Hebrew (11.11.2026).
+  ['lib/supportBotI18n.ts', 'src/lib/supportBotI18n.ts'],
   ['scripts/shared-hash.mjs', 'scripts/shared-hash.mjs'],
   ['firestore.rules',      'firestore.rules'],
 ];

@@ -66,6 +66,7 @@ export const SHARED = [
   { name: 'terms',          app: 'lib/terms.ts',          web: 'src/lib/terms.ts' },
   { name: 'cityNames',      app: 'lib/cityNames.ts',      web: 'src/lib/cityNames.ts' },
   { name: 'serviceLines',   app: 'lib/serviceLines.ts',   web: 'src/lib/serviceLines.ts' },
+  { name: 'supportBotI18n', app: 'lib/supportBotI18n.ts', web: 'src/lib/supportBotI18n.ts' },
   // The guard itself. Two copies of this script that disagree are two
   // different ideas of what "in step" means.
   { name: 'sharedHash',     app: 'scripts/shared-hash.mjs', web: 'scripts/shared-hash.mjs' },

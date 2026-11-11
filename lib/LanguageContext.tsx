@@ -129,12 +129,12 @@ export function T({ style, children, ...props }: TextProps) {
     /[ऀ-ॿ]/.test(children);
   const hiFont = needsDevanagari ? { fontFamily: 'NotoSansDevanagari_400Regular' } : {};
   const flat: any = style ? RNStyleSheet.flatten(style) ?? {} : {};
-  // Hebrew and Arabic only. In the other five the root is mirrored
+  // Every language. In the five left-to-right ones the root is mirrored
   // (LayoutDirection in app/_layout.tsx) and Android swaps a Text's left and
-  // right under it by itself — 'right' as written for Hebrew comes out left.
-  const rtlAlign = !nested && (lang === 'he' || lang === 'ar') && flat.textAlign == null
-    ? { textAlign: 'right' as const }
-    : null;
+  // right under it — so Hebrew's 'right' comes out left there, and text with
+  // no alignment of its own (which would start from the mirrored right) is
+  // given the same 'right' to land on the left.
+  const rtlAlign = !nested && flat.textAlign == null ? { textAlign: 'right' as const } : null;
 
   // הינדי: הקטנת פונט אוטומטית אם הטקסט לא מתאים לכפתור
   const hiAdjust = needsDevanagari && !props.numberOfLines

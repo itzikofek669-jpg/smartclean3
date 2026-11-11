@@ -1,3 +1,5 @@
+import { trNow } from '../lib/trNow';
+import { botReplyI18n, botWelcomeI18n, isBotLang } from '../lib/supportBotI18n';
 import React, { useEffect, useRef, useState } from 'react';
 import {
   View, StyleSheet, StatusBar,
@@ -996,7 +998,9 @@ function TypingDots({ s }: { s: ReturnType<typeof createS> }) {
 
 // ─── Main Screen ──────────────────────────────────────────────────────────────
 export default function SupportScreen() {
-  const { t, highContrast, flipSide, isRTL } = useLanguage();
+  const { t, highContrast, flipSide, isRTL, lang } = useLanguage();
+  // Every language but Hebrew talks to the shared assistant (lib/supportBotI18n).
+  const botLang = isBotLang(lang) ? lang : null;
   const insets = useSafeAreaInsets();
   const C = highContrast ? {
     bg:        '#FFFFFF', botBg:  '#F0F0F0', userBg: '#0040CC',
@@ -1034,6 +1038,11 @@ export default function SupportScreen() {
     if (!uid) {
       // Guest greeting
       setTimeout(() => {
+        if (botLang) {
+          const w = botWelcomeI18n({ userName: '', role: null, activeBooking: null, allBookings: [] }, botLang);
+          pushBotMessage(w.text, w.quickReplies);
+          return;
+        }
         pushBotMessage(
           'היי! שמחים שפנית 👋\nעל מה תרצה עזרה?',
           ['מה הסטטוס שלי?', 'כמה זה עולה?', 'ניקוי דחוף', 'צור קשר'],
@@ -1094,6 +1103,11 @@ export default function SupportScreen() {
 
       // ── ברכת פתיחה לפי תפקיד ────────────────────────────────────────────
       setTimeout(() => {
+        if (botLang) {
+          const w = botWelcomeI18n(ctx, botLang);
+          pushBotMessage(w.text, w.quickReplies, ctx);
+          return;
+        }
         if (role === 'cleaner') {
           pushBotMessage(
             `היי ${userName}! שמחים שפנית 👋\nעל מה תרצה עזרה?`,
@@ -1147,6 +1161,32 @@ export default function SupportScreen() {
     setInput('');
     Keyboard.dismiss();
     pushUserMessage(trimmed);
+
+    if (botLang) {
+      setTyping(true);
+      setTimeout(() => {
+        setTyping(false);
+        const ctx = contextRef.current;
+        if (!ctx.role && auth.currentUser) {
+          pushBotMessage(trNow('botProfileLoading'));
+          return;
+        }
+        const resp = botReplyI18n(trimmed, ctx, botLang);
+        pushBotMessage(resp.text, resp.quickReplies);
+        if (resp.action === 'sendEmail') {
+          const isCleaner = ctx.role === 'cleaner';
+          const emailAddr = isCleaner ? 'cleaners@amclean.co.il' : 'support@amclean.co.il';
+          const subject = encodeURIComponent(`A&M Clean — support request (${isCleaner ? 'provider' : 'client'}, ${botLang})`);
+          const body = encodeURIComponent(`${ctx.userName || ''}\n\n`);
+          setTimeout(() => { Linking.openURL(`mailto:${emailAddr}?subject=${subject}&body=${body}`); }, 1200);
+        }
+        if (resp.navigateTo) {
+          const to = resp.navigateTo;
+          setTimeout(() => router.push(to as any), 1200);
+        }
+      }, 700 + Math.random() * 300);
+      return;
+    }
 
     // Handle navigation shortcuts
     if (trimmed === 'הזמנות שלי' || trimmed === 'הפרופיל שלי') {
@@ -1262,10 +1302,10 @@ export default function SupportScreen() {
             <T style={{ fontSize: 20 }}>👨‍💼</T>
           </View>
           <View>
-            <T style={s.headerName}>מרכז תמיכה</T>
+            <T style={s.headerName}>{t.supportCenterTitle}</T>
             <View style={s.onlineRow}>
               <View style={s.onlineDot} />
-              <T style={s.onlineText}>זמינים 24/7</T>
+              <T style={s.onlineText}>{t.supportAvailable247}</T>
             </View>
           </View>
         </View>
@@ -1295,7 +1335,7 @@ export default function SupportScreen() {
             style={s.textInput}
             value={input}
             onChangeText={setInput}
-            placeholder="כתוב שאלה..."
+            placeholder={t.supportAskPlaceholder}
             placeholderTextColor={C.sub}
             onSubmitEditing={() => handleSend(input)}
             returnKeyType="send"
