@@ -61,7 +61,7 @@ import {
   stripEmoji, countWords, limitWords, buildFullAddress,
 } from '../lib/jobUtils';
 import { compareCleaners, compareJobs, isAvailableNow, rotationRank } from '../lib/displayOrder';
-import { isUrgentRequestLive, URGENT_FIRST_START_HOUR, URGENT_LAST_START_HOUR, urgentStartAllowed, urgentTodayClosed, urgentFirstSlot, hourOfTime, urgentEditContext, urgentPushPlan, urgentAlertedAfter, liveUrgentEdit, urgentAlertOutcome, urgentPushQuiet, urgentExpiresAt, expiryOf, slotOf, urgentBackOut, UrgentEditContext } from '../lib/urgentRequest';
+import { isUrgentRequestLive, releasedByMe, URGENT_FIRST_START_HOUR, URGENT_LAST_START_HOUR, urgentStartAllowed, urgentTodayClosed, urgentFirstSlot, hourOfTime, urgentEditContext, urgentPushPlan, urgentAlertedAfter, liveUrgentEdit, urgentAlertOutcome, urgentPushQuiet, urgentExpiresAt, expiryOf, slotOf, urgentBackOut, UrgentEditContext } from '../lib/urgentRequest';
 import { sameDayOverlap, bookingHoldsHours } from '../lib/bookingSlot';
 import { unansweredPast } from '../lib/bookingTabs';
 import { claimUpdate, occupiesCleanerTime, pendingSlotMissed, pendingSlotExpired, expiryUpdate, rejectionUpdate, isBoardJobOfferable, busySlotOf, declinedByCleaner } from '../lib/bookingActions';
@@ -6214,7 +6214,7 @@ export default function HomeScreen() {
         const now = new Date();
         setOpenUrgent(
           snap.docs.map(d => ({ id: d.id, ...(d.data() as any) }))
-            .filter(r => isUrgentRequestLive(r, now) && r.clientUid !== uid)
+            .filter(r => isUrgentRequestLive(r, now) && r.clientUid !== uid && !releasedByMe(r, uid))
             .sort((a, b) => String(b.createdAt || '').localeCompare(String(a.createdAt || '')))
         );
       },
@@ -6562,7 +6562,7 @@ export default function HomeScreen() {
     const q = query(collection(db, 'urgentRequests'), where('status', '==', 'open'));
     const unsub = onSnapshot(q, async snap => {
       const now = new Date();
-      const reqs = snap.docs.map(d => ({ id: d.id, ...d.data() } as any)).filter((r: any) => isUrgentRequestLive(r, now));
+      const reqs = snap.docs.map(d => ({ id: d.id, ...d.data() } as any)).filter((r: any) => isUrgentRequestLive(r, now) && !releasedByMe(r, auth.currentUser?.uid));
       // טעינה ראשונית — מסמנים את כל הקיימות כ"הוצגו" בלי להקפיץ (מונע הקפצת backlog)
       if (!urgentInitedRef.current) {
         reqs.forEach((r: any) => shownUrgentRef.current.add(r.id));

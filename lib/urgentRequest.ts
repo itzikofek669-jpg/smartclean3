@@ -69,6 +69,18 @@ export function isUrgentRequestLive(
 }
 
 /**
+ * Did this cleaner hand the request back? Decision 9.11.2026: a cleaner who
+ * released a request can't take it again, so the board hides it from her (the
+ * rules refuse the claim as well). Absent on older documents = nobody.
+ */
+export function releasedByMe(
+  r: { releasedBy?: unknown } | null | undefined,
+  uid: string | null | undefined,
+): boolean {
+  return !!uid && Array.isArray(r?.releasedBy) && (r!.releasedBy as unknown[]).includes(uid);
+}
+
+/**
  * May this request be swept away?
  *
  * True for a request that has genuinely lapsed, AND for one whose expiry

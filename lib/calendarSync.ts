@@ -26,6 +26,7 @@ import { auth } from './firebase';
 // it is the part that has already put an event on the wrong day. See
 // lib/bookingSlot.ts.
 import { startDateOf, endDateOf } from './bookingSlot';
+import { fetchDetailsWhenReadable } from './bookingDetails';
 
 /**
  * SecureStore key holding the created event id for a booking, per signed-in user.
@@ -303,6 +304,14 @@ async function addBookingToCalendarInner(
 
     const { status } = await Calendar.requestCalendarPermissionsAsync();
     if (status !== 'granted') return 'denied';
+
+    // Since 9.11.2026 the cleaner reads the address only once the booking is
+    // confirmed — so the copy she approved from has none. It is readable now
+    // (the approve write came first); fetch it, or the event has no location.
+    if (!b.address && b.id) {
+      const det = await fetchDetailsWhenReadable({ id: b.id, status: (b as { status?: string }).status });
+      if (det.address) b = { ...b, address: det.address };
+    }
 
     // A phone with no account synced has no writable calendar at all. Nothing
     // the app can do about it, but the user can — so say so rather than

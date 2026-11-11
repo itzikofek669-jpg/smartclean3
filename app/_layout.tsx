@@ -10,7 +10,7 @@ import { auth, db } from '../lib/firebase';
 import { getActiveChat } from '../lib/chatPresence';
 import { logError } from '../lib/logError';
 import { loadDemoMode } from '../lib/demoMode';
-import { fetchBookingDetails } from '../lib/bookingDetails';
+import { fetchDetailsWhenReadable } from '../lib/bookingDetails';
 import { primeCalendarPermission, addBookingToCalendar, removeBookingFromCalendar, calendarSyncMessage, hasWarnedCalendar, markCalendarWarned } from '../lib/calendarSync';
 // Imported for its side effect as well as the helper: the background task is
 // defined at module scope there, and a cold start triggered by a push must find
@@ -361,7 +361,7 @@ export default function RootLayout() {
         // the address split carry no street; and addBookingToCalendar dedupes
         // per booking, so an event created without a location is the one that
         // stays — on both the client's and the cleaner's device.
-        (b.address ? Promise.resolve(b) : fetchBookingDetails(b.id).then(d => ({ ...b, ...d })))
+        (b.address ? Promise.resolve(b) : fetchDetailsWhenReadable(b).then(d => ({ ...b, ...d })))
           .then(full => addBookingToCalendar(full, { role }))
           .then(async res => {
             if (res === 'bad-slot' || res === 'no-id') {

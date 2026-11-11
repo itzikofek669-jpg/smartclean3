@@ -267,7 +267,7 @@ service cloud.firestore {
         && request.resource.data.get('role', 'client') in ['client', 'cleaner']
         && !request.resource.data.keys().hasAny([
           'rating', 'reviewCount', 'reviews', 'reviewsCount',
-          'blocked', 'blockedUntilReview', 'identityVerified', 'adminNote', 'lowReviewCount'
+          'blocked', 'blockedUntilReview', 'identityVerified', 'idVerified', 'adminNote', 'lowReviewCount'
         ])
         && emailVerifiedIsHonest()
         && bioSane();
@@ -281,7 +281,9 @@ service cloud.firestore {
             // guard, which reads profile.role straight through.
             // lowReviewCount: the notify server's count of her 1–2 star reviews,
             // which the admin screen flags — not hers to reset.
-            && !changed().hasAny(['blocked', 'blockedUntilReview', 'identityVerified', 'adminNote', 'role', 'lowReviewCount'])
+            // idVerified: an old spelling of the badge the website still honoured —
+            // anyone could award it to themselves (security review, 7.11.2026).
+            && !changed().hasAny(['blocked', 'blockedUntilReview', 'identityVerified', 'idVerified', 'adminNote', 'role', 'lowReviewCount'])
             && (!changed().hasAny(['emailVerified']) || emailVerifiedIsHonest())
             && (!changed().hasAny(['bio']) || bioSane()))
         || (signedIn() && uid() != userId && isValidRatingUpdate(userId));
@@ -576,6 +578,29 @@ service cloud.firestore {
           'actualTotal', 'actualHours', 'paidAt', 'finishedAt', 'cleanerRating',
           'onwayAt', 'startedAt'
         ])
+        // Not born paid: the cleaner's "mark paid" button disappears on a paid
+        // booking (security review, 7.11.2026).
+        && (!request.resource.data.keys().hasAny(['paymentStatus'])
+            || (request.resource.data.paymentStatus is string
+                && request.resource.data.paymentStatus.matches('^awaiting_[a-z]{1,20}$')))
+        // Words that go into the cleaner's push and onto her dashboard, of a sane
+        // size: a 5000-character name was accepted.
+        && (!request.resource.data.keys().hasAny(['clientName'])
+            || (request.resource.data.clientName is string && request.resource.data.clientName.size() <= 80))
+        && (!request.resource.data.keys().hasAny(['serviceType'])
+            || (request.resource.data.serviceType is string && request.resource.data.serviceType.size() <= 300))
+        && (!request.resource.data.keys().hasAny(['addrCity'])
+            || (request.resource.data.addrCity is string && request.resource.data.addrCity.size() <= 80))
+        // Named cleaner is a cleaner: a booking naming another client landed in
+        // that client's dashboard for good (bookings cannot be deleted).
+        && (request.resource.data.get('cleanerId', '') == ''
+            || get(/databases/$(database)/documents/users/$(request.resource.data.cleanerId)).data.get('role', '') == 'cleaner')
+        // An urgent booking points at the client's OWN request. Pointing at
+        // another client's let a sock-puppet cleaner test guesses of that
+        // client's address against the copy rule below.
+        && (!request.resource.data.keys().hasAny(['urgentRequestId'])
+            || request.resource.data.urgentRequestId == ''
+            || get(/databases/$(database)/documents/urgentRequests/$(request.resource.data.urgentRequestId)).data.get('clientUid', '') == uid())
         // A job on the board is readable by every signed-in account, and the
         // split that moved the street, flat, notes and phone to private/details
         // was enforced by the clients alone: an older build — or anyone with a
@@ -880,7 +905,17 @@ service cloud.firestore {
         return (!changed().hasAny(['beforePhotos', 'afterPhotos'])
                 || resource.data.get('cleanerId', '') == uid())
           && (!changed().hasAny(['hiddenFromRebook'])
-              || resource.data.get('clientUid', '') == uid());
+              || resource.data.get('clientUid', '') == uid())
+          // The client's verdict on the job is the client's to write. Either
+          // party could: a cleaner wrote herself five stars and "Amazing!" on a
+          // finished job, and the client's own rating was then refused as the
+          // job was already rated (security review, 7.11.2026).
+          && (!changed().hasAny(['cleanerRating', 'cleanerReviewText', 'reviewedAt'])
+              || resource.data.get('clientUid', '') == uid())
+          // …and she may ask for a review, never wave one off.
+          && (!changed().hasAny(['reviewRequired'])
+              || resource.data.get('clientUid', '') == uid()
+              || request.resource.data.get('reviewRequired', false) == true);
       }
       function reviewTextIsBounded() {
         return !changed().hasAny(['cleanerReviewText'])
@@ -895,6 +930,16 @@ service cloud.firestore {
       // yourself, cite it, repeat with the next. The only client-driven advance
       // either product makes is the auto-close of a confirmed, active or
       // on-the-way job whose time has passed — which is exactly what remains.
+      // A cleaner closes a job she said yes to — not a request still waiting for
+      // her answer: a pending booking went straight to done, billed at up to
+      // twice its price (security review, 7.11.2026).
+      function cleanerStatusChangeIsAllowed() {
+        return isTheClient()
+          || !changed().hasAny(['status'])
+          || request.resource.data.get('status', '') != 'done'
+          || resource.data.get('status', '') in ['confirmed', 'active', 'onway'];
+      }
+
       function clientStatusChangeIsAllowed() {
         return !isTheClient()
           || !changed().hasAny(['status'])
@@ -944,6 +989,7 @@ service cloud.firestore {
             && billingIsPlausible()
             && bookingRatingInRange()
             && clientStatusChangeIsAllowed()
+            && cleanerStatusChangeIsAllowed()
             && cleanerIsNotDestroyingABoardJob()
             && (!changed().hasAny(['photos']) || jobPhotosAreBounded(request.resource.data))
             && (!changed().hasAny(['publicNotes']) || publicNotesAreBounded(request.resource.data)))
@@ -1013,10 +1059,17 @@ service cloud.firestore {
         // business once it is cancelled. Without the same guard here, the
         // street, flat and phone stayed readable to her indefinitely — the very
         // fields this subcollection exists to protect.
+        // The cleaner reads the street and the phone once she has said yes to
+        // the job — not on merely taking it. Taking a board job, reading these
+        // and handing it back was a way for any account that called itself a
+        // cleaner to collect every client's address and number (security
+        // review, 7.11.2026; Ofek, 9.11.2026: "only after approval"). Before
+        // that she has the town, the day and hours, the service, the photos and
+        // the public notes on the booking itself.
         allow read: if isAdmin()
           || (signedIn() && parent().get('clientUid', '') == uid())
           || (signedIn() && parent().get('cleanerId', '') == uid()
-              && parent().get('status', '') != 'cancelled');
+              && parent().get('status', '') in ['confirmed', 'onway', 'active', 'done']);
         // The client's own words about their own home. A cleaner may never
         // write here: it is the same data bookingClientDataUnchanged freezes on
         // the parent, and moving it must not hand it back.
@@ -1115,9 +1168,31 @@ service cloud.firestore {
                .difference(resource.data.get('deletedFor', []).toSet())
                .hasOnly([uid()]);
       }
-      allow create: if isAdmin() || (inChatId() && participantsMatchId() && callerNotBlocked());
+      // What the push about a message is made of — the sender's name and the
+      // preview — of a sane size, by participants only. Unbounded, a 5000-
+      // character "name" went out as a push title (security review, 7.11.2026).
+      // Checked only on the fields a write touches (all of them on create): a
+      // thread stored before these bounds must still be markable read and
+      // hideable, or its unread badge sticks for good.
+      function threadFieldsSane(keys) {
+        let ids = chatId.split('_');
+        let names = request.resource.data.get('participantNames', {});
+        return (!keys.hasAny(['lastMessage'])
+            || (request.resource.data.lastMessage is string
+                // A message's own text is capped at 4000 (messages rule); the
+                // preview is that text, whole.
+                && request.resource.data.lastMessage.size() <= 4000))
+          && (!keys.hasAny(['participantNames'])
+            || (names.get(ids[0], '') is string && names.get(ids[0], '').size() <= 200
+                && (ids.size() < 2 || (names.get(ids[1], '') is string && names.get(ids[1], '').size() <= 200))));
+      }
+      allow create: if isAdmin() || (inChatId() && participantsMatchId() && callerNotBlocked()
+        && threadFieldsSane(request.resource.data.keys()));
       allow update: if isAdmin()
-        || (inChatId() && participantsMatchId() && hidesOnlyForSelf());
+        || (inChatId() && participantsMatchId() && hidesOnlyForSelf()
+            // A blocked account may still hide a thread for itself, nothing more.
+            && (callerNotBlocked() || request.resource.data.diff(resource.data).affectedKeys().hasOnly(['deletedFor']))
+            && threadFieldsSane(changed()));
       // Admin only. Deleting the document removed the thread from BOTH people's
       // lists — the other party saw no conversation while its messages stayed —
       // which undoes "hide only for yourself" above. Neither product deletes it.
@@ -1181,8 +1256,27 @@ service cloud.firestore {
       // The fields a claim or a release is allowed to touch, and no others.
       function onlyClaimFields() {
         return changed().hasOnly([
-          'status', 'takenBy', 'takenByUid', 'takenByName', 'takenAt', 'expiresAt'
+          'status', 'takenBy', 'takenByUid', 'takenByName', 'takenAt', 'expiresAt', 'releasedBy'
         ]);
+      }
+      // Text a cleaner reads on the board and in a push, of a sane size. Every
+      // field is optional (old builds omit some); a present one is bounded.
+      // `keys`: the fields to check — all of them on create, only the changed
+      // ones on an edit, so a request stored before these bounds can still be
+      // cancelled by its owner.
+      function urgentFieldsSane(d, keys) {
+        return (!keys.hasAny(['serviceType']) || (d.serviceType is string && d.serviceType.size() <= 300))
+          && (!keys.hasAny(['addrCity']) || (d.addrCity is string && d.addrCity.size() <= 80))
+          && (!keys.hasAny(['address']) || (d.address is string && d.address.size() <= 300))
+          && (!keys.hasAny(['clientName']) || (d.clientName is string && d.clientName.size() <= 200))
+          && (!keys.hasAny(['startTime']) || d.startTime == null
+              || (d.startTime is string && d.startTime.matches('^[0-9]{1,2}:[0-9]{2}$')));
+      }
+      // Cleaners who let this request go. Decision 9.11.2026: one who released
+      // it can't claim it again. Absent on older documents = nobody.
+      function releasedByCaller() {
+        return resource.data.get('releasedBy', []) is list
+          && uid() in resource.data.get('releasedBy', []);
       }
 
       // Open requests are a broadcast; everything else is not.
@@ -1203,6 +1297,7 @@ service cloud.firestore {
 
       allow create: if signedIn() && callerNotBlocked()
         && request.resource.data.get('clientUid', '') == uid()
+        && urgentFieldsSane(request.resource.data, request.resource.data.keys())
         && jobPhotosAreBounded(request.resource.data)
         && publicNotesAreBounded(request.resource.data);
 
@@ -1217,13 +1312,16 @@ service cloud.firestore {
       // the request outright.
       allow update: if isAdmin()
         // The owner edits their own request — but cannot hand it to anyone else.
-        || (urgentOwner() && urgentOwnerUnchanged() && jobPhotosAreBounded(request.resource.data)
+        || (urgentOwner() && urgentOwnerUnchanged() && urgentFieldsSane(request.resource.data, changed())
+            && jobPhotosAreBounded(request.resource.data)
             && publicNotesAreBounded(request.resource.data))
         // A cleaner claims a request that is genuinely open, touching only the
         // claim fields, and may only claim it for themselves.
         || (signedIn() && callerIsCleaner() && callerNotBlocked() && urgentOwnerUnchanged() && onlyClaimFields()
             && resource.data.get('status', '') == 'open'
             && request.resource.data.get('status', '') == 'taken'
+            && !releasedByCaller()
+            && request.resource.data.get('releasedBy', []) == resource.data.get('releasedBy', [])
             // Both spellings, or the claim is lying under one of them: writing
             // takenByUid=me and takenBy=someone-else passed a check on either
             // field alone, and readers disagree about which one holds it.
@@ -1249,7 +1347,11 @@ service cloud.firestore {
             // that through getAfter — so bookings could then be minted against the
             // request without claiming it, as many as the caller liked. Both
             // products already delete these fields.
-            && !request.resource.data.keys().hasAny(['takenByUid', 'takenBy']));
+            && !request.resource.data.keys().hasAny(['takenByUid', 'takenBy'])
+            // The list only grows, and only by the releaser — or stays as it was
+            // (builds before 232 don't write it).
+            && (request.resource.data.get('releasedBy', []) == resource.data.get('releasedBy', [])
+                || request.resource.data.get('releasedBy', []) == resource.data.get('releasedBy', []).concat([uid()])));
 
       // `cleanerId` is listed for symmetry with the schema this collection was
       // modelled on, but no urgent request has ever carried it — a claiming

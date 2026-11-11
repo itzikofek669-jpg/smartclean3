@@ -63,7 +63,7 @@ import { withBookingDetails, migrateOpenJobDetails, fetchBookingDetails, backfil
 import { batchProfile, fetchOwnProfile, idPhotoRef, ownPhone } from '../lib/privateProfile';
 import { firstError, validateName, validatePhone, validatePrice, validateAge, validateDistance, normalizePhone } from '../lib/validate';
 import { claimPhone, releasePhone } from '../lib/accountChecks';
-import { isUrgentRequestLive, isUrgentRequestExpired } from '../lib/urgentRequest';
+import { isUrgentRequestLive, isUrgentRequestExpired, releasedByMe } from '../lib/urgentRequest';
 import { rejectionUpdate, occupiesCleanerTime, awaitsMyApproval, rejectionReleasesToBoard, busyFieldsOf } from '../lib/bookingActions';
 import { cityFromAddress } from '../lib/cityFromAddress';
 import { bookingOrigin, replacedByEdit } from '../lib/bookingOrigin';
@@ -1295,7 +1295,7 @@ export default function ProfileScreen() {
             // ואת שלך אפשר גם לפנות — כי אחרת היא נשארת פתוחה, בלתי נראית,
             // וחוסמת אותך מלפרסם באותה שעה. ראה lib/urgentRequest.
             if (isUrgentRequestExpired(r, now)) expired.push(r);
-            return isUrgentRequestLive(r, now);
+            return isUrgentRequestLive(r, now) && !releasedByMe(r, auth.currentUser?.uid);
           });
         // מחק אוטומטית פניות שפג תוקפן — אבל רק כאלה שמותר לנו למחוק.
         //
@@ -3048,7 +3048,9 @@ export default function ProfileScreen() {
                     <T style={{ fontSize: 15, fontWeight: '900', color: C.textDark }}>👤 {pendingConfirmBooking.clientName}</T>
                     <T style={{ fontSize: 16, fontWeight: '900', color: C.blue }}>₪{pendingConfirmBooking.total}</T>
                   </View>
-                  <T style={{ fontSize: 13, color: C.textDark }}>📍 {pendingConfirmBooking.address}</T>
+                  {pendingConfirmBooking.address
+                    ? <T style={{ fontSize: 13, color: C.textDark }}>📍 {pendingConfirmBooking.address}</T>
+                    : <T style={{ fontSize: 13, color: C.textDark }}>📍 {pendingConfirmBooking.addrCity || ''}{'\n'}<T style={{ fontSize: 12, color: C.textMid }}>🔒 {t.addressAfterApproval}</T></T>}
                   {(pendingConfirmBooking.notes || pendingConfirmBooking.publicNotes) ? <T style={{ fontSize: 13, color: C.textDark, backgroundColor: '#FFFBEB', borderWidth: 1, borderColor: '#FDE68A', borderRadius: 10, paddingHorizontal: 10, paddingVertical: 6 }}>📝 {pendingConfirmBooking.notes || pendingConfirmBooking.publicNotes}</T> : null}
                   {/* Outside the days or hours she set — a booking from a build older
                       than that check, or her hours changed since. */}

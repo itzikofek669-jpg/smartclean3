@@ -1,5 +1,5 @@
-import { deleteField, doc, updateDoc } from 'firebase/firestore';
-import { db } from './firebase';
+import { arrayUnion, deleteField, doc, updateDoc } from 'firebase/firestore';
+import { auth, db } from './firebase';
 import { logError } from './logError';
 
 /**
@@ -63,6 +63,8 @@ export async function releaseUrgentRequest(
             takenBy: deleteField(),
             takenByName: deleteField(),
             takenAt: deleteField(),
+            // מי ששחררה לא תיקח שוב (החלטה 9.11.2026). החוקים מתירים רק את עצמה.
+            ...(auth.currentUser?.uid ? { releasedBy: arrayUnion(auth.currentUser.uid) } : {}),
           }
         : { status: 'cancelled' },
     );

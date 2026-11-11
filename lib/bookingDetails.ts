@@ -43,6 +43,13 @@ export async function writeBookingDetails(bookingId: string, details: BookingDet
 // a page's lifetime. Cleared on reload, which is when a booking could have
 // changed hands anyway.
 const cache = new Map<string, BookingDetails>();
+// When the last read of a booking's private half was refused. Since 9.11.2026
+// the cleaner reads it only once the booking is confirmed — and her own
+// approval shows on screen (the local copy) before the server has it, so the
+// read made at that moment is refused and nothing asks again. A confirmed row
+// whose read was refused is asked once more, a moment later.
+const deniedAt = new Map<string, number>();
+const LIVE_FOR_CLEANER = ['confirmed', 'onway', 'active', 'done'];
 
 export async function fetchBookingDetails(bookingId: string): Promise<BookingDetails> {
   const hit = cache.get(bookingId);
@@ -59,6 +66,7 @@ export async function fetchBookingDetails(bookingId: string): Promise<BookingDet
     cache.set(bookingId, d);
     return d;
   } catch (err) {
+    if ((err as { code?: string })?.code === 'permission-denied') deniedAt.set(bookingId, Date.now());
     // Not a party (or offline). The caller renders what it has rather than
     // failing the screen — a missing street is a worse day than a blank one,
     // but a blank list is worse than both.
@@ -168,14 +176,38 @@ export async function copyUrgentDetails(bookingId: string, reqId: string): Promi
  * split still carries its own address, and asking again would double the reads
  * for no answer.
  */
+/**
+ * The private half, asked again while the rules still refuse it for a booking
+ * that is already confirmed: the approve shows locally before the server has
+ * it, so the first read is refused, and no new snapshot follows the server's
+ * acknowledgement. Three more tries over ~10s, then whatever there is.
+ */
+export async function fetchDetailsWhenReadable(b: { id: string; status?: string }): Promise<BookingDetails> {
+  deniedAt.delete(b.id);
+  let d = await fetchBookingDetails(b.id);
+  for (const wait of [1500, 3000, 6000]) {
+    if (d.address || !deniedAt.has(b.id) || !LIVE_FOR_CLEANER.includes(String(b.status))) break;
+    await new Promise((r) => setTimeout(r, wait));
+    deniedAt.delete(b.id);
+    d = await fetchBookingDetails(b.id);
+  }
+  return d;
+}
+
 export async function withBookingDetails<T extends { id: string; address?: string }>(
   rows: T[],
 ): Promise<T[]> {
   return Promise.all(rows.map(async (b) => {
     if (b.address) return b;
-    const d = await fetchBookingDetails(b.id);
+    const d = await fetchDetailsWhenReadable(b);
     const rid = (b as { urgentRequestId?: string }).urgentRequestId;
     if (d.address || !rid) return { ...b, ...d };
+    // Not to the cleaner before she is confirmed (decision 9.11.2026): the
+    // request's private half would hand her the address the booking holds back.
+    const st = String((b as { status?: string }).status);
+    if (auth.currentUser?.uid === (b as { cleanerId?: string }).cleanerId && !LIVE_FOR_CLEANER.includes(st)) {
+      return { ...b, ...d };
+    }
     // An urgent booking whose address has not been copied in yet — the copy
     // right after the claim failed, or has not run. Shown from the request's
     // private half, and copied in when the reader is the cleaner.
