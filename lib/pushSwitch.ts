@@ -75,7 +75,8 @@ export async function turnPushOn(uid: string): Promise<PushOnResult> {
   // The opt-out is cleared in the same write: registerPushToken (app/_layout)
   // leaves an opted-out account alone, so a token written beside the flag would
   // never be refreshed, and the server would go on skipping the account.
-  await updateDoc(doc(db, 'users', uid), { pushToken: token, pushOptOut: false });
+  // Phase D: the token only in the private copy; the public field is cleared.
+  await updateDoc(doc(db, 'users', uid), { pushToken: '', pushOptOut: false });
   await setDoc(pushTokenRef(uid), pushTokenDoc(token)).catch(err => logError('pushSwitch:private', err));
   return 'on';
 }

@@ -18,6 +18,7 @@ import { useNow } from '../lib/useNow';
 import { markHasBooked } from '../lib/firstBooking';
 import { hasBookedACleaner, rebookableBookings, prefillFromBooking } from '../lib/rebookList';
 import { withBookingDetails, migrateOpenJobDetails, fetchBookingDetails, urgentDetailsRef } from '../lib/bookingDetails';
+import { pushTokenRef } from '../lib/pushTokenStore';
 import { trNow, isRtlNow, chevron } from '../lib/trNow';
 import { fetchOwnProfile, migrateProfile, ownPhone, publicCoord } from '../lib/privateProfile';
 
@@ -4546,6 +4547,7 @@ export default function HomeScreen() {
   const [pushOptedOut, setPushOptedOut] = useState(false);
   const [pushPermitted, setPushPermitted] = useState<boolean | null>(null);
   const [pushUnregistered, setPushUnregistered] = useState(false);   // הרישום כאן נכשל — אין טוקן
+  const privTokenChecked = useRef(false);
   const [pushTurningOn, setPushTurningOn] = useState(false);
   // אותם ערכים למאזינים שמוקמים פעם אחת, ונעילה לרישום אחד בכל רגע.
   const pushOptedOutRef = useRef(false);
@@ -5946,6 +5948,11 @@ export default function HomeScreen() {
         pushOptedOutRef.current = data.pushOptOut === true;
         setPushOptedOut(data.pushOptOut === true);
         if (data.pushToken) setPushUnregistered(false);   // יש טוקן — הטלפון רשום
+        // מאז שלב D הטוקן רק בעותק הפרטי — בודקים שם, פעם אחת.
+        else if (!privTokenChecked.current) {
+          privTokenChecked.current = true;
+          getDoc(pushTokenRef(uid)).then(p => { if (p.data()?.token) setPushUnregistered(false); }).catch(() => {});
+        }
         if (role === 'cleaner') {
           myNameRef.current = data.name || '';
           setMyMaxKm(Number(data.maxDistance) > 0 ? Number(data.maxDistance) : 30);

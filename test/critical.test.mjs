@@ -1610,7 +1610,8 @@ test('alerts are not switched off by one tap, and a provider is told while they 
   // is the provider's alone. Inside it, a client with alerts off got no banner.
   assert.match(
     home,
-    /setPushOptedOut\(data\.pushOptOut === true\);\n\s+if \(data\.pushToken\) setPushUnregistered\(false\);[^\n]*\n\s+if \(role === 'cleaner'\) \{/,
+    // (phase D, 11.11.2026: the private-copy check sits between them)
+    /setPushOptedOut\(data\.pushOptOut === true\);\n\s+if \(data\.pushToken\) setPushUnregistered\(false\);[\s\S]{0,500}?\n\s+if \(role === 'cleaner'\) \{/,
     'read for both roles, ahead of the provider-only block',
   );
   const dictAll = readFileSync(new URL('../lib/translations.ts', import.meta.url), 'utf8');

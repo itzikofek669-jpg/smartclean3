@@ -156,7 +156,10 @@ async function registerPushToken(uid: string, waitedForProfile = false, quiet = 
       const ref = doc(db, 'users', uid);
       const cur = await tx.get(ref);
       if (!cur.exists() || cur.data()?.pushOptOut === true) return false;
-      if (cur.data()?.pushToken !== token) tx.update(ref, { pushToken: token });
+      // Phase D (Ofek, 11.11.2026): the token lives only in the private copy
+      // below. One left on the public profile by an older build is cleared —
+      // anyone could read it there.
+      if (cur.data()?.pushToken) tx.update(ref, { pushToken: '' });
       return true;
     });
     // And the private copy the notification server reads — see

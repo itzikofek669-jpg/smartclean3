@@ -1190,9 +1190,14 @@ export default function ProfileScreen() {
           // מכבד, אז זה מה שהכפתור חייב להציג.
           // …וגם לא "מופעל" כשההרשאה חסומה במכשיר: המסך הראשי כבר מזהיר שההתראות
           // כבויות, והכרטיס כאן הציג "✅ מופעל" עם כפתור כיבוי בלבד.
-          const stored = d.pushOptOut === true ? false : !!d.pushToken;
-          if (stored) pushPermission().then(ok => setHasPushToken(ok !== false)).catch(() => setHasPushToken(true));
-          else setHasPushToken(false);
+          // The token is in the private copy now (phase D, 11.11.2026), not on
+          // the profile; an older build's profile field still counts.
+          if (d.pushOptOut === true) setHasPushToken(false);
+          else getDoc(pushTokenRef(uid)).then(p => {
+            const stored = !!p.data()?.token || !!d.pushToken;
+            if (stored) pushPermission().then(ok => setHasPushToken(ok !== false)).catch(() => setHasPushToken(true));
+            else setHasPushToken(false);
+          }).catch(() => setHasPushToken(!!d.pushToken));
           // Legacy documents still carry the photo inline; current ones keep it
           // in `userPhotos/{uid}`, so fall through to a fetch when there's
           // nothing inline. Without the fallback the profile screen shows an

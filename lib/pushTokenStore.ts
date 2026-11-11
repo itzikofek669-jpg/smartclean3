@@ -13,9 +13,9 @@ import { db } from './firebase';
  * which reads this collection with its own service account after checking the
  * sender is really a party to the event.
  *
- * During the move every write here is mirrored on the profile's `pushToken`,
- * because builds up to 204 still send directly and read it there. The last
- * step of the migration drops the profile field and this note with it.
+ * Phase D (Ofek, 11.11.2026): the profile's `pushToken` is no longer written —
+ * this collection is the only copy, the notification server reads nothing
+ * else, and a launch clears a token an older build left on the profile.
  */
 export const pushTokenRef = (uid: string) => doc(db, 'pushTokens', uid);
 
