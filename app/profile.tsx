@@ -3,8 +3,9 @@ import DateTimePicker from '@react-native-community/datetimepicker';
 import {
   View, Text, StyleSheet, ScrollView, FlatList, TouchableOpacity,
   StatusBar, ActivityIndicator, Alert, Modal, Share, Linking,
-  TextInput, KeyboardAvoidingView, Platform, BackHandler, Clipboard, Keyboard,
+   KeyboardAvoidingView, Platform, BackHandler, Clipboard, Keyboard,
 } from 'react-native';
+import TextInput from '../lib/DirTextInput';
 import { Image } from 'expo-image';
 import * as ImagePicker from 'expo-image-picker';
 import * as ImageManipulator from 'expo-image-manipulator';
@@ -113,7 +114,7 @@ function createEP(c: AppColors) {
     sourceBtnText:{ fontSize: 13, fontWeight: '800', color: c.blue, textAlign: 'center' },
     pfGrid:       { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 6, marginBottom: 10, justifyContent: 'center' },
     pfImg:        { width: 88, height: 88, borderRadius: 14 },
-    pfDel:        { position: 'absolute', top: 4, left: 4, width: 24, height: 24, borderRadius: 12, backgroundColor: 'rgba(4,44,83,.75)', alignItems: 'center', justifyContent: 'center' },
+    pfDel:        { position: 'absolute', top: 4, start: 4, width: 24, height: 24, borderRadius: 12, backgroundColor: 'rgba(4,44,83,.75)', alignItems: 'center', justifyContent: 'center' },
     pfDelText:    { color: c.white, fontSize: 12, fontWeight: '800' },
   });
 }
@@ -131,7 +132,7 @@ function createS(c: AppColors) {
     avatarImg:      { width: 90, height: 90, borderRadius: 45, borderWidth: 3, borderColor: 'rgba(255,255,255,0.5)' },
     avatarFallback: { width: 90, height: 90, borderRadius: 45, backgroundColor: 'rgba(255,255,255,0.25)', alignItems: 'center', justifyContent: 'center', borderWidth: 3, borderColor: 'rgba(255,255,255,0.4)' },
     avatarText:     { fontSize: 32, fontWeight: '900', color: c.white },
-    cameraBtn:      { position: 'absolute', bottom: 0, right: 0, width: 28, height: 28, borderRadius: 14, backgroundColor: c.blueDark, alignItems: 'center', justifyContent: 'center', borderWidth: 2, borderColor: c.white },
+    cameraBtn:      { position: 'absolute', bottom: 0, end: 0, width: 28, height: 28, borderRadius: 14, backgroundColor: c.blueDark, alignItems: 'center', justifyContent: 'center', borderWidth: 2, borderColor: c.white },
     name:           { fontSize: 22, fontWeight: '900', color: c.white },
     email:          { fontSize: 13, color: 'rgba(255,255,255,0.75)' },
     roleBadge:          { backgroundColor: 'rgba(255,255,255,0.2)', borderRadius: 20, paddingHorizontal: 14, paddingVertical: 5, marginTop: 4 },
@@ -2681,13 +2682,14 @@ export default function ProfileScreen() {
     return (
       <View key={b.id} style={[s.bookingCard, compact
         ? { borderRadius: 16, padding: 0, overflow: 'hidden' }
-        : { ...(isRTL ? { borderRightWidth: 4, borderRightColor: statusBorderColor } : { borderLeftWidth: 4, borderLeftColor: statusBorderColor }), borderRadius: 16, padding: 0, overflow: 'hidden' }]}>
+        : { ...(isRTL ? { borderEndWidth: 4, borderEndColor: statusBorderColor } : { borderStartWidth: 4, borderStartColor: statusBorderColor }), borderRadius: 16, padding: 0, overflow: 'hidden' }]}>
 
         {compact ? (() => {
           // ההיסטוריה — של הלקוח ושל נותן השירות באותו כרטיס (כמו באתר): סוג הניקיון
           // ועם מי (הצד השני), הסטטוס, היום והשעה, הכתובת והמחיר. בלי פירוט הניקיון.
           const row = 'row-reverse' as const;
-          const align = isRTL ? 'right' as const : 'left' as const;
+          // Hebrew's edge; the mirrored root (app/_layout) swaps it for the other five.
+          const align = 'right' as const;
           const keys = Array.isArray(b.serviceTypes) && b.serviceTypes.length ? b.serviceTypes : String(b.serviceType || '').split(' + ').filter(Boolean);
           const st = overdue ? 'expired' : b.status;
           return (
@@ -2869,7 +2871,7 @@ export default function ProfileScreen() {
           {/* Before / After photos — לקוח בלי תמונות לא צריך כותרת ריקה */}
           {isDone && (forCleaner || b.beforePhotos?.length > 0 || b.afterPhotos?.length > 0) && (
             <View>
-              <T style={{ fontSize: 11, fontWeight: '700', color: C.textSub, marginBottom: 6, textAlign: isRTL ? 'right' : 'left' }}>{t.photosTitle}</T>
+              <T style={{ fontSize: 11, fontWeight: '700', color: C.textSub, marginBottom: 6, textAlign: 'right' }}>{t.photosTitle}</T>
               {forCleaner && (
                 <View style={{ flexDirection: 'row-reverse', gap: 8, flexWrap: 'wrap' }}>
                   <TouchableOpacity style={s.photoBtn} onPress={() => uploadJobPhoto(b.id, 'before')}>
@@ -2892,7 +2894,7 @@ export default function ProfileScreen() {
                 <ScrollView horizontal style={{ marginTop: 8 }} showsHorizontalScrollIndicator={false}>
                   {b.beforePhotos.map((uri: string, i: number) => (
                     <TouchableOpacity key={i} onPress={() => overSheet(() => { setPhotoViewerUris(b.beforePhotos); setPhotoViewerIdx(i); setPhotoViewerOpen(true); })}>
-                      <Image source={{ uri }} style={{ width: 56, height: 56, borderRadius: 8, marginRight: 6 }} contentFit="cover" />
+                      <Image source={{ uri }} style={{ width: 56, height: 56, borderRadius: 8, marginEnd: 6 }} contentFit="cover" />
                     </TouchableOpacity>
                   ))}
                 </ScrollView>
@@ -2901,7 +2903,7 @@ export default function ProfileScreen() {
                 <ScrollView horizontal style={{ marginTop: 6 }} showsHorizontalScrollIndicator={false}>
                   {b.afterPhotos.map((uri: string, i: number) => (
                     <TouchableOpacity key={i} onPress={() => overSheet(() => { setPhotoViewerUris(b.afterPhotos); setPhotoViewerIdx(i); setPhotoViewerOpen(true); })}>
-                      <Image source={{ uri }} style={{ width: 56, height: 56, borderRadius: 8, marginRight: 6, borderWidth: 2, borderColor: '#7C3AED' }} contentFit="cover" />
+                      <Image source={{ uri }} style={{ width: 56, height: 56, borderRadius: 8, marginEnd: 6, borderWidth: 2, borderColor: '#7C3AED' }} contentFit="cover" />
                     </TouchableOpacity>
                   ))}
                 </ScrollView>
@@ -3225,7 +3227,7 @@ export default function ProfileScreen() {
                     // טקסט
                     return (
                       <View style={{ alignItems: isMe ? 'flex-end' : 'flex-start' }}>
-                        <View style={{ backgroundColor: isMe ? C.blue : C.white, borderRadius: 16, borderBottomRightRadius: isMe ? 3 : 16, borderBottomLeftRadius: isMe ? 16 : 3, paddingHorizontal: 13, paddingVertical: 9, maxWidth: '80%', elevation: 1, shadowColor: '#000', shadowOpacity: 0.05, shadowRadius: 3, shadowOffset: { width: 0, height: 1 } }}>
+                        <View style={{ backgroundColor: isMe ? C.blue : C.white, borderRadius: 16, borderBottomEndRadius: isMe ? 3 : 16, borderBottomStartRadius: isMe ? 16 : 3, paddingHorizontal: 13, paddingVertical: 9, maxWidth: '80%', elevation: 1, shadowColor: '#000', shadowOpacity: 0.05, shadowRadius: 3, shadowOffset: { width: 0, height: 1 } }}>
                           <T style={{ fontSize: 14, color: isMe ? '#fff' : C.textDark, lineHeight: 20 }}>{item.text}</T>
                           <T style={{ fontSize: 10, color: isMe ? 'rgba(255,255,255,0.6)' : C.textSub, marginTop: 2 }}>{timeLabel}</T>
                         </View>
@@ -3237,7 +3239,7 @@ export default function ProfileScreen() {
                 {/* ─── שורת קלט ─── */}
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: C.white, paddingHorizontal: 12, paddingTop: 8, paddingBottom: 8, borderTopWidth: 1, borderTopColor: C.blueBorder }}>
                   {chatIsRecording && (
-                    <View style={{ position: 'absolute', top: -30, left: 0, right: 0, alignItems: 'center' }}>
+                    <View style={{ position: 'absolute', top: -30, start: 0, end: 0, alignItems: 'center' }}>
                       <T style={{ color: '#fff', fontWeight: '800', fontSize: 13, backgroundColor: '#EF4444', paddingHorizontal: 14, paddingVertical: 5, borderRadius: 14, overflow: 'hidden' }}>{t.recordingAudio}</T>
                     </View>
                   )}
@@ -3567,8 +3569,8 @@ export default function ProfileScreen() {
               accessibilityLabel={(t as any).availabilityStatus}
             >
               <View style={{ flex: 1 }}>
-                <T style={[s.statusTitle, { textAlign: isRTL ? 'right' : 'left' }]}>{(t as any).availabilityStatus}</T>
-                <T style={[s.statusSub, { textAlign: isRTL ? 'right' : 'left' }]}>
+                <T style={[s.statusTitle, { textAlign: 'right' }]}>{(t as any).availabilityStatus}</T>
+                <T style={[s.statusSub, { textAlign: 'right' }]}>
                   {isAvailable ? (t as any).availableToClients : (t as any).hiddenFromClients}
                 </T>
               </View>
@@ -4017,7 +4019,7 @@ export default function ProfileScreen() {
       {/* ── Payment Sheet Modal ── */}
       <Modal visible={paySheetOpen} transparent animationType="slide" onRequestClose={() => setPaySheetOpen(false)}>
         <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' }}>
-          <View style={{ backgroundColor: C.white, borderTopLeftRadius: 28, borderTopRightRadius: 28, paddingHorizontal: 20, paddingTop: 20, paddingBottom: insets.bottom + 20 }}>
+          <View style={{ backgroundColor: C.white, borderTopStartRadius: 28, borderTopEndRadius: 28, paddingHorizontal: 20, paddingTop: 20, paddingBottom: insets.bottom + 20 }}>
 
             {/* כותרת */}
             <T style={{ fontSize: 18, fontWeight: '900', color: C.textDark, textAlign: 'center', marginBottom: 4 }}>{t.paySheetTitle}</T>
@@ -4253,7 +4255,7 @@ export default function ProfileScreen() {
                       onPress={() => playCleanerAudio(m, m.id)}
                     >
                       <T style={{ fontSize: 22 }}>{isPlaying ? '⏸' : '▶️'}</T>
-                      <T style={{ color: isMe ? C.textDark : C.white, fontSize: 13, marginLeft: 6 }}>
+                      <T style={{ color: isMe ? C.textDark : C.white, fontSize: 13, marginStart: 6 }}>
                         🎤 {isPlaying ? trNow('voicePlaying') : trNow('voiceMessageLabel')}
                       </T>
                     </TouchableOpacity>
@@ -4286,7 +4288,7 @@ export default function ProfileScreen() {
             <SafeAreaView edges={['bottom']} style={{ backgroundColor: C.white }}>
               <View style={[s.chatInputRow, { alignItems: 'center', paddingVertical: 8, paddingHorizontal: 8 }]}>
                 {chatIsRecording && (
-                  <View style={{ position: 'absolute', top: -34, left: 0, right: 0, flexDirection: 'row', alignItems: 'center', justifyContent: 'center' }}>
+                  <View style={{ position: 'absolute', top: -34, start: 0, end: 0, flexDirection: 'row', alignItems: 'center', justifyContent: 'center' }}>
                     <T style={{ color: '#fff', fontWeight: '800', fontSize: 13, backgroundColor: '#EF4444', paddingHorizontal: 14, paddingVertical: 5, borderRadius: 14, overflow: 'hidden' }}>{t.recordingAudio}</T>
                   </View>
                 )}
@@ -4325,7 +4327,7 @@ export default function ProfileScreen() {
       {/* Chat Image Viewer */}
       <Modal visible={!!chatViewerUri} transparent animationType="fade" onRequestClose={() => setChatViewerUri(null)}>
         <TouchableOpacity style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.95)', alignItems: 'center', justifyContent: 'center' }} activeOpacity={1} onPress={() => setChatViewerUri(null)}>
-          <TouchableOpacity style={{ position: 'absolute', top: 50, right: 20, backgroundColor: 'rgba(255,255,255,0.2)', borderRadius: 20, padding: 10, zIndex: 10 }} onPress={() => setChatViewerUri(null)}>
+          <TouchableOpacity style={{ position: 'absolute', top: 50, end: 20, backgroundColor: 'rgba(255,255,255,0.2)', borderRadius: 20, padding: 10, zIndex: 10 }} onPress={() => setChatViewerUri(null)}>
             <T style={{ color: C.white, fontSize: 18, fontWeight: '700' }}>✕</T>
           </TouchableOpacity>
           {chatViewerUri && (
@@ -4338,7 +4340,7 @@ export default function ProfileScreen() {
       <Modal visible={photoViewerOpen} transparent animationType="fade" onRequestClose={() => setPhotoViewerOpen(false)}>
         <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.93)', justifyContent: 'center', alignItems: 'center' }}>
           <TouchableOpacity
-            style={{ position: 'absolute', top: 50, right: 20, zIndex: 10, backgroundColor: 'rgba(255,255,255,0.2)', borderRadius: 20, padding: 8 }}
+            style={{ position: 'absolute', top: 50, end: 20, zIndex: 10, backgroundColor: 'rgba(255,255,255,0.2)', borderRadius: 20, padding: 8 }}
             onPress={() => setPhotoViewerOpen(false)}
           >
             <T style={{ color: C.white, fontSize: 18, fontWeight: '700' }}>✕</T>
@@ -4368,7 +4370,7 @@ export default function ProfileScreen() {
       <Modal visible={insuranceOpen} transparent animationType="slide" onRequestClose={() => setInsuranceOpen(false)}>
         <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
           <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' }}>
-            <View style={{ backgroundColor: C.white, borderTopLeftRadius: 28, borderTopRightRadius: 28, padding: 24, gap: 16 }}>
+            <View style={{ backgroundColor: C.white, borderTopStartRadius: 28, borderTopEndRadius: 28, padding: 24, gap: 16 }}>
               <View style={{ alignItems: 'center' }}>
                 <T style={{ fontSize: 20, fontWeight: '900', color: '#1E3A8A', marginBottom: 4 }}>{t.insuranceFormTitle}</T>
               </View>
@@ -4536,8 +4538,8 @@ export default function ProfileScreen() {
                   {/* תצוגה מקדימה */}
                   {(editCity || editStreet) && (
                     <View style={{ backgroundColor: C.bluePale, borderRadius: 10, padding: 10, borderWidth: 1, borderColor: C.blueBorder }}>
-                      <T style={{ fontSize: 11, color: C.textSub, marginBottom: 2, textAlign: isRTL ? 'right' : 'left' }}>{t.fullAddrLabel}</T>
-                      <T style={{ fontSize: 13, fontWeight: '700', color: C.textDark, textAlign: isRTL ? 'right' : 'left' }}>
+                      <T style={{ fontSize: 11, color: C.textSub, marginBottom: 2, textAlign: 'right' }}>{t.fullAddrLabel}</T>
+                      <T style={{ fontSize: 13, fontWeight: '700', color: C.textDark, textAlign: 'right' }}>
                         {[editStreet.trim(), editCity.trim(), editAddrPrivate ? 'בית פרטי' : (editFloor ? `קומה ${editFloor}` : ''), (!editAddrPrivate && editApt) ? `דירה ${editApt}` : ''].filter(Boolean).join(', ')}
                       </T>
                     </View>
@@ -4867,7 +4869,7 @@ export default function ProfileScreen() {
             {/* שם האדם */}
             {reportType !== 'bug' && (
               <View style={{ gap: 6 }}>
-                <T style={{ fontSize: 13, fontWeight: '700', color: C.textDark, textAlign: isRTL ? 'right' : 'left' }}>
+                <T style={{ fontSize: 13, fontWeight: '700', color: C.textDark, textAlign: 'right' }}>
                   {reportType === 'cleaner' ? trNow('reportCleanerName') : trNow('reportClientName')}
                 </T>
                 <TextInput
@@ -4883,7 +4885,7 @@ export default function ProfileScreen() {
 
             {/* פירוט */}
             <View style={{ gap: 6 }}>
-              <T style={{ fontSize: 13, fontWeight: '700', color: C.textDark, textAlign: isRTL ? 'right' : 'left' }}>📝 {t.reportDescLabel}</T>
+              <T style={{ fontSize: 13, fontWeight: '700', color: C.textDark, textAlign: 'right' }}>📝 {t.reportDescLabel}</T>
               <TextInput
                 style={{ backgroundColor: C.white, borderRadius: 10, padding: 12, fontSize: 14, color: C.textDark, borderWidth: 1, borderColor: C.blueBorder, minHeight: 110, textAlignVertical: 'top' }}
                 placeholder={t.reportDescPlaceholder}

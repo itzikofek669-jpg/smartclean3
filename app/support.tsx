@@ -1,9 +1,10 @@
 import React, { useEffect, useRef, useState } from 'react';
 import {
   View, StyleSheet, StatusBar,
-  TouchableOpacity, TextInput, FlatList, KeyboardAvoidingView,
+  TouchableOpacity,  FlatList, KeyboardAvoidingView,
   Platform, Animated, Keyboard, Linking, BackHandler, Dimensions,
 } from 'react-native';
+import TextInput from '../lib/DirTextInput';
 import { useAnimatedValue } from '../lib/useAnimatedValue';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { collection, query, where, getDocs, onSnapshot, doc, getDoc } from 'firebase/firestore';
@@ -1339,8 +1340,8 @@ function createS(c: typeof C_DEFAULT) { return StyleSheet.create({
 
   // Bubbles
   bubble:        { borderRadius: 18, paddingHorizontal: 14, paddingVertical: 10, maxWidth: '100%' },
-  bubbleBot:     { backgroundColor: c.white, borderBottomLeftRadius: 4, borderWidth: 1, borderColor: c.border, elevation: 3, shadowColor: '#000', shadowOpacity: 0.10, shadowRadius: 6, shadowOffset: { width: 0, height: 2 } },
-  bubbleUser:    { backgroundColor: c.blue, borderBottomRightRadius: 4, borderWidth: 1, borderColor: c.blueDark },
+  bubbleBot:     { backgroundColor: c.white, borderBottomStartRadius: 4, borderWidth: 1, borderColor: c.border, elevation: 3, shadowColor: '#000', shadowOpacity: 0.10, shadowRadius: 6, shadowOffset: { width: 0, height: 2 } },
+  bubbleUser:    { backgroundColor: c.blue, borderBottomEndRadius: 4, borderWidth: 1, borderColor: c.blueDark },
   bubbleText:    { fontSize: 14, lineHeight: 22 },
   bubbleTextBot: { color: c.text },
   bubbleTextUser:{ color: '#fff' },
@@ -1353,7 +1354,7 @@ function createS(c: typeof C_DEFAULT) { return StyleSheet.create({
 
   // Typing
   typingWrap:    { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 16, paddingVertical: 6 },
-  typingBubble:  { backgroundColor: c.white, borderRadius: 18, borderBottomLeftRadius: 4, paddingHorizontal: 14, paddingVertical: 12, flexDirection: 'row', gap: 4, elevation: 2, shadowColor: '#000', shadowOpacity: 0.06, shadowRadius: 4, shadowOffset: { width: 0, height: 1 } },
+  typingBubble:  { backgroundColor: c.white, borderRadius: 18, borderBottomStartRadius: 4, paddingHorizontal: 14, paddingVertical: 12, flexDirection: 'row', gap: 4, elevation: 2, shadowColor: '#000', shadowOpacity: 0.06, shadowRadius: 4, shadowOffset: { width: 0, height: 1 } },
   typingDot:     { width: 8, height: 8, borderRadius: 4, backgroundColor: c.sub },
 
   // Input bar

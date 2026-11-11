@@ -1,10 +1,11 @@
 import { isRtlNow } from '../lib/trNow';
 import React, { useState, useEffect, useRef } from 'react';
 import {
-  View, Text, StyleSheet, FlatList, TouchableOpacity, TextInput,
+  View, Text, StyleSheet, FlatList, TouchableOpacity, 
   Modal, StatusBar, ActivityIndicator, Alert,
   ScrollView, KeyboardAvoidingView, BackHandler, Keyboard, Platform,
 } from 'react-native';
+import TextInput from '../lib/DirTextInput';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { TAB_BAR_CONTENT_HEIGHT } from '../lib/BottomTabBar';
@@ -771,7 +772,7 @@ function InlineChatModal({ chatId, otherUid, otherName, visible, onClose, onDeci
           ) : (
             <View style={cs.inputRow}>
               {isRecording && (
-                <View style={{ position: 'absolute', top: -34, left: 0, right: 0, flexDirection: 'row', alignItems: 'center', justifyContent: 'center' }}>
+                <View style={{ position: 'absolute', top: -34, start: 0, end: 0, flexDirection: 'row', alignItems: 'center', justifyContent: 'center' }}>
                   <T style={{ color: '#fff', fontWeight: '800', fontSize: 13, backgroundColor: '#EF4444', paddingHorizontal: 14, paddingVertical: 5, borderRadius: 14, overflow: 'hidden' }}>{t.recordingAudio}</T>
                 </View>
               )}
@@ -810,7 +811,7 @@ function InlineChatModal({ chatId, otherUid, otherName, visible, onClose, onDeci
         {/* מציג תמונה במסך מלא */}
         <Modal visible={!!viewerUri} transparent animationType="fade" onRequestClose={() => setViewerUri(null)}>
           <TouchableOpacity style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.95)', alignItems: 'center', justifyContent: 'center' }} activeOpacity={1} onPress={() => setViewerUri(null)}>
-            <TouchableOpacity style={{ position: 'absolute', top: 50, right: 20, backgroundColor: 'rgba(255,255,255,0.2)', borderRadius: 20, padding: 10, zIndex: 10 }} onPress={() => setViewerUri(null)}>
+            <TouchableOpacity style={{ position: 'absolute', top: 50, end: 20, backgroundColor: 'rgba(255,255,255,0.2)', borderRadius: 20, padding: 10, zIndex: 10 }} onPress={() => setViewerUri(null)}>
               <T style={{ color: '#fff', fontSize: 18, fontWeight: '700' }}>✕</T>
             </TouchableOpacity>
             {viewerUri && (

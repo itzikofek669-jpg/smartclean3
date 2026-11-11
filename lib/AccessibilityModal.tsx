@@ -132,8 +132,8 @@ export default function AccessibilityModal({ visible, onClose }: Props) {
 }
 
 const ms = StyleSheet.create({
-  backdrop:     { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.45)' },
-  sheet:        { position: 'absolute', bottom: 0, left: 0, right: 0, borderTopLeftRadius: 24, borderTopRightRadius: 24, paddingHorizontal: 20, elevation: 20, maxHeight: '80%' },
+  backdrop:     { position: 'absolute', top: 0, start: 0, end: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.45)' },
+  sheet:        { position: 'absolute', bottom: 0, start: 0, end: 0, borderTopStartRadius: 24, borderTopEndRadius: 24, paddingHorizontal: 20, elevation: 20, maxHeight: '80%' },
   handle:       { width: 40, height: 4, borderRadius: 2, alignSelf: 'center', marginTop: 12, marginBottom: 4 },
   title:        { fontSize: 18, fontWeight: '800', textAlign: 'center', marginVertical: 14 },
   row:          { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 14, borderRadius: 14, marginBottom: 10, borderWidth: 1 },

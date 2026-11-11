@@ -2,9 +2,10 @@ import { isRtlNow } from '../lib/trNow';
 import React, { useState, useEffect } from 'react';
 import { confirmLangChange } from '../lib/confirmLang';
 import {
-  View, Text, TextInput, TouchableOpacity, StyleSheet,
+  View, Text,  TouchableOpacity, StyleSheet,
   SafeAreaView, StatusBar, KeyboardAvoidingView, Platform, Alert, ScrollView, Modal, Image,
 } from 'react-native';
+import TextInput from '../lib/DirTextInput';
 import { useRouter } from 'expo-router';
 import { signInWithEmailAndPassword, sendPasswordResetEmail } from 'firebase/auth';
 import * as SecureStore from 'expo-secure-store';
@@ -24,7 +25,7 @@ function createS(c: AppColors) {
     langBtn:      { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 14, backgroundColor: c.blueLight, borderRadius: 20, paddingHorizontal: 16, paddingVertical: 8, borderWidth: 1.5, borderColor: c.blueBorder },
     langBtnFlag:  { fontSize: 18 },
     langBtnLabel: { fontSize: 14, fontWeight: '700', color: c.blue },
-    langBtnArrow: { fontSize: 10, color: c.textSub, marginLeft: 2 },
+    langBtnArrow: { fontSize: 10, color: c.textSub, marginStart: 2 },
 
     langOverlay:      { flex: 1, backgroundColor: 'rgba(0,0,0,0.55)', justifyContent: 'center', alignItems: 'center', padding: 32 },
     langMenu:         { backgroundColor: c.white, borderRadius: 20, width: '100%', maxWidth: 320, overflow: 'hidden' },
@@ -36,7 +37,7 @@ function createS(c: AppColors) {
     langMenuNameActive: { color: c.blue, fontWeight: '800' },
     langMenuCheck:    { fontSize: 18, color: c.blue, fontWeight: '900' },
 
-    card:         { backgroundColor: c.white, borderTopLeftRadius: 32, borderTopRightRadius: 32, flex: 1 },
+    card:         { backgroundColor: c.white, borderTopStartRadius: 32, borderTopEndRadius: 32, flex: 1 },
     cardTitle:    { fontSize: 22, fontWeight: '800', color: c.textDark, marginBottom: 20, textAlign: 'center' },
     field:        { marginBottom: 16 },
     label:        { fontSize: 13, fontWeight: '700', color: c.textDark, marginBottom: 8, textAlign: 'right' },
@@ -186,7 +187,7 @@ export default function LoginScreen() {
             <T style={s.label}>{t.passwordLabel}</T>
             <View style={{ position: 'relative', justifyContent: 'center' }}>
               <TextInput
-                style={[s.input, { paddingLeft: 48 }]}
+                style={[s.input, { paddingStart: 48 }]}
                 placeholder={t.passwordHint}
                 value={password}
                 onChangeText={setPassword}
@@ -196,7 +197,7 @@ export default function LoginScreen() {
               />
               <TouchableOpacity
                 onPress={() => setShowPass(v => !v)}
-                style={{ position: 'absolute', left: 8, top: 0, bottom: 0, justifyContent: 'center', paddingHorizontal: 8 }}
+                style={{ position: 'absolute', start: 8, top: 0, bottom: 0, justifyContent: 'center', paddingHorizontal: 8 }}
                 hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
               >
                 <T style={{ fontSize: 20 }}>{showPass ? '🙈' : '👁️'}</T>

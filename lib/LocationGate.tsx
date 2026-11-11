@@ -119,7 +119,7 @@ const s = StyleSheet.create({
   // מכסה הכול, מעל ה-Stack ומעל סרגל הניווט, כדי שלא תישאר דרך עקיפה למסך אחר.
   overlay: {
     position: 'absolute',
-    top: 0, left: 0, right: 0, bottom: 0,
+    top: 0, start: 0, end: 0, bottom: 0,
     zIndex: 9999,
     elevation: 9999,
     alignItems: 'center',

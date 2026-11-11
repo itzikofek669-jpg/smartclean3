@@ -1,9 +1,10 @@
 import React, { useState, useRef, useEffect } from 'react';
 import {
-  View, Text, TextInput, TouchableOpacity, StyleSheet,
+  View, Text,  TouchableOpacity, StyleSheet,
   StatusBar, KeyboardAvoidingView, Platform, Dimensions,
   Alert, ScrollView, Modal, ActivityIndicator, Animated,
  Image as RNImage } from 'react-native';
+import TextInput from '../lib/DirTextInput';
 import { useAnimatedValue } from '../lib/useAnimatedValue';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Image } from 'expo-image';
@@ -52,10 +53,10 @@ function createS(c: AppColors) {
   return StyleSheet.create({
     wrap:            { flex: 1, backgroundColor: c.white },
     hero:            { alignItems: 'center', paddingTop: 8, paddingBottom: 4, position: 'relative', backgroundColor: c.white },
-    backBtn:         { position: 'absolute', top: 16, left: 16, width: 48, height: 48, borderRadius: 24, backgroundColor: c.blueLight, borderWidth: 1.5, borderColor: c.blueBorder, alignItems: 'center', justifyContent: 'center', zIndex: 10 },
+    backBtn:         { position: 'absolute', top: 16, start: 16, width: 48, height: 48, borderRadius: 24, backgroundColor: c.blueLight, borderWidth: 1.5, borderColor: c.blueBorder, alignItems: 'center', justifyContent: 'center', zIndex: 10 },
     logo:            { fontSize: 44, marginBottom: 8 },
     title:           { fontSize: 22, fontWeight: '800', color: c.white },
-    card:            { backgroundColor: c.white, borderTopLeftRadius: 32, borderTopRightRadius: 32, flex: 1 },
+    card:            { backgroundColor: c.white, borderTopStartRadius: 32, borderTopEndRadius: 32, flex: 1 },
     cardTitle:       { fontSize: 22, fontWeight: '800', color: c.textDark, marginBottom: 20, textAlign: 'center' },
     label:           { fontSize: 13, fontWeight: '700', color: c.textDark, marginBottom: 8, textAlign: 'right' },
     field:           { marginBottom: 14 },
@@ -81,12 +82,12 @@ function createS(c: AppColors) {
     availDayBtnActive: { backgroundColor: c.blue, borderColor: c.blue },
     availDayText:    { fontSize: 12, fontWeight: '800', color: c.textDark },
     availDayTextActive: { color: c.white },
-    availTimePickers: { flex: 1, flexDirection: 'row-reverse', alignItems: 'center', justifyContent: 'flex-start', gap: 6, paddingRight: 8 },
+    availTimePickers: { flex: 1, flexDirection: 'row-reverse', alignItems: 'center', justifyContent: 'flex-start', gap: 6, paddingEnd: 8 },
     availTimeGroup:  { flexDirection: 'row', alignItems: 'center', gap: 4 },
     availTimeLabel:  { fontSize: 11, fontWeight: '700', color: c.textSub },
     availTimeScroll: { flexDirection: 'row' },
     availTimeInput:  { width: 52, backgroundColor: c.blueLight, borderRadius: 8, borderWidth: 1, borderColor: c.blueBorder, paddingVertical: 6, paddingHorizontal: 4, fontSize: 14, fontWeight: '700', color: c.textDark, textAlign: 'center' },
-    availTimeChip:   { paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8, backgroundColor: c.white, borderWidth: 1, borderColor: c.blueBorder, marginRight: 6 },
+    availTimeChip:   { paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8, backgroundColor: c.white, borderWidth: 1, borderColor: c.blueBorder, marginEnd: 6 },
     availTimeChipActive: { backgroundColor: c.blue, borderColor: c.blue },
     availTimeChipText: { fontSize: 12, fontWeight: '600', color: c.textDark },
     availTimeChipTextActive: { color: c.white },
@@ -109,7 +110,7 @@ function createS(c: AppColors) {
     photoPickerBtn:         { width: 110, height: 110, borderRadius: 55, position: 'relative' },
     photoPickerImg:         { width: 110, height: 110, borderRadius: 55, borderWidth: 3, borderColor: c.blue },
     photoPickerPlaceholder: { width: 110, height: 110, borderRadius: 55, backgroundColor: c.blueLight, borderWidth: 2.5, borderColor: c.blueBorder, alignItems: 'center', justifyContent: 'center' },
-    photoPickerBadge:       { position: 'absolute', bottom: 4, right: 4, width: 28, height: 28, borderRadius: 14, backgroundColor: c.blue, alignItems: 'center', justifyContent: 'center', borderWidth: 2, borderColor: c.white },
+    photoPickerBadge:       { position: 'absolute', bottom: 4, end: 4, width: 28, height: 28, borderRadius: 14, backgroundColor: c.blue, alignItems: 'center', justifyContent: 'center', borderWidth: 2, borderColor: c.white },
     photoPickerLabel:       { fontSize: 14, fontWeight: '700', color: c.textDark },
     photoPickerSub:         { fontSize: 12, color: c.textSub, textAlign: 'center' },
     // In the flow, directly under the input. It used to be absolute at a fixed
@@ -918,8 +919,8 @@ export default function RegisterScreen() {
           <View style={s.field}>
             <T style={s.label}>{t.passwordLabel}</T>
             <View style={{ position: 'relative', justifyContent: 'center' }}>
-              <TextInput style={[s.input, missPass && s.inputError, { paddingLeft: 44 }]} placeholder={t.passwordHint} value={password} onChangeText={setPassword} secureTextEntry={!showPassword} placeholderTextColor={C.sub} textAlign={isRTL ? 'right' : 'left'} />
-              <TouchableOpacity onPress={() => setShowPassword(v => !v)} style={{ position: 'absolute', left: 10, padding: 6 }} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }} accessibilityLabel={showPassword ? t.a11yHidePassword : t.a11yShowPassword}>
+              <TextInput style={[s.input, missPass && s.inputError, { paddingStart: 44 }]} placeholder={t.passwordHint} value={password} onChangeText={setPassword} secureTextEntry={!showPassword} placeholderTextColor={C.sub} textAlign={isRTL ? 'right' : 'left'} />
+              <TouchableOpacity onPress={() => setShowPassword(v => !v)} style={{ position: 'absolute', start: 10, padding: 6 }} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }} accessibilityLabel={showPassword ? t.a11yHidePassword : t.a11yShowPassword}>
                 <Text style={{ fontSize: 20 }}>{showPassword ? '🙈' : '👁️'}</Text>
               </TouchableOpacity>
             </View>
@@ -1235,7 +1236,7 @@ export default function RegisterScreen() {
                             </View>
                           </View>
                         ) : (
-                          <T style={{ flex: 1, fontSize: 12, color: C.textSub, paddingLeft: 10 }}>{t.availOff}</T>
+                          <T style={{ flex: 1, fontSize: 12, color: C.textSub, paddingStart: 10 }}>{t.availOff}</T>
                         )}
                       </View>
                     );

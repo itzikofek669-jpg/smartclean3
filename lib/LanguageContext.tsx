@@ -129,12 +129,12 @@ export function T({ style, children, ...props }: TextProps) {
     /[ऀ-ॿ]/.test(children);
   const hiFont = needsDevanagari ? { fontFamily: 'NotoSansDevanagari_400Regular' } : {};
   const flat: any = style ? RNStyleSheet.flatten(style) ?? {} : {};
-  // And the other way: text written aligned right for Hebrew stayed on the right
-  // in English, Russian, French, Hindi and Ukrainian too (translation sweep,
-  // 11.11.2026) — labels, card lines and headings read from the wrong edge.
-  const rtlAlign = !nested && (lang === 'he' || lang === 'ar')
-    ? (flat.textAlign == null ? { textAlign: 'right' as const } : null)
-    : (!nested && flat.textAlign === 'right' ? { textAlign: 'left' as const } : null);
+  // Hebrew and Arabic only. In the other five the root is mirrored
+  // (LayoutDirection in app/_layout.tsx) and Android swaps a Text's left and
+  // right under it by itself — 'right' as written for Hebrew comes out left.
+  const rtlAlign = !nested && (lang === 'he' || lang === 'ar') && flat.textAlign == null
+    ? { textAlign: 'right' as const }
+    : null;
 
   // הינדי: הקטנת פונט אוטומטית אם הטקסט לא מתאים לכפתור
   const hiAdjust = needsDevanagari && !props.numberOfLines

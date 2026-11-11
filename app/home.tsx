@@ -8,10 +8,11 @@ import * as NavigationBar from 'expo-navigation-bar';
 import { useSafeAreaInsets , SafeAreaView as SafeAreaViewCtx } from 'react-native-safe-area-context';
 import {
   View, Text, StyleSheet, FlatList, TouchableOpacity,
-  TextInput, ScrollView, Modal, SafeAreaView, StatusBar,
+   ScrollView, Modal, SafeAreaView, StatusBar,
   Alert, Dimensions, Animated, Platform, Linking, Switch,
   KeyboardAvoidingView, ActivityIndicator, BackHandler, Keyboard, AppState,
 } from 'react-native';
+import TextInput from '../lib/DirTextInput';
 import { useAnimatedValue, useAnimatedValues } from '../lib/useAnimatedValue';
 import { useNow } from '../lib/useNow';
 import { markHasBooked } from '../lib/firstBooking';
@@ -366,13 +367,13 @@ function PayboxIcon({ size = 16, color = PAYBOX_BLUE }: { size?: number; color?:
   return (
     <View style={{ width: S, height: S, position: 'relative' }}>
       {/* ראש */}
-      <View style={{ position: 'absolute', top: 0, left: S * 0.34, width: S * 0.32, height: S * 0.32, borderRadius: S * 0.16, backgroundColor: color }} />
+      <View style={{ position: 'absolute', top: 0, start: S * 0.34, width: S * 0.32, height: S * 0.32, borderRadius: S * 0.16, backgroundColor: color }} />
       {/* יד שמאל */}
-      <View style={{ position: 'absolute', top: S * 0.30, left: S * 0.02, width: S * 0.42, height: S * 0.13, borderRadius: S * 0.07, backgroundColor: color, transform: [{ rotate: '42deg' }] }} />
+      <View style={{ position: 'absolute', top: S * 0.30, start: S * 0.02, width: S * 0.42, height: S * 0.13, borderRadius: S * 0.07, backgroundColor: color, transform: [{ rotate: '42deg' }] }} />
       {/* יד ימין */}
-      <View style={{ position: 'absolute', top: S * 0.30, right: S * 0.02, width: S * 0.42, height: S * 0.13, borderRadius: S * 0.07, backgroundColor: color, transform: [{ rotate: '-42deg' }] }} />
+      <View style={{ position: 'absolute', top: S * 0.30, end: S * 0.02, width: S * 0.42, height: S * 0.13, borderRadius: S * 0.07, backgroundColor: color, transform: [{ rotate: '-42deg' }] }} />
       {/* גוף — צורת U פתוחה למעלה */}
-      <View style={{ position: 'absolute', bottom: 0, left: S * 0.29, width: S * 0.42, height: S * 0.44, borderLeftWidth: S * 0.12, borderRightWidth: S * 0.12, borderBottomWidth: S * 0.12, borderColor: color, borderBottomLeftRadius: S * 0.12, borderBottomRightRadius: S * 0.12 }} />
+      <View style={{ position: 'absolute', bottom: 0, start: S * 0.29, width: S * 0.42, height: S * 0.44, borderStartWidth: S * 0.12, borderEndWidth: S * 0.12, borderBottomWidth: S * 0.12, borderColor: color, borderBottomStartRadius: S * 0.12, borderBottomEndRadius: S * 0.12 }} />
     </View>
   );
 }
@@ -766,7 +767,7 @@ function DrawerMenu({ visible, onClose, onProfile, onLogout, onMessages, onRepor
       {/* left מחושב בפיקסלים פיזיים — לא מושפע מ-RTL כלל */}
       <Animated.View style={[
         ds.panel,
-        { left: panelLeft },
+        { start: panelLeft },
         { transform: [{ translateX: slideAnim }] },
       ]}>
         {/* header */}
@@ -1320,7 +1321,7 @@ function Toast({ msg, visible, type = 'success' }: { msg: string; visible: boole
     <Animated.View
       pointerEvents="none"
       style={{
-        position: 'absolute', bottom: insets.bottom + 70, left: 20, right: 20, zIndex: 9999,
+        position: 'absolute', bottom: insets.bottom + 70, start: 20, end: 20, zIndex: 9999,
         backgroundColor: bg, borderRadius: 14, paddingVertical: 14, paddingHorizontal: 18,
         flexDirection: 'row-reverse', alignItems: 'center', gap: 10, elevation: 12,
         shadowColor: '#000', shadowOpacity: 0.18, shadowRadius: 10,
@@ -1373,7 +1374,7 @@ function AddressAutocomplete({ value, onChange, placeholder, onFocus, error }: {
   const C = useAppColors();
   const s = createS(C);
   const acStyles = StyleSheet.create({
-    dropdown:  { position: 'absolute', top: '100%', marginTop: 4, left: 0, right: 0, backgroundColor: C.white, borderRadius: 12, borderWidth: 1, borderColor: C.blueBorder, elevation: 8, shadowColor: '#000', shadowOpacity: 0.12, shadowRadius: 8, zIndex: 9999 },
+    dropdown:  { position: 'absolute', top: '100%', marginTop: 4, start: 0, end: 0, backgroundColor: C.white, borderRadius: 12, borderWidth: 1, borderColor: C.blueBorder, elevation: 8, shadowColor: '#000', shadowOpacity: 0.12, shadowRadius: 8, zIndex: 9999 },
     row:       { paddingHorizontal: 14, paddingVertical: 11, borderBottomWidth: 1, borderBottomColor: C.grayBg },
     main:      { fontSize: 14, fontWeight: '700', color: C.textDark, textAlign: 'right' },
     secondary: { fontSize: 12, color: C.textSub, textAlign: 'right', marginTop: 2 },
@@ -3898,7 +3899,7 @@ function ChatModal({ cleaner, visible, onClose }: any) {
                       onPress={() => src && playAudio(src, m.id)}
                     >
                       <T style={{ fontSize: 22 }}>{isPlaying ? '⏸' : '▶️'}</T>
-                      <T style={{ color: isMe ? C.textDark : C.white, fontSize: 13, marginLeft: 6 }}>
+                      <T style={{ color: isMe ? C.textDark : C.white, fontSize: 13, marginStart: 6 }}>
                         🎤 {isPlaying ? trNow('voicePlaying') : trNow('voiceMessageLabel')}
                       </T>
                     </TouchableOpacity>
@@ -3917,7 +3918,7 @@ function ChatModal({ cleaner, visible, onClose }: any) {
           <View style={{ backgroundColor: C.white, paddingBottom: kbOpen ? 6 : insets.bottom }}>
             <View style={[s.chatRow, { paddingVertical: 8 }]}>
               {isRecording && (
-                <View style={{ position: 'absolute', top: -34, left: 0, right: 0, flexDirection: 'row', alignItems: 'center', justifyContent: 'center' }}>
+                <View style={{ position: 'absolute', top: -34, start: 0, end: 0, flexDirection: 'row', alignItems: 'center', justifyContent: 'center' }}>
                   <T style={{ color: '#fff', fontWeight: '800', fontSize: 13, backgroundColor: '#EF4444', paddingHorizontal: 14, paddingVertical: 5, borderRadius: 14, overflow: 'hidden' }}>{t.recordingAudio}</T>
                 </View>
               )}
@@ -3943,7 +3944,7 @@ function ChatModal({ cleaner, visible, onClose }: any) {
         {/* מציג תמונה במסך מלא */}
         <Modal visible={!!viewerUri} transparent animationType="fade" onRequestClose={() => setViewerUri(null)}>
           <TouchableOpacity style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.95)', alignItems: 'center', justifyContent: 'center' }} activeOpacity={1} onPress={() => setViewerUri(null)}>
-            <TouchableOpacity style={{ position: 'absolute', top: 50, right: 20, backgroundColor: 'rgba(255,255,255,0.2)', borderRadius: 20, padding: 10, zIndex: 10 }} onPress={() => setViewerUri(null)}>
+            <TouchableOpacity style={{ position: 'absolute', top: 50, end: 20, backgroundColor: 'rgba(255,255,255,0.2)', borderRadius: 20, padding: 10, zIndex: 10 }} onPress={() => setViewerUri(null)}>
               <T style={{ color: '#fff', fontSize: 18, fontWeight: '700' }}>✕</T>
             </TouchableOpacity>
             {viewerUri && (
@@ -4104,7 +4105,7 @@ function QuickRebookModal({ visible, onClose, myBookings, bookingsState, allClea
   // right even in Hebrew — the card read mirrored next to the website's. Every
   // row and line here follows the language instead.
   const row = 'row-reverse' as const;
-  const align = isRTL ? 'right' as const : 'left' as const;
+  const align = 'right' as const; // swapped by the mirrored root in en/ru/fr/hi/uk
   const C = useAppColors();
   const s = createS(C);
   const insets = useSafeAreaInsets();
@@ -7131,7 +7132,7 @@ export default function HomeScreen() {
                 pointerEvents none so it can never swallow a tap. */}
             {myRole === 'cleaner' && (
               <View
-                style={{ position: 'absolute', left: 0, right: 0, alignItems: 'center' }}
+                style={{ position: 'absolute', start: 0, end: 0, alignItems: 'center' }}
                 pointerEvents="none"
               >
                 <Image
@@ -7257,7 +7258,7 @@ export default function HomeScreen() {
                     style={[s.searchSuggItem, idx < searchSugg.length - 1 && { borderBottomWidth: 1, borderBottomColor: C.grayBorder }]}
                     onPress={() => { setSearch(item.label); setShowSearchSugg(false); Keyboard.dismiss(); if (item.icon === '📍') focusCityRef.current(item.label); }}
                   >
-                    <T style={{ fontSize: 14, marginLeft: 6 }}>{item.icon}</T>
+                    <T style={{ fontSize: 14, marginStart: 6 }}>{item.icon}</T>
                     <T style={s.searchSuggText}>{item.label}</T>
                   </TouchableOpacity>
                 ))}
@@ -7353,7 +7354,7 @@ export default function HomeScreen() {
             accessibilityRole="button"
             accessibilityLabel={t.myLocationBtn ?? 'המיקום שלי'}
             style={{
-              position: 'absolute', bottom: 14, left: 14,
+              position: 'absolute', bottom: 14, start: 14,
               width: 44, height: 44, borderRadius: 22,
               backgroundColor: '#FF8A00', alignItems: 'center', justifyContent: 'center',
               borderWidth: 2, borderColor: '#fff',
@@ -7615,7 +7616,7 @@ export default function HomeScreen() {
 
       <Modal visible={!!enlargedPhoto} transparent animationType="fade" onRequestClose={() => setEnlargedPhoto(null)}>
         <TouchableOpacity style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.95)', alignItems: 'center', justifyContent: 'center' }} activeOpacity={1} onPress={() => setEnlargedPhoto(null)}>
-          <TouchableOpacity style={{ position: 'absolute', top: 50, right: 20, backgroundColor: 'rgba(255,255,255,0.2)', borderRadius: 20, padding: 10, zIndex: 10 }} onPress={() => setEnlargedPhoto(null)}>
+          <TouchableOpacity style={{ position: 'absolute', top: 50, end: 20, backgroundColor: 'rgba(255,255,255,0.2)', borderRadius: 20, padding: 10, zIndex: 10 }} onPress={() => setEnlargedPhoto(null)}>
             <T style={{ color: '#fff', fontSize: 18, fontWeight: '700' }}>✕</T>
           </TouchableOpacity>
           {enlargedPhoto && (
@@ -7656,7 +7657,7 @@ export default function HomeScreen() {
         <ModalBackHandler onBack={() => setFilterVisible(false)} />
         <View style={{ flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(0,0,0,0.4)' }}>
           <TouchableOpacity accessibilityRole="button" accessibilityLabel={t.closeBtn} activeOpacity={1} style={{ flex: 1 }} onPress={() => setFilterVisible(false)} />
-          <View style={{ maxHeight: '92%', backgroundColor: C.white, borderTopLeftRadius: 24, borderTopRightRadius: 24, paddingTop: 16, paddingBottom: insets.bottom }}>
+          <View style={{ maxHeight: '92%', backgroundColor: C.white, borderTopStartRadius: 24, borderTopEndRadius: 24, paddingTop: 16, paddingBottom: insets.bottom }}>
             <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20, marginBottom: 6 }}>
               <TouchableOpacity accessibilityRole="button" accessibilityLabel={t.closeBtn} onPress={() => setFilterVisible(false)} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }} style={{ width: 36, alignItems: 'flex-start' }}>
                 <T style={{ fontSize: 20, color: C.textSub }}>✕</T>
@@ -7693,7 +7694,7 @@ export default function HomeScreen() {
                       style={[s.searchSuggItem, idx < filterCitySugg.length - 1 && { borderBottomWidth: 1, borderBottomColor: C.grayBorder }]}
                       onPress={() => { setFilterCity(city); setShowFilterCitySugg(false); setFilterCitySugg([]); focusCityRef.current(city); }}
                     >
-                      <T style={{ fontSize: 14, marginLeft: 6 }}>📍</T>
+                      <T style={{ fontSize: 14, marginStart: 6 }}>📍</T>
                       <T style={s.searchSuggText}>{city}</T>
                     </TouchableOpacity>
                   ))}
@@ -7772,7 +7773,7 @@ export default function HomeScreen() {
       <Modal visible={photoViewerOpen} transparent animationType="fade">
         <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.93)', justifyContent: 'center', alignItems: 'center' }}>
           <TouchableOpacity
-            style={{ position: 'absolute', top: 50, right: 20, zIndex: 10, backgroundColor: 'rgba(255,255,255,0.2)', borderRadius: 20, padding: 8 }}
+            style={{ position: 'absolute', top: 50, end: 20, zIndex: 10, backgroundColor: 'rgba(255,255,255,0.2)', borderRadius: 20, padding: 8 }}
             onPress={() => setPhotoViewerOpen(false)}
           >
             <T style={{ color: C.white, fontSize: 18, fontWeight: '700' }}>✕</T>
@@ -7969,7 +7970,7 @@ export default function HomeScreen() {
       {/* ── פופאפ: הזמנה אושרה ── */}
       <Modal visible={!!confirmedPopup} transparent animationType="slide" onRequestClose={() => setConfirmedPopup(null)}>
         <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.55)', justifyContent: 'flex-end' }}>
-          <View style={{ backgroundColor: C.white, borderTopLeftRadius: 28, borderTopRightRadius: 28, padding: 28, paddingBottom: 40, alignItems: 'center', gap: 14 }}>
+          <View style={{ backgroundColor: C.white, borderTopStartRadius: 28, borderTopEndRadius: 28, padding: 28, paddingBottom: 40, alignItems: 'center', gap: 14 }}>
             {/* אייקון */}
             <View style={{ width: 80, height: 80, borderRadius: 40, backgroundColor: '#D1FAE5', alignItems: 'center', justifyContent: 'center', borderWidth: 3, borderColor: '#10B981' }}>
               <Text style={{ fontSize: 40 }}>✅</Text>
@@ -8021,7 +8022,7 @@ export default function HomeScreen() {
       {/* ── פופאפ: המנקה ביטל הזמנה מאושרת ─────────────────────────────────── */}
       <Modal visible={!!cancelledPopup} transparent animationType="slide" onRequestClose={closeCancelledPopup}>
         <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.55)', justifyContent: 'flex-end' }}>
-          <View style={{ backgroundColor: C.white, borderTopLeftRadius: 28, borderTopRightRadius: 28, padding: 28, paddingBottom: 40, alignItems: 'center', gap: 14 }}>
+          <View style={{ backgroundColor: C.white, borderTopStartRadius: 28, borderTopEndRadius: 28, padding: 28, paddingBottom: 40, alignItems: 'center', gap: 14 }}>
             <View style={{ width: 80, height: 80, borderRadius: 40, backgroundColor: '#FEE2E2', alignItems: 'center', justifyContent: 'center', borderWidth: 3, borderColor: '#DC2626' }}>
               <Text style={{ fontSize: 40 }}>❌</Text>
             </View>
@@ -8109,7 +8110,7 @@ export default function HomeScreen() {
 
       {/* ── חסימה ── */}
       {isBlocked && !showMandatoryReview && (
-        <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.92)', justifyContent: 'center', alignItems: 'center', padding: 32, zIndex: 999 }}>
+        <View style={{ position: 'absolute', top: 0, start: 0, end: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.92)', justifyContent: 'center', alignItems: 'center', padding: 32, zIndex: 999 }}>
           <T style={{ fontSize: 48, marginBottom: 12 }}>🔒</T>
           <T style={{ fontSize: 22, fontWeight: '900', color: C.white, textAlign: 'center', marginBottom: 10 }}>
             {t.blockedTitle}
@@ -8452,14 +8453,14 @@ export default function HomeScreen() {
 // ─── Drawer styles ────────────────────────────────────────────────────────────
 function createDS(c: AppColors) {
   return StyleSheet.create({
-    backdrop:        { position: 'absolute', top: 0, bottom: 0, left: 0, right: 0, backgroundColor: 'rgba(0,0,0,0.45)' },
+    backdrop:        { position: 'absolute', top: 0, bottom: 0, start: 0, end: 0, backgroundColor: 'rgba(0,0,0,0.45)' },
     // left מחושב בפיקסלים פיזיים ב-inline style — אין right/left כאן בכלל
     panel:           { position: 'absolute', top: 0, bottom: 0, width: PANEL_W, backgroundColor: c.white, elevation: 20, shadowColor: '#000', shadowOpacity: 0.2, shadowRadius: 12 },
     panelHeader:     { backgroundColor: c.white, padding: 28, paddingTop: 50, alignItems: 'center', gap: 8, borderBottomWidth: 1, borderBottomColor: c.grayBorder },
     panelLogo:       { fontSize: 40 },
     panelAppName:    { fontSize: 20, fontWeight: '900', color: c.blueDark },
     item:            { flexDirection: 'row-reverse', alignItems: 'center', padding: 18, borderBottomWidth: 1, borderBottomColor: c.grayBorder },
-    itemIcon:        { fontSize: 20, marginLeft: 14 },
+    itemIcon:        { fontSize: 20, marginStart: 14 },
     itemText:        { fontSize: 15, fontWeight: '600', color: c.textDark, flex: 1, textAlign: 'right' },
     itemArrow:       { fontSize: 16, color: c.textSub },
     langList:        { backgroundColor: c.bluePale, paddingVertical: 4 },
@@ -8489,7 +8490,7 @@ function createS(c: AppColors) {
   // Messages icon
   msgIconBtn:   { backgroundColor: '#EEF4FB', borderRadius: 10, width: 38, height: 32, alignItems: 'center', justifyContent: 'center' },
   msgIconText:  { fontSize: 18 },
-  msgBadge:     { position: 'absolute', top: -5, right: -5, backgroundColor: '#EF4444', borderRadius: 9, minWidth: 18, height: 18, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 3, borderWidth: 1.5, borderColor: c.blueDark },
+  msgBadge:     { position: 'absolute', top: -5, end: -5, backgroundColor: '#EF4444', borderRadius: 9, minWidth: 18, height: 18, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 3, borderWidth: 1.5, borderColor: c.blueDark },
   msgBadgeText: { color: c.white, fontSize: 10, fontWeight: '800' },
   nearbyBtn:         { backgroundColor: 'rgba(255,255,255,0.15)', borderRadius: 10, paddingHorizontal: 10, paddingVertical: 6, alignItems: 'center', justifyContent: 'center' },
   nearbyBtnActive:   { backgroundColor: c.white },
@@ -8500,7 +8501,7 @@ function createS(c: AppColors) {
   // Solid blue, so it stands out beside the search (as on the website).
   boardHelpBtn:    { backgroundColor: c.blue, borderRadius: 14, height: 42, paddingHorizontal: 14, alignItems: 'center', justifyContent: 'center', elevation: 3, shadowColor: '#185FA5', shadowOpacity: 0.3, shadowRadius: 8, shadowOffset: { width: 0, height: 3 } },
   boardHelpBtnText:{ fontSize: 14, fontWeight: '900', color: '#fff' },
-  searchDropdown:  { position: 'absolute', top: 44, left: 0, right: 0, backgroundColor: c.white, borderRadius: 14, elevation: 12, shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.18, shadowRadius: 10, zIndex: 9999, overflow: 'hidden' },
+  searchDropdown:  { position: 'absolute', top: 44, start: 0, end: 0, backgroundColor: c.white, borderRadius: 14, elevation: 12, shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.18, shadowRadius: 10, zIndex: 9999, overflow: 'hidden' },
   searchSuggItem:  { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 14, paddingVertical: 11 },
   searchSuggText:  { flex: 1, fontSize: 14, color: c.textDark, textAlign: 'right', fontWeight: '500' },
   tabsBar:      { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingHorizontal: 12, gap: 6, height: 40, minWidth: '100%' },
@@ -8532,7 +8533,7 @@ function createS(c: AppColors) {
   jobBtnDismiss:    { flex: 0, width: 34, paddingHorizontal: 0, backgroundColor: c.grayBg },
   jobBtnDismissText:{ color: c.textSub, fontWeight: '800', fontSize: 15 },
   pinHead:      { alignItems: 'center', justifyContent: 'center', borderWidth: 2.5, borderColor: c.white, elevation: 6, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.3, shadowRadius: 3 },
-  pinTail:      { width: 0, height: 0, borderLeftWidth: 7, borderRightWidth: 7, borderTopWidth: 10, borderLeftColor: 'transparent', borderRightColor: 'transparent', marginTop: -1 },
+  pinTail:      { width: 0, height: 0, borderStartWidth: 7, borderEndWidth: 7, borderTopWidth: 10, borderStartColor: 'transparent', borderEndColor: 'transparent', marginTop: -1 },
   pinText:      { color: c.white, fontWeight: '900', fontSize: 10 },
   callout:      { width: 140, padding: 8 },
   calloutName:  { fontSize: 13, fontWeight: '700', color: c.textDark, marginBottom: 2 },
@@ -8544,7 +8545,7 @@ function createS(c: AppColors) {
   cardTop:      { flexDirection: 'row', gap: 10, alignItems: 'flex-start' },
   avatar:       { width: 44, height: 44, borderRadius: 22, backgroundColor: c.blue, alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
   avatarLg:     { width: 52, height: 52, borderRadius: 26, alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
-  onlineDot:    { position: 'absolute', bottom: 1, right: 1, width: 13, height: 13, borderRadius: 7, backgroundColor: '#22C55E', borderWidth: 2, borderColor: '#fff' },
+  onlineDot:    { position: 'absolute', bottom: 1, end: 1, width: 13, height: 13, borderRadius: 7, backgroundColor: '#22C55E', borderWidth: 2, borderColor: '#fff' },
   verifiedBadge:{ width: 17, height: 17, borderRadius: 9, backgroundColor: '#3B82F6', alignItems: 'center', justifyContent: 'center' },
   pricePill:    { borderRadius: 14, paddingHorizontal: 12, paddingVertical: 7, alignItems: 'center', justifyContent: 'center', shadowColor: '#185FA5', shadowOpacity: 0.25, shadowRadius: 6, shadowOffset: { width: 0, height: 3 }, elevation: 3 },
   pricePillNum: { color: '#fff', fontWeight: '900', fontSize: 16, lineHeight: 18 },

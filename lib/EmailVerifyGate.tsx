@@ -183,7 +183,7 @@ export default function EmailVerifyGate() {
 
 const s = StyleSheet.create({
   overlay: {
-    position: 'absolute', top: 0, left: 0, right: 0, bottom: 0,
+    position: 'absolute', top: 0, start: 0, end: 0, bottom: 0,
     zIndex: 10000, elevation: 10000,
     alignItems: 'center', justifyContent: 'center', padding: 32,
   },

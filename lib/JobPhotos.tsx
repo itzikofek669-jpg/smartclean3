@@ -172,7 +172,7 @@ export function JobPhotosField({ photos, onChange, onBusy }: {
               const at = prev[i] === uri ? i : prev.indexOf(uri);
               return at < 0 ? prev : prev.filter((_, j) => j !== at);
             })}
-            style={{ position: 'absolute', top: -6, left: -6, width: 22, height: 22, borderRadius: 11, backgroundColor: '#EF4444', alignItems: 'center', justifyContent: 'center' }}
+            style={{ position: 'absolute', top: -6, start: -6, width: 22, height: 22, borderRadius: 11, backgroundColor: '#EF4444', alignItems: 'center', justifyContent: 'center' }}
             accessibilityLabel={(t as any).removePhoto ?? 'הסר תמונה'}
           >
             <T style={{ color: '#fff', fontSize: 13, fontWeight: '900' }}>✕</T>
@@ -197,7 +197,7 @@ export function JobPhotosField({ photos, onChange, onBusy }: {
       <Modal visible={asking} transparent animationType="slide" onRequestClose={() => setAsking(false)}>
         <View style={{ flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(0,0,0,0.45)' }}>
           <TouchableOpacity accessibilityRole="button" accessibilityLabel={t.cancel ?? 'ביטול'} activeOpacity={1} style={{ flex: 1 }} onPress={() => setAsking(false)} />
-          <View style={{ backgroundColor: C.white, borderTopLeftRadius: 20, borderTopRightRadius: 20, paddingHorizontal: 16, paddingTop: 18, paddingBottom: insets.bottom + 14, gap: 10 }}>
+          <View style={{ backgroundColor: C.white, borderTopStartRadius: 20, borderTopEndRadius: 20, paddingHorizontal: 16, paddingTop: 18, paddingBottom: insets.bottom + 14, gap: 10 }}>
             <T style={{ fontSize: 16, fontWeight: '800', color: C.textDark, textAlign: 'center', marginBottom: 4 }}>{(t as any).jobPhotoSourceTitle ?? '📷 הוספת תמונה'}</T>
             <TouchableOpacity accessibilityRole="button" onPress={() => choose('camera')} style={{ minHeight: 50, borderRadius: 14, backgroundColor: C.blue, alignItems: 'center', justifyContent: 'center' }}>
               <T style={{ fontSize: 16, fontWeight: '800', color: C.white }}>{(t as any).cameraOption ?? '📷 מצלמה'}</T>
