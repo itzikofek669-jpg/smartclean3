@@ -85,7 +85,7 @@ import { Lang } from '../lib/translations';
 import AccessibilityModal from '../lib/AccessibilityModal';
 import { MaterialIcons } from '@expo/vector-icons';
 import { TAB_BAR_CONTENT_HEIGHT } from '../lib/BottomTabBar';
-import { removeBookingFromCalendar } from '../lib/calendarSync';
+import { removeBookingFromCalendar, primeCalendarPermission } from '../lib/calendarSync';
 // expo-audio — הקלטה והשמעה של הודעות קוליות (SDK 54, מחליף את expo-av)
 import { useAudioRecorder, createAudioPlayer, RecordingPresets, setAudioModeAsync, AudioModule } from 'expo-audio';
 import * as ImageManipulator from 'expo-image-manipulator';
@@ -4413,15 +4413,22 @@ export default function HomeScreen() {
     let alive = true;
     let timer: ReturnType<typeof setTimeout> | undefined;
     AsyncStorage.getItem(key).then((seen) => {
-      if (!alive || seen) return;
+      if (!alive) return;
+      if (seen) { setHelpChecked(true); return; }
       timer = setTimeout(() => {
         if (!alive) return;
         setBoardHelpOpen(true);
+        setHelpChecked(true);
         AsyncStorage.setItem(key, '1').catch(() => {});
       }, 800);
-    }).catch(() => {});
+    }).catch(() => { if (alive) setHelpChecked(true); });
     return () => { alive = false; if (timer) clearTimeout(timer); };
   }, [myRole]);
+  // First sign-in stacked four windows: this help, the calendar offer, a due
+  // review and the system permissions. One at a time now — the help, then the
+  // review, then (once, ever) the calendar offer.
+  const [helpChecked, setHelpChecked] = useState(false);
+  const calendarOffered = useRef(false);
   const [cleanerPendingCount, setCleanerPendingCount] = useState(0);
   // "3 bookings…", and "1 booking…" for one — it read "1 bookings". Russian and
   // Ukrainian have a third form, for 2–4.
@@ -5552,6 +5559,16 @@ export default function HomeScreen() {
   const [isBlocked,            setIsBlocked]            = useState(false);
   const [pendingReviewBooking, setPendingReviewBooking] = useState<any>(null);
   const [showMandatoryReview,  setShowMandatoryReview]  = useState(false);
+  // The calendar offer, once the help has been seen or closed and no review is
+  // waiting — never on top of either (see helpChecked above).
+  useEffect(() => {
+    if (calendarOffered.current || !helpChecked || boardHelpOpen || showMandatoryReview) return;
+    const timer = setTimeout(() => {
+      calendarOffered.current = true;
+      void primeCalendarPermission();
+    }, 1200);
+    return () => clearTimeout(timer);
+  }, [helpChecked, boardHelpOpen, showMandatoryReview]);
   const [mandatoryStars,       setMandatoryStars]       = useState(0);
   const [mandatoryComment,     setMandatoryComment]     = useState('');
   const [mandatorySubmitting,  setMandatorySubmitting]  = useState(false);
@@ -7916,7 +7933,7 @@ export default function HomeScreen() {
       {/* After any cancellation or confirmation news, not over it: shown under the
           review, that news surfaced the moment the review closed and read as the
           review's own result — "your cleaning was declined" (Ofek, 7.11.2026). */}
-      <Modal visible={showMandatoryReview && !cancelledPopup && !confirmedPopup} transparent animationType="fade">
+      <Modal visible={showMandatoryReview && !cancelledPopup && !confirmedPopup && !boardHelpOpen} transparent animationType="fade">
         <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.7)', justifyContent: 'center', alignItems: 'center', padding: 24 }}>
           <View style={{ backgroundColor: C.white, borderRadius: 24, padding: 24, width: '100%', maxWidth: 360 }}>
             <T style={{ fontSize: 20, fontWeight: '900', color: C.textDark, textAlign: 'center', marginBottom: 6 }}>

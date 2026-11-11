@@ -11,7 +11,7 @@ import { getActiveChat } from '../lib/chatPresence';
 import { logError } from '../lib/logError';
 import { loadDemoMode } from '../lib/demoMode';
 import { fetchDetailsWhenReadable } from '../lib/bookingDetails';
-import { primeCalendarPermission, addBookingToCalendar, removeBookingFromCalendar, calendarSyncMessage, hasWarnedCalendar, markCalendarWarned } from '../lib/calendarSync';
+import { addBookingToCalendar, removeBookingFromCalendar, calendarSyncMessage, hasWarnedCalendar, markCalendarWarned } from '../lib/calendarSync';
 // Imported for its side effect as well as the helper: the background task is
 // defined at module scope there, and a cold start triggered by a push must find
 // it already defined. See lib/calendarTask.ts.
@@ -288,7 +288,8 @@ export default function RootLayout() {
         if (pushRegisteredFor.current !== user.uid) {
           pushRegisteredFor.current = user.uid;
           registerPushToken(user.uid);
-          primeCalendarPermission();
+          // The calendar offer is made from the home screen, after the first-run
+          // help and any review that is due — one window at a time.
         }
       } else {
         pushRegisteredFor.current = null;

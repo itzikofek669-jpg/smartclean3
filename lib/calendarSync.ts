@@ -248,6 +248,7 @@ export type CalendarSyncResult =
   | 'no-id'
   | 'bad-slot'        // date/time not in the expected format
   | 'denied'          // user refused, or permission previously denied
+  | 'declined'        // said "not now" to the offer: no system dialog, no warning
   | 'no-calendar'     // no writable calendar on the device (no account synced)
   | 'error';
 
@@ -302,7 +303,12 @@ async function addBookingToCalendarInner(
     const end   = endDateOf(b);
     if (!start || !end) return 'bad-slot';
 
-    const { status } = await Calendar.requestCalendarPermissionsAsync();
+    // Never the system dialog from here. Every sync on every launch asked
+    // again, so "not now" — and Android's first refusal — was followed by the
+    // system prompt on the next start: asked twice, and more. Access is asked
+    // for once, with a sentence of context, by primeCalendarPermission.
+    const { status } = await Calendar.getCalendarPermissionsAsync();
+    if (status === 'undetermined') return 'declined';
     if (status !== 'granted') return 'denied';
 
     // Since 9.11.2026 the cleaner reads the address only once the booking is
