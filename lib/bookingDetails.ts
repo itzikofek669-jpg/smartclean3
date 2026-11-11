@@ -50,6 +50,7 @@ const cache = new Map<string, BookingDetails>();
 // whose read was refused is asked once more, a moment later.
 const deniedAt = new Map<string, number>();
 const LIVE_FOR_CLEANER = ['confirmed', 'onway', 'active', 'done'];
+const copyWaited = new Set<string>();
 
 export async function fetchBookingDetails(bookingId: string): Promise<BookingDetails> {
   const hit = cache.get(bookingId);
@@ -182,11 +183,18 @@ export async function copyUrgentDetails(bookingId: string, reqId: string): Promi
  * it, so the first read is refused, and no new snapshot follows the server's
  * acknowledgement. Three more tries over ~10s, then whatever there is.
  */
-export async function fetchDetailsWhenReadable(b: { id: string; status?: string }): Promise<BookingDetails> {
+export async function fetchDetailsWhenReadable(b: { id: string; status?: string; urgentRequestId?: string; cleanerId?: string }): Promise<BookingDetails> {
   deniedAt.delete(b.id);
   let d = await fetchBookingDetails(b.id);
+  // An urgent booking's address reaches its cleaner a moment after she
+  // confirms: the notification server copies it in (copyUrgentAddress). Waited
+  // for once per booking per session, and only while the job is ahead — an old
+  // one whose copy never came must not hold the whole list up on every load.
+  const awaitingCopy = !!b.urgentRequestId && auth.currentUser?.uid === b.cleanerId
+    && ['confirmed', 'onway', 'active'].includes(String(b.status)) && !copyWaited.has(b.id);
+  if (awaitingCopy) copyWaited.add(b.id);
   for (const wait of [1500, 3000, 6000]) {
-    if (d.address || !deniedAt.has(b.id) || !LIVE_FOR_CLEANER.includes(String(b.status))) break;
+    if (d.address || !(deniedAt.has(b.id) || awaitingCopy) || !LIVE_FOR_CLEANER.includes(String(b.status))) break;
     await new Promise((r) => setTimeout(r, wait));
     deniedAt.delete(b.id);
     d = await fetchBookingDetails(b.id);
@@ -202,17 +210,19 @@ export async function withBookingDetails<T extends { id: string; address?: strin
     const d = await fetchDetailsWhenReadable(b);
     const rid = (b as { urgentRequestId?: string }).urgentRequestId;
     if (d.address || !rid) return { ...b, ...d };
-    // Not to the cleaner before she is confirmed (decision 9.11.2026): the
-    // request's private half would hand her the address the booking holds back.
+    // The request's private half is the client's alone (11.11.2026): its
+    // cleaner gets the address on the booking, copied in once she confirms.
     const st = String((b as { status?: string }).status);
-    if (auth.currentUser?.uid === (b as { cleanerId?: string }).cleanerId && !LIVE_FOR_CLEANER.includes(st)) {
+    if (auth.currentUser?.uid === (b as { cleanerId?: string }).cleanerId) {
       return { ...b, ...d };
     }
     // An urgent booking whose address has not been copied in yet — the copy
     // right after the claim failed, or has not run. Shown from the request's
     // private half, and copied in when the reader is the cleaner.
     const u = await fetchUrgentDetails(rid);
-    if (u.address && auth.currentUser?.uid === (b as { cleanerId?: string }).cleanerId) {
+    // The client hands it across once the cleaner has confirmed — a second
+    // path beside the notification server's copy, for a push that never came.
+    if (u.address && auth.currentUser?.uid === (b as { clientUid?: string }).clientUid && LIVE_FOR_CLEANER.includes(st)) {
       void copyUrgentDetails(b.id, rid);
     }
     return { ...b, ...u, ...Object.fromEntries(Object.entries(d).filter(([, v]) => v)) };

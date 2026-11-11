@@ -1380,10 +1380,14 @@ service cloud.firestore {
             && request.resource.data.get('phone', '') is string
             && request.resource.data.get('phone', '').size() <= 30;
         }
+        // The client and an admin only. The cleaner who took the request used
+        // to read it too — and taking, reading and handing back collected
+        // addresses (Ofek, 11.11.2026: closed). She gets them on the booking's
+        // private half once she has confirmed: the notification server copies
+        // them across on the confirmation (copyUrgentAddress), and the client's
+        // own screen copies them too.
         allow read: if isAdmin()
-          || (signedIn() && (req().get('clientUid', '') == uid()
-              || req().get('takenByUid', '') == uid()
-              || req().get('takenBy', '') == uid()));
+          || (signedIn() && req().get('clientUid', '') == uid());
         allow create: if signedIn() && urgentDetailsSane()
           && getAfter(/databases/$(database)/documents/urgentRequests/$(reqId)).data.get('clientUid', '') == uid();
         allow update: if signedIn() && urgentDetailsSane() && req().get('clientUid', '') == uid();

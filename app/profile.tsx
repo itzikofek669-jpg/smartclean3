@@ -59,7 +59,7 @@ import { logError } from '../lib/logError';
 import { notify } from '../lib/notify';
 import { endJob } from '../lib/endJob';
 import { useNow } from '../lib/useNow';
-import { withBookingDetails, migrateOpenJobDetails, fetchBookingDetails, backfillClientPhone, needsPhoneBackfill, urgentDetailsRef, copyUrgentDetails } from '../lib/bookingDetails';
+import { withBookingDetails, migrateOpenJobDetails, fetchBookingDetails, backfillClientPhone, needsPhoneBackfill, urgentDetailsRef } from '../lib/bookingDetails';
 import { batchProfile, fetchOwnProfile, idPhotoRef, ownPhone } from '../lib/privateProfile';
 import { firstError, validateName, validatePhone, validatePrice, validateAge, validateDistance, normalizePhone } from '../lib/validate';
 import { claimPhone, releasePhone } from '../lib/accountChecks';
@@ -2506,9 +2506,8 @@ export default function ProfileScreen() {
           // בקשה מגרסה ישנה עדיין נושאת את הכתובת על השידור עצמו.
           if (req.address) tx.set(doc(db, 'bookings', bookingRef.id, 'private', 'details'), { address: req.address });
         });
-        // בקשה עדכנית שומרת את הכתובת בחלק הפרטי שלה, שמותר לקרוא רק עכשיו,
-        // כשהיא שלה. מועתקת מילה במילה — החוקים בודקים שזה תואם.
-        if (!req.address) await copyUrgentDetails(bookingRef.id, req.id);
+        // הכתובת מהחלק הפרטי של הבקשה מועתקת להזמנה ע"י שרת ההתראות, על הפוש
+        // urgent_claimed שלמטה (11.11.2026: המנקה לא קוראת את החלק הפרטי בעצמה).
       } catch (txErr: any) {
         // A refusal is "taken" too: once another cleaner holds the request the
         // rules no longer let this one read it, so the transaction's own read
