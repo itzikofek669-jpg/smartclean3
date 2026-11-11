@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { setTrLang } from './trNow';
+import { useLangSync } from './langSync';
 import { Text as RNText, TextProps, StyleSheet as RNStyleSheet } from 'react-native';
 import * as SecureStore from 'expo-secure-store';
 import translations, { Lang, Translations } from './translations';
@@ -43,6 +44,8 @@ export function LanguageProvider({ children }: { children: React.ReactNode }) {
   const [flipSide,     setFlipSideState]     = useState(false);
   const [textScale,    setTextScaleState]    = useState<TextScale>(1);
   const [highContrast, setHighContrastState] = useState(false);
+  const [langLoaded,   setLangLoaded]          = useState(false);
+  useLangSync(lang, langLoaded);
 
   useEffect(() => {
     (async () => {
@@ -57,6 +60,7 @@ export function LanguageProvider({ children }: { children: React.ReactNode }) {
 
       const savedContrast = await SecureStore.getItemAsync(CONTRAST_KEY).catch(() => null);
       if (savedContrast === 'true') setHighContrastState(true);
+      setLangLoaded(true);
     })();
   }, []);
 
@@ -125,9 +129,12 @@ export function T({ style, children, ...props }: TextProps) {
     /[ऀ-ॿ]/.test(children);
   const hiFont = needsDevanagari ? { fontFamily: 'NotoSansDevanagari_400Regular' } : {};
   const flat: any = style ? RNStyleSheet.flatten(style) ?? {} : {};
-  const rtlAlign = !nested && (lang === 'he' || lang === 'ar') && flat.textAlign == null
-    ? { textAlign: 'right' as const }
-    : null;
+  // And the other way: text written aligned right for Hebrew stayed on the right
+  // in English, Russian, French, Hindi and Ukrainian too (translation sweep,
+  // 11.11.2026) — labels, card lines and headings read from the wrong edge.
+  const rtlAlign = !nested && (lang === 'he' || lang === 'ar')
+    ? (flat.textAlign == null ? { textAlign: 'right' as const } : null)
+    : (!nested && flat.textAlign === 'right' ? { textAlign: 'left' as const } : null);
 
   // הינדי: הקטנת פונט אוטומטית אם הטקסט לא מתאים לכפתור
   const hiAdjust = needsDevanagari && !props.numberOfLines
