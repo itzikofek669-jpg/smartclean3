@@ -172,7 +172,7 @@ async function registerPushToken(uid: string, waitedForProfile = false, quiet = 
       // every time the app comes back to the front.
       const mine = await getDoc(pushTokenRef(uid)).catch(() => null);
       if (!mine?.exists() || mine.data()?.token !== token) {
-        await setDoc(pushTokenRef(uid), pushTokenDoc(token))
+        await setDoc(pushTokenRef(uid), pushTokenDoc(token), { merge: true })
           .catch(err => logError('layout:pushTokenPrivate', err));
       }
     }

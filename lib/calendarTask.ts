@@ -9,8 +9,9 @@
  * made on the website cleared nobody's calendar at all, because a browser has no
  * access to one either.
  *
- * A data-only push (sent by the onBookingCancelled function in the website
- * repo) wakes this task and it does the removal. Limits worth knowing, because
+ * A data-only push (sent with the cancellation push by the notification
+ * server, the website repo's worker/notify.js) wakes this task and it does
+ * the removal. Limits worth knowing, because
  * this is an improvement and not a guarantee:
  *
  *   • Android runs this reliably in the background, but Doze and the aggressive

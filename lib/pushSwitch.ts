@@ -80,7 +80,7 @@ export async function turnPushOn(uid: string): Promise<PushOnResult> {
   // The private copy is the one the notification server reads: if it was not
   // written, the phone cannot be reached, and the switch must not say "on".
   try {
-    await setDoc(pushTokenRef(uid), pushTokenDoc(token));
+    await setDoc(pushTokenRef(uid), pushTokenDoc(token), { merge: true });
   } catch (err) {
     logError('pushSwitch:private', err);
     return 'no-token';

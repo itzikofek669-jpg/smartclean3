@@ -1855,3 +1855,22 @@ test('the dot beside a cleaner turns red when her day is over, and green when th
   // Set them, to no days at all: never at work.
   assert.equal(isOnShiftNow(true, {}, true, at(1, 10)), false);
 });
+
+test('the phone never wipes the website\'s browser token from the shared private document', () => {
+  // The bug: pushTokens/{uid} holds the phone's `token` and the website's
+  // `webToken`. The app wrote its token with a plain setDoc (replacing the
+  // document) on every launch, and deleted the whole document on sign-out and
+  // on "notifications off" — each time cutting that account's browser off.
+  const src = (p) => readFileSync(new URL(`../${p}`, import.meta.url), 'utf8');
+  for (const p of ['app/_layout.tsx', 'lib/pushSwitch.ts', 'app/profile.tsx', 'app/home.tsx', 'lib/signOutDevice.ts']) {
+    const s = src(p);
+    for (const m of s.matchAll(/setDoc\(pushTokenRef\([^)]*\),[^;]*;/g)) {
+      assert.match(m[0], /\{ merge: true \}/, `${p}: the phone's token is merged in, never replaces the document`);
+    }
+    assert.doesNotMatch(s, /deleteDoc\((pushTokenRef|priv)\b/, `${p}: the private document is not deleted whole`);
+  }
+  const store = src('lib/pushTokenStore.ts');
+  assert.match(store, /runTransaction\(db, async \(tx\) => \{[\s\S]*if \(d\?\.webToken\) tx\.update\(ref, \{ token: deleteField\(\), platform: deleteField\(\) \}\);\s*else tx\.delete\(ref\);/, 'only the phone\'s fields go, atomically');
+  assert.match(src('lib/signOutDevice.ts'), /clearPhoneToken\(uid, token\)/, 'sign-out removes only this phone\'s token');
+  assert.match(src('app/profile.tsx'), /await clearPhoneToken\(uid\)/, 'switching off removes only the phone\'s token');
+});

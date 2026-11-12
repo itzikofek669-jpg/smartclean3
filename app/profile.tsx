@@ -15,7 +15,7 @@ import {
   doc, getDoc, setDoc, updateDoc, addDoc, deleteDoc, deleteField,
   collection, query, where, getDocs, orderBy, arrayRemove, arrayUnion, onSnapshot, runTransaction, writeBatch,
 } from 'firebase/firestore';
-import { pushTokenRef } from '../lib/pushTokenStore';
+import { pushTokenRef, clearPhoneToken } from '../lib/pushTokenStore';
 import { turnPushOn, pushPermission } from '../lib/pushSwitch';
 import { auth, db } from '../lib/firebase';
 import {
@@ -2429,7 +2429,8 @@ export default function ProfileScreen() {
       // התראות מתוך האפליקציה.
       await updateDoc(doc(db, 'users', uid), { pushToken: '', pushOptOut: true });
       // והעותק הפרטי — שרת ההתראות קורא ממנו. ראה lib/pushTokenStore.
-      await deleteDoc(pushTokenRef(uid)).catch(err => logError('profile:pushTokenDelete', err));
+      // רק הטוקן של הטלפון — webToken של האתר באותו מסמך נשאר.
+      await clearPhoneToken(uid).catch(err => logError('profile:pushTokenDelete', err));
       setHasPushToken(false);
     } catch (e: any) {
       Alert.alert(t.error, e?.message || trNow('actionFailed'));
