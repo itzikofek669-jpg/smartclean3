@@ -23,6 +23,7 @@ import { useFonts, NotoSansDevanagari_400Regular } from '@expo-google-fonts/noto
 import ErrorBoundary from '../lib/ErrorBoundary';
 import LocationGate from '../lib/LocationGate';
 import EmailVerifyGate from '../lib/EmailVerifyGate';
+import VersionGate from '../lib/VersionGate';
 import { trNow } from '../lib/trNow';
 
 // Hide the Expo Go push-notification warnings (remote push isn't supported in
@@ -220,6 +221,10 @@ export default function RootLayout() {
       // A cleaner took the client's posted job. Same destination as a
       // confirmation — their bookings list, where it now shows as pending.
       router.push('/profile');
+    } else if (data.type === 'extension_requested' || data.type === 'extension_answered') {
+      // More time: asked (the client) or answered (the provider). The job's
+      // card carries the question and the answer (lib/JobExtensionUI).
+      router.push({ pathname: '/profile', params: { section: 'active' } });
     } else if (data.type === 'urgent' || data.urgent === true) {
       // הקשה על פוש דחוף = "אני לוקח/ת" → לפרופיל → קבלה אוטומטית + מסך אישור/צ'אט (overlay מכסה את ההבזק)
       router.push({ pathname: '/profile', params: { tab: 'urgent', acceptReqId: data.requestId || '' } });
@@ -622,6 +627,8 @@ export default function RootLayout() {
               <LocationGate />
               {/* מעל שער המיקום: אימות המייל הוא התנאי הבסיסי יותר. */}
               <EmailVerifyGate />
+              {/* מעל הכול: גרסה שהמנהל סימן כישנה מבקשת עדכון (lib/VersionGate). */}
+              <VersionGate />
             </ErrorBoundary>
             </LayoutDirection>
           </LanguageProvider>

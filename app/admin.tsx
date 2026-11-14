@@ -19,8 +19,10 @@ import { TAB_BAR_CONTENT_HEIGHT } from '../lib/BottomTabBar';
 import { demoModeStored, setDemoMode } from '../lib/demoMode';
 import { releaseUrgentRequest } from '../lib/urgentRelease';
 import { fetchPrivateProfile } from '../lib/privateProfile';
-import { broadcast } from '../lib/notify';
+import { broadcast, notify } from '../lib/notify';
+import AppVersionAdmin from '../lib/AppVersionAdmin';
 import { replacedByEdit } from '../lib/bookingOrigin';
+import { bookingAmount } from '../lib/bookingAmount';
 
 // ─── Palette ──────────────────────────────────────────────────────────────────
 const C_DEFAULT = {
@@ -169,13 +171,15 @@ export default function AdminScreen() {
     const d = new Date(b.createdAt || 0);
     return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
   });
+  // Every amount through lib/bookingAmount — the same figure the cleaner's
+  // earnings and the website's admin show.
   const thisMonthRevenue = thisMonthBookings
     .filter(b => b.status !== 'cancelled')
-    .reduce((sum, b) => sum + (b.total || 0), 0);
+    .reduce((sum, b) => sum + bookingAmount(b), 0);
 
   const allTimeRevenue = bookings
     .filter(b => b.status === 'done')
-    .reduce((sum, b) => sum + (b.total || 0), 0);
+    .reduce((sum, b) => sum + bookingAmount(b), 0);
 
   // Revenue chart — last 6 months
   const chartData = Array.from({ length: 6 }, (_, i) => {
@@ -187,7 +191,7 @@ export default function AdminScreen() {
         const bd = new Date(b.createdAt || 0);
         return bd.getMonth() === m && bd.getFullYear() === y && b.status !== 'cancelled';
       })
-      .reduce((sum, b) => sum + (b.total || 0), 0);
+      .reduce((sum, b) => sum + bookingAmount(b), 0);
     return {
       label: d.toLocaleDateString('he-IL', { month: 'short' }),
       revenue: rev,
@@ -253,6 +257,10 @@ export default function AdminScreen() {
         let urgentRequestId = '';
         try { urgentRequestId = String((await getDoc(ref)).data()?.urgentRequestId ?? ''); } catch (_) {}
         await updateDoc(ref, { status: 'cancelled', cancelledBy: 'admin', cancelledAt: new Date().toISOString() });
+        // The server frees the provider's hours now and tells both parties
+        // (worker/notify.js booking_cancelled, admin branch). Without it her
+        // hour stayed "busy" until her app next ran, and nobody was told.
+        void notify({ event: 'booking_cancelled', bookingId });
         await releaseUrgentRequest({ urgentRequestId }, 'admin');
       }},
     ]);
@@ -508,7 +516,7 @@ export default function AdminScreen() {
                     <T style={s.recentName}>
                       {b.clientName || 'לקוח'} ← {b.cleanerName || 'נותן שירות'}
                     </T>
-                    <T style={s.recentSub}>{b.date} · ₪{b.total || 0}</T>
+                    <T style={s.recentSub}>{b.date} · ₪{bookingAmount(b)}</T>
                   </View>
                   <StatusPill status={b.status} />
                 </View>
@@ -619,7 +627,7 @@ export default function AdminScreen() {
                     </T>
                     <T style={s.bookingSub}>📍 {b.address || b.addrCity}</T>
                     <T style={s.bookingAmount}>
-                      ₪{b.total || 0} · {b.hours} שע׳ · {b.paymentMethod}
+                      ₪{bookingAmount(b)} · {b.hours} שע׳ · {b.paymentMethod}
                     </T>
                   </View>
                   {b.status !== 'cancelled' && b.status !== 'done' && (
@@ -706,6 +714,9 @@ export default function AdminScreen() {
 
         {tab === 5 && (
           <View style={s.tabContent}>
+
+            {/* Minimum app version (lib/AppVersionAdmin, lib/VersionGate) */}
+            <AppVersionAdmin s={s} C={C} />
 
             {/* Push notification */}
             <View style={s.card}>

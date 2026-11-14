@@ -28,6 +28,8 @@
     "lib/pushState.ts",
     "lib/rebookList.ts",
     "lib/voiceFile.ts",
-    "lib/bookingTabs.ts"
+    "lib/bookingTabs.ts",
+    "lib/bookingAmount.ts",
+    "lib/versionRule.ts"
   ]
 }

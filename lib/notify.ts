@@ -18,7 +18,9 @@ export type NotifyEvent =
       event:
         | 'new_booking' | 'booking_confirmed' | 'booking_claimed'
         | 'booking_cancelled' | 'booking_released'
-        | 'onway' | 'started' | 'ended' | 'recurring_created';
+        | 'onway' | 'started' | 'ended' | 'recurring_created'
+        // More time: the provider asked (rings the client), the client answered (rings her).
+        | 'extension_requested' | 'extension_answered';
       bookingId: string;
     }
   | { event: 'urgent'; requestId: string; recipients: string[] }

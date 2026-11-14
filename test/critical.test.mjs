@@ -1874,3 +1874,30 @@ test('the phone never wipes the website\'s browser token from the shared private
   assert.match(src('lib/signOutDevice.ts'), /clearPhoneToken\(uid, token\)/, 'sign-out removes only this phone\'s token');
   assert.match(src('app/profile.tsx'), /await clearPhoneToken\(uid\)/, 'switching off removes only the phone\'s token');
 });
+
+test('an outdated build is asked to update; anything unreadable never locks anyone out', async () => {
+  const { outdatedBuild, updateLinkFor } = await import('../.tsbuild/versionRule.mjs');
+  const cfg = { minAndroidBuild: 1236, minIosBuild: 40, updateUrl: 'https://example.com/a.apk', updateUrlIos: 'https://example.com/ios' };
+  // Android versionCode is 1000 + the CI run number: build 206 is 1206.
+  assert.equal(outdatedBuild(cfg, 'android', '1206'), true);
+  assert.equal(outdatedBuild(cfg, 'android', '1236'), false, 'the minimum itself is fine');
+  assert.equal(outdatedBuild(cfg, 'android', '1240'), false);
+  // iPhone: CFBundleVersion is "1" on every build, so no iPhone minimum is read yet.
+  assert.equal(outdatedBuild(cfg, 'ios', '1'), false);
+  assert.equal(outdatedBuild(cfg, 'ios', '39'), false);
+  // A typo far ahead of any real build (12360 for 1236) locks nobody out.
+  assert.equal(outdatedBuild({ minAndroidBuild: 12360 }, 'android', '1236'), false);
+  assert.equal(outdatedBuild({ minAndroidBuild: 1300 }, 'android', '1236'), true, 'a real step ahead still counts');
+  // Fail open.
+  assert.equal(outdatedBuild(null, 'android', '1'), false, 'no document');
+  assert.equal(outdatedBuild({ minAndroidBuild: '1236' }, 'android', '1'), false, 'not a number');
+  assert.equal(outdatedBuild(cfg, 'android', null), false, 'build unknown');
+  assert.equal(outdatedBuild(cfg, 'android', 'abc'), false);
+  assert.equal(outdatedBuild(cfg, 'web', '1'), false);
+  // Only an https link becomes a button.
+  assert.equal(updateLinkFor(cfg, 'android'), 'https://example.com/a.apk');
+  assert.equal(updateLinkFor(cfg, 'ios'), 'https://example.com/ios');
+  assert.equal(updateLinkFor({ updateUrl: 'javascript:alert(1)' }, 'android'), '');
+  assert.equal(updateLinkFor({ updateUrl: 'http://example.com' }, 'android'), '');
+  assert.equal(updateLinkFor({ updateUrl: 'https://example.com/x.apk' }, 'ios'), 'https://example.com/x.apk', 'falls back to the shared link');
+});

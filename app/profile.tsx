@@ -59,11 +59,13 @@ import { addBookingToCalendar, removeBookingFromCalendar, calendarSyncMessage } 
 import { logError } from '../lib/logError';
 import { notify } from '../lib/notify';
 import { endJob } from '../lib/endJob';
+import { bookingAmount } from '../lib/bookingAmount';
+import { ExtensionStrip } from '../lib/JobExtensionUI';
 import { useNow } from '../lib/useNow';
 import { withBookingDetails, migrateOpenJobDetails, fetchBookingDetails, backfillClientPhone, needsPhoneBackfill, urgentDetailsRef } from '../lib/bookingDetails';
 import { batchProfile, fetchOwnProfile, idPhotoRef, ownPhone } from '../lib/privateProfile';
 import { firstError, validateName, validatePhone, validatePrice, validateAge, validateDistance, normalizePhone } from '../lib/validate';
-import { trNow, isRtlNow } from '../lib/trNow';
+import { trNow, isRtlNow, trLang } from '../lib/trNow';
 import { serviceLinesFor } from '../lib/serviceLines';
 import { claimPhone, releasePhone } from '../lib/accountChecks';
 import { isUrgentRequestLive, isUrgentRequestExpired, releasedByMe } from '../lib/urgentRequest';
@@ -895,12 +897,14 @@ export default function ProfileScreen() {
   const [chatIsRecording,  setChatIsRecording]  = useState(false);
   const cleanerRecorder = useAudioRecorder(RecordingPresets.HIGH_QUALITY);
   const cleanerMicReadyRef = useRef(false);
-  // Pre-acquire mic permission + recording audio mode so press-and-hold starts
-  // capturing instantly (otherwise the permission dialog eats the start on iOS).
+  // When the mic is already allowed, set up recording on mount so press-and-hold
+  // starts at once. Only CHECKED here, never asked: asking popped the system
+  // microphone dialog whenever a provider opened her profile. Not yet allowed:
+  // the first press asks (startCleanerRecording).
   useEffect(() => {
     (async () => {
       try {
-        const perm = await AudioModule.requestRecordingPermissionsAsync();
+        const perm = await AudioModule.getRecordingPermissionsAsync();
         if (!perm.granted) return;
         await setAudioModeAsync({ allowsRecording: true, playsInSilentMode: true });
         cleanerMicReadyRef.current = true;
@@ -2123,9 +2127,11 @@ export default function ProfileScreen() {
     setRateTarget(null);
   };
 
-  const totalSpent  = bookings.filter(b => b.status !== 'cancelled').reduce((sum, b) => sum + (b.total || 0), 0);
+  // Every amount through lib/bookingAmount: what was recorded, never below what
+  // was agreed — jobs closed before 7.11.2026 recorded "₪1" for a few minutes.
+  const totalSpent  = bookings.filter(b => b.status !== 'cancelled').reduce((sum, b) => sum + bookingAmount(b), 0);
   // מה שנגבה בפועל כשהשעות השתנו, כמו באתר ובסיכום העסקי.
-  const totalEarned = incomingBks.filter(b => b.status !== 'cancelled').reduce((sum, b) => sum + (b.actualTotal || b.total || 0), 0);
+  const totalEarned = incomingBks.filter(b => b.status !== 'cancelled').reduce((sum, b) => sum + bookingAmount(b), 0);
   const isCleaner   = userRole === 'cleaner';
   const DAYS_LABELS = [t.availSun, t.availMon, t.availTue, t.availWed, t.availThu, t.availFri, t.availSat];
 
@@ -2139,11 +2145,11 @@ export default function ProfileScreen() {
     return d < today;
   };
   const thisMonthBks    = incomingBks.filter(b => { const d = new Date(b.createdAt); return d.getMonth() === nowDate.getMonth() && d.getFullYear() === nowDate.getFullYear(); });
-  const thisMonthEarned = thisMonthBks.filter(b => b.status !== 'cancelled').reduce((sum, b) => sum + (b.total || 0), 0);
+  const thisMonthEarned = thisMonthBks.filter(b => b.status !== 'cancelled').reduce((sum, b) => sum + bookingAmount(b), 0);
   const completedBks    = incomingBks.filter(b => b.status === 'done' || (isPastBooking(b) && b.status !== 'cancelled'));
   const cancelledBks    = incomingBks.filter(b => b.status === 'cancelled');
   const cancelRate      = incomingBks.length > 0 ? Math.round((cancelledBks.length / incomingBks.length) * 100) : 0;
-  const allTimeEarned   = incomingBks.filter(b => b.status !== 'cancelled').reduce((sum, b) => sum + (b.actualTotal || b.total || 0), 0);
+  const allTimeEarned   = incomingBks.filter(b => b.status !== 'cancelled').reduce((sum, b) => sum + bookingAmount(b), 0);
   const clientFreq: Record<string, number> = {};
   incomingBks.forEach(b => { if (b.clientUid) clientFreq[b.clientUid] = (clientFreq[b.clientUid] || 0) + 1; });
   const repeatClients   = Object.values(clientFreq).filter(n => n >= 2).length;
@@ -2163,7 +2169,7 @@ export default function ProfileScreen() {
   const monthlyEarnings = last6Months.map(m =>
     incomingBks
       .filter(b => b.status !== 'cancelled' && (() => { const d = new Date(b.createdAt); return d.getMonth() === m.month && d.getFullYear() === m.year; })())
-      .reduce((sum, b) => sum + (b.actualTotal || b.total || 0), 0)
+      .reduce((sum, b) => sum + bookingAmount(b), 0)
   );
   const maxMonthly = Math.max(...monthlyEarnings, 1);
   const bestMonthLabel = last6Months[monthlyEarnings.indexOf(Math.max(...monthlyEarnings))]?.label || '-';
@@ -2241,6 +2247,10 @@ export default function ProfileScreen() {
         const mi = String(pendingPickerDate.getMinutes()).padStart(2, '0');
         updates.bookingDate = `${y}-${mm}-${dd}`;
         updates.startTime   = `${hh}:${mi}`;
+        // The busy window moves with it. Left at the old hour, a later
+        // cancellation had the notification server free that hour — another
+        // job's, if she had taken one there (review 14.11.2026).
+        Object.assign(updates, busyFieldsOf({ bookingDate: updates.bookingDate, startTime: updates.startTime, hours: b.hours }));
       }
       SHOWN_PENDING.add(b.id); // לא להקפיץ שוב את אותה הזמנה
       await updateDoc(doc(db, 'bookings', b.id), updates);
@@ -2576,12 +2586,11 @@ export default function ProfileScreen() {
             setIncomingBks(prev => prev.filter(x => x.id !== b.id));
             // הסר מהיומן של מי שביטל — הצד השני מסיר אצלו דרך המאזין שלו
             removeBookingFromCalendar(b.id, b).catch(() => {});
-            // הסר את חלון הזמן מ-busySlots של המנקה
-            if (b.busyFrom && b.busyUntil) {
-              await updateDoc(doc(db, 'users', b.cleanerId), {
-                busySlots: arrayRemove({ from: b.busyFrom, until: b.busyUntil }),
-              }).catch(() => {});
-            }
+            // busySlots של המנקה לא נכתב מכאן: ללקוח החוקים אוסרים לכתוב למסמך
+            // שלה (נדחה תמיד), ולמנקה arrayRemove של {from, until} לא תאם אף רשומה
+            // ({date, s, e, from, until}). השעה משתחררת אצל המנקה כשהרשימה שלה
+            // מתעדכנת, ובביטול של לקוח גם השרת משחרר אותה מיד (booking_cancelled).
+            // נמצא בבדיקת העומס, 14.11.2026.
             // שלח פוש לצד השני על הביטול. עבודה שחזרה ללוח היא לא ביטול, והלקוח
             // צריך לדעת שהיא עדיין פתוחה. השרת בוחר את הנמען מתוך ההזמנה, ובביטול
             // מצרף לה את ה-uid שלו — המשימה ברקע מוחקת לפיו את הניקיון מהיומן.
@@ -2683,7 +2692,9 @@ export default function ProfileScreen() {
     // The hours booked — what the price is for. The time actually worked is in the
     // start/end/duration chips below.
     const hours = b.hours;
-    const total = isDone && b.actualTotal != null ? b.actualTotal : b.total;
+    // A finished job at what it came to — never below what was agreed
+    // (lib/bookingAmount): jobs closed before 7.11.2026 recorded "₪1".
+    const total = isDone ? bookingAmount(b) : b.total;
 
     return (
       <View key={b.id} style={[s.bookingCard, compact
@@ -2731,7 +2742,7 @@ export default function ProfileScreen() {
           {/* מחיר */}
           <View style={{ alignItems: 'flex-end' }}>
             <T style={{ fontSize: 20, fontWeight: '900', color: statusBorderColor }}>₪{total}</T>
-            {isDone && b.actualTotal != null && b.actualTotal !== b.total && (
+            {isDone && b.total != null && total !== b.total && (
               <T style={{ fontSize: 11, color: C.textSub, textDecorationLine: 'line-through' }}>₪{b.total}</T>
             )}
           </View>
@@ -2778,12 +2789,15 @@ export default function ProfileScreen() {
 
           {/* Progress bar — cleaner side only */}
           {forCleaner && !['cancelled', 'expired', 'handled'].includes(b.status) && (() => {
+            // Hebrew as drawn; the other languages had these five in Hebrew too.
+            const tx = t as any;
+            const heb = trLang() === 'he';
             const steps = [
-              { key: 'pending',   label: '📋 ממתין' },
-              { key: 'confirmed', label: '✅ אושר' },
-              { key: 'onway',     label: '🚗 בדרך' },
-              { key: 'active',    label: '🧹 פעיל' },
-              { key: 'done',      label: '✅ הסתיים' },
+              { key: 'pending',   label: heb ? '📋 ממתין'  : tx.pendingStatus },
+              { key: 'confirmed', label: heb ? '✅ אושר'   : tx.confirmedStatus },
+              { key: 'onway',     label: heb ? '🚗 בדרך'   : tx.onwayStatus },
+              { key: 'active',    label: heb ? '🧹 פעיל'   : tx.activeStatus },
+              { key: 'done',      label: heb ? '✅ הסתיים' : tx.doneStatus },
             ];
             const statusOrder: Record<string, number> = { pending: 0, confirmed: 1, onway: 2, active: 3, done: 4 };
             const currentIdx = statusOrder[b.status] ?? 0;
@@ -2831,7 +2845,18 @@ export default function ProfileScreen() {
 
           {/* כתובת */}
           {b.address ? (
-            <T style={[s.addressText, { fontSize: 13 }]}>📍 {b.address}</T>
+            // LRM in a left-to-right language: a Hebrew address put the 📍 at
+            // the end of the line there.
+            <T style={[s.addressText, { fontSize: 13 }]}>{isRtlNow() ? '' : '\u200E'}📍 {b.address}</T>
+          ) : null}
+
+          {/* The client's phone, from the booking's private half — readable to
+              the cleaner on the same terms as the street, once she has confirmed
+              (lib/bookingDetails). Tap to call. The client's own card leaves it out. */}
+          {forCleaner && b.phone && ['confirmed', 'onway', 'active', 'done'].includes(b.status) ? (
+            <TouchableOpacity onPress={() => Linking.openURL(`tel:${String(b.phone).replace(/[^\d+]/g, '')}`).catch(() => {})} accessibilityRole="link">
+              <T style={[s.addressText, { fontSize: 13, marginTop: 0, color: C.blue, textDecorationLine: 'underline' }]}>{isRtlNow() ? '' : '\u200E'}📞 {b.phone}</T>
+            </TouchableOpacity>
           ) : null}
 
           {/* What the client wrote about the job — from the private half once she holds it,
@@ -2932,6 +2957,11 @@ export default function ProfileScreen() {
               ))}
             </View>
           )}
+
+          {/* More time, with the client's approval: her request and its answer,
+              the client's approve / decline, what an extended job was first
+              agreed at (lib/JobExtensionUI — the website draws the same). */}
+          {!compact && <ExtensionStrip b={b} forCleaner={forCleaner} allowAsk={!pastDay} />}
 
           {/* כל הפעולות של הכרטיס בשורה אחת, בסדר של האתר: צ'אט ראשון, ביטול אחרון */}
           <View style={cardActions}>
@@ -4686,7 +4716,8 @@ export default function ProfileScreen() {
                           style={[ep.pill, active && ep.pillActive, { flex: 1, alignItems: 'flex-end' }]}
                           onPress={() => toggleEdit(editTypes, setEditTypes, svc.key)}
                         >
-                          <T style={[ep.pillText, active && ep.pillTextActive, { textAlign: 'right' }]}>{svc.key}</T>
+                          {/* The service's name in the reader's language — the key is Hebrew. */}
+                          <T style={[ep.pillText, active && ep.pillTextActive, { textAlign: 'right' }]}>{t.types[svc.key] || svc.key}</T>
                         </TouchableOpacity>
                         {/* שדה מחיר */}
                         <TextInput

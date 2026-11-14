@@ -30,7 +30,8 @@ export interface BookingDetails {
 // One attempt per booking per app session, whatever the outcome.
 const attempted = new Set<string>();
 
-const DETAIL_KEYS: (keyof BookingDetails)[] =
+/** The fields a booking's private half adds to it (see withBookingDetails). */
+export const DETAIL_KEYS: (keyof BookingDetails)[] =
   ['address', 'addrStreet', 'addrFloor', 'addrApt', 'notes', 'phone'];
 
 
@@ -183,7 +184,13 @@ export async function copyUrgentDetails(bookingId: string, reqId: string): Promi
  * it, so the first read is refused, and no new snapshot follows the server's
  * acknowledgement. Three more tries over ~10s, then whatever there is.
  */
-export async function fetchDetailsWhenReadable(b: { id: string; status?: string; urgentRequestId?: string; cleanerId?: string }): Promise<BookingDetails> {
+export async function fetchDetailsWhenReadable(b: { id: string; status?: string; urgentRequestId?: string; cleanerId?: string; clientUid?: string }): Promise<BookingDetails> {
+  // The rules give the provider the private half only once she has confirmed
+  // (LIVE_FOR_CLEANER). Asked earlier, it is refused every time — a read on
+  // every snapshot of her dashboard for each request still waiting for her
+  // answer (load test, 14.11.2026). Nothing to show until then anyway.
+  const me = auth.currentUser?.uid;
+  if (me && me === b.cleanerId && me !== b.clientUid && !LIVE_FOR_CLEANER.includes(String(b.status))) return {};
   deniedAt.delete(b.id);
   let d = await fetchBookingDetails(b.id);
   // An urgent booking's address reaches its cleaner a moment after she

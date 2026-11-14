@@ -17,9 +17,16 @@ import { useAnimatedValue, useAnimatedValues } from '../lib/useAnimatedValue';
 import { useNow } from '../lib/useNow';
 import { markHasBooked } from '../lib/firstBooking';
 import { hasBookedACleaner, rebookableBookings, prefillFromBooking } from '../lib/rebookList';
-import { withBookingDetails, migrateOpenJobDetails, fetchBookingDetails, urgentDetailsRef } from '../lib/bookingDetails';
+import { withBookingDetails, migrateOpenJobDetails, fetchBookingDetails, urgentDetailsRef, DETAIL_KEYS } from '../lib/bookingDetails';
+
+/** The private-half fields a held booking row carries (lib/bookingDetails). */
+function detailsOf(b: any): Record<string, unknown> {
+  const out: Record<string, unknown> = {};
+  for (const k of DETAIL_KEYS) if (b?.[k] !== undefined) out[k] = b[k];
+  return out;
+}
 import { pushTokenRef } from '../lib/pushTokenStore';
-import { trNow, isRtlNow, chevron } from '../lib/trNow';
+import { trNow, isRtlNow, chevron, trLang } from '../lib/trNow';
 import { fetchOwnProfile, migrateProfile, ownPhone, publicCoord } from '../lib/privateProfile';
 
 import { Image } from 'expo-image';
@@ -44,7 +51,19 @@ import { fetchPortfolio } from '../lib/portfolio';
 import { demoCleanersEnabled } from '../lib/demoMode';
 import { confirmLangChange } from '../lib/confirmLang';
 import { endJob } from '../lib/endJob';
-import { allCityNames as cityAllNames } from '../lib/cityNames';
+import { allCityNames as cityAllNames, cityNamesFor } from '../lib/cityNames';
+
+/**
+ * A town in the language on screen, as the website's board shows it. The
+ * cleaner's cards gave "רמת גן" in English. Hebrew, or a town with no
+ * translation: as stored.
+ */
+const cityNameCache: Record<string, Record<string, string>> = {};
+function cityShown(city: string, lang: string): string {
+  if (!city || lang === 'he') return city;
+  const names = cityNameCache[lang] ?? (cityNameCache[lang] = cityNamesFor(lang));
+  return names[city] || city;
+}
 import { canRepost, bookingOrigin, cancelledNotice } from '../lib/bookingOrigin';
 import { cityFromAddress } from '../lib/cityFromAddress';
 import {
@@ -94,6 +113,8 @@ import * as FileSystem from 'expo-file-system/legacy';
 import { readVoiceNote } from '../lib/voiceNotes';
 import { voiceFileName } from '../lib/voiceFile';
 import { logError } from '../lib/logError';
+import { pendingExtension, bookingAmount, termsBeforeExtension } from '../lib/bookingAmount';
+import { ExtensionAskSheet } from '../lib/JobExtensionUI';
 
 
 const W = Dimensions.get('window').width;
@@ -1391,7 +1412,8 @@ function AddressAutocomplete({ value, onChange, placeholder, onFocus, error }: {
     if (text.length < 2) { setSuggestions([]); setShowSugg(false); return; }
     debounceRef.current = setTimeout(async () => {
       try {
-        const url = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(text)}&format=json&countrycodes=il&limit=6&addressdetails=1&accept-language=he`;
+        // 100 characters at most — no address is longer, and a pasted paragraph went to Nominatim whole.
+        const url = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(text.trim().slice(0, 100))}&format=json&countrycodes=il&limit=6&addressdetails=1&accept-language=he`;
         const res = await fetch(url, {
           headers: { 'User-Agent': 'A&M CleanApp/1.0' },
         });
@@ -2230,9 +2252,13 @@ function SpinnerPicker({ value, onChange, values, display, compact, accent = '#7
   const dec = () => { if (idx > 0) onChange(values[idx - 1]); };
   const inc = () => { if (idx < values.length - 1) onChange(values[idx + 1]); };
   const label = display ? display(value) : String(value);
+  // − on the left and + on the right in every language. `direction: 'ltr'`
+  // pins it: the whole tree is mirrored for English and the other
+  // left-to-right languages (app/_layout LayoutDirection), which put + on the
+  // left there.
   if (compact) {
     return (
-      <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', minHeight: 46, backgroundColor: C.white, borderRadius: 12, borderWidth: 1.5, borderColor: C.blueBorder, paddingHorizontal: 2 }}>
+      <View style={{ direction: 'ltr', flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', minHeight: 46, backgroundColor: C.white, borderRadius: 12, borderWidth: 1.5, borderColor: C.blueBorder, paddingHorizontal: 2 }}>
         <TouchableOpacity accessibilityRole="button" accessibilityLabel={trNow('a11yDecrease')} onPress={dec} disabled={idx === 0} style={{ paddingHorizontal: 8, paddingVertical: 8 }}>
           <T style={{ fontSize: 18, color: idx === 0 ? '#CBD5E1' : accent }}>−</T>
         </TouchableOpacity>
@@ -2244,7 +2270,7 @@ function SpinnerPicker({ value, onChange, values, display, compact, accent = '#7
     );
   }
   return (
-    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 0, alignSelf: 'center',
+    <View style={{ direction: 'ltr', flexDirection: 'row', alignItems: 'center', gap: 0, alignSelf: 'center',
       backgroundColor: '#F1F5F9', borderRadius: 16, overflow: 'hidden', borderWidth: 1.5, borderColor: '#2563EB' }}>
       <TouchableOpacity accessibilityRole="button" accessibilityLabel={trNow('a11yDecrease')} onPress={dec} disabled={idx === 0}
         style={{ paddingHorizontal: 20, paddingVertical: 14, backgroundColor: idx === 0 ? '#E2E8F0' : '#EDE9FE' }}>
@@ -2545,6 +2571,24 @@ function BookingModal({ cleaner, visible, onClose, onBookingCreated, prebookData
   const [recurringDates, setRecurringDates] = useState<string[]>([]);
   const [serviceTypes,  setServiceTypes]  = useState<string[]>([]);
   const toggleServiceType = (tp: string) => setServiceTypes(prev => prev.includes(tp) ? prev.filter(x => x !== tp) : [...prev, tp]);
+  // "Book again": the cleaning booked last time comes back chosen, as on the
+  // website (BookingModal repeatOf) — only types this provider still offers, so
+  // the form never prices a service she has dropped. Before, nothing was chosen
+  // and the client had to pick it again.
+  useEffect(() => {
+    if (!prebookData) return;
+    const was: string[] = Array.isArray(prebookData.serviceTypes) && prebookData.serviceTypes.length
+      ? prebookData.serviceTypes
+      : String(prebookData.serviceType || '').split(' + ').filter(Boolean);
+    const offered: string[] = Array.isArray(cleaner?.types) ? cleaner.types : [];
+    setServiceTypes(was.filter(tp => offered.includes(tp)));
+    // And as many hours as last time (the website: repeatOf.hours), when the
+    // picker offers that number (whole hours, 1–12). As first agreed: time a
+    // provider asked for on the day (an extension) was for that visit only,
+    // as the next recurring visit is too.
+    const h = Number(prebookData.origHours ?? prebookData.hours);
+    if (Number.isInteger(h) && h >= 1 && h <= 12) setHours(h);
+  }, [prebookData, cleaner?.types]);
   const [showSuccess,   setShowSuccess]   = useState(false);
   const [bookedDetails, setBookedDetails] = useState<{ name: string; hours: number; total: number; cleanerUid: string; startTime: string; dateStr: string; address: string } | null>(null);
   const [showWaiting,   setShowWaiting]   = useState(false);
@@ -3350,7 +3394,9 @@ function BookingModal({ cleaner, visible, onClose, onBookingCreated, prebookData
             {/* כמו באתר: מי ובכמה מתחת לכותרת, ואז סוג שירות, תאריך ושעה, מספר שעות,
                 כתובת, תדירות, אמצעי תשלום, סיכום, ו"אשר הזמנה" / "ביטול" זה לצד זה. */}
             <T style={{ fontSize: 13, color: C.textSub, textAlign: 'center', marginTop: -2 }}>
-              {cleaner.name} · ₪{effectivePrice}{t.perHour}
+              {/* LRM in left-to-right languages: a Hebrew name first made the
+                  whole line read right to left — "hr/₪90 · שם". */}
+              {isRtlNow() ? '' : '‎'}{cleaner.name}{isRtlNow() ? '' : '‎'} · ₪{effectivePrice}{t.perHour}
             </T>
 
             {/* סוג שירות — כפתורים, אפשר כמה */}
@@ -4229,7 +4275,8 @@ function QuickRebookModal({ visible, onClose, myBookings, bookingsState, allClea
                     {/* הכתובת בתחילת השורה והמחיר בסופה, כמו באתר */}
                     <View style={{ flexDirection: row, alignItems: 'center', gap: 10 }}>
                       <T style={{ flex: 1, fontSize: 13, color: C.textSub, textAlign: align, writingDirection: isRTL ? 'rtl' : 'ltr' }} numberOfLines={1}>📍 {b.address}</T>
-                      {b.total ? <T style={{ fontSize: 13, color: C.blue, fontWeight: '700' }}>₪{b.total}</T> : null}
+                      {/* What the job came to (lib/bookingAmount): never the "₪1" an old close recorded. */}
+                      {bookingAmount(b) ? <T style={{ fontSize: 13, color: C.blue, fontWeight: '700' }}>₪{bookingAmount(b)}</T> : null}
                     </View>
                     <TouchableOpacity
                       style={{ backgroundColor: '#1E6FB8', borderRadius: 12, paddingVertical: 13, alignItems: 'center', marginTop: 2 }}
@@ -4480,9 +4527,16 @@ export default function HomeScreen() {
     const tt = t as any;
     const [, mo, d] = String(b.bookingDate || '').split('-');
     const when = `${d && mo ? `${d}/${mo}` : ''}${b.startTime ? ` · ${b.startTime}` : ''}`;
-    const what = String(tt.endPopupJob ?? '{service} אצל {client} · {when}')
-      .replace('{service}', String(b.serviceType || '').split(' + ')[0] || (tt.cleaningWord ?? 'ניקיון'))
-      .replace('{client}', b.clientName || (tt.clientWord ?? 'לקוח'))
+    // The service in the screen's language (it is stored in Hebrew), and in a
+    // left-to-right language an LRM at the start and after the client's name:
+    // a Hebrew name turned the English line round — "08:00 · 13/11 · דנה for
+    // ניקיון רגיל".
+    const ltrMark = isRtlNow() ? '' : '‎';
+    const svcKey = String(b.serviceType || '').split(' + ')[0];
+    const svcShown = svcKey ? String(tt.types?.[svcKey] || svcKey).replace(/[\u{1F000}-\u{1FFFF}\u{2600}-\u{27BF}\u{FE0F}\u{200D}]/gu, '').trim() : '';
+    const what = ltrMark + String(tt.endPopupJob ?? '{service} אצל {client} · {when}')
+      .replace('{service}', svcShown || (tt.cleaningWord ?? 'ניקיון'))
+      .replace('{client}', (b.clientName || (tt.clientWord ?? 'לקוח')) + ltrMark)
       .replace('{when}', when);
     const amount = String(tt.endAmountAgreed ?? 'הסכום נשאר כפי שסוכם: ₪{x}.').replace('{x}', String(Number(b.total) || 0));
     Alert.alert(
@@ -4651,6 +4705,9 @@ export default function HomeScreen() {
   // The client's own jobs on the board that nobody has taken yet — what "ניקיון
   // בזמן שלך" lists with an ✏️ beside each (set by the bookings listener below).
   const [myOpenJobs, setMyOpenJobs] = useState<any[]>([]);
+  // The client's live jobs whose provider asked for more time and is waiting
+  // for an answer (lib/bookingAmount) — the sheet at the bottom of this screen.
+  const [extensionAsks, setExtensionAsks] = useState<any[]>([]);
   // ✏️ on a job of the client's own that nobody has taken: its details open in
   // "ניקיון בזמן שלך". Reached from the profile's booking card, from the list
   // inside the form, and from the message right after posting.
@@ -5516,7 +5573,8 @@ export default function HomeScreen() {
         open: true, cleanerId: '', cleanerName: '',
         clientUid: uid, clientName: b?.clientName || '',
         serviceTypes: types, serviceType: types.join(' + '),
-        bookingDate: dateStr, startTime, hours: b?.hours || 2,
+        // As first agreed, not as extended on the day (lib/bookingAmount).
+        bookingDate: dateStr, startTime, hours: Number(termsBeforeExtension(b).hours) || 2,
         // The job as it was. Board jobs store isPrivateHouse, not addrPrivate, so a
         // private house came back as a flat; a job with no budget came back as ₪0;
         // and its photos were dropped.
@@ -5525,7 +5583,7 @@ export default function HomeScreen() {
         // שמרה עיר שגויה ("ירושלים" לרחוב שדרות ירושלים), ופרסום חוזר העתיק אותה.
         addrCity: cityFromAddress(b?.address || '', CITY_COORDS) || cityFromAddress(b?.addrCity || '', CITY_COORDS),
         payment: b?.payment || 'cash', paymentStatus: `awaiting_${b?.payment || 'cash'}`,
-        total: b?.total ?? null, pricePerHour: b?.pricePerHour ?? null,
+        total: (termsBeforeExtension(b).total as number | null | undefined) ?? null, pricePerHour: b?.pricePerHour ?? null,
         photos: jobPhotosOf(b?.photos),
         origin: 'open',
         status: 'pending', createdAt: new Date().toISOString(),
@@ -5561,6 +5619,11 @@ export default function HomeScreen() {
   const [isBlocked,            setIsBlocked]            = useState(false);
   const [pendingReviewBooking, setPendingReviewBooking] = useState<any>(null);
   const [showMandatoryReview,  setShowMandatoryReview]  = useState(false);
+  // Jobs whose review the client put off with "later" this session — every job
+  // waiting at that moment, not just the one shown, or "later" on one job would
+  // open the next one straight away. A job that finishes afterwards still asks.
+  const reviewLaterRef = useRef<Set<string>>(new Set());
+  const reviewPendingIdsRef = useRef<string[]>([]);
   const [mandatoryStars,       setMandatoryStars]       = useState(0);
   const [mandatoryComment,     setMandatoryComment]     = useState('');
   const [mandatorySubmitting,  setMandatorySubmitting]  = useState(false);
@@ -6094,7 +6157,14 @@ export default function HomeScreen() {
         // only once, so "ready" would say "no bookings" for the rest of the visit.
         setBookingsState(snap.metadata.fromCache ? 'failed' : 'ready');
         // הכתובות יושבות ב-private/details, ו"הזמן שוב" ממלא מהן את הטופס.
-        withBookingDetails(bks as any).then((full: any) => setMyBookings(full)).catch(() => {});
+        // By id, onto what is held by then: the live listener below may have
+        // brought newer figures in the meantime, and replacing the list lost them.
+        // Patched onto the list as held: a booking added in between (one just
+        // made here, onBookingCreated) stays, and so do newer figures.
+        withBookingDetails(bks as any).then((full: any[]) => setMyBookings(prev => {
+          const det = new Map(full.map((fb: any) => [fb.id, detailsOf(fb)]));
+          return prev.map((p: any) => (det.has(p.id) ? { ...p, ...det.get(p.id) } : p));
+        })).catch(() => {});
         // סמן מנקים עם הזמנה ממתינה/מאושרת
         const pendingIds = new Set<string>(
           bks.filter((b: any) => ['pending','confirmed'].includes(b.status)).map((b: any) => b.cleanerId)
@@ -6129,6 +6199,9 @@ export default function HomeScreen() {
         const overdue = pending.filter((b: any) =>
           b.reviewDeadline && new Date(b.reviewDeadline) < new Date()
         );
+        // So "later" pressed before the live listener's first snapshot still
+        // puts off every job waiting now, not only the one on screen.
+        reviewPendingIdsRef.current = pending.map((b: any) => b.id);
         if (overdue.length > 0) {
           // Worked out again from the bookings on every load, so nothing is
           // written: blockedUntilReview is the admin's field, and the rules
@@ -6205,7 +6278,15 @@ export default function HomeScreen() {
         const m = pend.find((p: any) => p.id === b.id);
         return m ? { ...b, ...m } : b;
       }));
-      setPendingReviewBooking((cur: any) => cur || pend[0]);
+      // "Later" holds for this session: this listener fires on every change to
+      // any of the client's bookings, and used to reopen the window each time
+      // (another booking confirmed, a status changed) a minute after "later".
+      // Only a job not yet put off opens it now. An overdue one still blocks —
+      // the load check above decides that, not this.
+      reviewPendingIdsRef.current = pend.map((b: any) => b.id);
+      const fresh = pend.filter((b: any) => !reviewLaterRef.current.has(b.id));
+      if (fresh.length === 0) return;
+      setPendingReviewBooking((cur: any) => (cur && !reviewLaterRef.current.has(cur.id) ? cur : fresh[0]));
       setShowMandatoryReview(true);
     }, () => {});
     return () => unsub();
@@ -6712,6 +6793,29 @@ export default function HomeScreen() {
         .filter((b: any) => b.open === true && !b.cleanerId && b.status === 'pending'
           && new Date(`${b.bookingDate || ''}T${b.startTime || '23:59'}`).getTime() > Date.now())
         .sort((a: any, b: any) => `${a.bookingDate} ${a.startTime}`.localeCompare(`${b.bookingDate} ${b.startTime}`)));
+      // A provider asking for more time — answered from the sheet below, on
+      // whatever snapshot it arrives, the first one included.
+      setExtensionAsks(snap.docs
+        .map(d => ({ id: d.id, ...(d.data() as any) }))
+        .filter((b: any) => !!pendingExtension(b)));
+      // And keep the client's own list current. It is read once at sign-in, so
+      // a change made since — more time approved (4 h, ₪360), a status moved by
+      // the provider — went on showing the old figures until the app restarted.
+      // Fields from the snapshot over what is held, which keeps the private
+      // address details merged in at load.
+      const fresh = new Map(snap.docs.map(d => [d.id, d.data() as any]));
+      setMyBookings(prev => {
+        let changed = false;
+        const next = prev.map(b => {
+          const f = fresh.get(b.id);
+          if (!f) return b;
+          changed = true;
+          // The document as it is now — a field the server removed (a request
+          // answered, a start undone) goes — plus the private details held.
+          return { ...detailsOf(b), id: b.id, ...f };
+        });
+        return changed ? next : prev;
+      });
       // Bookings the client already reposted, from here or the website, need no
       // offer to repost them.
       const reposted = new Set(snap.docs.map(x => (x.data() as any)?.repostedFrom).filter(Boolean));
@@ -7510,7 +7614,10 @@ export default function HomeScreen() {
                         <View style={s.jobFactRow}>
                           {(!!area || typeof j._distKm === 'number') && (
                             <View style={s.jobFact}>
-                              <T style={s.jobFactText}>📍 {[area, typeof j._distKm === 'number' ? `${j._distKm < 1 ? '<1' : Math.round(j._distKm)} ${trNow('kmUnit')}` : ''].filter(Boolean).join(' · ')}</T>
+                              {/* The town in the screen's language; in a left-to-right
+                                  one an LRM after it, or a Hebrew name left the
+                                  distance reading "km 3". */}
+                              <T style={s.jobFactText}>📍 {[area ? cityShown(area, trLang()) + (isRtlNow() ? '' : '‎') : '', typeof j._distKm === 'number' ? `${j._distKm < 1 ? '<1' : Math.round(j._distKm)} ${trNow('kmUnit')}` : ''].filter(Boolean).join(' · ')}</T>
                             </View>
                           )}
                           {!!j.clientName && <View style={s.jobFact}><T style={s.jobFactText}>👤 {j.clientName}</T></View>}
@@ -7987,13 +8094,23 @@ export default function HomeScreen() {
             {/* אחר כך — לא חוסם לחלוטין */}
             <TouchableOpacity
               style={{ paddingVertical: 12, alignItems: 'center', marginTop: 4 }}
-              onPress={() => { setShowMandatoryReview(false); setIsBlocked(false); setMandatoryStars(0); setMandatoryComment(''); }}
+              onPress={() => {
+                if (pendingReviewBooking?.id) reviewLaterRef.current.add(pendingReviewBooking.id);
+                reviewPendingIdsRef.current.forEach(id => reviewLaterRef.current.add(id));
+                setShowMandatoryReview(false); setIsBlocked(false); setMandatoryStars(0); setMandatoryComment('');
+              }}
             >
               <T style={{ fontSize: 14, fontWeight: '700', color: C.textSub }}>{trNow('laterBtn')}</T>
             </TouchableOpacity>
           </View>
         </View>
       </Modal>
+
+      {/* More time: the provider asked, the client answers here (lib/JobExtensionUI). */}
+      <ExtensionAskSheet
+        bookings={extensionAsks}
+        suspended={!!(showMandatoryReview || confirmedPopup || cancelledPopup || boardHelpOpen || newBookingModal || urgentPopupReq)}
+      />
 
       {/* ── פופאפ: הזמנה אושרה ── */}
       <Modal visible={!!confirmedPopup} transparent animationType="slide" onRequestClose={() => setConfirmedPopup(null)}>

@@ -96,6 +96,8 @@ const SHARED_PAIRS = [
   ['lib/serviceLines.ts',  'src/lib/serviceLines.ts'],
   // The support assistant in the six languages that are not Hebrew (11.11.2026).
   ['lib/supportBotI18n.ts', 'src/lib/supportBotI18n.ts'],
+  // What a job is worth, and the extension the client approves (12.11.2026).
+  ['lib/bookingAmount.ts', 'src/lib/bookingAmount.ts'],
   ['scripts/shared-hash.mjs', 'scripts/shared-hash.mjs'],
   ['firestore.rules',      'firestore.rules'],
 ];

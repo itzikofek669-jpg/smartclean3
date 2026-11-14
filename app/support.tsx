@@ -1,5 +1,5 @@
 import { trNow, chevron } from '../lib/trNow';
-import { botReplyI18n, botWelcomeI18n, isBotLang } from '../lib/supportBotI18n';
+import { botReplyI18n, botWelcomeI18n, isBotLang, pickRelevantBooking } from '../lib/supportBotI18n';
 import React, { useEffect, useRef, useState } from 'react';
 import {
   View, StyleSheet, StatusBar,
@@ -13,6 +13,7 @@ import { collection, query, where, getDocs, onSnapshot, doc, getDoc } from 'fire
 import { db, auth } from '../lib/firebase';
 import { resolveRole } from '../lib/resolveRole';
 import { logError } from '../lib/logError';
+import { bookingAmount } from '../lib/bookingAmount';
 import { useRouter } from 'expo-router';
 import { useLanguage, T, rtlRows } from '../lib/LanguageContext';
 import { TAB_BAR_CONTENT_HEIGHT } from '../lib/BottomTabBar';
@@ -693,7 +694,7 @@ function getCleanerResponse(msg: string, userName: string, allBookings: any[]): 
   const pending   = allBookings.filter(b => b.status === 'pending').length;
   const confirmed = allBookings.filter(b => b.status === 'confirmed').length;
   const done      = allBookings.filter(b => b.status === 'done').length;
-  const totalEarned = allBookings.filter(b => b.status === 'done').reduce((s, b) => s + (b.total || 0), 0);
+  const totalEarned = allBookings.filter(b => b.status === 'done').reduce((s, b) => s + bookingAmount(b), 0);
 
   // ── ברכות ────────────────────────────────────────────────────────────────
   if (matchAny(msg, ['שלום','היי','הי','בוקר טוב','ערב טוב','מה שלומך','מה נשמע'])) {
@@ -1088,13 +1089,16 @@ export default function SupportScreen() {
         // newest 20, sorted here.
         const q = query(collection(db, 'bookings'), where(bookingField, '==', uid));
         const snap = await getDocs(q);
-        allBookings = snap.docs.map(d => ({ id: d.id, ...(d.data() as any) }))
+        const every = snap.docs.map(d => ({ id: d.id, ...(d.data() as any) }));
+        allBookings = [...every]
           .sort((a: any, b: any) => String(b.createdAt || '').localeCompare(String(a.createdAt || '')))
           .slice(0, 20);
         if (role === 'client') {
-          activeBooking = allBookings.find(b =>
-            b.status && !['done', 'cancelled'].includes(b.status)
-          ) || null;
+          // The booking coming up next, from all of them — not the newest-created
+          // one still open, which was a request from yesterday nobody took (or one
+          // already expired) over a confirmed cleaning tomorrow. The same pick as
+          // the website's, for every language (lib/supportBotI18n).
+          activeBooking = pickRelevantBooking(every);
         }
       } catch (_) {}
 

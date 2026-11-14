@@ -6069,5 +6069,118 @@ for (const L of ['en', 'ru', 'ar', 'fr', 'hi', 'uk'] as const) {
   for (const [from, to] of SAME_TOWN) if (cities[from]) cities[to] = cities[from];
 }
 
+// More time, with the client's approval (12.11.2026): the provider's request,
+// the client's answer, and what each side sees on the job's card. Hebrew and
+// Arabic say "עוד" / "إضافية" rather than "+": a "+" opening a right-to-left
+// line is drawn after the number. Identical in the website's dictionary.
+const JOB_EXTENSION: Record<string, Record<string, string>> = {
+  he: {
+    extAskBtn: '⏱️ בקשת זמן נוסף', extPickTitle: '⏱️ כמה זמן נוסף צריך?',
+    extPickSub: 'הלקוח יתבקש לאשר את הסכום החדש. כרגע: {h} שע׳ · ₪{total}',
+    extOptionLabel: 'עוד {h} שע׳ · סה״כ ₪{total}', extSendBtn: 'שליחה ללקוח',
+    extPendingCleaner: '⏳ ממתין לאישור הלקוח: עוד {h} שע׳ · סה״כ ₪{total}', extWithdrawBtn: 'ביטול הבקשה',
+    extApprovedNote: '✅ הלקוח אישר עוד {h} שע׳ · סה״כ ₪{total}',
+    extDeclinedNote: '❌ הלקוח לא אישר את הזמן הנוסף · הסכום נשאר ₪{total}',
+    extSent: 'הבקשה נשלחה ללקוח', extFailed: 'לא ניתן לשלוח את הבקשה כרגע. נסו שוב.',
+    extAskTitle: '⏱️ בקשה לזמן נוסף', extAskBody: '{name} מבקש/ת עוד {h} שע׳ לניקיון.',
+    extAskTotals: 'סה״כ חדש: ₪{total} (במקום ₪{was})',
+    extApproveBtn: '✅ אישור', extDeclineBtn: 'לא מאשר/ת', extLaterBtn: 'אחר כך',
+    extChanged: 'הבקשה השתנתה או בוטלה בינתיים.', extAnswerFailed: 'התשובה לא נשמרה. נסו שוב.',
+    extIncluded: 'כולל הארכה של {h} שע׳ · במקור ₪{was}',
+  },
+  en: {
+    extAskBtn: '⏱️ Ask for more time', extPickTitle: '⏱️ How much more time do you need?',
+    extPickSub: 'The client will be asked to approve the new amount. Now: {h} h · ₪{total}',
+    extOptionLabel: '+{h} h · total ₪{total}', extSendBtn: 'Send to the client',
+    extPendingCleaner: '⏳ Waiting for the client: {h} more h · total ₪{total}', extWithdrawBtn: 'Cancel request',
+    extApprovedNote: '✅ The client approved {h} more h · total ₪{total}',
+    extDeclinedNote: "❌ The client didn't approve the extra time · the amount stays ₪{total}",
+    extSent: 'Request sent to the client', extFailed: "The request couldn't be sent right now. Please try again.",
+    extAskTitle: '⏱️ Request for more time', extAskBody: '{name} asks for {h} more hours for the cleaning.',
+    extAskTotals: 'New total: ₪{total} (instead of ₪{was})',
+    extApproveBtn: '✅ Approve', extDeclineBtn: 'Decline', extLaterBtn: 'Later',
+    extChanged: 'The request has changed or was withdrawn in the meantime.', extAnswerFailed: "Your answer wasn't saved. Please try again.",
+    extIncluded: 'Includes {h} h extra · originally ₪{was}',
+  },
+  ru: {
+    extAskBtn: '⏱️ Попросить ещё время', extPickTitle: '⏱️ Сколько ещё времени нужно?',
+    extPickSub: 'Клиента попросят подтвердить новую сумму. Сейчас: {h} ч · ₪{total}',
+    extOptionLabel: '+{h} ч · итого ₪{total}', extSendBtn: 'Отправить клиенту',
+    extPendingCleaner: '⏳ Ждём подтверждения клиента: ещё {h} ч · итого ₪{total}', extWithdrawBtn: 'Отменить запрос',
+    extApprovedNote: '✅ Клиент подтвердил ещё {h} ч · итого ₪{total}',
+    extDeclinedNote: '❌ Клиент не подтвердил дополнительное время · сумма остаётся ₪{total}',
+    extSent: 'Запрос отправлен клиенту', extFailed: 'Сейчас не удалось отправить запрос. Попробуйте ещё раз.',
+    extAskTitle: '⏱️ Запрос на дополнительное время', extAskBody: '{name} просит ещё {h} ч на уборку.',
+    extAskTotals: 'Новая сумма: ₪{total} (вместо ₪{was})',
+    extApproveBtn: '✅ Подтвердить', extDeclineBtn: 'Отклонить', extLaterBtn: 'Позже',
+    extChanged: 'Запрос изменился или был отменён.', extAnswerFailed: 'Ответ не сохранён. Попробуйте ещё раз.',
+    extIncluded: 'Включая продление на {h} ч · изначально ₪{was}',
+  },
+  ar: {
+    extAskBtn: '⏱️ طلب وقت إضافي', extPickTitle: '⏱️ كم من الوقت الإضافي تحتاج؟',
+    extPickSub: 'سيُطلب من العميل الموافقة على المبلغ الجديد. الآن: {h} ساعة · ₪{total}',
+    extOptionLabel: '{h} ساعة إضافية · المجموع ₪{total}', extSendBtn: 'إرسال إلى العميل',
+    extPendingCleaner: '⏳ بانتظار موافقة العميل: {h} ساعة إضافية · المجموع ₪{total}', extWithdrawBtn: 'إلغاء الطلب',
+    extApprovedNote: '✅ وافق العميل على {h} ساعة إضافية · المجموع ₪{total}',
+    extDeclinedNote: '❌ لم يوافق العميل على الوقت الإضافي · يبقى المبلغ ₪{total}',
+    extSent: 'تم إرسال الطلب إلى العميل', extFailed: 'تعذّر إرسال الطلب الآن. حاول مرة أخرى.',
+    extAskTitle: '⏱️ طلب وقت إضافي', extAskBody: 'يطلب {name} {h} ساعة إضافية للتنظيف.',
+    extAskTotals: 'المجموع الجديد: ₪{total} (بدلًا من ₪{was})',
+    extApproveBtn: '✅ موافقة', extDeclineBtn: 'رفض', extLaterBtn: 'لاحقًا',
+    extChanged: 'تغيّر الطلب أو أُلغي في هذه الأثناء.', extAnswerFailed: 'لم يُحفظ ردك. حاول مرة أخرى.',
+    extIncluded: 'يشمل تمديدًا {h} ساعة · في الأصل ₪{was}',
+  },
+  fr: {
+    extAskBtn: '⏱️ Demander plus de temps', extPickTitle: '⏱️ De combien de temps en plus avez-vous besoin ?',
+    extPickSub: 'Le client devra approuver le nouveau montant. Actuellement : {h} h · ₪{total}',
+    extOptionLabel: '+{h} h · total ₪{total}', extSendBtn: 'Envoyer au client',
+    extPendingCleaner: '⏳ En attente du client : {h} h de plus · total ₪{total}', extWithdrawBtn: 'Annuler la demande',
+    extApprovedNote: '✅ Le client a accepté {h} h de plus · total ₪{total}',
+    extDeclinedNote: "❌ Le client n'a pas accepté le temps supplémentaire · le montant reste ₪{total}",
+    extSent: 'Demande envoyée au client', extFailed: "Impossible d'envoyer la demande pour le moment. Réessayez.",
+    extAskTitle: '⏱️ Demande de temps supplémentaire', extAskBody: '{name} demande {h} h de plus pour le ménage.',
+    extAskTotals: 'Nouveau total : ₪{total} (au lieu de ₪{was})',
+    extApproveBtn: '✅ Accepter', extDeclineBtn: 'Refuser', extLaterBtn: 'Plus tard',
+    extChanged: 'La demande a changé ou a été retirée entre-temps.', extAnswerFailed: "Votre réponse n'a pas été enregistrée. Réessayez.",
+    extIncluded: 'Dont {h} h de prolongation · initialement ₪{was}',
+  },
+  hi: {
+    extAskBtn: '⏱️ अतिरिक्त समय माँगें', extPickTitle: '⏱️ कितना अतिरिक्त समय चाहिए?',
+    extPickSub: 'ग्राहक से नई राशि मंज़ूर करने को कहा जाएगा। अभी: {h} घंटे · ₪{total}',
+    extOptionLabel: '+{h} घंटे · कुल ₪{total}', extSendBtn: 'ग्राहक को भेजें',
+    extPendingCleaner: '⏳ ग्राहक की मंज़ूरी का इंतज़ार: {h} घंटे और · कुल ₪{total}', extWithdrawBtn: 'अनुरोध रद्द करें',
+    extApprovedNote: '✅ ग्राहक ने {h} घंटे और मंज़ूर किए · कुल ₪{total}',
+    extDeclinedNote: '❌ ग्राहक ने अतिरिक्त समय मंज़ूर नहीं किया · राशि ₪{total} ही रहेगी',
+    extSent: 'अनुरोध ग्राहक को भेजा गया', extFailed: 'अभी अनुरोध नहीं भेजा जा सका। फिर कोशिश करें।',
+    extAskTitle: '⏱️ अतिरिक्त समय का अनुरोध', extAskBody: '{name} सफ़ाई के लिए {h} घंटे और माँग रहे हैं।',
+    extAskTotals: 'नया कुल: ₪{total} (₪{was} के बजाय)',
+    extApproveBtn: '✅ मंज़ूर करें', extDeclineBtn: 'मना करें', extLaterBtn: 'बाद में',
+    extChanged: 'इस बीच अनुरोध बदल गया या वापस ले लिया गया।', extAnswerFailed: 'आपका जवाब सहेजा नहीं गया। फिर कोशिश करें।',
+    extIncluded: '{h} घंटे का अतिरिक्त समय शामिल · मूल ₪{was}',
+  },
+  uk: {
+    extAskBtn: '⏱️ Попросити ще час', extPickTitle: '⏱️ Скільки ще часу потрібно?',
+    extPickSub: 'Клієнта попросять підтвердити нову суму. Зараз: {h} год · ₪{total}',
+    extOptionLabel: '+{h} год · разом ₪{total}', extSendBtn: 'Надіслати клієнту',
+    extPendingCleaner: '⏳ Чекаємо підтвердження клієнта: ще {h} год · разом ₪{total}', extWithdrawBtn: 'Скасувати запит',
+    extApprovedNote: '✅ Клієнт підтвердив ще {h} год · разом ₪{total}',
+    extDeclinedNote: '❌ Клієнт не підтвердив додатковий час · сума залишається ₪{total}',
+    extSent: 'Запит надіслано клієнту', extFailed: 'Зараз не вдалося надіслати запит. Спробуйте ще раз.',
+    extAskTitle: '⏱️ Запит на додатковий час', extAskBody: '{name} просить ще {h} год на прибирання.',
+    extAskTotals: 'Нова сума: ₪{total} (замість ₪{was})',
+    extApproveBtn: '✅ Підтвердити', extDeclineBtn: 'Відхилити', extLaterBtn: 'Пізніше',
+    extChanged: 'Запит змінився або його скасували.', extAnswerFailed: 'Відповідь не збережено. Спробуйте ще раз.',
+    extIncluded: 'Включно з продовженням на {h} год · спочатку ₪{was}',
+  },
+};
+// Who asks, when the booking carries no name for the provider.
+const EXT_PROVIDER: Record<string, string> = {
+  he: 'נותן השירות', en: 'The provider', ru: 'Исполнитель', ar: 'مقدم الخدمة',
+  fr: 'Le prestataire', hi: 'सेवा प्रदाता', uk: 'Виконавець',
+};
+for (const L of Object.keys(JOB_EXTENSION)) {
+  Object.assign((translations as any)[L], JOB_EXTENSION[L], { extProviderWord: EXT_PROVIDER[L] });
+}
+
 export type Translations = typeof he;
 export default translations;

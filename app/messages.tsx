@@ -220,12 +220,15 @@ function InlineChatModal({ chatId, otherUid, otherName, visible, onClose, onDeci
     }
   };
 
-  // Pre-acquire mic permission + recording audio mode when the chat opens, so
-  // the first press-and-hold doesn't lose its start to the permission dialog.
+  // When the mic is already allowed, set up recording as the screen opens so
+  // the first press-and-hold starts at once. Only CHECKED here, never asked:
+  // asking popped the system microphone dialog the moment anyone opened their
+  // messages, before they had pressed the mic. Not yet allowed: the first press
+  // asks (startRecording).
   useEffect(() => {
     (async () => {
       try {
-        const perm = await AudioModule.requestRecordingPermissionsAsync();
+        const perm = await AudioModule.getRecordingPermissionsAsync();
         if (!perm.granted) return;
         await setAudioModeAsync({ allowsRecording: true, playsInSilentMode: true });
         micReadyRef.current = true;

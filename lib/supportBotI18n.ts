@@ -11,6 +11,7 @@
  *
  * Shared: byte-identical in the app (lib/) and the website (src/lib/).
  */
+import { bookingAmount } from './bookingAmount';
 
 export type BotLang = 'en' | 'ru' | 'ar' | 'fr' | 'hi' | 'uk';
 export const BOT_LANGS: BotLang[] = ['en', 'ru', 'ar', 'fr', 'hi', 'uk'];
@@ -558,6 +559,38 @@ const whenOf = (b: any) => `${dateOf(b) || '—'}${b?.startTime ? ` · ${b.start
 const statusOf = (b: any, lang: BotLang) => STATUS[b?.status]?.[lang] ?? String(b?.status ?? '');
 const LIVE = ['pending', 'confirmed', 'onway', 'active'];
 
+/**
+ * The booking the assistant means by "your booking" — in every language (the
+ * Hebrew assistant too) and in both products: the one coming up next, not
+ * the one created last. Picking the newest-created live booking answered with a
+ * request from yesterday nobody had taken, over a confirmed cleaning tomorrow.
+ *
+ * Live only, and not behind us: a day already gone is history, and a request
+ * nobody answered by its hour is over, not waiting (lib/bookingSlot). A job
+ * already under way comes first; then the nearest by day and hour.
+ */
+export function pickRelevantBooking<B extends { status?: string; bookingDate?: string; date?: string; startTime?: string }>(
+  bookings: B[] | null | undefined,
+  now: Date = new Date(),
+): B | null {
+  const pad = (n: number) => String(n).padStart(2, '0');
+  const today = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
+  const clock = `${pad(now.getHours())}:${pad(now.getMinutes())}`;
+  const hhmm = (b: B) => String(b.startTime || '').padStart(5, '0');
+  const ahead = (bookings || []).filter((b) => {
+    if (!b || !LIVE.includes(String(b.status))) return false;
+    const day = dateOf(b);
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(day)) return true;
+    if (day < today) return false;
+    if (b.status === 'pending' && day === today && b.startTime && hhmm(b) <= clock) return false;
+    return true;
+  });
+  const going = (b: B) => (b.status === 'active' || b.status === 'onway' ? 0 : 1);
+  const at = (b: B) => `${/^\d{4}-\d{2}-\d{2}$/.test(dateOf(b)) ? dateOf(b) : '9999-12-31'} ${b.startTime ? hhmm(b) : '99:99'}`;
+  ahead.sort((a, b) => going(a) - going(b) || at(a).localeCompare(at(b)));
+  return ahead[0] ?? null;
+}
+
 // ── Entry points ──────────────────────────────────────────────────────────────
 
 export function isBotLang(lang: string): lang is BotLang {
@@ -624,7 +657,8 @@ function replyFor(input: string, ctx: I18nBotCtx, lang: BotLang): I18nBotResp {
       }
       case 'earnings': {
         const done = mine.filter((b) => b.status === 'done');
-        const amount = (b: any) => Number(b.actualTotal ?? b.total) || 0;
+        // Never below what was agreed: an old close recorded "₪1" (lib/bookingAmount).
+        const amount = (b: any) => bookingAmount(b);
         const ym = new Date().toISOString().slice(0, 7);
         const month = done.filter((b) => dateOf(b).startsWith(ym));
         return {
