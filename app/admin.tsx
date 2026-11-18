@@ -23,6 +23,7 @@ import { broadcast, notify } from '../lib/notify';
 import AppVersionAdmin from '../lib/AppVersionAdmin';
 import { replacedByEdit } from '../lib/bookingOrigin';
 import { bookingAmount } from '../lib/bookingAmount';
+import { pairRetention, repeatRate, GONE_AFTER_DAYS } from '../lib/retention';
 
 // ─── Palette ──────────────────────────────────────────────────────────────────
 const C_DEFAULT = {
@@ -167,6 +168,10 @@ export default function AdminScreen() {
   const clients  = users.filter(u => u.role === 'client');
 
   const now = new Date();
+  // Who books the same cleaner again, and who stopped after one cleaning
+  // (lib/retention — Ofek, 18.11.2026). Over the bookings loaded here.
+  const retention = pairRetention(bookings);
+  const retentionRate = repeatRate(retention);
   const thisMonthBookings = bookings.filter(b => {
     const d = new Date(b.createdAt || 0);
     return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
@@ -439,6 +444,24 @@ export default function AdminScreen() {
               <StatCard icon="₪"  label="הכנסה החודש"    value={`₪${thisMonthRevenue.toLocaleString()}`}  color={C.blue}   />
               <StatCard icon="✅" label="הזמנות בוצעו"   value={bookings.filter(b => b.status === 'done').length} color={C.green} />
               <StatCard icon="❌" label="הזמנות בוטלו"   value={bookings.filter(b => b.status === 'cancelled').length} color={C.red} />
+            </View>
+
+            {/* Who comes back — lib/retention. A pair is one client with one
+                cleaner; "stopped" is one cleaning and nothing booked between
+                them since, for GONE_AFTER_DAYS. */}
+            <View style={s.card}>
+              <T style={s.cardTitle}>
+                🔁 חוזרים מול נעלמים{retentionRate !== null ? ` — ${retentionRate}% חוזרים` : ''}
+              </T>
+              <View style={s.statsGrid}>
+                <StatCard icon="🔁" label="זוגות לקוח–מנקה שחזרו" value={retention.repeat} color={C.green} />
+                <StatCard icon="👋" label={`ניקיון אחד ונעלמו (${GONE_AFTER_DAYS}+ יום)`} value={retention.gone} color={C.red} />
+                <StatCard icon="⭐" label="מתוכם דירגו 4–5 כוכבים" value={retention.goneHappy} color={C.orange} />
+                <StatCard icon="⏳" label="מוקדם לדעת" value={retention.tooEarly} color={C.blue} />
+              </View>
+              <T style={s.statLabel}>
+                לפי {bookings.length} ההזמנות האחרונות. מי שדירג 4–5 ונעלם — הכי סביר שהמשיך בפרטי.
+              </T>
             </View>
 
             {/* Revenue banner */}

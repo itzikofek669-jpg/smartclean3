@@ -30,6 +30,7 @@
     "lib/voiceFile.ts",
     "lib/bookingTabs.ts",
     "lib/bookingAmount.ts",
-    "lib/versionRule.ts"
+    "lib/versionRule.ts",
+    "lib/retention.ts"
   ]
 }

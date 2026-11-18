@@ -98,6 +98,8 @@ const SHARED_PAIRS = [
   ['lib/supportBotI18n.ts', 'src/lib/supportBotI18n.ts'],
   // What a job is worth, and the extension the client approves (12.11.2026).
   ['lib/bookingAmount.ts', 'src/lib/bookingAmount.ts'],
+  // Who comes back (18.11.2026): the offer to book again and the admin's count.
+  ['lib/retention.ts',     'src/lib/retention.ts'],
   ['scripts/shared-hash.mjs', 'scripts/shared-hash.mjs'],
   ['firestore.rules',      'firestore.rules'],
 ];

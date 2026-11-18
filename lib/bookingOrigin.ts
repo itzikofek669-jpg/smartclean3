@@ -1,6 +1,6 @@
 /**
- * Where a booking came from. Only 'direct' — a client choosing one specific
- * cleaner — has no re-post path: there is no advert to put back.
+ * Where a booking came from: 'direct' — a client choosing one specific
+ * cleaner; 'open' — a job posted on the board; 'urgent' — an urgent request.
  *
  * Mirrored in A-M-Clean-web/src/lib/bookingOrigin.ts, where the type lives in
  * types/models.ts. Declared inline here because the app has no shared model file.
@@ -22,10 +22,9 @@ interface BookingLike {
  *
  * The stored field wins when present. Otherwise we infer, and the inference has
  * to be conservative in one specific direction: a booking we cannot classify is
- * treated as `direct`, which is the option with no re-post button. Guessing
- * wrong the other way would offer to re-advertise a job that was never
- * advertised — putting a client's address back on the open board when all they
- * did was book one cleaner they chose.
+ * treated as `direct`. Guessing wrong the other way would tell the client a job
+ * "was advertised" that never was; a direct booking goes on the board only when
+ * its client presses for it, under words that say so (see canRepost).
  *
  * Note what is deliberately NOT used as a signal: `open`. Claiming a posted job
  * sets it false (see claimOpenJob), so by the time a cancelled booking is being
@@ -45,21 +44,25 @@ export function bookingOrigin(b: BookingLike | null | undefined): BookingOrigin 
 }
 
 /**
- * May the client be offered "re-post and find another cleaner" for this
- * cancelled booking?
+ * May the client be offered to put this cancelled booking on the board, so
+ * another cleaner can take the same hour?
  *
- * Only for jobs that were advertised in the first place. A direct booking is an
- * arrangement between one client and one cleaner they picked; when the cleaner
- * pulls out there is no advert to restore, and re-posting would silently turn a
- * private arrangement into a public listing. Those clients choose a new cleaner
- * themselves instead.
+ * A board job: yes — it goes back up as the advert it was.
+ *
+ * A direct booking too, since 18.11.2026 (Ofek). Before, a client whose chosen
+ * cleaner pulled out was left with nothing to press, and that is the moment a
+ * client goes looking outside the app. It goes up only when the client presses
+ * for it, and the words above the button say what happens: the board shows the
+ * town, never the street (lib/bookingDetails), so nothing private is published.
+ *
+ * Not an urgent one. Its request goes back out to cleaners by itself when the
+ * cleaner walks away (releaseUrgentRequest), so reposting it always collided
+ * with that request: the client pressed "post again" and was told they had
+ * already booked that hour.
  */
 export function canRepost(b: BookingLike | null | undefined): boolean {
-  // A board job only. An urgent booking's request goes back out to cleaners by
-  // itself when the cleaner walks away (releaseUrgentRequest), so reposting it
-  // always collided with that request: the client pressed "post again" and was
-  // told they had already booked that hour.
-  return bookingOrigin(b) === 'open';
+  const origin = bookingOrigin(b);
+  return origin === 'open' || origin === 'direct';
 }
 
 /**
@@ -88,17 +91,20 @@ export function replacedByEdit(
  * nothing to post.
  *
  *   'repost'   — a board job: it can be posted again, and the button is there.
+ *   'replace'  — a direct booking: never advertised, but the client may put it
+ *                on the board for another cleaner (canRepost), and is told that
+ *                only the town shows there.
  *   'reposted' — an urgent booking whose request is out again: other cleaners
  *                can take it, and the client has nothing to do.
- *   'plain'    — nothing went back out: a direct booking, or an urgent one
- *                whose request is over. The client books somebody else.
+ *   'plain'    — nothing went back out: an urgent booking whose request is
+ *                over. The client books somebody else.
  *   'pending'  — an urgent booking whose request has not been seen out again
  *                (yet): only that the booking was cancelled.
  *
  * `requestOut` is urgentBackOut() of the request the booking came from;
  * undefined while that has not been read.
  */
-export type CancelledNotice = 'repost' | 'reposted' | 'plain' | 'pending';
+export type CancelledNotice = 'repost' | 'replace' | 'reposted' | 'plain' | 'pending';
 
 export function cancelledNotice(
   b: BookingLike | null | undefined,
@@ -106,7 +112,7 @@ export function cancelledNotice(
 ): CancelledNotice {
   const origin = bookingOrigin(b);
   if (origin === 'open') return 'repost';
-  if (origin !== 'urgent') return 'plain';
+  if (origin === 'direct') return 'replace';
   if (requestOut === true) return 'reposted';
   return requestOut === false ? 'plain' : 'pending';
 }

@@ -823,10 +823,13 @@ test('an urgent request whose slot has passed is not live, whatever its expiry s
   assert.equal(isUrgentRequestLive({ ...r, startTime: '23:00' }, new Date('2026-09-16T09:40:00')), true);
 });
 
-test('repost is offered for a board job, not for an urgent one that went back out by itself', () => {
+test('repost is offered for a board job and a direct booking, not for an urgent one that went back out by itself', () => {
   assert.equal(canRepost({ origin: 'open' }), true);
   assert.equal(canRepost({ origin: 'urgent' }), false);
-  assert.equal(canRepost({ origin: 'direct' }), false);
+  // Since 18.11.2026: a client whose chosen cleaner pulled out may put the hour
+  // on the board (at their own press — the popup says only the town shows).
+  assert.equal(canRepost({ origin: 'direct' }), true);
+  assert.equal(canRepost({}), true);   // unclassified legacy = direct
 });
 
 test('a city is not read out of a street name, a floor, or the wrong end of an address', () => {
@@ -1648,12 +1651,12 @@ test('the client is told a cancelled booking was posted again only when it was',
   // A board job is offered the button; nothing about its request can change that.
   assert.equal(cancelledNotice({ origin: 'open' }, true), 'repost');
   assert.equal(cancelledNotice({ origin: 'open' }), 'repost');
-  // A direct booking has nothing to post, whatever is passed.
-  assert.equal(cancelledNotice({ origin: 'direct' }, true), 'plain');
-  assert.equal(cancelledNotice({}, undefined), 'plain');
+  // A direct booking is offered the board with its own sentence, whatever is passed.
+  assert.equal(cancelledNotice({ origin: 'direct' }, true), 'replace');
+  assert.equal(cancelledNotice({}, undefined), 'replace');
   // The offer and the button always go together.
   for (const b of [urgent, { origin: 'open' }, { origin: 'direct' }, {}]) {
-    assert.equal(cancelledNotice(b, true) === 'repost', canRepost(b));
+    assert.equal(['repost', 'replace'].includes(cancelledNotice(b, true)), canRepost(b));
   }
 
   // The popup takes its sentence from the rule, not from one fixed text — and
@@ -1664,6 +1667,8 @@ test('the client is told a cancelled booking was posted again only when it was',
   assert.match(home, /if \(notice === 'repost'\) return tt\.bookingCancelledPopupSub \?\?/);
   assert.match(home, /if \(notice === 'reposted'\) return tt\.bookingCancelledPopupReposted \?\?/);
   assert.match(home, /if \(notice === 'plain'\) return tt\.bookingCancelledPopupPlain \?\?/);
+  assert.match(home, /if \(notice === 'replace'\) return declinedByCleaner\(cancelledPopup\)/);
+  assert.ok(home.includes('tt.bookingCancelledPopupReplace ??') && home.includes('tt.bookingRejectedPopupReplace ??'));
   assert.match(home, /return tt\.bookingCancelledPopupBase \?\?/);
   assert.equal(home.split('bookingCancelledPopupSub').length - 1, 1, 'the repost sentence appears once, under the rule');
   // …in every language: a missing one falls back to Hebrew without a word.

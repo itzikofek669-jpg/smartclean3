@@ -76,6 +76,7 @@ function cityShown(city: string, lang: string): string {
   return names[city] || city;
 }
 import { canRepost, bookingOrigin, cancelledNotice } from '../lib/bookingOrigin';
+import { shouldOfferRebook } from '../lib/retention';
 import { cityFromAddress } from '../lib/cityFromAddress';
 import {
   LANGUAGE_FLAGS, groupConsecutiveDays, normalizeLanguages, workDaysFromAvailability,
@@ -5532,6 +5533,11 @@ export default function HomeScreen() {
     const out = cancelledRequest && cancelledRequest.key === cancelledKey ? cancelledRequest.out : undefined;
     const notice = cancelledNotice(cancelledPopup, out);
     if (notice === 'repost') return tt.bookingCancelledPopupSub ?? 'נותן השירות ביטל את ההזמנה. אפשר לפרסם אותה מחדש ונותני שירות אחרים באזור יוכלו לקחת אותה.';
+    // A direct booking: it can go on the board too, at the client's press, and
+    // the sentence says what shows there (lib/bookingOrigin canRepost).
+    if (notice === 'replace') return declinedByCleaner(cancelledPopup)
+      ? (tt.bookingRejectedPopupReplace ?? 'נותן השירות דחה את ההזמנה. אפשר לפרסם אותה לנותני שירות אחרים באזור לאותה שעה. מהכתובת רואים בלוח רק את העיר — את הכתובת המלאה יקבל רק מי שייקח את העבודה.')
+      : (tt.bookingCancelledPopupReplace ?? 'נותן השירות ביטל את ההזמנה. אפשר לפרסם אותה לנותני שירות אחרים באזור לאותה שעה. מהכתובת רואים בלוח רק את העיר — את הכתובת המלאה יקבל רק מי שייקח את העבודה.');
     // Turned down before it was ever approved: "declined", not "cancelled"
     // (lib/bookingActions declinedByCleaner). A board job is never here — a
     // pending one goes back to the board instead of ending.
@@ -5621,7 +5627,10 @@ export default function HomeScreen() {
       await repostBatch.commit();
       markCancelledSeen(b?.id);
       setCancelledPopup(null);
-      Alert.alert('✅', (t as any).repostOkMsg ?? 'ההזמנה פורסמה מחדש — נותני שירות באזור שלך יראו אותה');
+      // "Again" only of a job that was on the board before (lib/bookingOrigin).
+      Alert.alert('✅', bookingOrigin(b) === 'direct'
+        ? ((t as any).replaceOkMsg ?? 'ההזמנה פורסמה — נותני שירות באזור שלך יראו אותה')
+        : ((t as any).repostOkMsg ?? 'ההזמנה פורסמה מחדש — נותני שירות באזור שלך יראו אותה'));
     } catch (_) {
       Alert.alert(t.error, (t as any).repostErrMsg ?? 'הפרסום מחדש נכשל — נסה/י שוב');
     } finally {
@@ -5641,6 +5650,46 @@ export default function HomeScreen() {
   const [mandatoryStars,       setMandatoryStars]       = useState(0);
   const [mandatoryComment,     setMandatoryComment]     = useState('');
   const [mandatorySubmitting,  setMandatorySubmitting]  = useState(false);
+
+  // "Book her again?" once a job is rated 4–5 stars and nothing is booked with
+  // her yet (lib/retention shouldOfferRebook). Ofek, 18.11.2026: after a good
+  // first cleaning the two used to carry on privately, and nothing here asked.
+  const [rebookOffer, setRebookOffer] = useState<any>(null);
+  const rebookOfferBusy = useRef(false);
+  // Which offer is on screen, read again after the wait below: "not now"
+  // pressed while the details loaded must not open the form after all.
+  const rebookOfferIdRef = useRef('');
+  useEffect(() => { rebookOfferIdRef.current = rebookOffer?.id || ''; }, [rebookOffer]);
+  // The client's bookings as the live listener last saw them. myBookings is
+  // read once at sign-in and the listener only refreshes rows already in it,
+  // so a next weekly visit written since (lib/endJob) or a booking made on the
+  // website was missing — and the offer asked to book what was booked already.
+  const clientDocsRef = useRef<any[]>([]);
+  // The same road as "book again" from the past-bookings list (QuickRebookModal
+  // handleRebook): her card from the list, the street from the private half.
+  const acceptRebookOffer = async () => {
+    const b = rebookOffer;
+    if (!b || rebookOfferBusy.current) return;
+    const cleaner = realCleaners.find((c: any) => c.id === b.cleanerId || c.uid === b.cleanerId);
+    if (!cleaner) {
+      setRebookOffer(null);
+      Alert.alert('', realCleaners.length > 0 ? t.cleanerNotFound : t.rebookLoadError);
+      return;
+    }
+    rebookOfferBusy.current = true;
+    try {
+      const details = (await getDoc(doc(db, 'bookings', b.id, 'private', 'details'))).data();
+      if (rebookOfferIdRef.current !== b.id) return;
+      setRebookOffer(null);
+      setPrebookData(details ? { ...b, ...details } : b);
+      setBooking(cleaner);
+    } catch (err) {
+      logError('home:rebookOffer', err);
+      Alert.alert('', t.rebookLoadError);
+    } finally {
+      rebookOfferBusy.current = false;
+    }
+  };
 
   // ── Toast ──────────────────────────────────────────────────────────────────
   const [toastMsg,     setToastMsg]     = useState('');
@@ -6689,13 +6738,13 @@ export default function HomeScreen() {
   // First sign-in stacked four windows (see helpChecked above).
   useEffect(() => {
     if (calendarOffered.current || !helpChecked || boardHelpOpen || showMandatoryReview
-      || isBlocked || confirmedPopup || cancelledPopup || newBookingModal || urgentPopupReq) return;
+      || isBlocked || confirmedPopup || cancelledPopup || newBookingModal || urgentPopupReq || rebookOffer) return;
     const timer = setTimeout(() => {
       calendarOffered.current = true;
       void primeCalendarPermission();
     }, 1200);
     return () => clearTimeout(timer);
-  }, [helpChecked, boardHelpOpen, showMandatoryReview, isBlocked, confirmedPopup, cancelledPopup, newBookingModal, urgentPopupReq]);
+  }, [helpChecked, boardHelpOpen, showMandatoryReview, isBlocked, confirmedPopup, cancelledPopup, newBookingModal, urgentPopupReq, rebookOffer]);
   const shownUrgentRef = useRef<Set<string>>(new Set()); // בקשות שכבר הוצגו — לא להקפיץ שוב
   const urgentInitedRef = useRef(false);
   useEffect(() => {
@@ -6812,6 +6861,7 @@ export default function HomeScreen() {
     // Which bookings a cleaner was holding, so a hand-back can be told apart.
     const lastHeld = new Map<string, boolean>();
     const unsub = onSnapshot(q, snap => {
+      clientDocsRef.current = snap.docs.map(d => ({ id: d.id, ...(d.data() as any) }));
       const missed: any[] = [];
       // Left unannounced because the slot was booked again: seen, for good — or
       // it would pop on a later open once the new booking went (review finding).
@@ -7093,6 +7143,9 @@ export default function HomeScreen() {
     if (!mandatoryStars || !pendingReviewBooking) return;
     const uid = auth.currentUser?.uid;
     if (!uid) return;
+    // Read before the state below moves on to the next job.
+    const rated = pendingReviewBooking;
+    const ratedStars = mandatoryStars;
     setMandatorySubmitting(true);
     try {
       // One transaction: the job's score and comment, the review and the cleaner's
@@ -7171,6 +7224,12 @@ export default function HomeScreen() {
       setMandatoryStars(0);
       setMandatoryComment('');
       showToast(trNow('reviewSentToast'));
+      // Asked after the last of them only — not between two reviews. Done by
+      // now whatever its status said: a job the provider never closed is asked
+      // about once its hours are over, and rating it is the end of it.
+      if (shouldOfferRebook({ ...rated, status: 'done' }, ratedStars, [...clientDocsRef.current, ...myBookings])) {
+        setRebookOffer(rated);
+      }
     } catch (_) {
       showToast(t.error + ' — ' + trNow('reviewSendFailed'), 'error');
     } finally {
@@ -8139,7 +8198,7 @@ export default function HomeScreen() {
       {/* More time: the provider asked, the client answers here (lib/JobExtensionUI). */}
       <ExtensionAskSheet
         bookings={extensionAsks}
-        suspended={!!(showMandatoryReview || confirmedPopup || cancelledPopup || boardHelpOpen || newBookingModal || urgentPopupReq)}
+        suspended={!!(showMandatoryReview || confirmedPopup || cancelledPopup || boardHelpOpen || newBookingModal || urgentPopupReq || rebookOffer)}
       />
 
       {/* ── פופאפ: הזמנה אושרה ── */}
@@ -8256,12 +8315,10 @@ export default function HomeScreen() {
               </View>
             )}
 
-            {/* Advertised jobs only. A direct booking is between this client
-                and the cleaner they chose by name — there is no advert to put
-                back, and re-posting would turn a private arrangement into a
-                public listing carrying their address. The popup itself still
-                shows either way: they need to know the cleaner pulled out.
-                See lib/bookingOrigin. */}
+            {/* A board job goes back up; a direct booking goes up for the first
+                time, only at this press, and the sentence above says the board
+                shows the town alone. Not an urgent one — its request went back
+                out by itself. See lib/bookingOrigin canRepost. */}
             {canRepost(cancelledPopup) && (
               <TouchableOpacity
                 style={{ backgroundColor: reposting ? '#94A3B8' : '#2563EB', borderRadius: 14, paddingVertical: 15, width: '100%', alignItems: 'center' }}
@@ -8269,7 +8326,9 @@ export default function HomeScreen() {
                 onPress={() => cancelledPopup && repostCancelledBooking(cancelledPopup)}
               >
                 <Text style={{ fontSize: 15, fontWeight: '900', color: '#fff' }}>
-                  {reposting ? '…' : `📢 ${(t as any).repostBtn ?? 'פרסם מחדש וחפש נותן שירות אחר'}`}
+                  {reposting ? '…' : bookingOrigin(cancelledPopup) === 'direct'
+                    ? `🔎 ${(t as any).replaceBtn ?? 'מצאו לי נותן שירות אחר לאותה שעה'}`
+                    : `📢 ${(t as any).repostBtn ?? 'פרסם מחדש וחפש נותן שירות אחר'}`}
                 </Text>
               </TouchableOpacity>
             )}
@@ -8278,6 +8337,41 @@ export default function HomeScreen() {
               onPress={closeCancelledPopup}
             >
               <Text style={{ fontSize: 14, color: '#9CA3AF', fontWeight: '600' }}>{t.closeBtn || 'סגור'}</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
+      {/* ── "להזמין שוב?" אחרי דירוג טוב (lib/retention) ── */}
+      <Modal
+        visible={!!rebookOffer && !showMandatoryReview && !cancelledPopup && !confirmedPopup && !booking}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setRebookOffer(null)}
+      >
+        <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.55)', justifyContent: 'center', padding: 24 }}>
+          <View style={{ backgroundColor: C.white, borderRadius: 24, padding: 24, alignItems: 'center', gap: 12 }}>
+            <Text style={{ fontSize: 40 }}>🔁</Text>
+            <Text style={{ fontSize: 20, fontWeight: '900', color: C.textDark, textAlign: 'center' }}>
+              {String((t as any).rebookOfferTitle ?? 'להזמין שוב את {name}?')
+                .replace('{name}', rebookOffer?.cleanerName || t.cleanerLabel || 'נותן השירות')}
+            </Text>
+            <Text style={{ fontSize: 14, color: C.textSub, textAlign: 'center', lineHeight: 22 }}>
+              {(t as any).rebookOfferSub ?? 'אותה כתובת, אותו שירות ואותו מספר שעות — רק לבחור מועד. בטופס אפשר גם לקבוע ניקיון קבוע, כל שבוע או כל חודש.'}
+            </Text>
+            <TouchableOpacity
+              accessibilityRole="button"
+              style={{ backgroundColor: C.blue, borderRadius: 14, paddingVertical: 15, width: '100%', alignItems: 'center', marginTop: 4 }}
+              onPress={acceptRebookOffer}
+            >
+              <Text style={{ fontSize: 16, fontWeight: '900', color: '#fff' }}>
+                {(t as any).rebookOfferYes ?? 'כן, להזמין שוב'}
+              </Text>
+            </TouchableOpacity>
+            <TouchableOpacity accessibilityRole="button" style={{ paddingVertical: 10, width: '100%', alignItems: 'center' }} onPress={() => setRebookOffer(null)}>
+              <Text style={{ fontSize: 14, color: C.textSub, fontWeight: '700' }}>
+                {(t as any).rebookOfferLater ?? 'לא עכשיו'}
+              </Text>
             </TouchableOpacity>
           </View>
         </View>

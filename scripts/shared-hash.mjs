@@ -70,6 +70,9 @@ export const SHARED = [
   // What a job is worth and the extension the client approves (12.11.2026):
   // both products show and sum the same amount, and build the writes the rules check.
   { name: 'bookingAmount',  app: 'lib/bookingAmount.ts',  web: 'src/lib/bookingAmount.ts' },
+  // Who comes back (18.11.2026): the offer to book the same cleaner again after
+  // a good rating, and the admin screens' count of pairs that stopped.
+  { name: 'retention',      app: 'lib/retention.ts',      web: 'src/lib/retention.ts' },
   // The guard itself. Two copies of this script that disagree are two
   // different ideas of what "in step" means.
   { name: 'sharedHash',     app: 'scripts/shared-hash.mjs', web: 'scripts/shared-hash.mjs' },

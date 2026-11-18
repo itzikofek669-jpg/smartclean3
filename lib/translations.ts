@@ -5434,6 +5434,105 @@ for (const L of Object.keys(CANCELLED_POPUP)) {
   (translations as any)[L].repostErrMsg = c.err;
 }
 
+// Keeping a client in the app when it matters (Ofek, 18.11.2026; see
+// lib/retention and lib/bookingOrigin canRepost):
+//   replace / rejReplace — the chosen cleaner pulled out of a direct booking:
+//                          the client may put it on the board for another one.
+//   offer*               — after a good rating: book the same cleaner again.
+const RETENTION: Record<string, { replace: string; rejReplace: string; replaceBtn: string; replaceOk: string; replaceOkShort: string; offerTitle: string; offerSub: string; offerYes: string; offerLater: string }> = {
+  he: {
+    replace: 'נותן השירות ביטל את ההזמנה. אפשר לפרסם אותה לנותני שירות אחרים באזור לאותה שעה. מהכתובת רואים בלוח רק את העיר — את הכתובת המלאה יקבל רק מי שייקח את העבודה.',
+    rejReplace: 'נותן השירות דחה את ההזמנה. אפשר לפרסם אותה לנותני שירות אחרים באזור לאותה שעה. מהכתובת רואים בלוח רק את העיר — את הכתובת המלאה יקבל רק מי שייקח את העבודה.',
+    replaceBtn: 'מצאו לי נותן שירות אחר לאותה שעה',
+    replaceOk: 'ההזמנה פורסמה — נותני שירות באזור שלך יראו אותה',
+    replaceOkShort: '✅ פורסם',
+    offerTitle: 'להזמין שוב את {name}?',
+    offerSub: 'אותה כתובת, אותו שירות ואותו מספר שעות — רק לבחור מועד. בטופס אפשר גם לקבוע ניקיון קבוע, כל שבוע או כל חודש.',
+    offerYes: 'כן, להזמין שוב',
+    offerLater: 'לא עכשיו',
+  },
+  en: {
+    replace: 'The service provider cancelled this booking. You can post it for other service providers nearby, at the same time. From your address, the board shows only the town — the full address goes only to whoever takes the job.',
+    rejReplace: 'The service provider declined this booking. You can post it for other service providers nearby, at the same time. From your address, the board shows only the town — the full address goes only to whoever takes the job.',
+    replaceBtn: 'Find me another service provider for the same time',
+    replaceOk: 'Posted — service providers in your area will see it',
+    replaceOkShort: '✅ Posted',
+    offerTitle: 'Book {name} again?',
+    offerSub: 'Same address, same service, same hours — just pick a time. In the form you can also make it regular: every week or every month.',
+    offerYes: 'Yes, book again',
+    offerLater: 'Not now',
+  },
+  ru: {
+    replace: 'Исполнитель отменил заказ. Можно опубликовать его для других исполнителей поблизости на то же время. Из адреса на доске виден только город — полный адрес получит только тот, кто возьмёт заказ.',
+    rejReplace: 'Исполнитель отклонил заказ. Можно опубликовать его для других исполнителей поблизости на то же время. Из адреса на доске виден только город — полный адрес получит только тот, кто возьмёт заказ.',
+    replaceBtn: 'Найти другого исполнителя на то же время',
+    replaceOk: 'Опубликовано — исполнители поблизости это увидят',
+    replaceOkShort: '✅ Опубликовано',
+    offerTitle: 'Заказать {name} снова?',
+    offerSub: 'Тот же адрес, та же услуга и столько же часов — осталось выбрать время. В форме можно сделать уборку регулярной: каждую неделю или каждый месяц.',
+    offerYes: 'Да, заказать снова',
+    offerLater: 'Не сейчас',
+  },
+  ar: {
+    replace: 'ألغى مقدم الخدمة الحجز. يمكنك نشره لمقدمي خدمة آخرين في منطقتك لنفس الموعد. من العنوان تظهر في اللوحة المدينة فقط — والعنوان الكامل يصل فقط لمن يأخذ العمل.',
+    rejReplace: 'رفض مقدم الخدمة الحجز. يمكنك نشره لمقدمي خدمة آخرين في منطقتك لنفس الموعد. من العنوان تظهر في اللوحة المدينة فقط — والعنوان الكامل يصل فقط لمن يأخذ العمل.',
+    replaceBtn: 'ابحث لي عن مقدم خدمة آخر لنفس الموعد',
+    replaceOk: 'تم النشر — سيراه مقدمو الخدمة في منطقتك',
+    replaceOkShort: '✅ تم النشر',
+    offerTitle: 'هل تريد حجز {name} مرة أخرى؟',
+    offerSub: 'نفس العنوان ونفس الخدمة ونفس عدد الساعات — فقط اختر الموعد. يمكنك في النموذج أيضاً جعلها منتظمة: كل أسبوع أو كل شهر.',
+    offerYes: 'نعم، احجز مرة أخرى',
+    offerLater: 'ليس الآن',
+  },
+  fr: {
+    replace: 'Le prestataire a annulé. Vous pouvez la publier pour les autres prestataires près de chez vous, au même horaire. De votre adresse, le tableau n’affiche que la ville — l’adresse complète n’est donnée qu’à celui qui prend la mission.',
+    rejReplace: 'Le prestataire a refusé. Vous pouvez la publier pour les autres prestataires près de chez vous, au même horaire. De votre adresse, le tableau n’affiche que la ville — l’adresse complète n’est donnée qu’à celui qui prend la mission.',
+    replaceBtn: 'Trouver un autre prestataire au même horaire',
+    replaceOk: 'Publiée — les prestataires de votre secteur la verront',
+    replaceOkShort: '✅ Publiée',
+    offerTitle: 'Réserver {name} à nouveau ?',
+    offerSub: 'Même adresse, même service, même durée — il ne reste qu’à choisir l’horaire. Dans le formulaire, vous pouvez aussi la rendre régulière : chaque semaine ou chaque mois.',
+    offerYes: 'Oui, réserver à nouveau',
+    offerLater: 'Pas maintenant',
+  },
+  hi: {
+    replace: 'सेवा प्रदाता ने बुकिंग रद्द कर दी। आप इसे उसी समय के लिए आस-पास के अन्य सेवा प्रदाताओं के लिए पोस्ट कर सकते हैं। पते में से बोर्ड पर केवल शहर दिखता है — पूरा पता सिर्फ़ उसी को मिलेगा जो काम लेगा।',
+    rejReplace: 'सेवा प्रदाता ने बुकिंग अस्वीकार कर दी। आप इसे उसी समय के लिए आस-पास के अन्य सेवा प्रदाताओं के लिए पोस्ट कर सकते हैं। पते में से बोर्ड पर केवल शहर दिखता है — पूरा पता सिर्फ़ उसी को मिलेगा जो काम लेगा।',
+    replaceBtn: 'उसी समय के लिए दूसरा सेवा प्रदाता ढूँढें',
+    replaceOk: 'पोस्ट हो गया — आपके क्षेत्र के सेवा प्रदाता इसे देखेंगे',
+    replaceOkShort: '✅ पोस्ट हो गया',
+    offerTitle: 'क्या {name} को फिर से बुक करें?',
+    offerSub: 'वही पता, वही सेवा, उतने ही घंटे — बस समय चुनें। फ़ॉर्म में आप इसे नियमित भी बना सकते हैं: हर हफ़्ते या हर महीने।',
+    offerYes: 'हाँ, फिर से बुक करें',
+    offerLater: 'अभी नहीं',
+  },
+  uk: {
+    replace: 'Виконавець скасував замовлення. Можна опублікувати його для інших виконавців поруч на той самий час. З адреси на дошці видно лише місто — повну адресу отримає лише той, хто візьме замовлення.',
+    rejReplace: 'Виконавець відхилив замовлення. Можна опублікувати його для інших виконавців поруч на той самий час. З адреси на дошці видно лише місто — повну адресу отримає лише той, хто візьме замовлення.',
+    replaceBtn: 'Знайти іншого виконавця на той самий час',
+    replaceOk: 'Опубліковано — виконавці поруч це побачать',
+    replaceOkShort: '✅ Опубліковано',
+    offerTitle: 'Замовити {name} знову?',
+    offerSub: 'Та сама адреса, та сама послуга і стільки ж годин — залишилося обрати час. У формі можна зробити прибирання регулярним: щотижня або щомісяця.',
+    offerYes: 'Так, замовити знову',
+    offerLater: 'Не зараз',
+  },
+};
+for (const L of Object.keys(RETENTION)) {
+  const r = RETENTION[L];
+  Object.assign((translations as any)[L], {
+    bookingCancelledPopupReplace: r.replace,
+    bookingRejectedPopupReplace: r.rejReplace,
+    replaceBtn: r.replaceBtn,
+    replaceOkMsg: r.replaceOk,
+    replaceOkShort: r.replaceOkShort,
+    rebookOfferTitle: r.offerTitle,
+    rebookOfferSub: r.offerSub,
+    rebookOfferYes: r.offerYes,
+    rebookOfferLater: r.offerLater,
+  });
+}
+
 // Shown when the chosen cleaner is already taken for the requested slot. This
 // supersedes the per-language `cleanerBusyMsg` in the dictionaries above so both
 // codebases word it identically, and so it names the DATE as well as the hour —
