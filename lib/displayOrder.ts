@@ -22,6 +22,8 @@
  * the same people the same way.
  */
 
+import { cleanerLevel, levelRank } from './retention';
+
 /** Drawn once when the product starts — an app launch, or a page load. */
 const SESSION_SEED = Math.random().toString(36).slice(2);
 
@@ -67,6 +69,8 @@ export interface OrderableCleaner {
   /** Absent counts as available — every profile predating the flag travelled. */
   available?: boolean;
   rating?: number;
+  /** Reviews from jobs done through the app — with `rating`, her level (lib/retention). */
+  reviewCount?: number;
   distKm?: number | null;
 }
 
@@ -78,7 +82,13 @@ export interface OrderableJob {
 }
 
 /**
- * Availability, then distance band, then rating band, then rotation.
+ * Availability, then distance band, then rating band, then level, then rotation.
+ *
+ * Level (18.11.2026): among cleaners equally near and equally rated, gold
+ * before silver before none — the level is earned only by jobs done through
+ * the app (lib/retention cleanerLevel), and this is what it is worth to her.
+ * It comes after rating, so it never lifts anyone over a better-rated cleaner,
+ * and a newcomer still rotates with everyone else of her band.
  *
  * This exact order is what the web and the app now share. They used to disagree
  * outright — the web sorted on distance alone and the app on rating alone, so
@@ -91,6 +101,8 @@ export function compareCleaners(a: OrderableCleaner, b: OrderableCleaner): numbe
   if (byDistance) return byDistance;
   const byRating = ratingBand(b.rating) - ratingBand(a.rating);
   if (byRating) return byRating;
+  const byLevel = levelRank(cleanerLevel(b)) - levelRank(cleanerLevel(a));
+  if (byLevel) return byLevel;
   return rotationRank(a.id) - rotationRank(b.id);
 }
 

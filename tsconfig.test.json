@@ -31,6 +31,7 @@
     "lib/bookingTabs.ts",
     "lib/bookingAmount.ts",
     "lib/versionRule.ts",
-    "lib/retention.ts"
+    "lib/retention.ts",
+    "lib/workDiary.ts"
   ]
 }

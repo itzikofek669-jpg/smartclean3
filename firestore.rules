@@ -362,6 +362,34 @@ service cloud.firestore {
           return get(/databases/$(database)/documents/users/$(userId)).data.get('identityVerified', false) != true;
         }
       }
+
+      // The cleaner's work diary (lib/workDiary, 18.11.2026): private jobs she
+      // adds herself, next to her jobs through the app. Hers alone — the
+      // clients in it are her own business, and nobody else reads them. Each
+      // entry bounded field by field, so it stays a diary and not a store; the
+      // same bounds as DIARY_LIMITS in lib/workDiary.
+      match /diary/{entryId} {
+        allow read: if signedIn() && uid() == userId;
+        allow delete: if isAdmin() || (signedIn() && uid() == userId);
+        allow create, update: if signedIn() && uid() == userId && diaryEntrySane();
+
+        function diaryEntrySane() {
+          let d = request.resource.data;
+          return d.keys().hasOnly(['clientName', 'phone', 'address', 'date', 'startTime', 'hours',
+                                   'price', 'notes', 'repeat', 'skip', 'createdAt', 'updatedAt'])
+            && d.clientName is string && d.clientName.size() >= 1 && d.clientName.size() <= 80
+            && d.get('phone', '') is string && d.get('phone', '').size() <= 30
+            && d.get('address', '') is string && d.get('address', '').size() <= 200
+            && d.get('notes', '') is string && d.get('notes', '').size() <= 500
+            && d.date is string && d.date.matches('^20[0-9]{2}-[01][0-9]-[0-3][0-9]$')
+            && d.startTime is string && d.startTime.matches('^[0-2][0-9]:[0-5][0-9]$')
+            && d.hours is number && d.hours >= 0.5 && d.hours <= 12
+            && (d.get('price', null) == null || (d.price is number && d.price >= 0 && d.price <= 100000))
+            && d.repeat in ['once', 'weekly', 'biweekly']
+            && d.get('skip', []) is list && d.get('skip', []).size() <= 60
+            && d.get('createdAt', '') is string && d.get('updatedAt', '') is string;
+        }
+      }
     }
 
     // ── Bans ─────────────────────────────────────────────────────────────────

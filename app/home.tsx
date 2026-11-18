@@ -76,7 +76,7 @@ function cityShown(city: string, lang: string): string {
   return names[city] || city;
 }
 import { canRepost, bookingOrigin, cancelledNotice } from '../lib/bookingOrigin';
-import { shouldOfferRebook } from '../lib/retention';
+import { shouldOfferRebook, cleanerLevel, LEVELS } from '../lib/retention';
 import { cityFromAddress } from '../lib/cityFromAddress';
 import {
   LANGUAGE_FLAGS, groupConsecutiveDays, normalizeLanguages, workDaysFromAvailability,
@@ -99,6 +99,7 @@ import { isUrgentRequestLive, releasedByMe, URGENT_FIRST_START_HOUR, URGENT_LAST
 import { sameDayOverlap, bookingHoldsHours } from '../lib/bookingSlot';
 import { unansweredPast } from '../lib/bookingTabs';
 import { claimUpdate, occupiesCleanerTime, pendingSlotMissed, pendingSlotExpired, expiryUpdate, rejectionUpdate, isBoardJobOfferable, busySlotOf, declinedByCleaner } from '../lib/bookingActions';
+import { diaryBusySlots, todayYmd, type DiaryEntry } from '../lib/workDiary';
 import { resolveRole } from '../lib/resolveRole';
 import { MAP_STYLE_LIGHT, MAP_STYLE_DARK } from '../lib/mapStyle';
 import { useTheme } from '../lib/ThemeContext';
@@ -743,7 +744,7 @@ function ModalBackHandler({ onBack }: { onBack: () => void }) {
 // ─── Drawer ──────────────────────────────────────────────────────────────────
 const PANEL_W = 270;
 
-function DrawerMenu({ visible, onClose, onProfile, onLogout, onMessages, onReport, onSupport, onActiveBookings, onAccessibility }: any) {
+function DrawerMenu({ visible, onClose, onProfile, onLogout, onMessages, onReport, onSupport, onActiveBookings, onAccessibility, onDiary }: any) {
   const { t, lang, setLang, flipSide, setFlipSide, isRTL } = useLanguage();
   const C = useAppColors();
   const s = createS(C);
@@ -852,6 +853,20 @@ function DrawerMenu({ visible, onClose, onProfile, onLogout, onMessages, onRepor
             <T style={[ds.itemText, { flex: 1 }]}>{t.activeBookingsTitle}</T>
             <T style={ds.itemArrow}>{chevron('‹')}</T>
           </TouchableOpacity>
+
+          {/* The work diary — service providers only (app/diary.tsx). */}
+          {!!onDiary && (
+            <TouchableOpacity
+              style={ds.item}
+              onPress={() => { onClose(); onDiary(); }}
+              accessibilityRole="button"
+              accessibilityLabel={(t as any).diaryTitle ?? 'יומן עבודה'}
+            >
+              <T style={ds.itemIcon}>📒</T>
+              <T style={[ds.itemText, { flex: 1 }]}>{(t as any).diaryTitle ?? 'יומן עבודה'}</T>
+              <T style={ds.itemArrow}>{chevron('‹')}</T>
+            </TouchableOpacity>
+          )}
 
           {/* בלי "היסטוריית הזמנות" נפרד: ההיסטוריה היא לשונית בחלון ההזמנות
               הפעילות, נגיעה אחת מהפריט שמעל. */}
@@ -1171,6 +1186,21 @@ function CleanerProfile({ cleaner, visible, onClose, onBook, onChat, initialShow
               <View style={s.statDivider} />
               <View style={s.statBox}><T style={s.statVal}>₪{cleaner.price}</T><T style={s.statLabel}>{t.perHour}</T></View>
             </View>
+            {/* The level, said in full: what it is and how it is earned — the
+                badges removed above failed exactly there. */}
+            {(() => {
+              const lv = cleanerLevel(cleaner);
+              if (!lv) return null;
+              const need = LEVELS[lv];
+              return (
+                <T style={{ marginTop: 10, fontSize: 13, color: C.textDark, textAlign: 'center', lineHeight: 19 }}>
+                  {String(lv === 'gold'
+                    ? ((t as any).levelGoldExplain ?? '🥇 דרגת זהב: לפחות {n} עבודות שדורגו דרך האפליקציה, בממוצע {r} ומעלה')
+                    : ((t as any).levelSilverExplain ?? '🥈 דרגת כסף: לפחות {n} עבודות שדורגו דרך האפליקציה, בממוצע {r} ומעלה'))
+                    .replace('{n}', String(need.reviews)).replace('{r}', String(need.rating))}
+                </T>
+              );
+            })()}
           </View>
           <View style={s.profileSection}>
             <T style={s.profileSectionTitle}>{t.aboutLabel}</T>
@@ -4063,6 +4093,19 @@ function CleanerCardInner({ cleaner, isSel, onSelect, onProfile, onBook, onChat,
             </TouchableOpacity>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
               <T style={[s.cardCity, { fontSize: fs(12), color: highContrast ? HC.sub : C.textSub }]}>{(() => { const cn = cityNameOf(cleaner); return t.cities[cn] || cn; })()}</T>
+              {/* Her level — earned by rated jobs through the app only, and
+                  explained on her profile (lib/retention cleanerLevel). Nothing
+                  shows for a cleaner without one. */}
+              {(() => {
+                const lv = cleanerLevel(cleaner);
+                if (!lv) return null;
+                return (
+                  <T style={{ fontSize: fs(11), fontWeight: '800', overflow: 'hidden', borderRadius: 999, paddingHorizontal: 7, paddingVertical: 1,
+                    color: lv === 'gold' ? '#92400E' : '#334155', backgroundColor: lv === 'gold' ? '#FEF3C7' : '#E2E8F0' }}>
+                    {lv === 'gold' ? `🥇 ${(t as any).levelGold ?? 'זהב'}` : `🥈 ${(t as any).levelSilver ?? 'כסף'}`}
+                  </T>
+                );
+              })()}
               {/* The review count in brackets used to sit here. Removed: a bare
                   number said little on a card this size, and on a new cleaner
                   it read as (0) — the worst thing to show first. Reviews are
@@ -4640,6 +4683,58 @@ export default function HomeScreen() {
     busy: { from: string; until: string }[];
     pending: { from: string; until: string }[];
   } | null>(null);
+  // The two halves of what she publishes: what her bookings hold, as the
+  // listener last worked it out, and the private visits in her work diary
+  // (lib/workDiary, 18.11.2026). Published together and only once both have
+  // been read — a first write from one half alone would take the other's
+  // hours off her document, and the next put them back: two writes fanned out
+  // to every client on every open.
+  type PubSlot = { date: string; s: number; e: number; from: string; until: string };
+  const bookingSlotsRef = useRef<{ uid: string; busy: PubSlot[]; pending: PubSlot[]; windows: { date: string; s: number; e: number }[] } | null>(null);
+  const diarySlotsRef = useRef<{ uid: string; slots: PubSlot[] } | null>(null);
+  const diaryUnsubRef = useRef<(() => void) | null>(null);
+  const syncBusySlots = React.useCallback(() => {
+    const own = bookingSlotsRef.current;
+    const diary = diarySlotsRef.current;
+    if (!own || !diary || own.uid !== diary.uid) return;
+    const uid = own.uid;
+    const order = (a: PubSlot, b: PubSlot) => (a.date + String(a.s).padStart(4, '0'))
+      .localeCompare(b.date + String(b.s).padStart(4, '0'));
+    const slots = [...own.busy, ...diary.slots].sort(order);
+    const pendingSlots = own.pending;
+    // The board hides jobs that overlap these — a private visit included.
+    setCleanerBusy([...own.windows, ...diary.slots.map(({ date, s, e }) => ({ date, s, e }))]);
+    const sameList = (a: { from: string; until: string }[], b: { from: string; until: string }[]) =>
+      a.length === b.length && a.every((p, i) => p.from === b[i].from && p.until === b[i].until);
+    // Always publish on the first snapshot of a session. Falling back to
+    // empty lists meant a cleaner with no live bookings compared empty to
+    // empty and wrote nothing — so a slot the other side cancelled while
+    // her app was closed stayed on her document, and clients were told
+    // she was busy for an hour that was free.
+    //
+    // …but compared with what her document already holds first. Every
+    // write to it reaches every client listing cleaners, and this one
+    // went out on each app open even when nothing had changed — the
+    // biggest share of that traffic in the load test (14.11.2026). One
+    // read of her own document instead of a write fanned out to all.
+    const prevRef = lastBusySlotsRef.current?.uid === uid ? lastBusySlotsRef.current : null;
+    if (prevRef === null || !sameList(prevRef.busy, slots) || !sameList(prevRef.pending, pendingSlots)) {
+      lastBusySlotsRef.current = { uid, busy: slots, pending: pendingSlots };
+      // setDoc/merge ולא arrayRemove: התאמת-אובייקט מדויקת של arrayRemove
+      // נכשלת בשקט אם משהו בשדות שונה, ואז השעה נשארת תפוסה לנצח.
+      const publish = () => setDoc(doc(db, 'users', uid), { busySlots: slots, pendingSlots }, { merge: true }).catch(() => {});
+      if (prevRef !== null) publish();
+      else getDoc(doc(db, 'users', uid))
+        .then(cur => {
+          // A newer list worked out while this read was out has been
+          // written already — this older one must not land after it.
+          if (lastBusySlotsRef.current?.busy !== slots) return;
+          const d: any = cur.data() || {};
+          if (!sameSlotsStored(d.busySlots, slots) || !sameSlotsStored(d.pendingSlots, pendingSlots)) publish();
+        })
+        .catch(() => { if (lastBusySlotsRef.current?.busy === slots) publish(); });
+    }
+  }, []);
 
   // האם יש הזמנה ממתינה שהמנקה עוד לא ראה — רק אז מציגים את הבאנר הכתום
   const hasUnseenPending = cleanerPendingIds.some(id => !seenPendingIds.includes(id));
@@ -5897,8 +5992,8 @@ export default function HomeScreen() {
         if (xt !== yt) return xt - yt;
       }
       return compareCleaners(
-        { id: String(x.c.id), available: x.c.available, rating: x.c.rating, distKm: x.distKm },
-        { id: String(y.c.id), available: y.c.available, rating: y.c.rating, distKm: y.distKm },
+        { id: String(x.c.id), available: x.c.available, rating: x.c.rating, reviewCount: x.c.reviews, distKm: x.distKm },
+        { id: String(y.c.id), available: y.c.available, rating: y.c.rating, reviewCount: y.c.reviews, distKm: y.distKm },
       );
     });
     filtered = withDist.map(x => x.c);
@@ -6104,6 +6199,19 @@ export default function HomeScreen() {
             .catch(() => {});
           // כל ההזמנות של המנקה — מהן גוזרים גם ממתינות לאישור (לבאנר) וגם חלונות
           // תפוסים (הזמנות מאושרות) כדי להסתיר מהלוח עבודות שחופפות לשעות שכבר נתפסו.
+          // Her work diary (lib/workDiary): its private visits ahead are busy
+          // hours too. A refusal — rules not yet deployed, or offline — counts
+          // as an empty diary, so her bookings still publish as before.
+          if (diaryUnsubRef.current) diaryUnsubRef.current();
+          diaryUnsubRef.current = onSnapshot(collection(db, 'users', uid, 'diary'), dsnap => {
+            const entries = dsnap.docs.map(d => ({ id: d.id, ...(d.data() as any) })) as DiaryEntry[];
+            diarySlotsRef.current = { uid, slots: diaryBusySlots(entries, todayYmd()) };
+            syncBusySlots();
+          }, err => {
+            logError('home:diary', err);
+            if (diarySlotsRef.current?.uid !== uid) diarySlotsRef.current = { uid, slots: [] };
+            syncBusySlots();
+          });
           const pendingQ = query(collection(db, 'bookings'), where('cleanerId', '==', uid));
           cleanerPendingUnsubRef.current = onSnapshot(pendingQ, snap => {
             const all = snap.docs.map(d => ({ id: d.id, ...(d.data() as any) }));
@@ -6135,7 +6243,6 @@ export default function HomeScreen() {
             const busy = live
               .map(b => bookingBusyWindow(b))
               .filter((w): w is { date: string; s: number; e: number } => !!w);
-            setCleanerBusy(busy);
 
             // ── שחרור/תפיסה של זמינות המנקה ────────────────────────────────
             // שני מערכים נגזרים כאן מההזמנות החיות ונכתבים על מסמך המנקה עצמו —
@@ -6160,38 +6267,9 @@ export default function HomeScreen() {
               .filter((s): s is NonNullable<typeof s> => !!s)
               .sort((a, b) => (a.date + String(a.s).padStart(4, '0'))
                 .localeCompare(b.date + String(b.s).padStart(4, '0')));
-            const slots = toSlots(live);
-            const pendingSlots = toSlots(pendingDocs);
-            const sameList = (a: { from: string; until: string }[], b: { from: string; until: string }[]) =>
-              a.length === b.length && a.every((p, i) => p.from === b[i].from && p.until === b[i].until);
-            // Always publish on the first snapshot of a session. Falling back to
-            // empty lists meant a cleaner with no live bookings compared empty to
-            // empty and wrote nothing — so a slot the other side cancelled while
-            // her app was closed stayed on her document, and clients were told
-            // she was busy for an hour that was free.
-            //
-            // …but compared with what her document already holds first. Every
-            // write to it reaches every client listing cleaners, and this one
-            // went out on each app open even when nothing had changed — the
-            // biggest share of that traffic in the load test (14.11.2026). One
-            // read of her own document instead of a write fanned out to all.
-            const prevRef = lastBusySlotsRef.current?.uid === uid ? lastBusySlotsRef.current : null;
-            if (prevRef === null || !sameList(prevRef.busy, slots) || !sameList(prevRef.pending, pendingSlots)) {
-              lastBusySlotsRef.current = { uid, busy: slots, pending: pendingSlots };
-              // setDoc/merge ולא arrayRemove: התאמת-אובייקט מדויקת של arrayRemove
-              // נכשלת בשקט אם משהו בשדות שונה, ואז השעה נשארת תפוסה לנצח.
-              const publish = () => setDoc(doc(db, 'users', uid), { busySlots: slots, pendingSlots }, { merge: true }).catch(() => {});
-              if (prevRef !== null) publish();
-              else getDoc(doc(db, 'users', uid))
-                .then(cur => {
-                  // A newer list worked out while this read was out has been
-                  // written already — this older one must not land after it.
-                  if (lastBusySlotsRef.current?.busy !== slots) return;
-                  const d: any = cur.data() || {};
-                  if (!sameSlotsStored(d.busySlots, slots) || !sameSlotsStored(d.pendingSlots, pendingSlots)) publish();
-                })
-                .catch(() => { if (lastBusySlotsRef.current?.busy === slots) publish(); });
-            }
+            // With her private diary visits, published together — syncBusySlots.
+            bookingSlotsRef.current = { uid, busy: toSlots(live), pending: toSlots(pendingDocs), windows: busy };
+            syncBusySlots();
             if (prevCleanerPendingRef.current >= 0 && count > prevCleanerPendingRef.current) {
               setNewBookingFlash(true);
               setTimeout(() => setNewBookingFlash(false), 6000);
@@ -6299,6 +6377,7 @@ export default function HomeScreen() {
     return () => {
       unsubUserDoc();
       if (cleanerPendingUnsubRef.current) cleanerPendingUnsubRef.current();
+      if (diaryUnsubRef.current) diaryUnsubRef.current();
     };
   }, []);
 
@@ -7872,6 +7951,7 @@ export default function HomeScreen() {
         onReport={() => { setDrawer(false); setReportOpen(true); }}
         onSupport={() => router.push('/support')}
         onAccessibility={() => { setDrawer(false); setA11yOpen(true); }}
+        onDiary={myRole === 'cleaner' ? () => router.push('/diary' as any) : undefined}
       />
 
       {/* Advanced Filter Modal — the website's filter: a sheet from the bottom with

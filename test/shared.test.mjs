@@ -100,6 +100,7 @@ const SHARED_PAIRS = [
   ['lib/bookingAmount.ts', 'src/lib/bookingAmount.ts'],
   // Who comes back (18.11.2026): the offer to book again and the admin's count.
   ['lib/retention.ts',     'src/lib/retention.ts'],
+  ['lib/workDiary.ts',     'src/lib/workDiary.ts'],
   ['scripts/shared-hash.mjs', 'scripts/shared-hash.mjs'],
   ['firestore.rules',      'firestore.rules'],
 ];

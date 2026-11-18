@@ -73,6 +73,8 @@ export const SHARED = [
   // Who comes back (18.11.2026): the offer to book the same cleaner again after
   // a good rating, and the admin screens' count of pairs that stopped.
   { name: 'retention',      app: 'lib/retention.ts',      web: 'src/lib/retention.ts' },
+  // The cleaner's work diary (18.11.2026): private visits, their busy hours, the agenda.
+  { name: 'workDiary',      app: 'lib/workDiary.ts',      web: 'src/lib/workDiary.ts' },
   // The guard itself. Two copies of this script that disagree are two
   // different ideas of what "in step" means.
   { name: 'sharedHash',     app: 'scripts/shared-hash.mjs', web: 'scripts/shared-hash.mjs' },

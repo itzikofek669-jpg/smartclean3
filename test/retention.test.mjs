@@ -86,3 +86,32 @@ test('the edge of "stopped" is GONE_AFTER_DAYS, and finishedAt wins over the boo
   assert.equal(pairRetention([{ status: 'done', clientUid: 'c', cleanerId: 'k' }], now).tooEarly, 1);
   assert.equal(repeatRate({ pairs: 0, repeat: 0, gone: 0, goneHappy: 0, tooEarly: 0 }), null);
 });
+
+test('the level: silver at 5 rated jobs averaging 4.5, gold at 20 averaging 4.8 — any spelling of the count', async () => {
+  const { cleanerLevel, levelProgress, levelRank } = await import('../.tsbuild/retention.mjs');
+  assert.equal(cleanerLevel({ rating: 5, reviewCount: 4 }), null);
+  assert.equal(cleanerLevel({ rating: 4.5, reviewCount: 5 }), 'silver');
+  assert.equal(cleanerLevel({ rating: 4.4, reviewCount: 50 }), null);
+  assert.equal(cleanerLevel({ rating: 4.8, reviews: 20 }), 'gold');
+  assert.equal(cleanerLevel({ rating: 4.79, reviewsCount: 20 }), 'silver');
+  assert.equal(cleanerLevel(null), null);
+  // Sample profiles never get one, whatever they claim.
+  for (const id of ['bot_3', 'bot-ta-1', '12']) assert.equal(cleanerLevel({ id, rating: 5, reviewCount: 200 }), null, id);
+  assert.equal(cleanerLevel({ id: 'Prpj4GssZNXI7KS8rA9woYOmJ10h', rating: 5, reviewCount: 200 }), 'gold');
+  assert.ok(levelRank('gold') > levelRank('silver') && levelRank('silver') > levelRank(null));
+  assert.deepEqual(levelProgress({ rating: 4.9, reviewCount: 3 }), { level: null, next: 'silver', reviewsToGo: 2, ratingNeeded: null, reviews: 3, rating: 4.9 });
+  assert.deepEqual(levelProgress({ rating: 4.6, reviewCount: 25 }), { level: 'silver', next: 'gold', reviewsToGo: 0, ratingNeeded: 4.8, reviews: 25, rating: 4.6 });
+  assert.equal(levelProgress({ rating: 5, reviewCount: 30 }).next, null);
+});
+
+test('among equally near and equally rated cleaners, the level orders them — never above a better rating', async () => {
+  const { compareCleaners } = await import('../.tsbuild/displayOrder.mjs');
+  const gold = { id: 'g', rating: 4.9, reviewCount: 25, distKm: 1 };
+  const plain = { id: 'p', rating: 4.9, reviewCount: 2, distKm: 1 };
+  assert.ok(compareCleaners(gold, plain) < 0);
+  assert.ok(compareCleaners(plain, gold) > 0);
+  // A better rating band still wins over a level.
+  const silverLow = { id: 's', rating: 4.5, reviewCount: 40, distKm: 1 };
+  const newTop = { id: 'n', rating: 5, reviewCount: 1, distKm: 1 };
+  assert.ok(compareCleaners(newTop, silverLow) < 0);
+});

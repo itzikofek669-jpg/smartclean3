@@ -9,6 +9,7 @@
  *                       same cleaner again.
  *   pairRetention     — for the admin screen: how many client–cleaner pairs
  *                       came back, and how many stopped after one cleaning.
+ *   cleanerLevel      — silver and gold, earned by jobs done through the app.
  *
  * No imports, so the node tests compile it as it is.
  */
@@ -150,4 +151,85 @@ export function pairRetention(
 export function repeatRate(r: PairRetention): number | null {
   const known = r.repeat + r.gone;
   return known > 0 ? Math.round((r.repeat / known) * 100) : null;
+}
+
+// ── The cleaner's level ──────────────────────────────────────────────────────
+// Built from jobs done through the app only (Ofek, 18.11.2026): her rating and
+// review count can be written by nobody but a client rating a finished booking
+// in the app (firestore.rules isValidRatingUpdate), so a job done privately —
+// her own diary included (lib/workDiary) — adds nothing to it. That is the
+// point: the level is what a client sees on her card, and it ranks her ahead
+// of equally rated cleaners (lib/displayOrder compareCleaners).
+
+export type CleanerLevel = 'gold' | 'silver' | null;
+
+/** What each level asks: at least this many reviews, at least this average. */
+export const LEVELS = {
+  silver: { reviews: 5, rating: 4.5 },
+  gold: { reviews: 20, rating: 4.8 },
+} as const;
+
+export interface LevelInput {
+  /** The profile's id: sample profiles get no level (see cleanerLevel). */
+  id?: unknown;
+  rating?: unknown;
+  /** Under any of the spellings the documents carry. */
+  reviewCount?: unknown;
+  reviewsCount?: unknown;
+  reviews?: unknown;
+}
+
+const countOf = (c: LevelInput | null | undefined): number => {
+  const n = Number(c?.reviewCount ?? c?.reviewsCount ?? c?.reviews ?? 0);
+  return Number.isFinite(n) && n > 0 ? Math.floor(n) : 0;
+};
+const ratingOf = (c: LevelInput | null | undefined): number => {
+  const r = Number(c?.rating ?? 0);
+  return Number.isFinite(r) ? r : 0;
+};
+
+export function cleanerLevel(c: LevelInput | null | undefined): CleanerLevel {
+  // Sample profiles — the website's bot-…, the app's bot_… and its numbered
+  // mock list — carry made-up ratings. They get no level: on a test screen
+  // nearly every card wore one, and it would rank them above real people.
+  const id = c?.id == null ? '' : String(c.id);
+  if (/^bot[-_]/.test(id) || /^\d+$/.test(id)) return null;
+  const n = countOf(c);
+  const r = ratingOf(c);
+  if (n >= LEVELS.gold.reviews && r >= LEVELS.gold.rating) return 'gold';
+  if (n >= LEVELS.silver.reviews && r >= LEVELS.silver.rating) return 'silver';
+  return null;
+}
+
+/** For ordering: gold 2, silver 1, none 0. */
+export function levelRank(level: CleanerLevel): number {
+  return level === 'gold' ? 2 : level === 'silver' ? 1 : 0;
+}
+
+/**
+ * What she has and what the next level needs: how many more rated jobs through
+ * the app, and whether her average is short of it. null `next` at the top.
+ */
+export function levelProgress(c: LevelInput | null | undefined): {
+  level: CleanerLevel;
+  next: 'silver' | 'gold' | null;
+  reviewsToGo: number;
+  ratingNeeded: number | null;
+  reviews: number;
+  rating: number;
+} {
+  const level = cleanerLevel(c);
+  const reviews = countOf(c);
+  const rating = ratingOf(c);
+  const next = level === 'gold' ? null : level === 'silver' ? 'gold' : 'silver';
+  if (!next) return { level, next, reviewsToGo: 0, ratingNeeded: null, reviews, rating };
+  const need = LEVELS[next];
+  return {
+    level,
+    next,
+    reviewsToGo: Math.max(0, need.reviews - reviews),
+    ratingNeeded: rating >= need.rating ? null : need.rating,
+    reviews,
+    rating,
+  };
 }
