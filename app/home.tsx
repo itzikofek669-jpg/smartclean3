@@ -19,6 +19,17 @@ import { markHasBooked } from '../lib/firstBooking';
 import { hasBookedACleaner, rebookableBookings, prefillFromBooking } from '../lib/rebookList';
 import { withBookingDetails, migrateOpenJobDetails, fetchBookingDetails, urgentDetailsRef, DETAIL_KEYS } from '../lib/bookingDetails';
 
+/**
+ * The slots a cleaner's document holds against the ones just worked out, field
+ * by field — what is stored may lack a field an older build did not write, and
+ * then it is rewritten.
+ */
+function sameSlotsStored(stored: unknown, next: { date: string; s: number; e: number; from: string; until: string }[]): boolean {
+  if (!Array.isArray(stored) || stored.length !== next.length) return false;
+  const key = (x: any) => `${x?.date}|${x?.s}|${x?.e}|${x?.from}|${x?.until}`;
+  return stored.every((x, i) => key(x) === key(next[i]));
+}
+
 /** The private-half fields a held booking row carries (lib/bookingDetails). */
 function detailsOf(b: any): Record<string, unknown> {
   const out: Record<string, unknown> = {};
@@ -4621,7 +4632,10 @@ export default function HomeScreen() {
   const cleanerPendingUnsubRef = useRef<(() => void) | null>(null);
   // busySlots האחרון שנכתב — כדי לא לכתוב לפיירסטור בכל snapshot ללא שינוי
   // Both derived slot lists, so an unchanged snapshot doesn't re-write Firestore.
+  // `uid`: whose lists these are — another account signing in on the same
+  // screen starts again from its own first publish.
   const lastBusySlotsRef = useRef<{
+    uid: string;
     busy: { from: string; until: string }[];
     pending: { from: string; until: string }[];
   } | null>(null);
@@ -6106,12 +6120,28 @@ export default function HomeScreen() {
             // empty and wrote nothing — so a slot the other side cancelled while
             // her app was closed stayed on her document, and clients were told
             // she was busy for an hour that was free.
-            const prevRef = lastBusySlotsRef.current;
+            //
+            // …but compared with what her document already holds first. Every
+            // write to it reaches every client listing cleaners, and this one
+            // went out on each app open even when nothing had changed — the
+            // biggest share of that traffic in the load test (14.11.2026). One
+            // read of her own document instead of a write fanned out to all.
+            const prevRef = lastBusySlotsRef.current?.uid === uid ? lastBusySlotsRef.current : null;
             if (prevRef === null || !sameList(prevRef.busy, slots) || !sameList(prevRef.pending, pendingSlots)) {
-              lastBusySlotsRef.current = { busy: slots, pending: pendingSlots };
+              lastBusySlotsRef.current = { uid, busy: slots, pending: pendingSlots };
               // setDoc/merge ולא arrayRemove: התאמת-אובייקט מדויקת של arrayRemove
               // נכשלת בשקט אם משהו בשדות שונה, ואז השעה נשארת תפוסה לנצח.
-              setDoc(doc(db, 'users', uid), { busySlots: slots, pendingSlots }, { merge: true }).catch(() => {});
+              const publish = () => setDoc(doc(db, 'users', uid), { busySlots: slots, pendingSlots }, { merge: true }).catch(() => {});
+              if (prevRef !== null) publish();
+              else getDoc(doc(db, 'users', uid))
+                .then(cur => {
+                  // A newer list worked out while this read was out has been
+                  // written already — this older one must not land after it.
+                  if (lastBusySlotsRef.current?.busy !== slots) return;
+                  const d: any = cur.data() || {};
+                  if (!sameSlotsStored(d.busySlots, slots) || !sameSlotsStored(d.pendingSlots, pendingSlots)) publish();
+                })
+                .catch(() => { if (lastBusySlotsRef.current?.busy === slots) publish(); });
             }
             if (prevCleanerPendingRef.current >= 0 && count > prevCleanerPendingRef.current) {
               setNewBookingFlash(true);
