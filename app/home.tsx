@@ -4212,23 +4212,29 @@ function CleanerCardInner({ cleaner, isSel, onSelect, onProfile, onBook, onChat,
       </View>
       {isSel && (
         <View style={s.cardExpanded}>
-          {/* Each opening she has this week: book straight into it. */}
-          {freeList.map(f => (
-            <TouchableOpacity
-              key={f.id}
-              accessibilityRole="button"
-              onPress={() => onBookSlot?.(cleaner, f)}
-              style={{ flexDirection: 'row-reverse', alignItems: 'center', gap: 8, padding: 10, marginBottom: 8, borderRadius: 12, backgroundColor: FREE_TEAL_BG, borderWidth: 1, borderColor: FREE_TEAL }}
-            >
-              <MaterialIcons name="event-available" size={18} color={FREE_TEAL_TEXT} />
-              {/* The time on its own, so it never breaks in two ("09:00–" / "12:00"). */}
-              <T style={{ flex: 1, fontSize: fs(13), fontWeight: '800', color: FREE_TEAL_TEXT, textAlign: 'right' }}>
+          {/* Each opening she has this week, side by side under one label: a
+              tap books straight into it (Ofek, 21.11.2026: no icon, no
+              "להזמין", small and in a row rather than stacked). */}
+          {freeList.length > 0 && (
+            <View style={{ marginBottom: 10 }}>
+              <T style={{ fontSize: fs(12), fontWeight: '800', color: FREE_TEAL_TEXT, textAlign: 'right', marginBottom: 5 }}>
                 {String((t as any).freeRow ?? 'התפנה מקום: {when}').replace('{when}', '').trim()}
               </T>
-              <T style={{ fontSize: fs(13), fontWeight: '800', color: FREE_TEAL_TEXT }} numberOfLines={1}>{freeWhen(t, f as any)}</T>
-              <T style={{ fontSize: fs(13), fontWeight: '900', color: FREE_TEAL_TEXT }}>{`${(t as any).freeBook ?? 'להזמין'} ${chevron('‹')}`}</T>
-            </TouchableOpacity>
-          ))}
+              <View style={{ flexDirection: 'row-reverse', flexWrap: 'wrap', gap: 6 }}>
+                {freeList.map(f => (
+                  <TouchableOpacity
+                    key={f.id}
+                    accessibilityRole="button"
+                    accessibilityLabel={`${(t as any).freeBook ?? 'להזמין'} ${freeWhen(t, f as any)}`}
+                    onPress={() => onBookSlot?.(cleaner, f)}
+                    style={{ borderRadius: 10, paddingHorizontal: 10, paddingVertical: 6, backgroundColor: FREE_TEAL_BG, borderWidth: 1, borderColor: FREE_TEAL }}
+                  >
+                    <T style={{ fontSize: fs(12), fontWeight: '800', color: FREE_TEAL_TEXT }} numberOfLines={1}>{freeWhen(t, f as any)}</T>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            </View>
+          )}
           <View style={{ flexDirection: 'row-reverse', gap: 5, flexWrap: 'wrap', justifyContent: 'center', marginBottom: 10 }}>
             {cleaner.payment.map((p: string) => <View key={p} style={[s.payChip, p === 'paybox' && { flexDirection: 'row-reverse', alignItems: 'center', gap: 3 }]}>{p === 'paybox' && <PayboxIcon size={12} />}<T style={s.payChipText}>{p === 'paybox' ? t.payPaybox : `${PAY_ICONS[p] || '💳'} ${p === 'bit' ? t.payBit : p === 'cash' ? t.payCash : p === 'bank' ? t.payBank : p === 'card' ? t.payCard : p === 'kochavit' ? ((t as any).payKochavit ?? 'כוכבית') : p}`}</T></View>)}
           </View>
@@ -7518,10 +7524,9 @@ export default function HomeScreen() {
                   onPress={() => setFreeSheetOpen(true)}
                   accessibilityRole="button"
                   accessibilityLabel={(t as any).freeBtn ?? 'התפנה לי מקום'}
-                  style={{ backgroundColor: FREE_TEAL, borderRadius: 12, paddingHorizontal: 8, paddingVertical: 3, alignItems: 'center', maxWidth: 92 }}
+                  style={[s.urgentHeaderBtn, { backgroundColor: FREE_TEAL }]}
                 >
-                  <MaterialIcons name="edit-calendar" size={18} color="#fff" />
-                  <T style={{ color: '#fff', fontSize: 10, fontWeight: '800', textAlign: 'center' }} numberOfLines={2} maxFontSizeMultiplier={1.1}>
+                  <T style={s.urgentHeaderBtnText} numberOfLines={1} maxFontSizeMultiplier={1.1}>
                     {(t as any).freeBtn ?? 'התפנה לי מקום'}
                   </T>
                 </TouchableOpacity>
