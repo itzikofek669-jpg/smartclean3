@@ -88,7 +88,7 @@ import { filterBoard, nearestCity } from '../lib/jobSearch';
 import { notify } from '../lib/notify';
 import { devicePosition } from '../lib/devicePosition';
 import { JobPhotosField, jobPhotosOf, pickPhotoUri } from '../lib/JobPhotos';
-import { normText, resolvePlace, searchCleaners } from '../lib/search';
+import { normText, resolvePlace, searchCleaners, servicesAsked } from '../lib/search';
 import {
   CITY_COORDS, CITY_KEYS_BY_LEN, REGION_CENTER, regionFromLat,
   cityNameOf, getCoordsForCleaner, getJobCoords, spreadStacked,
@@ -4082,7 +4082,9 @@ function ChatModal({ cleaner, visible, onClose }: any) {
 }
 
 // ─── Cleaner card ─────────────────────────────────────────────────────────────
-function CleanerCardInner({ cleaner, isSel, onSelect, onProfile, onBook, onChat, isPending, onShowOnMap, onEnlarge, onReviews, onBookSlot }: any) {
+/** One empty list for every card, so the memo below is not broken by a new [] each render. */
+const NO_TYPES: string[] = [];
+function CleanerCardInner({ cleaner, isSel, onSelect, onProfile, onBook, onChat, isPending, onShowOnMap, onEnlarge, onReviews, onBookSlot, askedQuery = '', askedTypes = NO_TYPES }: any) {
   const { t, flipSide, highContrast, textScale, isRTL } = useLanguage();
   const C = useAppColors();
   const s = createS(C);
@@ -4099,7 +4101,12 @@ function CleanerCardInner({ cleaner, isSel, onSelect, onProfile, onBook, onChat,
   const freeList: { id: string; date: string; s: number; e: number }[] = Array.isArray(cleaner.freeActive) ? cleaner.freeActive : [];
   const freeFirst = freeList[0] ?? null;
   const foldServices = !!freeFirst && !isSel && Array.isArray(cleaner.types) && cleaner.types.length > 2;
-  const shownTypes: string[] = foldServices ? cleaner.types.slice(0, 2) : (cleaner.types || []);
+  // Folded, what the search box or the filter asked for comes first — a
+  // search for חלונות must not list her with windows out of sight (lib/search).
+  const asked: string[] = foldServices ? servicesAsked(cleaner.types, askedQuery, askedTypes, (tp: string) => String(t.types[tp] || '')) : [];
+  const shownTypes: string[] = foldServices
+    ? [...asked, ...cleaner.types.filter((tp: string) => !asked.includes(tp))].slice(0, 2)
+    : (cleaner.types || []);
   const photoUri = useAvatar(cleaner.uid || cleaner.id, cleaner) ||
     (!isNaN(parseInt(cleaner.id))
       ? `https://i.pravatar.cc/150?img=${((parseInt(cleaner.id) - 1) % 70) + 1}`
@@ -7971,6 +7978,7 @@ export default function HomeScreen() {
               isPending={pendingCleanerIds.has(c.id)}
               onShowOnMap={handleShowOnMap} onEnlarge={setEnlargedPhoto}
               onBookSlot={(cl: any, f: { date: string; s: number; e: number }) => { setPrebookData(null); setBookingPreset({ date: f.date, s: f.s, e: f.e }); setBooking(cl); }}
+              askedQuery={searchQ} askedTypes={filterTypes}
             />
           )}
         />

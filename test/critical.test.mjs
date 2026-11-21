@@ -18,7 +18,7 @@ import { spreadStacked } from '../.tsbuild/jobUtils.mjs';
 import { pushSilence } from '../.tsbuild/pushState.mjs';
 import { hasBookedACleaner, rebookableBookings, prefillFromBooking } from '../.tsbuild/rebookList.mjs';
 import { matchJob, jobOnBoard, jobCityOf, nearestCity, filterBoard } from '../.tsbuild/jobSearch.mjs';
-import { normText, resolvePlace, textMatches, servesPlace, searchCleaners } from '../.tsbuild/search.mjs';
+import { normText, resolvePlace, textMatches, servesPlace, searchCleaners, servicesAsked } from '../.tsbuild/search.mjs';
 import { CITY_NAMES, cityNamesFor } from '../.tsbuild/cityNames.mjs';
 import { workingHoursVerdict, workDaysFromAvailability, normalizeAvailability, worksAt, bookableStarts, busyWindowsOn, isOnShiftNow } from '../.tsbuild/cleanerTraits.mjs';
 import { declinedByCleaner, claimUpdate, rejectionUpdate, rejectionReleasesToBoard, awaitsMyApproval, occupiesCleanerTime, busyWindowOf, busyFieldsOf, pendingSlotMissed, isBoardJobOfferable, pendingSlotExpired, expiryUpdate } from '../.tsbuild/bookingActions.mjs';
@@ -1905,4 +1905,18 @@ test('an outdated build is asked to update; anything unreadable never locks anyo
   assert.equal(updateLinkFor({ updateUrl: 'javascript:alert(1)' }, 'android'), '');
   assert.equal(updateLinkFor({ updateUrl: 'http://example.com' }, 'android'), '');
   assert.equal(updateLinkFor({ updateUrl: 'https://example.com/x.apk' }, 'ios'), 'https://example.com/x.apk', 'falls back to the shared link');
+});
+
+// A card with a free slot folds her services to two (Ofek, 21.11.2026). What
+// the search box or the filter asked for comes first, or a search for חלונות
+// listed her with windows out of sight.
+test('the services a search or the filter asked for, in her order', () => {
+  const svc = ['ניקיון רגיל', 'ניקיון משרדים', 'חלונות', 'לאחר שיפוץ'];
+  const en = { 'ניקיון רגיל': 'General Cleaning', 'ניקיון משרדים': 'Office Cleaning', 'חלונות': 'Windows', 'לאחר שיפוץ': 'Post-Renovation' };
+  assert.deepEqual(servicesAsked(svc, 'חלונות', []), ['חלונות']);
+  assert.deepEqual(servicesAsked(svc, 'windows', [], (s) => en[s]), ['חלונות'], 'by its name in the screen language');
+  assert.deepEqual(servicesAsked(svc, '', ['לאחר שיפוץ']), ['לאחר שיפוץ'], 'the filter type');
+  assert.deepEqual(servicesAsked(svc, 'ניקיון', ['חלונות']), ['חלונות', 'ניקיון רגיל', 'ניקיון משרדים'], 'the filter first, then the text — a broad word does not fold the chosen one away');
+  assert.deepEqual(servicesAsked(svc, 'חיפה', []), [], 'a town asks for no service');
+  assert.deepEqual(servicesAsked(svc, '  ', []), [], 'nothing typed');
 });

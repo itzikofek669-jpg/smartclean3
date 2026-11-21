@@ -108,6 +108,28 @@ export function textMatches(c: SearchableCleaner, query: string): boolean {
 }
 
 /**
+ * Which of her services the search box or the filter's types asked for. A
+ * card that folds her services to two shows these first: a search for חלונות
+ * listed a cleaner with a free slot whose card had folded windows out of
+ * sight (Ofek, 21.11.2026). The filter's choices come first — a broad word
+ * typed as well ("ניקיון") must not push them back out of the two — then
+ * what the text matched, each in her order. `label` is a service's name in
+ * the screen's language, so "Windows" counts too.
+ */
+export function servicesAsked(
+  services: readonly string[],
+  query: string,
+  chosen: readonly string[],
+  label: (service: string) => string = () => '',
+): string[] {
+  const q = normText(query);
+  const picked = services.filter((s) => chosen.includes(s));
+  const typed = q ? services.filter((s) => !picked.includes(s)
+    && (normText(s).includes(q) || normText(label(s)).includes(q))) : [];
+  return [...picked, ...typed];
+}
+
+/**
  * The town a query names, if it names one.
  *
  * The app used to accept only an exact Hebrew key of the city table, so the
