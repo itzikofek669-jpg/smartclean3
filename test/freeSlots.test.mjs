@@ -1,7 +1,7 @@
 // lib/freeSlots — "התפנה לי מקום": which windows are on offer, and what may be put up.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { activeFreeSlots, freeSlotProblem, freeSlotDays, freeSlotTaken, FREE_SLOT_MAX } from '../.tsbuild/freeSlots.mjs';
+import { activeFreeSlots, freeSlotProblem, freeSlotDays, freeSlotTaken, FREE_SLOT_MAX, cancelledOnClient, freeMeetsCancelled } from '../.tsbuild/freeSlots.mjs';
 import { diaryAgenda } from '../.tsbuild/workDiary.mjs';
 
 const now = new Date(2026, 10, 21, 10, 15);            // Sat 21 Nov 2026, 10:15
@@ -68,4 +68,55 @@ test('the diary shows a window on offer beside the jobs, in no total', () => {
   assert.equal(a.days[0].items[0].hours, 4);
   assert.deepEqual(a.app, { count: 0, hours: 0, money: 0 });
   assert.deepEqual(a.private, { count: 0, hours: 0, money: 0 });
+});
+
+test('hours a cleaner cancelled on the client, still ahead and not taken since', () => {
+  const B = (o) => ({ status: 'cancelled', cancelledBy: 'cleaner', cleanerId: 'c1', bookingDate: '2026-11-24', startTime: '10:00', hours: 2, ...o });
+  assert.deepEqual(cancelledOnClient([B({})], now), [{ date: '2026-11-24', s: 600, e: 720, cleanerId: 'c1' }]);
+  assert.deepEqual(cancelledOnClient([B({ cancelledFrom: 'pending' })], now).length, 1, 'turned down counts too');
+  assert.equal(cancelledOnClient([B({ cancelledBy: 'client' })], now).length, 0, 'he cancelled it himself');
+  assert.equal(cancelledOnClient([B({ bookingDate: '2026-11-20' })], now).length, 0, 'already past');
+  assert.equal(cancelledOnClient([B({ bookingDate: '2026-11-21', startTime: '08:00', hours: 2 })], now).length, 0, 'ended this morning');
+  assert.equal(cancelledOnClient([B({ bookingDate: '2026-11-21', startTime: '09:00', hours: 3 })], now).length, 1, 'still running today');
+  assert.equal(cancelledOnClient([B({}), { status: 'confirmed', cleanerId: 'c2', bookingDate: '2026-11-24', startTime: '11:00', hours: 2 }], now).length, 0,
+    'booked again since, over those hours');
+  assert.equal(cancelledOnClient([B({}), { status: 'pending', open: true, cleanerId: '', bookingDate: '2026-11-24', startTime: '10:00', hours: 2 }], now).length, 1,
+    'back on the board with nobody on it: still without a cleaner');
+  assert.equal(cancelledOnClient([B({}), { status: 'confirmed', cleanerId: 'c2', bookingDate: '2026-11-25', startTime: '10:00', hours: 2 }], now).length, 1,
+    'booked on another day');
+  assert.equal(cancelledOnClient([B({ startTime: '' }), B({ bookingDate: 'x' }), null, 'junk'], now).length, 0, 'unreadable');
+  assert.deepEqual(cancelledOnClient([B({ hours: undefined })], now)[0], { date: '2026-11-24', s: 600, e: 720, cleanerId: 'c1' },
+    'no hours stored: the usual two');
+  assert.equal(cancelledOnClient([B({}), { status: 'confirmed', cleanerId: 'c2', bookingDate: '2026-11-24', startTime: '10:00' }], now).length, 0,
+    'booked again, hours not stored');
+  // Handed back to the board after a cleaner took it (rejectionUpdate).
+  const back = { id: 'j', status: 'pending', open: true, cleanerId: '', releasedAt: '2026-11-21T08:00:00Z', bookingDate: '2026-11-24', startTime: '10:00', hours: 2 };
+  assert.deepEqual(cancelledOnClient([back], now), [{ date: '2026-11-24', s: 600, e: 720, cleanerId: '' }], 'handed back to the board');
+  assert.equal(cancelledOnClient([{ ...back, releasedAt: undefined }], now).length, 0, 'never taken: not a cancellation');
+  // Put back up, then given up by him.
+  const orig = B({ id: 'o' });
+  assert.equal(cancelledOnClient([orig, { repostedFrom: 'o', status: 'pending', open: true, cleanerId: '', bookingDate: '2026-11-24', startTime: '10:00', hours: 2 }], now).length, 1,
+    'reposted, nobody on it yet');
+  assert.equal(cancelledOnClient([orig, { repostedFrom: 'o', status: 'cancelled', cancelledBy: 'client', bookingDate: '2026-11-24', startTime: '10:00', hours: 2 }], now).length, 0,
+    'the repost cancelled by him');
+  assert.equal(cancelledOnClient([orig, { repostedFrom: 'o', status: 'cancelled', cancelledBy: 'client', replacedBy: 'x', bookingDate: '2026-11-24', startTime: '10:00', hours: 2 }], now).length, 0,
+    'the repost moved to another day');
+  assert.deepEqual(cancelledOnClient(undefined, now), []);
+});
+
+test('an opening on hours cancelled on him, by another cleaner', () => {
+  const cancelled = [{ date: '2026-11-24', s: 600, e: 720, cleanerId: 'c1' }];
+  assert.equal(freeMeetsCancelled([F('a', '2026-11-24', 540, 660)], cancelled, 'c2'), true, 'overlaps');
+  assert.equal(freeMeetsCancelled([F('a', '2026-11-24', 720, 900)], cancelled, 'c2'), false, 'starts as they end');
+  assert.equal(freeMeetsCancelled([F('a', '2026-11-25', 600, 720)], cancelled, 'c2'), false, 'another day');
+  assert.equal(freeMeetsCancelled([F('a', '2026-11-24', 600, 720)], cancelled, 'c1'), false, 'the cleaner who cancelled');
+  // c1 walked away, c2 then declined the same hours: neither is offered back.
+  const both = [{ date: '2026-11-24', s: 600, e: 720, cleanerId: 'c1' }, { date: '2026-11-24', s: 600, e: 720, cleanerId: 'c2' }];
+  assert.equal(freeMeetsCancelled([F('a', '2026-11-24', 600, 720)], both, 'c1'), false, 'c1 not through c2');
+  assert.equal(freeMeetsCancelled([F('a', '2026-11-24', 600, 720)], both, 'c2'), false, 'c2 not through c1');
+  assert.equal(freeMeetsCancelled([F('a', '2026-11-24', 600, 720)], both, 'c3'), true, 'someone else');
+  assert.equal(freeMeetsCancelled([F('a', '2026-11-24', 600, 720)], [{ date: '2026-11-24', s: 600, e: 720, cleanerId: '' }], 'c3'), true, 'handed back, canceller unknown');
+  assert.equal(freeMeetsCancelled([], cancelled, 'c2'), false);
+  assert.equal(freeMeetsCancelled(undefined, cancelled, 'c2'), false);
+  assert.equal(freeMeetsCancelled([F('a', '2026-11-24', 600, 720)], [], 'c2'), false);
 });

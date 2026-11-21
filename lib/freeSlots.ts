@@ -18,6 +18,7 @@
  */
 import { addDays, todayYmd } from './workDiary';
 import { workingHoursVerdict } from './cleanerTraits';
+import { DEFAULT_BOOKING_HOURS } from './bookingSlot';
 
 /** How many windows she may have open at once. */
 export const FREE_SLOT_MAX = 2;
@@ -129,6 +130,81 @@ export function freeSlotProblem(
   const held = [...(Array.isArray(busy) ? busy : []), ...(Array.isArray(pending) ? pending : [])] as HeldSlot[];
   if (freeSlotTaken(f, held)) return 'busy';
   return null;
+}
+
+/** A booking as the client's own list holds it. */
+interface ClientBooking {
+  id?: unknown; status?: unknown; cancelledBy?: unknown; cleanerId?: unknown;
+  open?: unknown; releasedAt?: unknown; repostedFrom?: unknown; replacedBy?: unknown;
+  bookingDate?: unknown; dateStr?: unknown; startTime?: unknown; hours?: unknown;
+}
+
+/** Hours a cleaner cancelled on the client, and who cancelled them ('' when not known). */
+export interface CancelledWindow { date: string; s: number; e: number; cleanerId: string }
+
+/**
+ * The hours a booking takes that day, or null when it cannot be read. No hours
+ * stored: the two every other reader assumes (lib/bookingSlot bookingHours).
+ */
+function bookingWindow(b: ClientBooking): { date: string; s: number; e: number } | null {
+  const date = String(b?.bookingDate || b?.dateStr || '');
+  const m = /^(\d{1,2}):(\d{2})$/.exec(String(b?.startTime ?? '').trim());
+  const n = Number(b?.hours);
+  const hours = Number.isFinite(n) && n > 0 ? n : DEFAULT_BOOKING_HOURS;
+  if (!DATE_RE.test(date) || !m || hours > 24) return null;
+  const s = Number(m[1]) * 60 + Number(m[2]);
+  if (s >= 24 * 60) return null;
+  return { date, s, e: Math.min(24 * 60, s + Math.round(hours * 60)) };
+}
+
+/** A cleaner is holding him to these hours. */
+const HOLDING = ['pending', 'confirmed', 'onway', 'active'];
+
+/**
+ * The hours a cleaner cancelled on this client — or turned down, or handed
+ * back to the board after taking — that have not passed, and that nobody has
+ * taken since (Ofek, 21.11.2026: a cleaner whose opening falls on them comes
+ * first on his list). A job back on the board that no cleaner has taken yet
+ * still leaves him without one; one he put back up and then cancelled or
+ * replaced himself means he gave those hours up.
+ */
+export function cancelledOnClient(bookings: unknown, now: Date = new Date()): CancelledWindow[] {
+  const list = (Array.isArray(bookings) ? bookings : []).filter((b) => !!b && typeof b === 'object') as ClientBooking[];
+  const held = list
+    .filter((b) => HOLDING.includes(String(b.status)) && !!b.cleanerId)
+    .map(bookingWindow)
+    .filter((w): w is { date: string; s: number; e: number } => !!w);
+  const givenUp = (id: string) => !!id && list.some((r) => r.repostedFrom === id
+    && ((r.status === 'cancelled' && r.cancelledBy === 'client') || !!r.replacedBy));
+  const today = todayYmd(now);
+  const out: CancelledWindow[] = [];
+  for (const b of list) {
+    const byCleaner = b.status === 'cancelled' && b.cancelledBy === 'cleaner';
+    // A board job a cleaner took and handed back (lib/bookingActions
+    // rejectionUpdate): pending and open again, her name cleared.
+    const handedBack = b.status === 'pending' && b.open === true && !b.cleanerId && !!b.releasedAt;
+    if (!byCleaner && !handedBack) continue;
+    if (givenUp(String(b.id ?? ''))) continue;
+    const w = bookingWindow(b);
+    if (!w) continue;
+    if (w.date < today || (w.date === today && w.e <= minutesNow(now))) continue;
+    if (held.some((h) => h.date === w.date && h.s < w.e && w.s < h.e)) continue;
+    out.push({ ...w, cleanerId: byCleaner ? String(b.cleanerId ?? '') : '' });
+  }
+  return out;
+}
+
+/**
+ * One of her openings falls on hours cancelled on him — and she is not one who
+ * walked away from those hours herself, even where they overlap someone
+ * else's cancellation too (review 21.11.2026).
+ */
+export function freeMeetsCancelled(free: unknown, cancelled: readonly CancelledWindow[], cleanerId: string): boolean {
+  if (!cancelled.length || !Array.isArray(free)) return false;
+  const meets = (f: FreeSlot, c: CancelledWindow) => c.date === f.date && f.s < c.e && c.s < f.e;
+  return free.some((f) => isFreeSlot(f)
+    && cancelled.some((c) => meets(f, c))
+    && !cancelled.some((c) => !!c.cleanerId && c.cleanerId === cleanerId && meets(f, c)));
 }
 
 /** HH:MM of minutes from midnight. */
