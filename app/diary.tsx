@@ -25,6 +25,8 @@ import {
   diaryAgenda, diaryEntryProblem, todayYmd, addDays, prunedSkip, type DiaryEntry, type DiaryItem, type DiaryRepeat,
 } from '../lib/workDiary';
 import { levelProgress, LEVELS } from '../lib/retention';
+import { activeFreeSlots } from '../lib/freeSlots';
+import { FREE_TEAL_BG, FREE_TEAL_TEXT } from '../lib/FreeSlotSheet';
 
 const AGENDA_DAYS = 14;
 const SUMMARY_DAYS = 7;
@@ -118,7 +120,12 @@ export default function DiaryScreen() {
     return () => unsubs.forEach(u => u());
   }, [uid]);
 
-  const agenda = useMemo(() => diaryAgenda(appJobs, entries, today, AGENDA_DAYS), [appJobs, entries, today]);
+  // Her "התפנה לי מקום" windows still on offer, beside the jobs (lib/freeSlots).
+  const freeActive = useMemo(
+    () => activeFreeSlots(me?.freeSlots, me?.busySlots, me?.pendingSlots, new Date()),
+    [me?.freeSlots, me?.busySlots, me?.pendingSlots],
+  );
+  const agenda = useMemo(() => diaryAgenda(appJobs, entries, today, AGENDA_DAYS, freeActive), [appJobs, entries, today, freeActive]);
   const week = useMemo(() => diaryAgenda(appJobs, entries, today, SUMMARY_DAYS), [appJobs, entries, today]);
   const progress = levelProgress(me);
 
@@ -273,10 +280,12 @@ export default function DiaryScreen() {
           <View key={day.date} style={{ gap: 8 }}>
             <T style={{ fontSize: 14, fontWeight: '900', color: C.textDark, textAlign: 'right' }}>{dayLabel(day.date)}</T>
             {day.items.map(it => {
-              const tag = it.kind === 'private'
+              const tag = it.kind === 'free' ? pill(FREE_TEAL_BG, FREE_TEAL_TEXT)
+                : it.kind === 'private'
                 ? pill(C.grayBg, C.textMid)
                 : it.status === 'pending' ? pill(C.orangeBg, C.orange) : pill(C.bluePale, C.blue);
-              const tagText = it.kind === 'private'
+              const tagText = it.kind === 'free' ? (tt.diaryFreeTag ?? 'פנוי · פורסם')
+                : it.kind === 'private'
                 ? (tt.diaryPrivateJobs ?? 'פרטי')
                 : it.status === 'pending' ? (tt.diaryPending ?? 'ממתין לאישורך')
                 : it.status === 'done' ? (tt.diaryDone ?? 'הושלם')
@@ -293,12 +302,12 @@ export default function DiaryScreen() {
                     <T style={{ fontSize: 15, fontWeight: '900', color: C.textDark }}>{it.startTime}–{endTime(it.startTime, it.hours)}</T>
                     <T style={tag}>{tagText}</T>
                   </View>
-                  <View style={row}>
+                  {it.kind !== 'free' && <View style={row}>
                     <T style={{ flex: 1, fontSize: 14, fontWeight: '700', color: C.textDark, textAlign: 'right' }} numberOfLines={1}>
                       {it.title || '—'}{it.place ? ` · ${it.place}` : ''}
                     </T>
                     {it.price != null && <T style={{ fontSize: 14, fontWeight: '800', color: C.blue }}>₪{it.price}</T>}
-                  </View>
+                  </View>}
                   {it.kind === 'private' && it.visit?.repeat !== 'once' && (
                     <T style={{ fontSize: 12, color: C.textSub, textAlign: 'right' }}>
                       🔁 {it.visit?.repeat === 'biweekly' ? (tt.diaryBiweekly ?? 'כל שבועיים') : (tt.diaryWeekly ?? 'כל שבוע')}

@@ -254,6 +254,16 @@ service cloud.firestore {
           && request.resource.data.get('bio', '').size() <= 3000;
       }
 
+      // "התפנה לי מקום" (lib/freeSlots, 21.11.2026): the windows a cleaner puts
+      // up as free this week. Two at most — the limit she is shown is the one
+      // held here — each a small map, so the list stays a list.
+      function freeSlotsSane() {
+        let f = request.resource.data.freeSlots;
+        return f is list && f.size() <= 2
+          && (f.size() < 1 || (f[0] is map && f[0].keys().hasOnly(['id', 'date', 's', 'e', 'createdAt'])))
+          && (f.size() < 2 || (f[1] is map && f[1].keys().hasOnly(['id', 'date', 's', 'e', 'createdAt'])));
+      }
+
       function emailVerifiedIsHonest() {
         return request.resource.data.get('emailVerified', false) != true
           || request.auth.token.get('email_verified', false) == true;
@@ -270,7 +280,8 @@ service cloud.firestore {
           'blocked', 'blockedUntilReview', 'identityVerified', 'idVerified', 'adminNote', 'lowReviewCount'
         ])
         && emailVerifiedIsHonest()
-        && bioSane();
+        && bioSane()
+        && (!request.resource.data.keys().hasAny(['freeSlots']) || freeSlotsSane());
 
       allow update: if isAdmin()
         || (signedIn() && uid() == userId && !touchesOwnRating()
@@ -285,7 +296,8 @@ service cloud.firestore {
             // anyone could award it to themselves (security review, 7.11.2026).
             && !changed().hasAny(['blocked', 'blockedUntilReview', 'identityVerified', 'idVerified', 'adminNote', 'role', 'lowReviewCount'])
             && (!changed().hasAny(['emailVerified']) || emailVerifiedIsHonest())
-            && (!changed().hasAny(['bio']) || bioSane()))
+            && (!changed().hasAny(['bio']) || bioSane())
+            && (!changed().hasAny(['freeSlots']) || freeSlotsSane()))
         || (signedIn() && uid() != userId && isValidRatingUpdate(userId));
 
       allow delete: if isAdmin();

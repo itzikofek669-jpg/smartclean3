@@ -191,9 +191,12 @@ export interface DiaryAppJob {
   serviceType?: string;
 }
 
-/** One line of the diary: a job through the app, or a private one. */
+/**
+ * One line of the diary: a job through the app, a private one, or a window
+ * she has put up as free this week (lib/freeSlots — "פנוי · פורסם").
+ */
 export interface DiaryItem {
-  kind: 'app' | 'private';
+  kind: 'app' | 'private' | 'free';
   id: string;
   date: string;
   startTime: string;
@@ -220,6 +223,8 @@ export function diaryAgenda(
   entries: readonly (DiaryEntry | null | undefined)[],
   fromYmd: string,
   days: number,
+  /** Her windows still on offer (lib/freeSlots activeFreeSlots); in no total. */
+  free: readonly { id: string; date: string; s: number; e: number }[] = [],
 ): { days: { date: string; items: DiaryItem[] }[]; app: DiaryTotals; private: DiaryTotals } {
   const start = dayNum(fromYmd);
   const items: DiaryItem[] = [];
@@ -241,6 +246,12 @@ export function diaryAgenda(
       kind: 'private', id: `${v.entryId}|${v.date}`, date: v.date, startTime: v.startTime, hours: v.hours,
       price: v.price, title: v.clientName, place: v.address, visit: v,
     });
+  }
+  for (const f of free) {
+    const d = dayNum(f.date);
+    if (start === null || d === null || d < start || d >= start + days) continue;
+    const t = `${String(Math.floor(f.s / 60)).padStart(2, '0')}:${String(f.s % 60).padStart(2, '0')}`;
+    items.push({ kind: 'free', id: `free|${f.id}`, date: f.date, startTime: t, hours: (f.e - f.s) / 60, price: null, title: '', place: '' });
   }
   items.sort((a, b) => (a.date + a.startTime).localeCompare(b.date + b.startTime));
   const byDay = new Map<string, DiaryItem[]>();

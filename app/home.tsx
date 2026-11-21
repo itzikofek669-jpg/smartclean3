@@ -77,6 +77,8 @@ function cityShown(city: string, lang: string): string {
 }
 import { canRepost, bookingOrigin, cancelledNotice } from '../lib/bookingOrigin';
 import { shouldOfferRebook, cleanerLevel, LEVELS } from '../lib/retention';
+import { activeFreeSlots, hhmm } from '../lib/freeSlots';
+import FreeSlotSheet, { FREE_TEAL, FREE_TEAL_BG, FREE_TEAL_TEXT, freeWhen, freeDayLabel } from '../lib/FreeSlotSheet';
 import { cityFromAddress } from '../lib/cityFromAddress';
 import {
   LANGUAGE_FLAGS, groupConsecutiveDays, normalizeLanguages, workDaysFromAvailability,
@@ -2488,7 +2490,7 @@ function InlineBookingChat({ open, onToggle, messages, text, onChangeText, onSen
 // profile screen and readable by the web. See lib/savedAddresses.ts.
 
 // ─────────────────────────────────────────────────────────────────────────────
-function BookingModal({ cleaner, visible, onClose, onBookingCreated, prebookData }: any) {
+function BookingModal({ cleaner, visible, onClose, onBookingCreated, prebookData, presetSlot }: any) {
   const { t, lang, isRTL }  = useLanguage();
   const C = useAppColors();
   const s = createS(C);
@@ -2762,9 +2764,35 @@ function BookingModal({ cleaner, visible, onClose, onBookingCreated, prebookData
     const clamped = Math.min(Math.max(startHour, clockMin), clockMax);
     if (clamped !== startHour) setStartHour(clamped);
   }
+  // Opened from a "התפנה מקום" post (lib/freeSlots): its day and hour, set as
+  // if the client had picked them. After the suggestions above, so this wins
+  // the render it lands in; and marked as suggested and advanced, so the next
+  // renders leave it be — only an hour past her day is pulled back, as ever.
+  const presetKey = presetSlot && cleanerKey ? `${cleanerKey}|${presetSlot.date}|${presetSlot.s}` : '';
+  const [presetFor, setPresetFor] = useState('');
+  if (visible && presetKey && presetFor !== presetKey) {
+    setPresetFor(presetKey);
+    const [py, pm, pd] = String(presetSlot.date).split('-').map(Number);
+    setBookingDate(new Date(py, pm - 1, pd));
+    setAdvancedFor(cleanerKey);
+    setSuggestedFor(`${cleanerKey}|${presetSlot.date}`);
+    setSuggestedWithSlots(slotsIn);
+    // As long as the opening, at most what the form would offer anyway: a
+    // one-hour gap before her next job opened at two hours, ran into it, and
+    // the hour was silently moved (review 21.11.2026).
+    const len = Number(presetSlot.e) > Number(presetSlot.s) ? (Number(presetSlot.e) - Number(presetSlot.s)) / 60 : hours;
+    const fit = Math.max(1, Math.min(hours, len));
+    setHours(fit);
+    setCheckedLen(fit);
+    setStartHour(Math.floor(Number(presetSlot.s) / 60));
+  }
+  // Taken by someone else since the card was drawn: said, rather than the hour
+  // quietly moving to another one.
+  const presetTaken = !!presetSlot && cleanerSlots !== null
+    && busyWindowsOn(cleanerSlots, String(presetSlot.date)).some((b: { s: number; e: number }) => b.s < Number(presetSlot.e ?? presetSlot.s + 60) && Number(presetSlot.s) < b.e);
   // Every way the form closes: the next opening reads her busy hours afresh
   // and suggests from scratch.
-  const resetClock = () => { setSlotsOf(null); setSuggestedFor(''); setAdvancedFor(''); };
+  const resetClock = () => { setSlotsOf(null); setSuggestedFor(''); setAdvancedFor(''); setPresetFor(''); };
   const [pendingBookingId, setPendingBookingId] = useState<string | null>(null);
   const [cancellingBooking, setCancellingBooking] = useState(false);
   const unsubBookingRef = useRef<(() => void) | null>(null);
@@ -3460,6 +3488,11 @@ function BookingModal({ cleaner, visible, onClose, onBookingCreated, prebookData
               </View>
             )}
 
+            {presetTaken && (
+              <T style={{ fontSize: 13, lineHeight: 19, color: FREE_TEAL_TEXT, backgroundColor: FREE_TEAL_BG, borderRadius: 10, padding: 8, textAlign: 'right', overflow: 'hidden' }}>
+                {(t as any).freeTakenNote ?? 'המקום הפנוי הזה כבר נתפס. אפשר לבחור שעה אחרת.'}
+              </T>
+            )}
             {/* תאריך ושעה — שורה אחת */}
             <View style={{ flexDirection: 'row-reverse', gap: 10 }}>
               <View style={{ flex: 1, gap: 6 }}>
@@ -4049,7 +4082,7 @@ function ChatModal({ cleaner, visible, onClose }: any) {
 }
 
 // ─── Cleaner card ─────────────────────────────────────────────────────────────
-function CleanerCardInner({ cleaner, isSel, onSelect, onProfile, onBook, onChat, isPending, onShowOnMap, onEnlarge, onReviews }: any) {
+function CleanerCardInner({ cleaner, isSel, onSelect, onProfile, onBook, onChat, isPending, onShowOnMap, onEnlarge, onReviews, onBookSlot }: any) {
   const { t, flipSide, highContrast, textScale, isRTL } = useLanguage();
   const C = useAppColors();
   const s = createS(C);
@@ -4061,6 +4094,12 @@ function CleanerCardInner({ cleaner, isSel, onSelect, onProfile, onBook, onChat,
   // Fetched per card rather than carried on the cleaner document, so the list
   // query stays light — see lib/useAvatar. FlatList only mounts what's near the
   // viewport, which is what keeps this from becoming N requests.
+  // Room this week (lib/freeSlots). With it, the services fold to two and a
+  // "+N" until the card is opened, so the card does not grow (Ofek, 21.11.2026).
+  const freeList: { id: string; date: string; s: number; e: number }[] = Array.isArray(cleaner.freeActive) ? cleaner.freeActive : [];
+  const freeFirst = freeList[0] ?? null;
+  const foldServices = !!freeFirst && !isSel && Array.isArray(cleaner.types) && cleaner.types.length > 2;
+  const shownTypes: string[] = foldServices ? cleaner.types.slice(0, 2) : (cleaner.types || []);
   const photoUri = useAvatar(cleaner.uid || cleaner.id, cleaner) ||
     (!isNaN(parseInt(cleaner.id))
       ? `https://i.pravatar.cc/150?img=${((parseInt(cleaner.id) - 1) % 70) + 1}`
@@ -4106,6 +4145,15 @@ function CleanerCardInner({ cleaner, isSel, onSelect, onProfile, onBook, onChat,
                   </T>
                 );
               })()}
+              {/* "התפנה מקום" — her soonest opening this week (lib/freeSlots). */}
+              {freeFirst && (
+                <View style={{ flexDirection: 'row-reverse', alignItems: 'center', gap: 3, borderRadius: 999, paddingHorizontal: 7, paddingVertical: 1, backgroundColor: FREE_TEAL_BG, borderWidth: 1, borderColor: FREE_TEAL }}>
+                  <MaterialIcons name="event-available" size={11} color={FREE_TEAL_TEXT} />
+                  <T style={{ fontSize: fs(11), fontWeight: '800', color: FREE_TEAL_TEXT }}>
+                    {String((t as any).freeTag ?? 'פנוי {when}').replace('{when}', `${freeDayLabel(t, freeFirst.date, false)} ${hhmm(freeFirst.s)}`)}
+                  </T>
+                </View>
+              )}
               {/* The review count in brackets used to sit here. Removed: a bare
                   number said little on a card this size, and on a new cleaner
                   it read as (0) — the worst thing to show first. Reviews are
@@ -4130,7 +4178,7 @@ function CleanerCardInner({ cleaner, isSel, onSelect, onProfile, onBook, onChat,
         {/* שירותים — פילים קומפקטיים אחד ליד השני, פירוט נפתח בלחיצה (בלי ℹ) */}
         {/* שירותים — תגיות קטנות לפי רוחב התוכן, בלי איקונים, נצמדות */}
         <View style={{ flexDirection: 'row-reverse', flexWrap: 'wrap', gap: 5, justifyContent: 'center' }}>
-          {cleaner.types.map((tp: string) => (
+          {shownTypes.map((tp: string) => (
             <ServiceInfoBtn
               key={tp}
               serviceKey={tp}
@@ -4142,6 +4190,17 @@ function CleanerCardInner({ cleaner, isSel, onSelect, onProfile, onBook, onChat,
               onPressOverride={!isSel ? () => { onShowOnMap?.(cleaner); onSelect(cleaner.id); } : undefined}
             />
           ))}
+          {foldServices && (
+            <TouchableOpacity
+              accessibilityRole="button"
+              onPress={() => { onShowOnMap?.(cleaner); onSelect(cleaner.id); }}
+              style={{ paddingVertical: 5, paddingHorizontal: 10, borderRadius: 9, borderWidth: 1, borderColor: C.blueBorder }}
+            >
+              <T style={{ fontSize: fs(10), fontWeight: '700', color: C.textSub }}>
+                {String((t as any).freeMore ?? '+{n} שירותים').replace('{n}', String(cleaner.types.length - 2))}
+              </T>
+            </TouchableOpacity>
+          )}
         </View>
 
         {/* No badges on the card at all now. It carried a bordered strip of
@@ -4153,6 +4212,23 @@ function CleanerCardInner({ cleaner, isSel, onSelect, onProfile, onBook, onChat,
       </View>
       {isSel && (
         <View style={s.cardExpanded}>
+          {/* Each opening she has this week: book straight into it. */}
+          {freeList.map(f => (
+            <TouchableOpacity
+              key={f.id}
+              accessibilityRole="button"
+              onPress={() => onBookSlot?.(cleaner, f)}
+              style={{ flexDirection: 'row-reverse', alignItems: 'center', gap: 8, padding: 10, marginBottom: 8, borderRadius: 12, backgroundColor: FREE_TEAL_BG, borderWidth: 1, borderColor: FREE_TEAL }}
+            >
+              <MaterialIcons name="event-available" size={18} color={FREE_TEAL_TEXT} />
+              {/* The time on its own, so it never breaks in two ("09:00–" / "12:00"). */}
+              <T style={{ flex: 1, fontSize: fs(13), fontWeight: '800', color: FREE_TEAL_TEXT, textAlign: 'right' }}>
+                {String((t as any).freeRow ?? 'התפנה מקום: {when}').replace('{when}', '').trim()}
+              </T>
+              <T style={{ fontSize: fs(13), fontWeight: '800', color: FREE_TEAL_TEXT }} numberOfLines={1}>{freeWhen(t, f as any)}</T>
+              <T style={{ fontSize: fs(13), fontWeight: '900', color: FREE_TEAL_TEXT }}>{`${(t as any).freeBook ?? 'להזמין'} ${chevron('‹')}`}</T>
+            </TouchableOpacity>
+          ))}
           <View style={{ flexDirection: 'row-reverse', gap: 5, flexWrap: 'wrap', justifyContent: 'center', marginBottom: 10 }}>
             {cleaner.payment.map((p: string) => <View key={p} style={[s.payChip, p === 'paybox' && { flexDirection: 'row-reverse', alignItems: 'center', gap: 3 }]}>{p === 'paybox' && <PayboxIcon size={12} />}<T style={s.payChipText}>{p === 'paybox' ? t.payPaybox : `${PAY_ICONS[p] || '💳'} ${p === 'bit' ? t.payBit : p === 'cash' ? t.payCash : p === 'bank' ? t.payBank : p === 'card' ? t.payCard : p === 'kochavit' ? ((t as any).payKochavit ?? 'כוכבית') : p}`}</T></View>)}
           </View>
@@ -4428,6 +4504,13 @@ export default function HomeScreen() {
   const openProfileReviews = (c: any) => { setProfileReviews(true); setProfile(c); };
   const [booking,    setBooking]    = useState<any>(null);
   const [prebookData, setPrebookData] = useState<any>(null); // הזמנה קודמת לחזרה
+  // "התפנה לי מקום" (lib/freeSlots, 21.11.2026): the booking form opened from a
+  // post, on its day and hour; the cleaner's window; her own windows and the
+  // hours that can take them; and the client's "openings this week" button.
+  const [bookingPreset, setBookingPreset] = useState<{ date: string; s: number; e: number } | null>(null);
+  const [freeSheetOpen, setFreeSheetOpen] = useState(false);
+  const [myFreeDoc, setMyFreeDoc] = useState<{ freeSlots?: unknown; busySlots?: unknown; pendingSlots?: unknown; availability?: unknown; availabilitySet?: unknown } | null>(null);
+  const [freeOnly, setFreeOnly] = useState(false);
   const [chatWith,   setChatWith]   = useState<any>(null);
   const [drawer,     setDrawer]     = useState(false);
   const [userCoords,    setUserCoords]    = useState<{ lat: number; lng: number } | null>(null);
@@ -5838,7 +5921,13 @@ export default function HomeScreen() {
       const available = isAvailableNow({ available: raw, busySlots: c.busySlots }, at);
       // busyNow: switched on, but in the middle of a job right now — the button
       // says "busy right now" rather than "unavailable".
-      return { ...c, available, busyNow: raw !== false && !available, onShift: isOnShiftNow(available, c.availability, c.availabilitySet === true, at) };
+      return {
+        ...c, available, busyNow: raw !== false && !available, onShift: isOnShiftNow(available, c.availability, c.availabilitySet === true, at),
+        // Still on offer: not taken, not over — on the same minute clock (lib/freeSlots).
+        // Not while she has switched herself off: the card's own book button is
+        // off then too (review 21.11.2026).
+        freeActive: raw === false ? [] : activeFreeSlots(c.freeSlots, c.busySlots, c.pendingSlots, at),
+      };
     });
     // demoOn: the demo list switches on/off with the flag, as it did before.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -5964,6 +6053,18 @@ export default function HomeScreen() {
     );
   }
 
+  // How many near her have room this week — the button shows only when someone
+  // has, and says how many. Near: the list's own 30 km, when her place is known
+  // (review 21.11.2026: it counted the whole country under "באזור שלך").
+  const freeCount = filtered.filter((c: any) => (c.freeActive?.length ?? 0) > 0
+    && (!userCoords || (typeof c.lat === 'number' && typeof c.lng === 'number'
+      && getDistanceKm(userCoords.lat, userCoords.lng, c.lat, c.lng) <= NEARBY_KM))).length;
+
+  // 9. התפנה מקום השבוע — only who put up room this week (lib/freeSlots).
+  if (freeOnly) {
+    filtered = filtered.filter((c: any) => (c.freeActive?.length ?? 0) > 0);
+  }
+
   // המפה מציגה את כל המנקים (בכל הארץ) — לא מוגבלת ל-30 ק"מ
   const mapFiltered = filtered;
   // "קרוב אלי" מסנן רק את רשימת הכרטיסים (ל-30 ק"מ) — אך לא כשמחפשים/מסננים עיר
@@ -5985,6 +6086,15 @@ export default function HomeScreen() {
         : null,
     }));
     withDist.sort((x, y) => {
+      // "התפנה מקום השבוע": nearest first, then the soonest window.
+      if (freeOnly) {
+        const dx = x.distKm ?? Number.MAX_SAFE_INTEGER;
+        const dy = y.distKm ?? Number.MAX_SAFE_INTEGER;
+        if (dx !== dy) return dx - dy;
+        const fx = x.c.freeActive?.[0];
+        const fy = y.c.freeActive?.[0];
+        return `${fx?.date}|${String(fx?.s).padStart(4, '0')}`.localeCompare(`${fy?.date}|${String(fy?.s).padStart(4, '0')}`);
+      }
       // בחיפוש: מי שהעיר/השם כתובים אצלו ראשון, ורק אז מי שנוסע לשם.
       if (searchQ) {
         const xt = searchTextHit.has(x.c) ? 0 : 1;
@@ -6161,6 +6271,7 @@ export default function HomeScreen() {
         if (!role) return;                       // ראה lib/resolveRole
         setMyRole(role);
         setProfileHasBooked(data.hasBooked === true);
+        setMyFreeDoc({ freeSlots: data.freeSlots, busySlots: data.busySlots, pendingSlots: data.pendingSlots, availability: data.availability, availabilitySet: data.availabilitySet });
 
         // אלה נקראים בכל עדכון ולא רק בהקמה: עריכת המרחק או הכתובת בפרופיל
         // צריכה להשתקף בלוח העבודות מיד, בלי לצאת ולהיכנס למסך.
@@ -7098,6 +7209,9 @@ export default function HomeScreen() {
           // is fixed when the list loads.
           availableFlag: data.available,
           busySlots:     Array.isArray(data.busySlots) ? data.busySlots : [],
+          // Her "התפנה לי מקום" windows, and her pending hours, which can take one (lib/freeSlots).
+          pendingSlots:  Array.isArray(data.pendingSlots) ? data.pendingSlots : [],
+          freeSlots:     Array.isArray(data.freeSlots) ? data.freeSlots : [],
           payment:    data.payment     || [],
           lat:        coords.lat,
           lng:        coords.lng,
@@ -7396,6 +7510,23 @@ export default function HomeScreen() {
                 )}
               </TouchableOpacity>
 
+              {/* "התפנה לי מקום" — she puts up room this week (lib/FreeSlotSheet).
+                  Turquoise: the logo's colour, apart from the board's blue and
+                  urgent's purple. */}
+              {myRole === 'cleaner' && (
+                <TouchableOpacity
+                  onPress={() => setFreeSheetOpen(true)}
+                  accessibilityRole="button"
+                  accessibilityLabel={(t as any).freeBtn ?? 'התפנה לי מקום'}
+                  style={{ backgroundColor: FREE_TEAL, borderRadius: 12, paddingHorizontal: 8, paddingVertical: 3, alignItems: 'center', maxWidth: 92 }}
+                >
+                  <MaterialIcons name="edit-calendar" size={18} color="#fff" />
+                  <T style={{ color: '#fff', fontSize: 10, fontWeight: '800', textAlign: 'center' }} numberOfLines={2} maxFontSizeMultiplier={1.1}>
+                    {(t as any).freeBtn ?? 'התפנה לי מקום'}
+                  </T>
+                </TouchableOpacity>
+              )}
+
               {myRole === 'client' && (
                 <TouchableOpacity
                   onPress={() => setFilterVisible(true)}
@@ -7565,6 +7696,32 @@ export default function HomeScreen() {
               </View>
             )}
           </View>
+
+          {/* "התפנה מקום השבוע" — only while someone has room (lib/freeSlots).
+              On: the cards with an opening, nearest first, and what that means. */}
+          {myRole === 'client' && (freeCount > 0 || freeOnly) && (
+            <View style={{ marginTop: 8, gap: 6 }}>
+              <TouchableOpacity
+                onPress={() => setFreeOnly(v => !v)}
+                accessibilityRole="button"
+                accessibilityState={{ selected: freeOnly }}
+                style={{ flexDirection: 'row-reverse', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 8, borderRadius: 12, borderWidth: 1.5, borderColor: FREE_TEAL, backgroundColor: freeOnly ? FREE_TEAL : FREE_TEAL_BG }}
+              >
+                <MaterialIcons name="event-available" size={18} color={freeOnly ? '#fff' : FREE_TEAL_TEXT} />
+                <T style={{ fontSize: 14, fontWeight: '900', color: freeOnly ? '#fff' : FREE_TEAL_TEXT }}>{(t as any).freeFilterBtn ?? 'התפנה מקום השבוע'}</T>
+                {freeCount > 0 && (
+                  <T style={{ fontSize: 12, fontWeight: '900', color: freeOnly ? FREE_TEAL_TEXT : '#fff', backgroundColor: freeOnly ? '#fff' : FREE_TEAL, borderRadius: 10, paddingHorizontal: 7, overflow: 'hidden' }}>{freeCount}</T>
+                )}
+              </TouchableOpacity>
+              {freeOnly && (
+                <T style={{ fontSize: 12, lineHeight: 18, color: FREE_TEAL_TEXT, backgroundColor: FREE_TEAL_BG, borderRadius: 10, padding: 8, textAlign: 'right', overflow: 'hidden' }}>
+                  {filtered.length > 0
+                    ? ((t as any).freeFilterExplain ?? 'נותני שירות באזור שלך שהתפנה להם מקום השבוע, מהקרוב לרחוק. לוחצים על הכרטיס ומזמינים ישר לשעה הפנויה.')
+                    : ((t as any).freeNoneNearby ?? 'אין כרגע נותני שירות שהתפנה להם מקום באזור שלך.')}
+                </T>
+              )}
+            </View>
+          )}
         </View>
 
       </View>
@@ -7823,6 +7980,7 @@ export default function HomeScreen() {
               onProfile={(c: any) => { setProfileReviews(false); setProfile(c); }} onReviews={openProfileReviews} onBook={setBooking} onChat={setChatWith}
               isPending={pendingCleanerIds.has(c.id)}
               onShowOnMap={handleShowOnMap} onEnlarge={setEnlargedPhoto}
+              onBookSlot={(cl: any, f: { date: string; s: number; e: number }) => { setPrebookData(null); setBookingPreset({ date: f.date, s: f.s, e: f.e }); setBooking(cl); }}
             />
           )}
         />
@@ -7858,11 +8016,17 @@ export default function HomeScreen() {
           setPhotoViewerOpen(true);
         }}
       />
+      {/* "התפנה לי מקום" — the cleaner's window (lib/FreeSlotSheet). */}
+      {myRole === 'cleaner' && (
+        <FreeSlotSheet visible={freeSheetOpen} onClose={() => setFreeSheetOpen(false)} uid={auth.currentUser?.uid || ''} mine={myFreeDoc} />
+      )}
+
       <BookingModal
         cleaner={booking}
         visible={!!booking}
-        onClose={() => { setBooking(null); setPrebookData(null); }}
+        onClose={() => { setBooking(null); setPrebookData(null); setBookingPreset(null); }}
         prebookData={prebookData}
+        presetSlot={bookingPreset}
         onBookingCreated={(cleanerId: string, nb?: any) => {
           setPendingCleanerIds(prev => new Set([...prev, cleanerId]));
           if (nb) setMyBookings(prev => [nb, ...prev]);

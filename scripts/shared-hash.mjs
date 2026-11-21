@@ -75,6 +75,8 @@ export const SHARED = [
   { name: 'retention',      app: 'lib/retention.ts',      web: 'src/lib/retention.ts' },
   // The cleaner's work diary (18.11.2026): private visits, their busy hours, the agenda.
   { name: 'workDiary',      app: 'lib/workDiary.ts',      web: 'src/lib/workDiary.ts' },
+  // "התפנה לי מקום" (21.11.2026): which openings are on offer and what may be put up.
+  { name: 'freeSlots',      app: 'lib/freeSlots.ts',      web: 'src/lib/freeSlots.ts' },
   // The guard itself. Two copies of this script that disagree are two
   // different ideas of what "in step" means.
   { name: 'sharedHash',     app: 'scripts/shared-hash.mjs', web: 'scripts/shared-hash.mjs' },
