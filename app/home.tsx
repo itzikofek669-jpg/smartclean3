@@ -6060,11 +6060,29 @@ export default function HomeScreen() {
   }
 
   // How many near her have room this week — the button shows only when someone
-  // has, and says how many. Near: the list's own 30 km, when her place is known
+  // has. Near: the list's own 30 km, when her place is known
   // (review 21.11.2026: it counted the whole country under "באזור שלך").
   const freeCount = filtered.filter((c: any) => (c.freeActive?.length ?? 0) > 0
     && (!userCoords || (typeof c.lat === 'number' && typeof c.lng === 'number'
       && getDistanceKm(userCoords.lat, userCoords.lng, c.lat, c.lng) <= NEARBY_KM))).length;
+
+  // "פנויים השבוע" — shown while someone nearby has room (or the filter is
+  // on); a tap keeps only them, nearest first. Beside past bookings.
+  const showFreeWeek = myRole === 'client' && (freeCount > 0 || freeOnly);
+  const freeWeekBtn = (
+    <TouchableOpacity
+      onPress={() => setFreeOnly(v => !v)}
+      accessibilityRole="button"
+      accessibilityState={{ selected: freeOnly }}
+      accessibilityLabel={(t as any).freeFilterBtn ?? 'התפנה מקום השבוע'}
+      activeOpacity={0.85}
+      style={{ flex: 1, borderRadius: 14, paddingVertical: 13, paddingHorizontal: 8, alignItems: 'center', justifyContent: 'center', backgroundColor: freeOnly ? FREE_TEAL_TEXT : FREE_TEAL, elevation: 4, shadowColor: FREE_TEAL, shadowOpacity: 0.35, shadowRadius: 8, shadowOffset: { width: 0, height: 3 } }}
+    >
+      <T style={{ color: '#fff', fontSize: 14, fontWeight: '900', textAlign: 'center' }} numberOfLines={1} maxFontSizeMultiplier={1.2}>
+        {`${freeOnly ? '✓ ' : ''}${(t as any).freeFilterShort ?? 'פנויים השבוע'}`}
+      </T>
+    </TouchableOpacity>
+  );
 
   // 9. התפנה מקום השבוע — only who put up room this week (lib/freeSlots).
   if (freeOnly) {
@@ -7544,24 +7562,6 @@ export default function HomeScreen() {
                   </T>
                 </TouchableOpacity>
               )}
-              {/* "התפנה מקום השבוע" beside "ניקוי דחוף" (Ofek, 21.11.2026: not a
-                  wide button of its own, and no count). Only while someone
-                  nearby has room (lib/freeSlots); on, the cards with an
-                  opening, nearest first. Light when off, solid when on — the
-                  way "סינון" shows it is on. */}
-              {myRole === 'client' && (freeCount > 0 || freeOnly) && (
-                <TouchableOpacity
-                  onPress={() => setFreeOnly(v => !v)}
-                  accessibilityRole="button"
-                  accessibilityState={{ selected: freeOnly }}
-                  accessibilityLabel={(t as any).freeFilterBtn ?? 'התפנה מקום השבוע'}
-                  style={[s.urgentHeaderBtn, { flex: 1, alignSelf: 'stretch', borderWidth: 1.5, borderColor: FREE_TEAL, backgroundColor: freeOnly ? FREE_TEAL : FREE_TEAL_BG }]}
-                >
-                  <T style={[s.urgentHeaderBtnText, s.headerBtnLabel, { color: freeOnly ? '#fff' : FREE_TEAL_TEXT }]} numberOfLines={2} maxFontSizeMultiplier={1.2}>
-                    {(t as any).freeFilterShort ?? 'התפנה מקום'}
-                  </T>
-                </TouchableOpacity>
-              )}
               {/* סגול זהה לאתר ולמסך המנקה — "דחוף" צריך להיות אותו צבע בכל
                   האפליקציה, לא אדום בצד הלקוח וסגול בצד המנקה. */}
               {myRole === 'client' && (
@@ -7720,14 +7720,6 @@ export default function HomeScreen() {
             )}
           </View>
 
-          {/* The filter is on and nobody nearby has room any more (taken
-              meanwhile): say so rather than show an empty list. What the
-              button means is in "הסבר". */}
-          {myRole === 'client' && freeOnly && filtered.length === 0 && (
-            <T style={{ marginTop: 8, fontSize: 12, lineHeight: 18, color: FREE_TEAL_TEXT, backgroundColor: FREE_TEAL_BG, borderRadius: 10, padding: 8, textAlign: 'right', overflow: 'hidden' }}>
-              {(t as any).freeNoneNearby ?? 'אין כרגע נותני שירות שהתפנה להם מקום באזור שלך.'}
-            </T>
-          )}
         </View>
 
       </View>
@@ -7850,23 +7842,50 @@ export default function HomeScreen() {
               {/* The legend (what purple means, direct bookings) is behind the
                   "הסבר" button beside the search now. */}
             </View>
-          ) : myRole === 'client' && hasBooked ? (
-            /* Nothing at all before the first booking, then always: a stored
-               flag, not the list, so it cannot go away. See lib/rebookList. */
-              <TouchableOpacity
-                onPress={() => setQuickRebookOpen(true)}
-                style={{ borderRadius: 16, marginBottom: 4, overflow: 'hidden', elevation: 4, shadowColor: '#1E6FB8', shadowOpacity: 0.35, shadowRadius: 8, shadowOffset: { width: 0, height: 3 } }}
-                activeOpacity={0.85}
-              >
-                <LinearGradient colors={['#3E8DE3', '#1E5FA8']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={{ padding: 14, flexDirection: 'row-reverse', alignItems: 'center', gap: 12 }}>
-                  <T style={{ fontSize: 26 }}>♻️</T>
-                  <View style={{ flex: 1, alignItems: 'center' }}>
-                    <T style={{ color: '#fff', fontSize: 14, fontWeight: '900', textAlign: 'center' }}>{t.prevBookingsShort}</T>
-                    <T style={{ color: 'rgba(255,255,255,0.85)', fontSize: 11, marginTop: 1, textAlign: 'center' }}>{t.rebookSubtitle}</T>
-                  </View>
-                  <T style={{ color: 'rgba(255,255,255,0.75)', fontSize: 20 }}>{chevron('‹')}</T>
-                </LinearGradient>
-              </TouchableOpacity>
+          ) : myRole === 'client' && (hasBooked || showFreeWeek) ? (
+            /* Past bookings: nothing at all before the first booking, then
+               always — a stored flag, not the list, so it cannot go away (see
+               lib/rebookList). Beside it, while someone nearby has room this
+               week, "פנויים השבוע" (Ofek, 21.11.2026): one line each, the
+               turquoise solid with white text, darker with a tick while on. */
+            <View style={{ marginBottom: 4, gap: 6 }}>
+              {hasBooked && showFreeWeek ? (
+                <View style={{ flexDirection: 'row-reverse', gap: 8 }}>
+                  <TouchableOpacity
+                    onPress={() => setQuickRebookOpen(true)}
+                    accessibilityRole="button"
+                    style={{ flex: 1, borderRadius: 14, overflow: 'hidden', elevation: 4, shadowColor: '#1E6FB8', shadowOpacity: 0.35, shadowRadius: 8, shadowOffset: { width: 0, height: 3 } }}
+                    activeOpacity={0.85}
+                  >
+                    <LinearGradient colors={['#3E8DE3', '#1E5FA8']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={{ flex: 1, paddingVertical: 13, paddingHorizontal: 8, alignItems: 'center', justifyContent: 'center' }}>
+                      <T style={{ color: '#fff', fontSize: 14, fontWeight: '900', textAlign: 'center' }} numberOfLines={1} maxFontSizeMultiplier={1.2}>{t.prevBookingsShort}</T>
+                    </LinearGradient>
+                  </TouchableOpacity>
+                  {freeWeekBtn}
+                </View>
+              ) : hasBooked ? (
+                <TouchableOpacity
+                  onPress={() => setQuickRebookOpen(true)}
+                  style={{ borderRadius: 16, marginBottom: 4, overflow: 'hidden', elevation: 4, shadowColor: '#1E6FB8', shadowOpacity: 0.35, shadowRadius: 8, shadowOffset: { width: 0, height: 3 } }}
+                  activeOpacity={0.85}
+                >
+                  <LinearGradient colors={['#3E8DE3', '#1E5FA8']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={{ padding: 14, flexDirection: 'row-reverse', alignItems: 'center', gap: 12 }}>
+                    <T style={{ fontSize: 26 }}>♻️</T>
+                    <View style={{ flex: 1, alignItems: 'center' }}>
+                      <T style={{ color: '#fff', fontSize: 14, fontWeight: '900', textAlign: 'center' }}>{t.prevBookingsShort}</T>
+                      <T style={{ color: 'rgba(255,255,255,0.85)', fontSize: 11, marginTop: 1, textAlign: 'center' }}>{t.rebookSubtitle}</T>
+                    </View>
+                    <T style={{ color: 'rgba(255,255,255,0.75)', fontSize: 20 }}>{chevron('‹')}</T>
+                  </LinearGradient>
+                </TouchableOpacity>
+              ) : freeWeekBtn}
+              {/* On, and nobody nearby has room any more (taken meanwhile). */}
+              {freeOnly && filtered.length === 0 && (
+                <T style={{ fontSize: 12, lineHeight: 18, color: FREE_TEAL_TEXT, backgroundColor: FREE_TEAL_BG, borderRadius: 10, padding: 8, textAlign: 'right', overflow: 'hidden' }}>
+                  {(t as any).freeNoneNearby ?? 'אין כרגע נותני שירות שהתפנה להם מקום באזור שלך.'}
+                </T>
+              )}
+            </View>
           ) : null}
           ListEmptyComponent={myRole === 'cleaner' ? (
             <View style={{ alignItems: 'center', marginTop: 50, paddingHorizontal: 24 }}>
@@ -8068,7 +8087,7 @@ export default function HomeScreen() {
                     [stripEmoji(t.urgentBtn), '#6D28D9', (t as any).helpUrgent ?? 'צריכים ניקיון היום או מחר? הבקשה נשלחת לכל נותני השירות הזמינים ברדיוס 30 ק"מ והראשון שמאשר מתאם איתכם בצ\'אט.'],
                     [stripEmoji((t as any).postJobHomeBtn ?? 'ניקיון בזמן שלך'), C.blue, (t as any).helpPostJob ?? 'מתכננים ניקיון מראש? בוחרים תאריך ושעה והבקשה מתפרסמת לכל נותני השירות באזור בלי צורך לבחור מראש נותן שירות מסוים. מי שלוקח את העבודה מתאם איתכם בצ\'אט.'],
                     [(t as any).helpCleanersTitle ?? 'נותני השירות ברשימה', '#047857', (t as any).helpCleaners ?? 'כאן בוחרים בעצמכם את נותן השירות שהכי מתאים לכם. כל כרטיס מציג מחיר לשעה, עיר וסוגי ניקיון ונקודה ירוקה מסמנת מי פנוי עכשיו. מהכרטיס אפשר לפתוח צ\'אט ופרופיל או להזמין ישירות ונותן השירות מאשר את ההזמנה'],
-                    [(t as any).freeFilterBtn ?? 'התפנה מקום השבוע', FREE_TEAL_TEXT, (t as any).freeFilterExplain ?? 'נותני שירות באזור שלך שהתפנה להם מקום השבוע, מהקרוב לרחוק. לוחצים על הכרטיס ומזמינים ישר לשעה הפנויה.'],
+                    [(t as any).freeFilterShort ?? 'פנויים השבוע', FREE_TEAL_TEXT, (t as any).freeFilterExplain ?? 'נותני שירות באזור שלך שהתפנה להם מקום השבוע, מהקרוב לרחוק. לוחצים על הכרטיס ומזמינים ישר לשעה הפנויה.'],
                   ] as [string, string, string][]).map(([title, colour, body]) => (
                     <View key={title} style={{ gap: 3 }}>
                       <T style={{ fontSize: 15, fontWeight: '900', color: colour, textAlign: 'center' }}>{title}</T>

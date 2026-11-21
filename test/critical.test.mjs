@@ -1696,7 +1696,11 @@ test('the past-bookings banner waits for a first booking, then never leaves', ()
   assert.equal(hasBookedACleaner(undefined, [{ status: 'pending', cleanerId: 'c1', origin: 'direct' }]), true, 'a client who picked a cleaner has booked');
 
   const home = readFileSync(new URL('../app/home.tsx', import.meta.url), 'utf8');
-  assert.match(home, /myRole === 'client' && hasBooked \?/, 'the banner hangs on it');
+  // Beside it, "פנויים השבוע" while someone nearby has room (21.11.2026): the
+  // row shows for either, but past bookings still only with the flag.
+  assert.match(home, /myRole === 'client' && \(hasBooked \|\| showFreeWeek\) \?/, 'the row hangs on it or on the free button');
+  assert.match(home, /\{hasBooked && showFreeWeek \? \(/, 'side by side only with the flag');
+  assert.match(home, /\) : hasBooked \? \(/, 'and alone only with the flag');
   assert.ok(!home.includes('זמין לאחר הזמנה ראשונה'), 'and nothing stands in for it before the first booking');
   assert.ok(!home.includes('myBookings.length > 0 ?'), 'the list no longer decides');
   assert.match(home, /await bookingBatch\.commit\(\);\n\s+void markHasBooked\(clientUid\);/, 'written by the first booking');
