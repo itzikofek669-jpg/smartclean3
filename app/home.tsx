@@ -7544,6 +7544,24 @@ export default function HomeScreen() {
                   </T>
                 </TouchableOpacity>
               )}
+              {/* "התפנה מקום השבוע" beside "ניקוי דחוף" (Ofek, 21.11.2026: not a
+                  wide button of its own, and no count). Only while someone
+                  nearby has room (lib/freeSlots); on, the cards with an
+                  opening, nearest first. Light when off, solid when on — the
+                  way "סינון" shows it is on. */}
+              {myRole === 'client' && (freeCount > 0 || freeOnly) && (
+                <TouchableOpacity
+                  onPress={() => setFreeOnly(v => !v)}
+                  accessibilityRole="button"
+                  accessibilityState={{ selected: freeOnly }}
+                  accessibilityLabel={(t as any).freeFilterBtn ?? 'התפנה מקום השבוע'}
+                  style={[s.urgentHeaderBtn, { flex: 1, alignSelf: 'stretch', borderWidth: 1.5, borderColor: FREE_TEAL, backgroundColor: freeOnly ? FREE_TEAL : FREE_TEAL_BG }]}
+                >
+                  <T style={[s.urgentHeaderBtnText, s.headerBtnLabel, { color: freeOnly ? '#fff' : FREE_TEAL_TEXT }]} numberOfLines={2} maxFontSizeMultiplier={1.2}>
+                    {(t as any).freeFilterShort ?? 'התפנה מקום'}
+                  </T>
+                </TouchableOpacity>
+              )}
               {/* סגול זהה לאתר ולמסך המנקה — "דחוף" צריך להיות אותו צבע בכל
                   האפליקציה, לא אדום בצד הלקוח וסגול בצד המנקה. */}
               {myRole === 'client' && (
@@ -7702,30 +7720,13 @@ export default function HomeScreen() {
             )}
           </View>
 
-          {/* "התפנה מקום השבוע" — only while someone has room (lib/freeSlots).
-              On: the cards with an opening, nearest first, and what that means. */}
-          {myRole === 'client' && (freeCount > 0 || freeOnly) && (
-            <View style={{ marginTop: 8, gap: 6 }}>
-              <TouchableOpacity
-                onPress={() => setFreeOnly(v => !v)}
-                accessibilityRole="button"
-                accessibilityState={{ selected: freeOnly }}
-                style={{ flexDirection: 'row-reverse', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 8, borderRadius: 12, borderWidth: 1.5, borderColor: FREE_TEAL, backgroundColor: freeOnly ? FREE_TEAL : FREE_TEAL_BG }}
-              >
-                <MaterialIcons name="event-available" size={18} color={freeOnly ? '#fff' : FREE_TEAL_TEXT} />
-                <T style={{ fontSize: 14, fontWeight: '900', color: freeOnly ? '#fff' : FREE_TEAL_TEXT }}>{(t as any).freeFilterBtn ?? 'התפנה מקום השבוע'}</T>
-                {freeCount > 0 && (
-                  <T style={{ fontSize: 12, fontWeight: '900', color: freeOnly ? FREE_TEAL_TEXT : '#fff', backgroundColor: freeOnly ? '#fff' : FREE_TEAL, borderRadius: 10, paddingHorizontal: 7, overflow: 'hidden' }}>{freeCount}</T>
-                )}
-              </TouchableOpacity>
-              {freeOnly && (
-                <T style={{ fontSize: 12, lineHeight: 18, color: FREE_TEAL_TEXT, backgroundColor: FREE_TEAL_BG, borderRadius: 10, padding: 8, textAlign: 'right', overflow: 'hidden' }}>
-                  {filtered.length > 0
-                    ? ((t as any).freeFilterExplain ?? 'נותני שירות באזור שלך שהתפנה להם מקום השבוע, מהקרוב לרחוק. לוחצים על הכרטיס ומזמינים ישר לשעה הפנויה.')
-                    : ((t as any).freeNoneNearby ?? 'אין כרגע נותני שירות שהתפנה להם מקום באזור שלך.')}
-                </T>
-              )}
-            </View>
+          {/* The filter is on and nobody nearby has room any more (taken
+              meanwhile): say so rather than show an empty list. What the
+              button means is in "הסבר". */}
+          {myRole === 'client' && freeOnly && filtered.length === 0 && (
+            <T style={{ marginTop: 8, fontSize: 12, lineHeight: 18, color: FREE_TEAL_TEXT, backgroundColor: FREE_TEAL_BG, borderRadius: 10, padding: 8, textAlign: 'right', overflow: 'hidden' }}>
+              {(t as any).freeNoneNearby ?? 'אין כרגע נותני שירות שהתפנה להם מקום באזור שלך.'}
+            </T>
           )}
         </View>
 
@@ -8067,6 +8068,7 @@ export default function HomeScreen() {
                     [stripEmoji(t.urgentBtn), '#6D28D9', (t as any).helpUrgent ?? 'צריכים ניקיון היום או מחר? הבקשה נשלחת לכל נותני השירות הזמינים ברדיוס 30 ק"מ והראשון שמאשר מתאם איתכם בצ\'אט.'],
                     [stripEmoji((t as any).postJobHomeBtn ?? 'ניקיון בזמן שלך'), C.blue, (t as any).helpPostJob ?? 'מתכננים ניקיון מראש? בוחרים תאריך ושעה והבקשה מתפרסמת לכל נותני השירות באזור בלי צורך לבחור מראש נותן שירות מסוים. מי שלוקח את העבודה מתאם איתכם בצ\'אט.'],
                     [(t as any).helpCleanersTitle ?? 'נותני השירות ברשימה', '#047857', (t as any).helpCleaners ?? 'כאן בוחרים בעצמכם את נותן השירות שהכי מתאים לכם. כל כרטיס מציג מחיר לשעה, עיר וסוגי ניקיון ונקודה ירוקה מסמנת מי פנוי עכשיו. מהכרטיס אפשר לפתוח צ\'אט ופרופיל או להזמין ישירות ונותן השירות מאשר את ההזמנה'],
+                    [(t as any).freeFilterBtn ?? 'התפנה מקום השבוע', FREE_TEAL_TEXT, (t as any).freeFilterExplain ?? 'נותני שירות באזור שלך שהתפנה להם מקום השבוע, מהקרוב לרחוק. לוחצים על הכרטיס ומזמינים ישר לשעה הפנויה.'],
                   ] as [string, string, string][]).map(([title, colour, body]) => (
                     <View key={title} style={{ gap: 3 }}>
                       <T style={{ fontSize: 15, fontWeight: '900', color: colour, textAlign: 'center' }}>{title}</T>
