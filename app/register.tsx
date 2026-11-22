@@ -33,6 +33,8 @@ import { devicePosition } from '../lib/devicePosition';
 import { claimPhone } from '../lib/accountChecks';
 import { sendVerificationEmail } from '../lib/emailVerification';
 import { confirmLangChange } from '../lib/confirmLang';
+import { cityFromAddress } from '../lib/cityFromAddress';
+import { CITY_COORDS } from '../lib/jobUtils';
 
 const NAV_BAR_HEIGHT = Platform.OS === 'android'
   ? Math.max(0, Dimensions.get('screen').height - Dimensions.get('window').height - (StatusBar.currentHeight || 0))
@@ -531,11 +533,15 @@ export default function RegisterScreen() {
     // to clean up. It was previously requested for cleaners only, after
     // registration, and not required at all.
     let coords: { lat: number; lng: number } | null = null;
+    // The button shows it is working from here: a position can take seconds
+    // to come, and the screen sat still for eight and more (audit 22.11.2026).
+    setLoading(true);
     try {
       const Location = await import('expo-location');
       let perm = await Location.getForegroundPermissionsAsync();
       if (perm.status !== 'granted') perm = await Location.requestForegroundPermissionsAsync();
       if (perm.status !== 'granted') {
+        setLoading(false);
         return Alert.alert(
           (t as any).locationRequiredTitle ?? '📍 נדרשת הרשאת מיקום',
           (t as any).locationRequiredMsg ??
@@ -545,9 +551,17 @@ export default function RegisterScreen() {
       }
       // A fresh fix, or the last one from the past hour (lib/devicePosition).
       coords = await devicePosition();
+      // No fix indoors or with a weak signal: the address just typed, placed
+      // on the map. Without it such a person could not register at all.
+      if (!coords) {
+        const typed = (role === 'cleaner' ? cleanerAddress : city).trim();
+        const hit = typed ? (await Location.geocodeAsync(typed).catch(() => []))[0] : undefined;
+        if (hit) coords = { lat: hit.latitude, lng: hit.longitude };
+      }
       if (!coords) throw new Error('no position, fresh or recent');
     } catch (err) {
       logError('register:location', err);
+      setLoading(false);
       return Alert.alert(
         (t as any).locationFailedTitle ?? '📍 לא הצלחנו לקבוע מיקום',
         (t as any).locationFailedMsg ??
@@ -555,7 +569,6 @@ export default function RegisterScreen() {
       );
     }
 
-    setLoading(true);
     // ── שלב 1: יצירת חשבון Auth ──────────────────────────────────────────
     let cred: any;
     try {
@@ -604,7 +617,12 @@ export default function RegisterScreen() {
         data.phone         = normalizePhone(phone);   // פורמט אחיד לשני התפקידים
       }
       if (role === 'cleaner') {
-        data.city          = city.trim();
+        // Her town, read from her own address the way profile edit does. `city`
+        // is the client's address field, hidden for a cleaner: every cleaner who
+        // registered in the app had an empty public town (no place on her card,
+        // missed by a search for her town), and a client's street typed there
+        // before switching role was published as it stood (audit 22.11.2026).
+        data.city          = cityFromAddress(cleanerAddress.trim(), CITY_COORDS) || '';
         data.phone         = normalizePhone(phone);   // פורמט אחיד לשני התפקידים
         data.price         = Number(servicePricing['ניקיון רגיל']) || Number(price) || 0;
         data.bio           = bio.trim();
@@ -965,14 +983,18 @@ export default function RegisterScreen() {
                 <View style={s.field}>
                   <T style={s.label}>{t.maxDistanceLabel}</T>
                   <View style={{ flexDirection: 'row-reverse', flexWrap: 'wrap', gap: 8, marginTop: 4, justifyContent: 'center' }}>
-                    {[5, 10, 20, 30, 50, 999].map(km => (
+                    {/* "No limit" is the validator's ceiling, 200 km — all of Israel that
+                        anyone drives to a cleaning. It was 999, which validateDistance
+                        refused, so a cleaner who tapped it could not register
+                        (audit 22.11.2026). */}
+                    {[5, 10, 20, 30, 50, 200].map(km => (
                       <TouchableOpacity
                         key={km}
                         style={[s.pill, maxDistance === km && s.pillActive, { paddingVertical: 10, paddingHorizontal: 14 }]}
                         onPress={() => setMaxDistance(km)}
                       >
                         <T style={[s.pillText, maxDistance === km && s.pillTextActive]}>
-                          {km === 999 ? t.noLimit : `${km} ${t.kmUnit}`}
+                          {km === 200 ? t.noLimit : `${km} ${t.kmUnit}`}
                         </T>
                       </TouchableOpacity>
                     ))}

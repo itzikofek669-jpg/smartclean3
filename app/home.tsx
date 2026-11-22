@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect, useLayoutEffect } from 'react';
+import React, { useState, useRef, useEffect, useLayoutEffect, useCallback } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import BackIcon from '../lib/BackIcon';
 import { signOutOfDevice } from '../lib/signOutDevice';
@@ -46,7 +46,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import MapView, { Marker, Callout, Circle, PROVIDER_GOOGLE } from 'react-native-maps';
 import Constants from 'expo-constants';
 import * as Location from 'expo-location';
-import { useRouter, useLocalSearchParams } from 'expo-router';
+import { useRouter, useLocalSearchParams, useFocusEffect } from 'expo-router';
 
 import * as SecureStore from 'expo-secure-store';
 import { collection, addDoc, getDocs, query, where, doc, getDoc, setDoc, onSnapshot, orderBy, updateDoc, arrayUnion, arrayRemove, runTransaction, writeBatch } from 'firebase/firestore';
@@ -56,7 +56,7 @@ import {
   getSavedAddresses, upsertStructuredAddress, setPrimaryAddress, deleteAddressById,
   MAX_ADDRESSES, upsertAddress, replaceSavedAddresses, type SavedAddress,
 } from '../lib/savedAddresses';
-import { resolvePhoto } from '../lib/photos';
+import { resolvePhoto, chatImageUri, isBitLink } from '../lib/photos';
 import { useAvatar } from '../lib/useAvatar';
 import { fetchPortfolio } from '../lib/portfolio';
 import { demoCleanersEnabled } from '../lib/demoMode';
@@ -98,7 +98,7 @@ import {
 } from '../lib/jobUtils';
 import { compareCleaners, compareJobs, isAvailableNow, rotationRank } from '../lib/displayOrder';
 import { isUrgentRequestLive, releasedByMe, URGENT_FIRST_START_HOUR, URGENT_LAST_START_HOUR, urgentStartAllowed, urgentTodayClosed, urgentFirstSlot, hourOfTime, urgentEditContext, urgentPushPlan, urgentAlertedAfter, liveUrgentEdit, urgentAlertOutcome, urgentPushQuiet, urgentExpiresAt, expiryOf, slotOf, urgentBackOut, UrgentEditContext } from '../lib/urgentRequest';
-import { sameDayOverlap, bookingHoldsHours } from '../lib/bookingSlot';
+import { sameDayOverlap, bookingHoldsHours, endDateOf } from '../lib/bookingSlot';
 import { unansweredPast } from '../lib/bookingTabs';
 import { claimUpdate, occupiesCleanerTime, pendingSlotMissed, pendingSlotExpired, expiryUpdate, rejectionUpdate, isBoardJobOfferable, busySlotOf, declinedByCleaner } from '../lib/bookingActions';
 import { diaryBusySlots, todayYmd, type DiaryEntry } from '../lib/workDiary';
@@ -122,10 +122,10 @@ import { MaterialIcons } from '@expo/vector-icons';
 import { TAB_BAR_CONTENT_HEIGHT } from '../lib/BottomTabBar';
 import { removeBookingFromCalendar, primeCalendarPermission } from '../lib/calendarSync';
 // expo-audio — הקלטה והשמעה של הודעות קוליות (SDK 54, מחליף את expo-av)
-import { useAudioRecorder, createAudioPlayer, RecordingPresets, setAudioModeAsync, AudioModule } from 'expo-audio';
+import { useAudioRecorder, createAudioPlayer, setAudioModeAsync, AudioModule } from 'expo-audio';
 import * as ImageManipulator from 'expo-image-manipulator';
 import * as FileSystem from 'expo-file-system/legacy';
-import { readVoiceNote } from '../lib/voiceNotes';
+import { readVoiceNote, voiceNoteSource, VOICE_RECORDING } from '../lib/voiceNotes';
 import { voiceFileName } from '../lib/voiceFile';
 import { logError } from '../lib/logError';
 import { pendingExtension, bookingAmount, termsBeforeExtension } from '../lib/bookingAmount';
@@ -2412,7 +2412,7 @@ function InlineBookingChat({ open, onToggle, messages, text, onChangeText, onSen
                 if (m.type === 'bit_payment') return null;
                 // תמונה
                 if (m.type === 'image') {
-                  const uri = m.imageBase64 || m.imageUrl;
+                  const uri = chatImageUri(m);
                   return (
                     <View key={m.id} style={{ alignItems: isMe ? 'flex-end' : 'flex-start' }}>
                       <Image source={{ uri }} style={{ width: 150, height: 112, borderRadius: 12, borderWidth: 1, borderColor: '#E5E7EB' }} contentFit="cover" />
@@ -2644,7 +2644,7 @@ function BookingModal({ cleaner, visible, onClose, onBookingCreated, prebookData
   const inlineChatScroll    = useRef<ScrollView>(null);
   const inlineChatUnsubRef  = useRef<(() => void) | null>(null);
   const prevInlineMsgCount  = useRef(0);
-  const inlineRecorder      = useAudioRecorder(RecordingPresets.HIGH_QUALITY);
+  const inlineRecorder      = useAudioRecorder(VOICE_RECORDING);
   const [inlineRecording,   setInlineRecording]   = useState(false);
 
   // ── חישוב שעה מינימלית (היום בלבד) ──────────────────────────────────────
@@ -3041,7 +3041,8 @@ function BookingModal({ cleaner, visible, onClose, onBookingCreated, prebookData
           });
           await setDoc(doc(db, 'chats', bitChatId), {
             participants: [clientUid, cleaner.uid || cleaner.id],
-            lastMessage: `💙 בקשת תשלום ₪${total} ב-Bit`,
+            // No words: the preview and its push reach a reader of any language (audit 22.11.2026).
+            lastMessage: `💙 Bit ₪${total}`,
             lastMessageAt: new Date().toISOString(),
           }, { merge: true });
         } catch (err) { logError('home:write', err); }
@@ -3157,7 +3158,7 @@ function BookingModal({ cleaner, visible, onClose, onBookingCreated, prebookData
     setInlineChatOpen(true);
     try {
       await addDoc(collection(db, 'chats', chatId, 'messages'), { type: 'image', imageBase64: `data:image/jpeg;base64,${base64Data}`, from: 'client', fromUid: clientUid, createdAt: new Date().toISOString() });
-      await setDoc(doc(db, 'chats', chatId), { participants: [clientUid, otherUid].sort(), lastMessage: t.chatImageMsg, lastMessageAt: new Date().toISOString(), lastSenderUid: clientUid, unreadBy: arrayUnion(otherUid), deletedFor: [] }, { merge: true });
+      await setDoc(doc(db, 'chats', chatId), { participants: [clientUid, otherUid].sort(), lastMessage: '📷', lastMessageAt: new Date().toISOString(), lastSenderUid: clientUid, unreadBy: arrayUnion(otherUid), deletedFor: [] }, { merge: true });
       void notify({ event: 'message', chatId });   // an image or a voice note rings like text
       setTimeout(() => inlineChatScroll.current?.scrollToEnd({ animated: true }), 200);
     } catch (err: any) { Alert.alert(t.imageSendError, err?.message || t.error); }
@@ -3200,7 +3201,7 @@ function BookingModal({ cleaner, visible, onClose, onBookingCreated, prebookData
       const chatId = [clientUid, otherUid].sort().join('_');
       setInlineChatOpen(true);
       await addDoc(collection(db, 'chats', chatId, 'messages'), { type: 'audio', audioBase64, from: 'client', fromUid: clientUid, createdAt: new Date().toISOString() });
-      await setDoc(doc(db, 'chats', chatId), { participants: [clientUid, otherUid].sort(), lastMessage: t.chatVoiceMsg, lastMessageAt: new Date().toISOString(), lastSenderUid: clientUid, unreadBy: arrayUnion(otherUid), deletedFor: [] }, { merge: true });
+      await setDoc(doc(db, 'chats', chatId), { participants: [clientUid, otherUid].sort(), lastMessage: '🎤', lastMessageAt: new Date().toISOString(), lastSenderUid: clientUid, unreadBy: arrayUnion(otherUid), deletedFor: [] }, { merge: true });
       void notify({ event: 'message', chatId });   // an image or a voice note rings like text
       setTimeout(() => inlineChatScroll.current?.scrollToEnd({ animated: true }), 200);
     } catch (_) { Alert.alert(t.error, t.audioSendError); }
@@ -3234,10 +3235,25 @@ function BookingModal({ cleaner, visible, onClose, onBookingCreated, prebookData
     if (unsubBookingRef.current) { unsubBookingRef.current(); unsubBookingRef.current = null; }
     setCancellingBooking(true);
     try {
-      await updateDoc(doc(db, 'bookings', pendingBookingId), { status: 'cancelled' });
+      // The same cancellation every other screen writes (profile.tsx), and the
+      // same push. A bare {status:'cancelled'} told nobody: the notify Worker
+      // holds a new booking's hour on her pendingSlots the moment it is made,
+      // and only booking_cancelled lets it go — so the hour stayed blocked for
+      // every other client, her "התפנה לי מקום" over it stayed hidden, and with
+      // no cancelledBy the website never showed her the cancellation (audit
+      // 22.11.2026). In a transaction, so an answer that landed a second earlier
+      // is seen: a job already under way or over is not this screen's to cancel.
+      const ref = doc(db, 'bookings', pendingBookingId);
+      const cancelled = await runTransaction(db, async (tx) => {
+        const snap = await tx.get(ref);
+        const st = snap.exists() ? String(snap.data().status || '') : '';
+        if (st !== 'pending' && st !== 'confirmed') return false;
+        tx.update(ref, { status: 'cancelled', cancelledBy: 'client', cancelledAt: new Date().toISOString() });
+        return true;
+      });
+      if (cancelled) void notify({ event: 'booking_cancelled', bookingId: pendingBookingId });
       // busySlots לא מנוקה מכאן: הלקוח אינו מורשה לכתוב למסמך המנקה (חוקי
-      // Firestore), והניסיון נדחה בשקט. ברגע שההזמנה מסומנת cancelled היא
-      // יוצאת מרשימת ההזמנות החיות של המנקה, והנגזרת אצלו משחררת את השעה.
+      // Firestore). השרת משחרר את השעה עם booking_cancelled.
     } catch (err) { logError('home:write', err); }
     setCancellingBooking(false);
     setShowWaiting(false);
@@ -3759,7 +3775,7 @@ function ChatModal({ cleaner, visible, onClose }: any) {
 
   // ── הקלטה קולית ──
   const [isRecording,  setIsRecording]  = useState(false);
-  const audioRecorder = useAudioRecorder(RecordingPresets.HIGH_QUALITY);
+  const audioRecorder = useAudioRecorder(VOICE_RECORDING);
   const [playingId,    setPlayingId]    = useState<string | null>(null);
   const [viewerUri,    setViewerUri]    = useState<string | null>(null);
   const soundRef = useRef<any>(null);
@@ -3875,7 +3891,7 @@ function ChatModal({ cleaner, visible, onClose }: any) {
       });
       await setDoc(doc(db, 'chats', chatId), {
         participants: [clientUid, otherUid].sort(),
-        lastMessage: t.chatVoiceMsg,
+        lastMessage: '🎤',
         lastMessageAt: new Date().toISOString(),
         lastSenderUid: clientUid,
         unreadBy: arrayUnion(otherUid), deletedFor: [],
@@ -3909,7 +3925,7 @@ function ChatModal({ cleaner, visible, onClose }: any) {
       });
       await setDoc(doc(db, 'chats', chatId), {
         participants: [clientUid, otherUid].sort(),
-        lastMessage: t.chatImageMsg,
+        lastMessage: '📷',
         lastMessageAt: new Date().toISOString(),
         lastSenderUid: clientUid,
         unreadBy: arrayUnion(otherUid), deletedFor: [],
@@ -3980,6 +3996,8 @@ function ChatModal({ cleaner, visible, onClose }: any) {
             )}
             {messages.map(m => {
               if (m.type === 'bit_payment') {
+                // Only a real Bit link becomes a payment card (lib/photos isBitLink).
+                if (!isBitLink(m.bitLink)) return null;
                 return (
                   <View key={m.id} style={{ alignItems: 'flex-start' }}>
                     <View style={s.bitCard}>
@@ -3999,7 +4017,7 @@ function ChatModal({ cleaner, visible, onClose }: any) {
               }
               if (m.type === 'image') {
                 const isMe = m.fromUid === clientUid;
-                const uri = m.imageBase64 || m.imageUrl;
+                const uri = chatImageUri(m);
                 return (
                   <View key={m.id} style={{ alignItems: isMe ? 'flex-end' : 'flex-start' }}>
                     <TouchableOpacity onPress={() => uri && setViewerUri(uri)} activeOpacity={0.85}>
@@ -4015,7 +4033,7 @@ function ChatModal({ cleaner, visible, onClose }: any) {
               if (m.type === 'audio') {
                 const isMe = m.fromUid === clientUid;
                 const isPlaying = playingId === m.id;
-                const src = m.audioBase64 || m.audioUrl;
+                const src = voiceNoteSource(m);   // inline notes only
                 return (
                   <View key={m.id} style={{ alignItems: isMe ? 'flex-end' : 'flex-start' }}>
                     <TouchableOpacity
@@ -4412,7 +4430,9 @@ function QuickRebookModal({ visible, onClose, myBookings, bookingsState, allClea
                       </T>
                     ) : null}
                     <T style={{ fontSize: 13, color: C.textSub, textAlign: align, writingDirection: isRTL ? 'rtl' : 'ltr' }}>
-                      📅 {formatJobDate(String(b.bookingDate || b.createdAt?.split('T')[0] || ''))}
+                      {/* LRM: digits and dots only, so under the mirrored root of an LTR
+                          language the line ran backwards — "17:00 · 22/11 📅" (audit 22.11.2026). */}
+                      {'\u200E'}📅 {formatJobDate(String(b.bookingDate || b.createdAt?.split('T')[0] || ''))}
                       {b.startTime ? ` ${(t as any).atHour ?? 'בשעה'} ${b.startTime}` : ''}
                       {b.hours ? `   ⏱ ${b.hours} ${t.hoursUnit}` : ''}
                     </T>
@@ -5222,7 +5242,11 @@ export default function HomeScreen() {
 
   // ── כפתור חזרה אנדרואיד ──────────────────────────────────────────────────────
   const lastBackPress = useRef(0);
-  useEffect(() => {
+  // Only while home is the screen on top. Registered with useEffect it stayed
+  // live under the diary, the profile and support, answered every press with
+  // true, and Android back did nothing there — the second press offered to
+  // quit the app (audit 22.11.2026).
+  useFocusEffect(useCallback(() => {
     const sub = BackHandler.addEventListener('hardwareBackPress', () => {
       // סגור תפריט/מודל פתוח תחילה
       if (showSearchSugg || search.trim()) { setSearch(''); setSearchSugg([]); setShowSearchSugg(false); return true; }
@@ -5243,7 +5267,7 @@ export default function HomeScreen() {
           t.exitTitle || 'יציאה מהאפליקציה',
           t.exitMsg   || 'האם אתה בטוח שברצונך לצאת?',
           [
-            { text: t.cancelKeepBooking || 'ביטול', style: 'cancel' },
+            { text: t.cancel || 'ביטול', style: 'cancel' },
             { text: t.exitConfirm       || 'צא', style: 'destructive', onPress: () => BackHandler.exitApp() },
           ]
         );
@@ -5253,7 +5277,7 @@ export default function HomeScreen() {
       return true;
     });
     return () => sub.remove();
-  }, [drawer, profile, booking, chatWith, filterVisible, urgentOpen, quickRebookOpen, photoViewerOpen, reportOpen, search, showSearchSugg]);
+  }, [drawer, profile, booking, chatWith, filterVisible, urgentOpen, quickRebookOpen, photoViewerOpen, reportOpen, search, showSearchSugg]));
 
   // מה חסר נאמר רק אחרי לחיצה על "שלח", במקום אחד ליד הכפתור: אזהרה אדומה ליד כל
   // שדה הופיעה עוד לפני שנגעו בטופס, והכפתור היה אפור בלי להסביר למה.
@@ -6522,10 +6546,11 @@ export default function HomeScreen() {
     const qDone = query(collection(db, 'bookings'), where('clientUid', '==', uid));
     // האם זמן ההזמנה הסתיים (גם אם המנקה שכח לסמן "סיום")
     const pastEnd = (b: any) => {
-      if (!b.bookingDate || !b.startTime) return false;
-      const end = new Date(b.bookingDate + 'T' + b.startTime);
-      if (isNaN(end.getTime())) return false;
-      end.setHours(end.getHours() + (Number(b.hours) || 1));
+      // The same end every other screen reads (lib/bookingSlot): setHours took
+      // whole hours only, so a 2.5-hour job "ended" after two and a half-hour
+      // one at its start, and no hours meant one, not the default two.
+      const end = endDateOf(b);
+      if (!end) return false;
       const now = new Date();
       // A job the provider is on the way to, or in the middle of, gets three
       // hours' grace. This phone used to mark it done the minute its hours were
@@ -6545,7 +6570,12 @@ export default function HomeScreen() {
         if (b.status === 'cancelled') return false;
         // 1) המנקה סימן סיום עבודה
         if (b.status === 'done' && b.reviewRequired === true) return true;
-        // 2) המנקה שכח לסגור והזמן+השעה עברו — שלח דירוג אוטומטית
+        // 2) המנקה שכח לסגור והזמן+השעה עברו — שלח דירוג אוטומטית.
+        // Not a recurring job: only her "סיום" books the next visit (lib/endJob),
+        // and once this phone had marked it done her button wrote nothing — the
+        // series ended in silence (audit 22.11.2026). She is asked "סיימת?"
+        // on her own home screen; the client is asked to rate when she closes it.
+        if (b.recurring === 'weekly' || b.recurring === 'monthly') return false;
         if (['confirmed', 'active', 'onway'].includes(b.status) && pastEnd(b)) return true;
         return false;
       });
@@ -7540,10 +7570,14 @@ export default function HomeScreen() {
                   onPress={() => setFreeSheetOpen(true)}
                   accessibilityRole="button"
                   accessibilityLabel={(t as any).freeBtn ?? 'התפנה לי מקום'}
-                  style={[s.urgentHeaderBtn, { backgroundColor: FREE_TEAL }]}
+                  // Never past the centred logo: half the row, less the logo's
+                  // half (42), the messages button (38) and the gaps. One line
+                  // ran under the logo in en/fr on iPhone (audit 22.11.2026);
+                  // now a longer label wraps to a second line instead.
+                  style={[s.urgentHeaderBtn, { backgroundColor: FREE_TEAL, maxWidth: Math.max(72, (W - 28) / 2 - 42 - 38 - 18) }]}
                 >
-                  <T style={s.urgentHeaderBtnText} numberOfLines={1} maxFontSizeMultiplier={1.1}>
-                    {(t as any).freeBtn ?? 'התפנה לי מקום'}
+                  <T style={[s.urgentHeaderBtnText, { textAlign: 'center' }]} numberOfLines={2} maxFontSizeMultiplier={1.1}>
+                    {(t as any).freeBtnShort ?? (t as any).freeBtn ?? 'התפנה לי מקום'}
                   </T>
                 </TouchableOpacity>
               )}
@@ -7927,7 +7961,7 @@ export default function HomeScreen() {
                     </View>
                     <View style={{ marginTop: 7, gap: 5 }}>
                       <View style={s.jobFactRow}>
-                        {!!dateStr && <View style={s.jobFact}><T style={s.jobFactText}>📅 {formatJobDate(dateStr).replace(/\/\d{4}$/, '')}{timeStr ? ` · ${timeStr}` : ''}</T></View>}
+                        {!!dateStr && <View style={s.jobFact}><T style={s.jobFactText}>{'\u200E'}📅 {formatJobDate(dateStr).replace(/\/\d{4}$/, '')}{timeStr ? ` · ${timeStr}` : ''}</T></View>}
                         {!!j.hours && <View style={s.jobFact}><T style={s.jobFactText}>⏱️ {j.hours} {(t as any).hoursUnit ?? 'שעות'}</T></View>}
                         {/* Not for an urgent request: its form never asks. */}
                         {!isUrgent && <View style={s.jobFact}><T style={s.jobFactText}>🏠 {propType}</T></View>}

@@ -27,7 +27,8 @@ import { fetchBookingDetails } from '../lib/bookingDetails';
 import { pickPhotoUri } from '../lib/JobPhotos';
 import * as ImageManipulator from 'expo-image-manipulator';
 import * as FileSystem from 'expo-file-system/legacy';
-import { readVoiceNote } from '../lib/voiceNotes';
+import { readVoiceNote, voiceNoteSource, VOICE_RECORDING } from '../lib/voiceNotes';
+import { chatImageUri } from '../lib/photos';
 import { voiceFileName } from '../lib/voiceFile';
 import { Image } from 'expo-image';
 import { useLanguage, T, useAppColors, AppColors } from '../lib/LanguageContext';
@@ -35,7 +36,7 @@ import BackIcon from '../lib/BackIcon';
 import { MaterialIcons } from '@expo/vector-icons';
 
 // expo-audio — הקלטה והשמעה של הודעות קוליות (SDK 54, מחליף את expo-av)
-import { useAudioRecorder, createAudioPlayer, RecordingPresets, setAudioModeAsync, AudioModule } from 'expo-audio';
+import { useAudioRecorder, createAudioPlayer, setAudioModeAsync, AudioModule } from 'expo-audio';
 
 
 function createCS(c: AppColors) {
@@ -92,7 +93,7 @@ function InlineChatModal({ chatId, otherUid, otherName, visible, onClose, onDeci
   const [isRecording, setIsRecording] = useState(false);
   const [playingId, setPlayingId]     = useState<string | null>(null);
   const [viewerUri, setViewerUri]     = useState<string | null>(null);
-  const audioRecorder                 = useAudioRecorder(RecordingPresets.LOW_QUALITY);
+  const audioRecorder                 = useAudioRecorder(VOICE_RECORDING);
   const micReadyRef                   = useRef(false);
   const playerRef                     = useRef<any>(null);
 
@@ -344,7 +345,7 @@ function InlineChatModal({ chatId, otherUid, otherName, visible, onClose, onDeci
       });
       await setDoc(doc(db, 'chats', chatId), {
         participants: [myUid, otherUid].sort(),
-        lastMessage: t.chatImageMsg,
+        lastMessage: '📷',
         lastMessageAt: new Date().toISOString(),
         lastSenderUid: myUid,
         participantNames: { [myUid]: myName, ...(otherName ? { [otherUid]: otherName } : {}) },
@@ -408,7 +409,7 @@ function InlineChatModal({ chatId, otherUid, otherName, visible, onClose, onDeci
         });
         await setDoc(doc(db, 'chats', chatId), {
           participants: [myUid, otherUid].sort(),
-          lastMessage: t.chatVoiceMsg,
+          lastMessage: '🎤',
           lastMessageAt: new Date().toISOString(),
           lastSenderUid: myUid,
           participantNames: { [myUid]: myName, ...(otherName ? { [otherUid]: otherName } : {}) },
@@ -427,7 +428,8 @@ function InlineChatModal({ chatId, otherUid, otherName, visible, onClose, onDeci
   };
 
   const playAudio = async (audioBase64: string | undefined, audioUrl: string | undefined, msgId: string) => {
-    const src = audioBase64 || audioUrl;
+    // Inline notes only (lib/voiceNotes voiceNoteSource): a URL could point anywhere.
+    const src = voiceNoteSource({ audioBase64, audioUrl });
     if (!src) return;
     if (playerRef.current) {
       try { playerRef.current.remove(); } catch (_) {}
@@ -718,9 +720,9 @@ function InlineChatModal({ chatId, otherUid, otherName, visible, onClose, onDeci
                     </View>
                   )}
                   {m.type === 'image' ? (
-                    <TouchableOpacity onPress={() => { const u = m.imageBase64 || m.imageUrl; if (u) setViewerUri(u); }} activeOpacity={0.85}>
+                    <TouchableOpacity onPress={() => { const u = chatImageUri(m); if (u) setViewerUri(u); }} activeOpacity={0.85}>
                       <Image
-                        source={{ uri: m.imageBase64 || m.imageUrl }}
+                        source={{ uri: chatImageUri(m) }}
                         style={{ width: 200, height: 150, borderRadius: 12, borderWidth: 1, borderColor: C.blueBorder }}
                         contentFit="cover"
                       />

@@ -392,3 +392,13 @@ export function urgentBackOut(
   if (r.status === 'taken') return null;
   return r.status === 'open' && isUrgentRequestLive(r, now);
 }
+
+/**
+ * The id of the booking an urgent claim creates: the request's and the
+ * claimer's. firestore.rules allows exactly this id, so one claim can make one
+ * booking — with any id, a single claiming commit could put as many confirmed
+ * bookings as it liked into the client's account (audit 22.11.2026).
+ */
+export function urgentBookingId(requestId: string, cleanerUid: string): string {
+  return `${requestId}_${cleanerUid}`;
+}

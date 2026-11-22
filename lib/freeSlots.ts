@@ -132,6 +132,33 @@ export function freeSlotProblem(
   return null;
 }
 
+/**
+ * Where a new window opens in the editor: the first hours of a day she works,
+ * inside her working hours — three if they fit, else two, else one — from the
+ * next whole hour today. The editor proposed the next hour plus three whatever
+ * her hours were, so a cleaner who works 8–18 was refused her own default at
+ * 16:00 in every language (audit 22.11.2026).
+ */
+export function suggestFreeSlot(now: Date = new Date(), hours: FreeSlotHours = {}): { date: string; s: number; e: number } {
+  const days = freeSlotDays(now);
+  const set = hours.availabilitySet === true;
+  for (const date of days) {
+    const [y, m, d] = date.split('-').map(Number);
+    const dow = new Date(y, m - 1, d).getDay();
+    // Today from the next whole hour; a later day from the start of her day,
+    // or nine when she has not set her hours.
+    const from = date === days[0] ? nextWholeHour(now) : (set ? 6 * 60 : 9 * 60);
+    for (let s = from; s <= FREE_SLOT_LATEST_START; s += 60) {
+      for (const len of [3, 2, 1]) {
+        if (s + len * 60 > 24 * 60) continue;
+        const v = workingHoursVerdict(hours.availability, dow, s / 60, len, set).verdict;
+        if (v === 'ok' || v === 'unset') return { date, s, e: s + len * 60 };
+      }
+    }
+  }
+  return { date: days[1] ?? days[0], s: 9 * 60, e: 12 * 60 };
+}
+
 /** A booking as the client's own list holds it. */
 interface ClientBooking {
   id?: unknown; status?: unknown; cancelledBy?: unknown; cleanerId?: unknown;

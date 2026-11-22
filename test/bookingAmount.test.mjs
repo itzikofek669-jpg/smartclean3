@@ -10,8 +10,7 @@ import assert from 'node:assert/strict';
 import {
   agreedTotal, bookingAmount, pendingExtension, lastExtensionAnswer, sameExtension,
   extensionRoom, extensionOptions, canAskForExtension, extensionTotal, extensionRequestOf,
-  extensionApproval, extensionDecline, termsBeforeExtension, EXTENSION_MAX_HOURS,
-} from '../.tsbuild/bookingAmount.mjs';
+  extensionApproval, extensionDecline, termsBeforeExtension, EXTENSION_MAX_HOURS, countsAsDoneWork } from '../.tsbuild/bookingAmount.mjs';
 
 // ── The amount: "earned ₪1, 0 hours" ────────────────────────────────────────
 
@@ -148,4 +147,17 @@ test('the next visit of a recurring job is booked at the first agreed terms', ()
   assert.deepEqual(termsBeforeExtension({ hours: 4, total: 400, origHours: 3, origTotal: 300 }), { hours: 3, total: 300 });
   assert.deepEqual(termsBeforeExtension({ hours: 3, total: 300 }), { hours: 3, total: 300 });
   assert.deepEqual(termsBeforeExtension({ hours: 2, total: null }), { hours: 2, total: null });
+});
+
+// Audit 22.11.2026: earnings and "completed" summed every booking not cancelled.
+test('only work that happened counts as done work', () => {
+  const today = '2026-11-22';
+  assert.equal(countsAsDoneWork({ status: 'done', bookingDate: '2026-11-30' }, today), true);
+  assert.equal(countsAsDoneWork({ status: 'confirmed', bookingDate: '2026-11-20' }, today), true);
+  assert.equal(countsAsDoneWork({ status: 'active', bookingDate: '2026-11-21' }, today), true);
+  assert.equal(countsAsDoneWork({ status: 'confirmed', bookingDate: '2026-11-22' }, today), false); // still today
+  assert.equal(countsAsDoneWork({ status: 'expired', bookingDate: '2026-11-20' }, today), false);
+  assert.equal(countsAsDoneWork({ status: 'pending', bookingDate: '2026-11-20' }, today), false);
+  assert.equal(countsAsDoneWork({ status: 'cancelled', bookingDate: '2026-11-20' }, today), false);
+  assert.equal(countsAsDoneWork(null, today), false);
 });

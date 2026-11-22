@@ -135,7 +135,7 @@ function intentScore(msg: string, keywords: string[]): number {
 function getStatusText(b: any): string {
   return ({
     pending:   '⏳ ממתין לאישור נותן השירות',
-    confirmed: `✅ אושר — מגיע ב-${b.date} בשעה ${b.startTime || ''}`,
+    confirmed: `✅ אושר — מגיע ב-${b.bookingDate || '—'} בשעה ${b.startTime || ''}`,
     onway:     '🚗 נותן השירות בדרך אליך עכשיו!',
     active:    '🧹 הניקוי מתבצע כרגע',
     done:      '✅ הניקוי הסתיים בהצלחה',
@@ -265,7 +265,7 @@ function getClientResponse(msg: string, userName: string, activeBooking: any, al
     }
     const b = activeBooking;
     return {
-      text: `📋 הזמנה פעילה:\n\n✨ נותן שירות: ${b.cleanerName || '—'}\n📅 תאריך: ${b.date || '—'} | ⏰ ${b.startTime || '—'}\n📍 כתובת: ${b.address || '—'}\n⏱️ שעות: ${b.hours || 1}\n💰 סכום: ₪${b.total || 0}\n\nסטטוס: ${getStatusText(b)}`,
+      text: `📋 הזמנה פעילה:\n\n✨ נותן שירות: ${b.cleanerName || '—'}\n📅 תאריך: ${b.bookingDate || '—'} | ⏰ ${b.startTime || '—'}\n📍 עיר: ${b.addrCity || b.city || '—'}\n⏱️ שעות: ${b.hours || 1}\n💰 סכום: ₪${b.total || 0}\n\nסטטוס: ${getStatusText(b)}`,
       quickReplies: ['פרטי נותן השירות', 'רוצה לבטל', 'חזור לתפריט'],
     };
   }
@@ -298,7 +298,7 @@ function getClientResponse(msg: string, userName: string, activeBooking: any, al
     }
     const b = activeBooking;
     return {
-      text: `📋 מדיניות ביטול A&M Clean:\n\n✅ ביטול עד 24 שעות לפני — החזר מלא\n❌ ביטול פחות מ-24 שעות — אין החזר\n\nלביטול ההזמנה עם ${b.cleanerName || 'נותן השירות'} ב-${b.date || '—'}:\nכנס ל"הזמנות שלי" ולחץ "ביטול הזמנה".`,
+      text: `📋 מדיניות ביטול A&M Clean:\n\n✅ ביטול עד 24 שעות לפני — החזר מלא\n❌ ביטול פחות מ-24 שעות — אין החזר\n\nלביטול ההזמנה עם ${b.cleanerName || 'נותן השירות'} ב-${b.bookingDate || '—'}:\nכנס ל"הזמנות שלי" ולחץ "ביטול הזמנה".`,
       quickReplies: ['הזמנות שלי', 'שמור הזמנה', 'חזור לתפריט'],
       navigateTo: '/profile',
     };
@@ -318,7 +318,7 @@ function getClientResponse(msg: string, userName: string, activeBooking: any, al
       const b = activeBooking;
       const perHour = b.hours ? Math.round((b.total || 0) / b.hours) : 0;
       return {
-        text: `💰 עלות ההזמנה הנוכחית:\n\n⏱️ ${b.hours} שעות × ₪${perHour}/שעה\n💵 סה"כ: ₪${b.total || 0}\n💳 תשלום ב: ${b.paymentMethod === 'cash' ? 'מזומן' : b.paymentMethod === 'bit' ? 'Bit' : b.paymentMethod === 'paybox' ? 'PayBox' : b.paymentMethod === 'bank' ? 'העברה בנקאית' : b.paymentMethod}\n\n✅ ₪0 דמי שירות — A&M Clean חינמי!`,
+        text: `💰 עלות ההזמנה הנוכחית:\n\n⏱️ ${b.hours} שעות × ₪${perHour}/שעה\n💵 סה"כ: ₪${b.total || 0}\n💳 תשלום ב: ${b.payment === 'cash' ? 'מזומן' : b.payment === 'bit' ? 'Bit' : b.payment === 'paybox' ? 'PayBox' : b.payment === 'bank' ? 'העברה בנקאית' : b.payment === 'card' ? 'כרטיס אשראי' : (b.payment || '—')}\n\n✅ ₪0 דמי שירות — A&M Clean חינמי!`,
         quickReplies: ['מה הסטטוס?', 'חזור לתפריט'],
       };
     }
@@ -354,7 +354,7 @@ function getClientResponse(msg: string, userName: string, activeBooking: any, al
       };
     }
     return {
-      text: `✨ פרטי נותן השירות שלך:\n\nשם: ${activeBooking.cleanerName || '—'}\nתאריך: ${activeBooking.date || '—'} | שעה: ${activeBooking.startTime || '—'}\n\n💬 לשיחה עם נותן השירות:\nכנס ל"הזמנות שלי" ולחץ על כפתור הצ'אט.`,
+      text: `✨ פרטי נותן השירות שלך:\n\nשם: ${activeBooking.cleanerName || '—'}\nתאריך: ${activeBooking.bookingDate || '—'} | שעה: ${activeBooking.startTime || '—'}\n\n💬 לשיחה עם נותן השירות:\nכנס ל"הזמנות שלי" ולחץ על כפתור הצ'אט.`,
       quickReplies: ['הזמנות שלי', 'מה הסטטוס?', 'חזור לתפריט'],
       navigateTo: '/profile',
     };
@@ -1085,14 +1085,15 @@ export default function SupportScreen() {
         const bookingField = role === 'cleaner' ? 'cleanerId' : 'clientUid';
         // No orderBy: with the where() it needs a composite index the project
         // does not have, so the query failed on every call and the catch below
-        // hid it — the assistant answered everyone from an empty list. The
-        // newest 20, sorted here.
+        // hid it — the assistant answered everyone from an empty list. All of
+        // them, newest first: the counts and earnings are totals, and the newest
+        // 20 told a cleaner with 45 jobs about a fraction of her income (audit
+        // 22.11.2026). The website's bot reads every booking too.
         const q = query(collection(db, 'bookings'), where(bookingField, '==', uid));
         const snap = await getDocs(q);
         const every = snap.docs.map(d => ({ id: d.id, ...(d.data() as any) }));
         allBookings = [...every]
-          .sort((a: any, b: any) => String(b.createdAt || '').localeCompare(String(a.createdAt || '')))
-          .slice(0, 20);
+          .sort((a: any, b: any) => String(b.createdAt || '').localeCompare(String(a.createdAt || '')));
         if (role === 'client') {
           // The booking coming up next, from all of them — not the newest-created
           // one still open, which was a request from yesterday nobody took (or one

@@ -40,11 +40,23 @@ export async function notify(e: NotifyEvent): Promise<{ sent: number; skipped: n
   try {
     const idToken = await auth.currentUser?.getIdToken();
     if (!idToken) return none;
-    const res = await fetch(`${NOTIFY_URL}/notify`, {
+    // Once more on a server error or a dropped connection: the server gives
+    // its once-only marker back when nothing went out (worker/notify.js), and
+    // a confirmation or cancellation push was otherwise lost for good (audit
+    // 22.11.2026). A 4xx is an answer, not a failure, and is not repeated.
+    const send = () => fetch(`${NOTIFY_URL}/notify`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${idToken}` },
       body: JSON.stringify(e),
     });
+    let res: Response;
+    try {
+      res = await send();
+      if (res.status >= 500) throw new Error(`notify ${res.status}`);
+    } catch {
+      await new Promise((r) => setTimeout(r, 2500));
+      res = await send();
+    }
     if (!res.ok) {
       logError('notify', new Error(`${e.event}: ${res.status}`));
       return none;

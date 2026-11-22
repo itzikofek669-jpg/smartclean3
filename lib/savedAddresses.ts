@@ -120,7 +120,16 @@ export async function getSavedAddresses(): Promise<SavedAddress[]> {
 
     const structured = data?.savedAddresses;
     if (Array.isArray(structured) && structured.length) {
-      return withOnePrimary(structured.map(normalise));
+      // Plus what the website booked at since: it writes the flat list only
+      // (src/lib/addresses rememberAddress). Read here as structured alone,
+      // those never showed in the app — and the app's next write rebuilt the
+      // flat list from this one and erased them (audit 22.11.2026). The same
+      // merge the website's loadSavedAddresses does.
+      const list = structured.map(normalise);
+      const flatList: string[] = Array.isArray(data?.addresses) ? data.addresses : [];
+      const extra = flatList.map((a) => String(a || '').trim())
+        .filter((a) => a && !list.some((x: SavedAddress) => x.address === a));
+      return withOnePrimary([...list, ...extra.map(normalise)].slice(0, MAX_ADDRESSES));
     }
 
     // Nothing structured yet. The web has been writing plain strings to

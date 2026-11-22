@@ -10,10 +10,11 @@ import { MaterialIcons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { doc, updateDoc } from 'firebase/firestore';
 import { db } from './firebase';
+import { isRtlNow } from './trNow';
 import { logError } from './logError';
 import { useLanguage, useAppColors, T } from './LanguageContext';
 import {
-  activeFreeSlots, freeSlotDays, freeSlotProblem, FREE_SLOT_MAX, hhmm, type FreeSlot,
+  activeFreeSlots, freeSlotDays, freeSlotProblem, suggestFreeSlot, FREE_SLOT_MAX, hhmm, type FreeSlot,
 } from './freeSlots';
 
 /** The feature's own colour: the logo's turquoise, apart from the board's blue and urgent's purple. */
@@ -42,11 +43,9 @@ type Mine = { freeSlots?: unknown; busySlots?: unknown; pendingSlots?: unknown; 
 const newId = () => Math.random().toString(36).slice(2, 10);
 
 /** Where a new window opens: the next whole hour today with three hours left, else tomorrow at nine. */
-function defaultDraft(now: Date): { date: string; s: number; e: number } {
-  const days = freeSlotDays(now);
-  const next = (now.getHours() + 1) * 60;
-  if (next + 180 <= 22 * 60) return { date: days[0], s: next, e: next + 180 };
-  return { date: days[1], s: 9 * 60, e: 12 * 60 };
+// Inside her working hours (lib/freeSlots suggestFreeSlot).
+function defaultDraft(now: Date, mine: Mine): { date: string; s: number; e: number } {
+  return suggestFreeSlot(now, { availability: mine?.availability, availabilitySet: mine?.availabilitySet });
 }
 
 function Stepper({ value, onMinus, onPlus, C, label }: { value: string; onMinus: () => void; onPlus: () => void; C: any; label: string }) {
@@ -86,7 +85,7 @@ export default function FreeSlotSheet({ visible, onClose, uid, mine }: {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   // Nothing up yet: the editor is simply open.
-  const editing = draft ?? (active.length === 0 ? { id: '', ...defaultDraft(now) } : null);
+  const editing = draft ?? (active.length === 0 ? { id: '', ...defaultDraft(now, mine) } : null);
 
   const close = () => { setDraft(null); setError(''); onClose(); };
   const set = (patch: Partial<{ date: string; s: number; e: number }>) => {
@@ -168,7 +167,7 @@ export default function FreeSlotSheet({ visible, onClose, uid, mine }: {
         key={`empty${n}`}
         accessibilityRole="button"
         disabled={n !== active.length}
-        onPress={() => { setError(''); setDraft({ id: '', ...defaultDraft(new Date()) }); }}
+        onPress={() => { setError(''); setDraft({ id: '', ...defaultDraft(new Date(), mine) }); }}
         style={{ flexDirection: 'row-reverse', alignItems: 'center', justifyContent: 'center', gap: 8, padding: 10, borderRadius: 12, borderWidth: 1.5, borderStyle: 'dashed', borderColor: isOpen ? FREE_TEAL : C.blueBorder, opacity: n === active.length ? 1 : 0.5 }}
       >
         <T style={{ fontSize: 12, fontWeight: '900', color: C.textSub, backgroundColor: C.grayBg, borderRadius: 10, paddingHorizontal: 7, overflow: 'hidden' }}>{n + 1}</T>
@@ -224,7 +223,8 @@ export default function FreeSlotSheet({ visible, onClose, uid, mine }: {
                   <Stepper C={C} label={tt.freeStart ?? 'שעת התחלה'} value={hhmm(editing.s)}
                     onMinus={() => set({ s: Math.max(0, editing.s - 60) })}
                     onPlus={() => set({ s: Math.min(editing.e - 60, editing.s + 60) })} />
-                  <MaterialIcons name="arrow-back" size={18} color={C.textSub} />
+                  {/* From start to end: ← in he/ar, → where the steppers read left to right (audit 22.11.2026). */}
+                  <MaterialIcons name={isRtlNow() ? 'arrow-back' : 'arrow-forward'} size={18} color={C.textSub} />
                   <Stepper C={C} label={tt.freeEnd ?? 'שעת סיום'} value={hhmm(editing.e)}
                     onMinus={() => set({ e: Math.max(editing.s + 60, editing.e - 60) })}
                     onPlus={() => set({ e: Math.min(24 * 60, editing.e + 60) })} />

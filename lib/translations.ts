@@ -6901,5 +6901,104 @@ for (const L of Object.keys(JOB_EXTENSION)) {
   Object.assign((translations as any)[L], JOB_EXTENSION[L], { extProviderWord: EXT_PROVIDER[L] });
 }
 
+
+// ── Language audit, 22.11.2026 ─────────────────────────────────────────────
+// Corrections to the translations (wrong meaning, wrong word, Ukrainian that
+// fell back to English, "urgent" called three different things) and the few
+// keys no language had. Applied last, so they win. Kept identical in meaning
+// to the other product's table (scratchpad audit, findings-i18n-*).
+const AUDIT_2211: Record<string, Record<string, string>> = {
+  "addressAfterApproval": {"uk": "Повна адреса й телефон з'являться після того, як ви підтвердите замовлення"},
+  "availFri": {"ar": "جمعة"},
+  "availMon": {"ar": "اثنين"},
+  "availThu": {"ar": "خميس"},
+  "availTue": {"ar": "ثلاثاء"},
+  "availWed": {"ar": "أربعاء"},
+  "backToLogin": {"uk": "Повернутися до входу"},
+  "bookingCancelledPopupBase": {"fr": "Le prestataire a annulé la réservation."},
+  "bookingCancelledPopupPlain": {"fr": "Le prestataire a annulé la réservation. Vous pouvez réserver un autre prestataire."},
+  "bookingCancelledPopupReplace": {"fr": "Le prestataire a annulé la réservation. Vous pouvez la publier pour les autres prestataires près de chez vous, au même horaire. De votre adresse, le tableau n’affiche que la ville — l’adresse complète n’est donnée qu’à celui qui prend la mission."},
+  "bookingCancelledPopupReposted": {"fr": "Le prestataire a annulé la réservation. La demande a été republiée, et d’autres prestataires près de chez vous peuvent la prendre."},
+  "bookingCancelledPopupSub": {"fr": "Le prestataire a annulé la réservation. Vous pouvez la republier pour qu’un autre prestataire près de chez vous la prenne."},
+  "bookingConfirmedPopupTitle": {"ru": "🎉 Заказ подтверждён!"},
+  "bookingDateTitle": {"fr": "Quand souhaitez-vous le ménage ?"},
+  "bookingRejectedPopupBase": {"fr": "Le prestataire a refusé la réservation."},
+  "bookingRejectedPopupPlain": {"fr": "Le prestataire a refusé la réservation. Vous pouvez réserver un autre prestataire."},
+  "bookingRejectedPopupReplace": {"fr": "Le prestataire a refusé la réservation. Vous pouvez la publier pour les autres prestataires près de chez vous, au même horaire. De votre adresse, le tableau n’affiche que la ville — l’adresse complète n’est donnée qu’à celui qui prend la mission."},
+  "bookingRejectedPopupReposted": {"fr": "Le prestataire a refusé la réservation. La demande a été republiée, et d’autres prestataires près de chez vous peuvent la prendre."},
+  "botBookMsg": {"he": "זהו נותן שירות לדוגמה — אי אפשר להזמין אותו.", "en": "This is a sample service provider — it can’t be booked.", "ru": "Это пример исполнителя — его нельзя заказать.", "ar": "هذا مقدم خدمة تجريبي — لا يمكن حجزه.", "fr": "Ceci est un prestataire d’exemple — il ne peut pas être réservé.", "hi": "यह एक नमूना सेवा प्रदाता है — इसे बुक नहीं किया जा सकता।", "uk": "Це приклад виконавця — його не можна замовити."},
+  "cancelRefundPolicy": {"en": "Cancel up to 24h before — full refund. After that — no refund."},
+  "cleanersWord": {"ru": "", "fr": "prestataire(s)", "hi": "सेवा प्रदाता", "en": "", "uk": "", "ar": ""},
+  "cleaningWord": {"he": "ניקיון", "en": "Cleaning", "ru": "Уборка", "ar": "تنظيف", "fr": "Ménage", "hi": "सफाई", "uk": "Прибирання"},
+  "clientWord": {"en": "Client"},
+  "datesConfirmBtn": {"ru": "✓ Подтвердить (дат: {n})"},
+  "directBookingNote": {"ar": "يمكن للعملاء حجزك مباشرة أيضًا — سيصلك إشعار ومحادثة ونافذة تأكيد"},
+  "foundCleaners": {"fr": "Résultats :", "hi": "परिणाम:", "ru": "Найдено исполнителей:", "en": "Service providers found:", "uk": "Знайдено виконавців:", "ar": "النتائج:"},
+  "gotItBtn": {"hi": "ठीक है"},
+  "hiddenFromClients": {"fr": "Vous n’apparaissez pas dans la recherche"},
+  "idVerifyUpload": {"fr": "Envoyer une pièce d’identité"},
+  "loadBookingsError": {"uk": "Не вдалося завантажити замовлення — перевірте з'єднання і спробуйте ще раз."},
+  "noPrevBookings": {"uk": "Зараз немає замовлень, які можна повторити"},
+  "noPrevBookingsSub": {"uk": "Тут з'являються замовлення, які можна повторити. Усі ваші замовлення — в історії."},
+  "notifDisableBtn": {"ar": "🔕 إيقاف الإشعارات الفورية"},
+  "notifEnableBtn": {"ar": "🔔 تفعيل الإشعارات الفورية"},
+  "notifHint": {"ar": "الإيقاف يكتم الإشعارات الفورية على الهاتف فقط. ستظل الرسائل والتنبيهات تظهر كنوافذ منبثقة داخل التطبيق."},
+  "notifSectionTitle": {"ar": "🔔 الإشعارات الفورية"},
+  "onWayBtn": {"hi": "🚗 मैं रास्ते में हूँ"},
+  "onWayConfirmMsg": {"en": "Are you on the way to the client?", "hi": "क्या आप ग्राहक के पास जा रहे हैं?"},
+  "onwayStatus": {"en": "🚗 On the way"},
+  "passwordHint": {"hi": "कम से कम 8 वर्ण, एक अक्षर और एक अंक"},
+  "payBankBranchLabel": {"fr": "Agence"},
+  "payCash": {"ar": "نقدًا"},
+  "payKochavitNote": {"ar": "الدفع عبر كوخافيت — يُحصَّل بعد التنظيف"},
+  "privacyConsent": {"hi": "मैं ऐप संचालन के लिए अपने व्यक्तिगत डेटा के संग्रह और प्रसंस्करण से सहमत हूं"},
+  "pushCleaningStartedBody": {"fr": "Le prestataire est arrivé et a commencé le ménage"},
+  "pushOffConfirmTitle": {"ar": "🔕 إيقاف الإشعارات الفورية؟"},
+  "rebookLoadError": {"uk": "Не вдалося завантажити дані замовлення — перевірте з'єднання і спробуйте ще раз."},
+  "rebookOfferTitle": {"uk": "Знову замовити — {name}?"},
+  "rebookSameCleaner": {"uk": "♻️ Замовити знову в того самого виконавця ›"},
+  "recurRebookTitle": {"fr": "🔄 C’est l’heure du ménage !", "ru": "🔄 Пора заказать уборку!"},
+  "regErrFillFields": {"en": "Enter name, email and password (at least 8 characters, a letter and a digit)", "hi": "नाम, ईमेल और पासवर्ड भरें (कम से कम 8 वर्ण, एक अक्षर और एक अंक)"},
+  "serviceFeeLabel": {"uk": "Сервісний збір"},
+  "termsAgreeText": {"hi": "मैंने पढ़कर स्वीकार किया है:"},
+  "understoodClose": {"hi": "ठीक है, बंद करें"},
+  "undoStartBtn": {"uk": "Скасувати «Роботу розпочато»", "ru": "Отменить «Работа начата»"},
+  "updateStatusError": {"hi": "स्थिति अपडेट करने में त्रुटि"},
+  "urgentBadge": {"hi": "तत्काल"},
+  "urgentBtn": {"en": "⚡ Urgent Cleaning", "fr": "⚡ Ménage urgent", "hi": "⚡ तत्काल सफाई", "ar": "⚡ تنظيف عاجل"},
+  "urgentCardTitle": {"uk": "⚡ Термінове прибирання", "en": "⚡ Urgent Cleaning", "fr": "⚡ Ménage urgent", "hi": "⚡ तत्काल सफाई", "ar": "⚡ تنظيف عاجل"},
+  "urgentNoCleaner": {"uk": "Наразі немає термінових запитів", "en": "No urgent requests right now", "fr": "Aucune demande urgente pour le moment", "hi": "अभी कोई तत्काल अनुरोध नहीं", "ar": "لا توجد طلبات عاجلة الآن"},
+  "urgentPushTitle": {"uk": "⚡ Термінове прибирання поруч!", "en": "⚡ Urgent Cleaning Nearby!", "fr": "⚡ Ménage urgent à proximité !", "hi": "⚡ पास में तत्काल सफाई!", "ar": "⚡ تنظيف عاجل قريب!"},
+  "urgentSending": {"hi": "भेजा जा रहा है..."},
+  "urgentSubtitle": {"uk": "Запит буде надіслано всім вільним виконавцям у радіусі 30 км", "en": "Your request goes to all available service providers within 30 km"},
+  "urgentTabLabel": {"uk": "⚡ Термінові", "en": "⚡ Urgent", "fr": "⚡ Urgents", "hi": "⚡ तत्काल", "ar": "⚡ عاجل"},
+  "urgentTitle": {"en": "Urgent Cleaning Request", "fr": "Demande de ménage urgent", "hi": "तत्काल सफाई अनुरोध", "ar": "طلب تنظيف عاجل"},
+  "verifyEmailContinue": {"uk": "Підтверджено — продовжити", "ru": "Подтверждено — продолжить"},
+};
+for (const [key, byLang] of Object.entries(AUDIT_2211)) {
+  for (const [L, v] of Object.entries(byLang)) if ((translations as any)[L]) (translations as any)[L][key] = v;
+}
+// Service names: "שוטף" read as the same chip as "ניקוי רגיל", and a few meant
+// something else (Пасха is Easter; Напольные is an adjective with no noun).
+const AUDIT_2211_TYPES: Record<string, Record<string, string>> = {"שוטף": {"en": "Routine upkeep", "fr": "Entretien courant", "ru": "Поддерживающая уборка", "uk": "Підтримуюче прибирання"}, "ניקוי לפסח": {"ru": "Уборка к Песаху", "ar": "تنظيف عيد الفصح اليهودي", "fr": "Ménage de Pessah", "hi": "पेसाच सफाई"}, "ריצוף": {"ru": "Мытьё полов"}, "גינון": {"ru": "Уход за садом"}, "פוליש": {"uk": "Полірування підлоги"}, "סידורי בגדים וארונות": {"uk": "Розкладання одягу й шаф"}};
+for (const [type, byLang] of Object.entries(AUDIT_2211_TYPES)) {
+  for (const [L, v] of Object.entries(byLang)) { const tr = (translations as any)[L]; if (tr?.types && type in tr.types) tr.types[type] = v; }
+}
+// Ukrainian service names still carried the emoji every other language dropped.
+{ const ukTypes = (translations as any).uk?.types || {}; for (const k of Object.keys(ukTypes)) if (typeof ukTypes[k] === 'string') ukTypes[k] = ukTypes[k].replace(/(?:\s*[\u{1F300}-\u{1FAFF}\u2600-\u27BF]\uFE0F?)+$/u, ''); }
+// Arabic short weekday names were clipped words (إثن، ثلا، أرب…) nobody writes.
+if ((translations as any).ar) (translations as any).ar.dayNamesShort = ['أحد', 'اثنين', 'ثلاثاء', 'أربعاء', 'خميس', 'جمعة', 'سبت'];
+
+// The cleaner's header button, short enough to sit beside the centred logo on
+// a 375-point phone in two lines at most. "J'ai un créneau libre" and
+// "I have an opening" ran under the logo on iPhone (audit 22.11.2026).
+const FREE_BTN_SHORT: Record<string, string> = {
+  he: 'התפנה לי מקום', en: 'I have an opening', ru: 'Есть окно', ar: 'لديّ موعد شاغر',
+  fr: 'Créneau libre', hi: 'समय खाली है', uk: 'Є вікно',
+};
+for (const L of Object.keys(FREE_BTN_SHORT)) if ((translations as any)[L]) (translations as any)[L].freeBtnShort = FREE_BTN_SHORT[L];
+// "Discuter avec le client" was cut to "Discuter avec le cli…" on the job card.
+(translations as any).fr.chatBeforeBtn = 'Écrire au client';
+
 export type Translations = typeof he;
 export default translations;

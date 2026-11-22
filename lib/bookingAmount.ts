@@ -83,6 +83,25 @@ export function bookingAmount(b: AmountFields | null | undefined): number {
 // ── The extension ────────────────────────────────────────────────────────────
 
 /** The steps offered: half an hour at a time. */
+/**
+ * A job that counts as work done, for earnings, spending and "completed" counts:
+ * closed (`done`), or one still booked — confirmed, on the way, under way —
+ * whose day has passed without anyone closing it. Not a request she never
+ * answered (`pending`, `expired`) and not a cancelled one. Both dashboards
+ * summed every booking that was not cancelled, so a ₪300 request she ignored
+ * showed as ₪300 earned and one more completed job (audit 22.11.2026).
+ * `today` is the device's YYYY-MM-DD.
+ */
+export function countsAsDoneWork(
+  b: { status?: unknown; bookingDate?: unknown } | null | undefined,
+  today: string,
+): boolean {
+  const st = String(b?.status ?? '');
+  if (st === 'done') return true;
+  const day = String(b?.bookingDate ?? '');
+  return (st === 'confirmed' || st === 'onway' || st === 'active') && !!day && day < today;
+}
+
 export const EXTENSION_STEP_HOURS = 0.5;
 /** The most a job may grow by, all its extensions together. The rules hold the same 4. */
 export const EXTENSION_MAX_HOURS = 4;

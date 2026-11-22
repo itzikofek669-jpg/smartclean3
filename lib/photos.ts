@@ -111,3 +111,19 @@ export function fetchAvatar(uid: string): Promise<string> {
 export function resolvePhoto(d: any): string {
   return d?.photoUrl || d?.photo || d?.photoB64 || '';
 }
+
+/**
+ * What a chat message may show and open (audit 22.11.2026). The rules only
+ * checked who sent a message, so either side could write a "pay with Bit"
+ * card pointing anywhere, or an image or voice URL on any host — a phishing
+ * page dressed as a payment request, or a tracking pixel. Only an inline
+ * data: image and a bitpay.co.il link are shown; Storage URLs from before the
+ * inline notes no longer resolve anyway.
+ */
+export function chatImageUri(m: { imageBase64?: unknown } | null | undefined): string | undefined {
+  const v = typeof m?.imageBase64 === 'string' ? m.imageBase64 : '';
+  return v.startsWith('data:image/') ? v : undefined;
+}
+export function isBitLink(url: unknown): url is string {
+  return typeof url === 'string' && /^https:\/\/(www\.)?bitpay\.co\.il\//.test(url);
+}

@@ -7,6 +7,7 @@ import { useAnimatedValue } from '../lib/useAnimatedValue';
 import { useRouter } from 'expo-router';
 import * as SecureStore from 'expo-secure-store';
 import { useLanguage, T, useAppColors } from '../lib/LanguageContext';
+import { isRtlNow } from '../lib/trNow';
 
 const { width: W, height: H } = Dimensions.get('window');
 
@@ -126,7 +127,8 @@ export default function OnboardingScreen() {
           activeOpacity={0.85}
         >
           <T style={s.nextTxt}>
-            {current === SLIDES.length - 1 ? t.onboardingStart : `${t.onboardingNext} →`}
+            {/* Forward is → only in a left-to-right language; in he/ar it pointed back. */}
+            {current === SLIDES.length - 1 ? t.onboardingStart : `${t.onboardingNext} ${isRtlNow() ? '←' : '→'}`}
           </T>
         </TouchableOpacity>
 

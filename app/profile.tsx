@@ -32,7 +32,7 @@ import {
 // נקודת הכניסה legacy היא מסלול התאימות הרשמי של הספרייה, וכל השיטות שבשימוש
 // כאן קיימות בה.
 import * as Calendar from 'expo-calendar/legacy';
-import { saveAvatar as savePhotoDoc, fetchAvatar, resolvePhoto } from '../lib/photos';
+import { saveAvatar as savePhotoDoc, fetchAvatar, resolvePhoto, chatImageUri } from '../lib/photos';
 import {
   fetchPortfolio, savePortfolio as savePortfolioDoc,
   MAX_PORTFOLIO_IMAGES, MAX_PORTFOLIO_IMAGE_CHARS, MAX_PORTFOLIO_TOTAL_CHARS, PORTFOLIO_PHOTO_CHARS,
@@ -41,11 +41,11 @@ import {
   LANGUAGE_CODES, LANGUAGE_FLAGS, normalizeLanguages, workingHoursVerdict,
 } from '../lib/cleanerTraits';
 import { setActiveChat } from '../lib/chatPresence';
-import { readVoiceNote, voiceNoteSource } from '../lib/voiceNotes';
+import { readVoiceNote, voiceNoteSource, VOICE_RECORDING } from '../lib/voiceNotes';
 import { voiceFileName } from '../lib/voiceFile';
 import * as FileSystem from 'expo-file-system/legacy';
 // expo-audio — הקלטה והשמעה של הודעות קוליות (SDK 54, מחליף את expo-av)
-import { useAudioRecorder, createAudioPlayer, RecordingPresets, setAudioModeAsync, AudioModule } from 'expo-audio';
+import { useAudioRecorder, createAudioPlayer, setAudioModeAsync, AudioModule } from 'expo-audio';
 import { useLanguage, T, useAppColors, AppColors, rtlRows } from '../lib/LanguageContext';
 import { bookingTabs, unansweredPast } from '../lib/bookingTabs';
 import { formatJobDate } from '../lib/jobUtils';
@@ -59,7 +59,7 @@ import { addBookingToCalendar, removeBookingFromCalendar, calendarSyncMessage } 
 import { logError } from '../lib/logError';
 import { notify } from '../lib/notify';
 import { endJob } from '../lib/endJob';
-import { bookingAmount } from '../lib/bookingAmount';
+import { bookingAmount, countsAsDoneWork } from '../lib/bookingAmount';
 import { ExtensionStrip } from '../lib/JobExtensionUI';
 import { useNow } from '../lib/useNow';
 import { withBookingDetails, migrateOpenJobDetails, fetchBookingDetails, backfillClientPhone, needsPhoneBackfill, urgentDetailsRef } from '../lib/bookingDetails';
@@ -68,7 +68,7 @@ import { firstError, validateName, validatePhone, validatePrice, validateAge, va
 import { trNow, isRtlNow, trLang } from '../lib/trNow';
 import { serviceLinesFor } from '../lib/serviceLines';
 import { claimPhone, releasePhone } from '../lib/accountChecks';
-import { isUrgentRequestLive, isUrgentRequestExpired, releasedByMe } from '../lib/urgentRequest';
+import { isUrgentRequestLive, isUrgentRequestExpired, releasedByMe, urgentBookingId } from '../lib/urgentRequest';
 import { rejectionUpdate, occupiesCleanerTime, awaitsMyApproval, rejectionReleasesToBoard, busyFieldsOf } from '../lib/bookingActions';
 import { cityFromAddress } from '../lib/cityFromAddress';
 import { bookingOrigin, replacedByEdit } from '../lib/bookingOrigin';
@@ -317,6 +317,16 @@ const PAY_ICONS: Record<string, string> = { bit: '📱', cash: '💵', paybox: '
 const SHOWN_PENDING = new Set<string>();
 // מעקב הזמנות שכבר אושרו — מונע שליחת פוש/הודעת אישור פעמיים
 const CONFIRM_SENT = new Set<string>();
+/**
+ * Only a request a client sent her directly may move to another time on
+ * approval (firestore.rules cleanerReschedulesOnApproval). The panel showed for
+ * every pending card: on a job taken off the board the write was refused with a
+ * raw permission error, and on an urgent request not yet claimed the claim went
+ * through at the request's own hour — overlapping a job she already had, while
+ * she believed she had moved it (audit 22.11.2026).
+ */
+const canSuggestTime = (b: any): boolean =>
+  !!b && !b.urgentUnclaimed && !b.urgentReq && !b.urgentRequestId && bookingOrigin(b) === 'direct';
 
 const SERVICE_DETAIL: Record<string, string[]> = {
   'ניקיון רגיל': [
@@ -817,12 +827,17 @@ export default function ProfileScreen() {
         text: msg, from: 'cleaner', fromUid: uid,
         createdAt: new Date().toISOString(),
       });
+      // Like every other send (home.tsx sendInlineChat): sorted participants,
+      // un-hidden for a client who had hidden the thread, and a push. Without
+      // the push a "how about 12:00 instead?" before approval reached nobody
+      // until the client happened to open the chat (audit 22.11.2026).
       await setDoc(doc(db, 'chats', chatId), {
-        participants: [uid, clientUid],
+        participants: [uid, clientUid].sort(),
         lastMessage: msg, lastMessageAt: new Date().toISOString(),
         lastSenderUid: uid,
-        unreadBy: [clientUid],
+        unreadBy: arrayUnion(clientUid), deletedFor: [],
       }, { merge: true });
+      void notify({ event: 'message', chatId });
     } catch (err) { logError('profile:write', err); }
   };
 
@@ -895,7 +910,7 @@ export default function ProfileScreen() {
   const chatUnsubRef  = useRef<(() => void) | null>(null);
   // Voice recording (cleaner chat)
   const [chatIsRecording,  setChatIsRecording]  = useState(false);
-  const cleanerRecorder = useAudioRecorder(RecordingPresets.HIGH_QUALITY);
+  const cleanerRecorder = useAudioRecorder(VOICE_RECORDING);
   const cleanerMicReadyRef = useRef(false);
   // When the mic is already allowed, set up recording on mount so press-and-hold
   // starts at once. Only CHECKED here, never asked: asking popped the system
@@ -1001,8 +1016,12 @@ export default function ProfileScreen() {
         setEditCity(d.city        || '');
         setEditStreet(d.street    || '');
         setEditFloor(d.floor      || '');
-        setEditApt(d.apt          || '');
-        setEditAddrPrivate(d.isPrivate || false);
+        // Both spellings, as the website reads them: registration (app and site)
+        // writes apartment / isPrivateHouse, this form apt / isPrivate. Reading
+        // only the second opened a registered client's flat number blank, and
+        // saving rebuilt her address without it (audit 22.11.2026).
+        setEditApt(d.apt || d.apartment || '');
+        setEditAddrPrivate(d.isPrivate ?? d.isPrivateHouse ?? false);
         setEditPhone(d.phone      || '');
         setEditBio(d.bio          || '');
         setEditPrice(String(d.price || ''));
@@ -1015,7 +1034,10 @@ export default function ProfileScreen() {
         setEditAge(d.age ? String(d.age) : '');
         setEditCitizenship(d.citizenship || '');
         setEditExperience(d.experience != null ? String(d.experience) : '');
-        setEditMaxDistance(d.maxDistance != null ? String(d.maxDistance) : '');
+        // A stored 999 ("no limit" from older sign-ups) is past the validator's
+        // 200 and refused every later save, whatever she had changed. Shown and
+        // saved as the ceiling it means.
+        setEditMaxDistance(d.maxDistance != null ? String(Math.min(Number(d.maxDistance) || 0, 200) || d.maxDistance) : '');
         setEditLanguages(normalizeLanguages(d.languages));
         const sp = d.servicePricing || {};
         const spStr: Record<string,string> = {};
@@ -1110,7 +1132,9 @@ export default function ProfileScreen() {
         street:        editStreet.trim(),
         floor:         editFloor.trim(),
         apt:           editApt.trim(),
+        apartment:     editAddrPrivate ? '' : editApt.trim(),
         isPrivate:     editAddrPrivate,
+        isPrivateHouse: editAddrPrivate,
         // normalizePhone: ההרשמה שומרת מנורמל וכאן נשמר הגלם, אז '050-123-4567'
         // הפסיק להתאים לבדיקת הכפילות של האתר ולחיפוש של האדמין.
         phone:         phone,
@@ -1838,7 +1862,7 @@ export default function ProfileScreen() {
       });
       await setDoc(doc(db, 'chats', chatId), {
         participants: [uid, chatClientUid].sort(),
-        lastMessage: t.chatImageMsg,
+        lastMessage: '📷',
         lastMessageAt: new Date().toISOString(),
         lastSenderUid: uid,
         participantNames: { [uid]: userName, [chatClientUid]: chatClientName },
@@ -1900,7 +1924,7 @@ export default function ProfileScreen() {
       });
       await setDoc(doc(db, 'chats', chatId), {
         participants: [uid, chatClientUid].sort(),
-        lastMessage: t.chatVoiceMsg,
+        lastMessage: '🎤',
         lastMessageAt: new Date().toISOString(),
         lastSenderUid: uid,
         unreadBy: arrayUnion(chatClientUid), deletedFor: [],
@@ -2129,9 +2153,13 @@ export default function ProfileScreen() {
 
   // Every amount through lib/bookingAmount: what was recorded, never below what
   // was agreed — jobs closed before 7.11.2026 recorded "₪1" for a few minutes.
-  const totalSpent  = bookings.filter(b => b.status !== 'cancelled').reduce((sum, b) => sum + bookingAmount(b), 0);
+  // Only work that happened (lib/bookingAmount countsAsDoneWork) — not a
+  // request nobody answered, not one still ahead.
+  const todayStr    = (() => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; })();
+  const isWork      = (b: any) => countsAsDoneWork(b, todayStr);
+  const totalSpent  = bookings.filter(isWork).reduce((sum, b) => sum + bookingAmount(b), 0);
   // מה שנגבה בפועל כשהשעות השתנו, כמו באתר ובסיכום העסקי.
-  const totalEarned = incomingBks.filter(b => b.status !== 'cancelled').reduce((sum, b) => sum + bookingAmount(b), 0);
+  const totalEarned = incomingBks.filter(isWork).reduce((sum, b) => sum + bookingAmount(b), 0);
   const isCleaner   = userRole === 'cleaner';
   const DAYS_LABELS = [t.availSun, t.availMon, t.availTue, t.availWed, t.availThu, t.availFri, t.availSat];
 
@@ -2145,11 +2173,11 @@ export default function ProfileScreen() {
     return d < today;
   };
   const thisMonthBks    = incomingBks.filter(b => { const d = new Date(b.createdAt); return d.getMonth() === nowDate.getMonth() && d.getFullYear() === nowDate.getFullYear(); });
-  const thisMonthEarned = thisMonthBks.filter(b => b.status !== 'cancelled').reduce((sum, b) => sum + bookingAmount(b), 0);
-  const completedBks    = incomingBks.filter(b => b.status === 'done' || (isPastBooking(b) && b.status !== 'cancelled'));
+  const thisMonthEarned = thisMonthBks.filter(isWork).reduce((sum, b) => sum + bookingAmount(b), 0);
+  const completedBks    = incomingBks.filter(isWork);
   const cancelledBks    = incomingBks.filter(b => b.status === 'cancelled');
   const cancelRate      = incomingBks.length > 0 ? Math.round((cancelledBks.length / incomingBks.length) * 100) : 0;
-  const allTimeEarned   = incomingBks.filter(b => b.status !== 'cancelled').reduce((sum, b) => sum + bookingAmount(b), 0);
+  const allTimeEarned   = incomingBks.filter(isWork).reduce((sum, b) => sum + bookingAmount(b), 0);
   const clientFreq: Record<string, number> = {};
   incomingBks.forEach(b => { if (b.clientUid) clientFreq[b.clientUid] = (clientFreq[b.clientUid] || 0) + 1; });
   const repeatClients   = Object.values(clientFreq).filter(n => n >= 2).length;
@@ -2168,7 +2196,7 @@ export default function ProfileScreen() {
   });
   const monthlyEarnings = last6Months.map(m =>
     incomingBks
-      .filter(b => b.status !== 'cancelled' && (() => { const d = new Date(b.createdAt); return d.getMonth() === m.month && d.getFullYear() === m.year; })())
+      .filter(b => isWork(b) && (() => { const d = new Date(b.createdAt); return d.getMonth() === m.month && d.getFullYear() === m.year; })())
       .reduce((sum, b) => sum + bookingAmount(b), 0)
   );
   const maxMonthly = Math.max(...monthlyEarnings, 1);
@@ -2195,7 +2223,7 @@ export default function ProfileScreen() {
     // כשמגיעים לכאן מקישור עמוק, וגם מאזין שנכשל משאיר אותו ריק — ואז כל
     // בדיקה עוברת בשקט. ואם השאילתה נכשלת, נכשלים סגור.
     {
-      const changed = showPendingTimeChange && (pendingNewDate || pendingNewTime);
+      const changed = showPendingTimeChange && canSuggestTime(b) && (pendingNewDate || pendingNewTime);
       const tDate = changed ? `${pendingPickerDate.getFullYear()}-${String(pendingPickerDate.getMonth()+1).padStart(2,'0')}-${String(pendingPickerDate.getDate()).padStart(2,'0')}` : b.bookingDate;
       const tTime = changed ? `${String(pendingPickerDate.getHours()).padStart(2,'0')}:${String(pendingPickerDate.getMinutes()).padStart(2,'0')}` : b.startTime;
       // Not an hour that has already gone, unless a new one is being proposed.
@@ -2237,7 +2265,7 @@ export default function ProfileScreen() {
     try {
       // אם בוצע שינוי זמן — עדכן בהזמנה
       const updates: any = { status: 'confirmed' };
-      const dateChanged = showPendingTimeChange && (pendingNewDate || pendingNewTime);
+      const dateChanged = showPendingTimeChange && canSuggestTime(b) && (pendingNewDate || pendingNewTime);
       if (dateChanged) {
         // שמור בפורמט ISO עקבי — YYYY-MM-DD ו-HH:mm
         const y  = pendingPickerDate.getFullYear();
@@ -2307,6 +2335,10 @@ export default function ProfileScreen() {
         }, { merge: true });
       } catch (err) { logError('profile:write', err); }
     } catch (e: any) {
+      // The approval did not land (offline, refused) — let her press again.
+      // The lock stayed set, so every later press closed the sheet and wrote
+      // nothing until the app restarted, and the request expired at its hour.
+      CONFIRM_SENT.delete(b.id);
       Alert.alert(t.error, e?.message || t.error);
     }
   };
@@ -2492,7 +2524,9 @@ export default function ProfileScreen() {
       const reqRef = doc(db, 'urgentRequests', req.id);
       const cleanerSnap = await getDoc(doc(db, 'users', uid));
       const cleanerName = cleanerSnap.data()?.name || 'נותן שירות';
-      const bookingRef = doc(collection(db, 'bookings'));
+      // The request's id and hers — the only booking id the rules accept for a
+      // claim, so one claim makes one booking (audit 22.11.2026).
+      const bookingRef = doc(db, 'bookings', urgentBookingId(req.id, uid));
       try {
         await runTransaction(db, async (tx) => {
           const fresh = await tx.get(reqRef);
@@ -3117,7 +3151,8 @@ export default function ProfileScreen() {
                   </View>
                 </View>
 
-                {/* ─── כפתור שינוי שעה ─── */}
+                {/* ─── כפתור שינוי שעה ─── רק בהזמנה ישירה (canSuggestTime) */}
+                {canSuggestTime(pendingConfirmBooking) && (
                 <TouchableOpacity
                   style={{ flexDirection: 'row-reverse', alignItems: 'center', gap: 8, marginHorizontal: 12, marginTop: 10, backgroundColor: '#F59E0B', borderRadius: 14, paddingHorizontal: 18, paddingVertical: 13, alignSelf: 'flex-end', elevation: 3, shadowColor: '#92400E', shadowOpacity: 0.25, shadowRadius: 6, shadowOffset: { width: 0, height: 3 } }}
                   onPress={() => setShowPendingTimeChange(v => !v)}
@@ -3127,9 +3162,10 @@ export default function ProfileScreen() {
                   <T style={{ fontSize: 14, fontWeight: '900', color: '#fff' }}>{t.suggestTimeBtn}</T>
                   <T style={{ fontSize: 13, color: 'rgba(255,255,255,0.85)' }}>{showPendingTimeChange ? '▲' : '▼'}</T>
                 </TouchableOpacity>
+                )}
 
                 {/* ─── פאנל שינוי שעה ─── */}
-                {showPendingTimeChange && (
+                {showPendingTimeChange && canSuggestTime(pendingConfirmBooking) && (
                   <View style={{ marginHorizontal: 12, marginTop: 6, backgroundColor: C.white, borderRadius: 16, padding: 14, gap: 12, borderWidth: 1.5, borderColor: '#FED7AA' }}>
                     <T style={{ fontSize: 13, fontWeight: '800', color: C.textDark, textAlign: 'center' }}>{t.altTimeForClient}</T>
 
@@ -3250,7 +3286,7 @@ export default function ProfileScreen() {
                     }
                     // תמונה
                     if (item.type === 'image') {
-                      const uri = item.imageBase64 || item.imageUrl;
+                      const uri = chatImageUri(item);
                       return (
                         <View style={{ alignItems: isMe ? 'flex-end' : 'flex-start' }}>
                           <TouchableOpacity onPress={() => uri && setChatViewerUri(uri)} activeOpacity={0.85}>
@@ -4299,7 +4335,7 @@ export default function ProfileScreen() {
                 );
               }
               if (m.type === 'image') {
-                const uri = m.imageBase64 || m.imageUrl;
+                const uri = chatImageUri(m);
                 return (
                   <View key={m.id} style={{ alignItems: isMe ? 'flex-end' : 'flex-start' }}>
                     <TouchableOpacity onPress={() => uri && setChatViewerUri(uri)} activeOpacity={0.85}>

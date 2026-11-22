@@ -1,7 +1,7 @@
 // lib/freeSlots — "התפנה לי מקום": which windows are on offer, and what may be put up.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { activeFreeSlots, freeSlotProblem, freeSlotDays, freeSlotTaken, FREE_SLOT_MAX, cancelledOnClient, freeMeetsCancelled } from '../.tsbuild/freeSlots.mjs';
+import { activeFreeSlots, freeSlotProblem, freeSlotDays, freeSlotTaken, FREE_SLOT_MAX, cancelledOnClient, freeMeetsCancelled, suggestFreeSlot } from '../.tsbuild/freeSlots.mjs';
 import { diaryAgenda } from '../.tsbuild/workDiary.mjs';
 
 const now = new Date(2026, 10, 21, 10, 15);            // Sat 21 Nov 2026, 10:15
@@ -119,4 +119,22 @@ test('an opening on hours cancelled on him, by another cleaner', () => {
   assert.equal(freeMeetsCancelled([], cancelled, 'c2'), false);
   assert.equal(freeMeetsCancelled(undefined, cancelled, 'c2'), false);
   assert.equal(freeMeetsCancelled([F('a', '2026-11-24', 600, 720)], [], 'c2'), false);
+});
+
+// Audit 22.11.2026: the editor proposed the next hour plus three whatever her
+// hours were, and publishing that default was refused as outside her hours.
+test('the proposed window is inside her working hours', () => {
+  const at16 = new Date(2026, 10, 22, 15, 20);           // Sun 22 Nov, 15:20
+  const hours = { availabilitySet: true, availability: {
+    sun: { active: true, start: 8, end: 18 }, mon: { active: true, start: 8, end: 18 },
+  } };
+  const f = suggestFreeSlot(at16, hours);
+  // Today from 16:00: two hours still fit before 18:00.
+  assert.deepEqual(f, { date: '2026-11-22', s: 16 * 60, e: 18 * 60 });
+  assert.equal(freeSlotProblem({ id: 'x', ...f }, [], [], [], at16, hours), null);
+  // Past her day: the next day she works, from its start.
+  const late = suggestFreeSlot(new Date(2026, 10, 22, 17, 30), hours);
+  assert.deepEqual(late, { date: '2026-11-23', s: 8 * 60, e: 11 * 60 });
+  // Hours not set: the old proposal, next hour and three.
+  assert.deepEqual(suggestFreeSlot(at16, {}), { date: '2026-11-22', s: 16 * 60, e: 19 * 60 });
 });

@@ -1,4 +1,5 @@
 import * as FileSystem from 'expo-file-system/legacy';
+import { RecordingPresets, type RecordingOptions } from 'expo-audio';
 
 /**
  * Chat voice notes — read a finished recording into the data URI that goes
@@ -23,6 +24,22 @@ import * as FileSystem from 'expo-file-system/legacy';
  * it is the one the UI has been promising in every language: "הקלטה מקסימלית
  * ~30 שניות".
  */
+
+/**
+ * The one way every screen records a voice note (audit 22.11.2026).
+ *
+ * The chat tab recorded with LOW_QUALITY, which on Android is 3GP/AMR-NB —
+ * stored under an m4a label, so neither the website nor an iPhone could play
+ * it. The other screens recorded HIGH_QUALITY at 128 kbps stereo, ~16 KB/s,
+ * and anything past ~18 s was refused after it had been recorded. AAC in MP4,
+ * mono, 48 kbps plays everywhere and keeps 30 s near 180 KB.
+ */
+export const VOICE_RECORDING: RecordingOptions = {
+  ...RecordingPresets.HIGH_QUALITY,
+  sampleRate: 22050,
+  numberOfChannels: 1,
+  bitRate: 48000,
+};
 
 /** The advertised limit. `t.audioTooLongMsg` says this number out loud. */
 export const MAX_VOICE_SECONDS = 30;
@@ -66,5 +83,8 @@ export async function readVoiceNote(uri: string): Promise<string> {
  * written before this change — a Storage URL that no longer resolves.
  */
 export function voiceNoteSource(m: { audioBase64?: string; audioUrl?: string } | null | undefined): string {
-  return m?.audioBase64 || m?.audioUrl || '';
+  // Inline notes only: an audioUrl could point anywhere (audit 22.11.2026), and
+  // the Storage ones from before no longer resolve.
+  const v = typeof m?.audioBase64 === 'string' ? m.audioBase64 : '';
+  return v.startsWith('data:audio/') ? v : '';
 }
