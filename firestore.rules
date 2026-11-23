@@ -1448,7 +1448,9 @@ service cloud.firestore {
                   && request.resource.data.imageBase64.size() <= 1000000))
           && (!('audioBase64' in request.resource.data)
               || (request.resource.data.audioBase64 is string
-                  && request.resource.data.audioBase64.size() <= 600000));
+                  // The website's own cap (src/lib/voiceNote MAX_VOICE_CHARS):
+                  // its WAV fallback runs to ~640K characters for 30 seconds.
+                  && request.resource.data.audioBase64.size() <= 900000));
         allow update: if false;                 // messages are immutable
         // Your own message, not your counterparty's. Messages are immutable
         // above, so the intent is that a sent message is a record — but delete

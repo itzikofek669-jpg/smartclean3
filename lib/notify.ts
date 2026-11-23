@@ -53,7 +53,9 @@ export async function notify(e: NotifyEvent): Promise<{ sent: number; skipped: n
     try {
       res = await send();
       if (res.status >= 500) throw new Error(`notify ${res.status}`);
-    } catch {
+    } catch (err) {
+      // A broadcast has no once-only key: sent again, it rings everyone twice.
+      if (e.event === 'admin_broadcast') throw err;
       await new Promise((r) => setTimeout(r, 2500));
       res = await send();
     }

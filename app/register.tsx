@@ -457,7 +457,7 @@ export default function RegisterScreen() {
   const missName  = submitAttempted && !name.trim();
   const missEmail = submitAttempted && !email.trim();
   const missPass  = submitAttempted && !!validatePassword(password);
-  const missPhone = submitAttempted && !/^0\d{8,9}$/.test(fphone);
+  const missPhone = submitAttempted && !!validatePhone(fphone);
   const missTerms = submitAttempted && !termsOk;
   const missAge   = submitAttempted && !ageOk;
   const missPriv  = submitAttempted && !privacyOk;
@@ -469,7 +469,7 @@ export default function RegisterScreen() {
     setSubmitAttempted(true);
     if (!name.trim() || !email.trim() || password.length < 8)
       return Alert.alert(t.error, t.regErrFillFields);
-    if (!phone.trim() || !/^0\d{8,9}$/.test(phone.replace(/[-\s]/g, '')))
+    if (validatePhone(phone))
       return Alert.alert(t.error, t.regErrPhone);
     if (!termsOk)
       return Alert.alert(t.error, t.regErrTerms);
@@ -834,7 +834,9 @@ export default function RegisterScreen() {
               keyboardType="phone-pad"
               placeholderTextColor={C.sub}
               textAlign={isRTL ? 'right' : 'left'}
-              maxLength={10}
+              // Room for +972 and dashes; validatePhone normalises them. Ten
+              // characters cut "050-1234567" to "050-123456" (audit 22.11.2026).
+              maxLength={16}
             />
           </View>
 

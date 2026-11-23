@@ -31,7 +31,9 @@ export function normalizePhone(raw: string): string {
 export function validatePhone(raw: string, required = true): string | null {
   const v = normalizePhone(raw);
   if (!v) return required ? trNow('vErrPhoneRequired') : null;
-  if (!/^0(5\d{8}|[2-4,8-9]\d{7})$/.test(v)) {
+  // 07X numbers are ten digits (072, 073, 074, 077…), like mobiles; they were
+  // refused at sign-up and in profile edit (audit 22.11.2026).
+  if (!/^0(5\d{8}|7\d{8}|[2-4,8-9]\d{7})$/.test(v)) {
     return trNow('vErrPhoneInvalid');
   }
   return null;
@@ -53,7 +55,9 @@ export function validateEmail(raw: string): string | null {
 export function validatePassword(raw: string): string | null {
   const v = String(raw || '');
   if (v.length < 8) return trNow('vErrPasswordShort');
-  if (!/[A-Za-z֐-׿]/.test(v) || !/\d/.test(v)) return trNow('vErrPasswordWeak');
+  // A letter of any alphabet: "пароль12" or Arabic letters were refused as
+  // weak, though the hint asks only for "a letter and a digit" (audit 22.11.2026).
+  if (!/\p{L}/u.test(v) || !/\d/.test(v)) return trNow('vErrPasswordWeak');
   return null;
 }
 

@@ -82,7 +82,6 @@ export function bookingAmount(b: AmountFields | null | undefined): number {
 
 // ── The extension ────────────────────────────────────────────────────────────
 
-/** The steps offered: half an hour at a time. */
 /**
  * A job that counts as work done, for earnings, spending and "completed" counts:
  * closed (`done`), or one still booked — confirmed, on the way, under way —
@@ -102,6 +101,7 @@ export function countsAsDoneWork(
   return (st === 'confirmed' || st === 'onway' || st === 'active') && !!day && day < today;
 }
 
+/** The steps offered: half an hour at a time. */
 export const EXTENSION_STEP_HOURS = 0.5;
 /** The most a job may grow by, all its extensions together. The rules hold the same 4. */
 export const EXTENSION_MAX_HOURS = 4;

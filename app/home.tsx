@@ -3254,7 +3254,14 @@ function BookingModal({ cleaner, visible, onClose, onBookingCreated, prebookData
       if (cancelled) void notify({ event: 'booking_cancelled', bookingId: pendingBookingId });
       // busySlots לא מנוקה מכאן: הלקוח אינו מורשה לכתוב למסמך המנקה (חוקי
       // Firestore). השרת משחרר את השעה עם booking_cancelled.
-    } catch (err) { logError('home:write', err); }
+    } catch (err) {
+      // A transaction needs the server: offline it fails, and the screen must
+      // not close as if the booking were cancelled (review 22.11.2026).
+      logError('home:write', err);
+      setCancellingBooking(false);
+      Alert.alert(t.error, (t as any).errNoInternet ?? t.error);
+      return;
+    }
     setCancellingBooking(false);
     setShowWaiting(false);
     setPendingBookingId(null);
@@ -4432,7 +4439,7 @@ function QuickRebookModal({ visible, onClose, myBookings, bookingsState, allClea
                     <T style={{ fontSize: 13, color: C.textSub, textAlign: align, writingDirection: isRTL ? 'rtl' : 'ltr' }}>
                       {/* LRM: digits and dots only, so under the mirrored root of an LTR
                           language the line ran backwards — "17:00 · 22/11 📅" (audit 22.11.2026). */}
-                      {'\u200E'}📅 {formatJobDate(String(b.bookingDate || b.createdAt?.split('T')[0] || ''))}
+                      {isRtlNow() ? '' : '\u200E'}📅 {formatJobDate(String(b.bookingDate || b.createdAt?.split('T')[0] || ''))}
                       {b.startTime ? ` ${(t as any).atHour ?? 'בשעה'} ${b.startTime}` : ''}
                       {b.hours ? `   ⏱ ${b.hours} ${t.hoursUnit}` : ''}
                     </T>
@@ -6573,8 +6580,9 @@ export default function HomeScreen() {
         // 2) המנקה שכח לסגור והזמן+השעה עברו — שלח דירוג אוטומטית.
         // Not a recurring job: only her "סיום" books the next visit (lib/endJob),
         // and once this phone had marked it done her button wrote nothing — the
-        // series ended in silence (audit 22.11.2026). She is asked "סיימת?"
-        // on her own home screen; the client is asked to rate when she closes it.
+        // series ended in silence (audit 22.11.2026). She closes it from her
+        // bookings (and is asked "סיימת?" while it is under way); the client is
+        // asked to rate when she does.
         if (b.recurring === 'weekly' || b.recurring === 'monthly') return false;
         if (['confirmed', 'active', 'onway'].includes(b.status) && pastEnd(b)) return true;
         return false;

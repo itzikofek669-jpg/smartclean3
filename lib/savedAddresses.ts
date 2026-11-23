@@ -129,7 +129,10 @@ export async function getSavedAddresses(): Promise<SavedAddress[]> {
       const flatList: string[] = Array.isArray(data?.addresses) ? data.addresses : [];
       const extra = flatList.map((a) => String(a || '').trim())
         .filter((a) => a && !list.some((x: SavedAddress) => x.address === a));
-      return withOnePrimary([...list, ...extra.map(normalise)].slice(0, MAX_ADDRESSES));
+      // A stable id from the address itself: delete and "set as primary" look
+      // an entry up by id after reading the list again, and an id made new on
+      // every read matched nothing (review 22.11.2026).
+      return withOnePrimary([...list, ...extra.map((a, i) => normalise({ address: a, id: `flat_${a}` }, i))].slice(0, MAX_ADDRESSES));
     }
 
     // Nothing structured yet. The web has been writing plain strings to
