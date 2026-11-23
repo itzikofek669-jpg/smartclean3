@@ -6908,6 +6908,8 @@ for (const L of Object.keys(JOB_EXTENSION)) {
 // keys no language had. Applied last, so they win. Kept identical in meaning
 // to the other product's table (scratchpad audit, findings-i18n-*).
 const AUDIT_2211: Record<string, Record<string, string>> = {
+  // Ofek, 23.11.2026: no "verified" — terms 2.3 say the app does not check or verify providers.
+  "onboarding3Title": {"he": "נותני שירות מדורגים", "en": "Rated Service Providers", "ru": "Исполнители с оценками", "ar": "مقدمو خدمة مُقيَّمون", "fr": "Prestataires notés", "hi": "रेटेड सेवा प्रदाता", "uk": "Виконавці з оцінками"},
   "addressAfterApproval": {"uk": "Повна адреса й телефон з'являться після того, як ви підтвердите замовлення"},
   "availFri": {"ar": "جمعة"},
   "availMon": {"ar": "اثنين"},
