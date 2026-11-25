@@ -7007,6 +7007,12 @@ const FREE_BTN_SHORT: Record<string, string> = {
   fr: 'Créneau libre', hi: 'समय खाली है', uk: 'Є вікно',
 };
 for (const L of Object.keys(FREE_BTN_SHORT)) if ((translations as any)[L]) (translations as any)[L].freeBtnShort = FREE_BTN_SHORT[L];
+
+// The "any" chip of the rating and price filters. It read "אפס סינון" (reset
+// filter) — "Max price per hour: Reset filter" — where it means no limit; the
+// website says "הכל" (found making the tutorial video, 25.11.2026).
+const FILTER_ANY: Record<string, string> = { he: 'הכל', en: 'Any', ru: 'Любой', ar: 'الكل', fr: 'Tous', hi: 'सभी', uk: 'Будь-який' };
+for (const L of Object.keys(FILTER_ANY)) if ((translations as any)[L]) (translations as any)[L].filterAny = FILTER_ANY[L];
 // "Discuter avec le client" was cut to "Discuter avec le cli…" on the job card.
 (translations as any).fr.chatBeforeBtn = 'Écrire au client';
 

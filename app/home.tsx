@@ -1158,8 +1158,10 @@ function CleanerProfile({ cleaner, visible, onClose, onBook, onChat, initialShow
           <View style={s.profileHero}>
             <View style={s.profileAvatar}>
               {(() => {
-                const uri = avatarUri ||
-                  (!isNaN(parseInt(cleaner.id)) ? `https://i.pravatar.cc/150?img=${((parseInt(cleaner.id) - 1) % 70) + 1}` : null);
+                // Her own photo or her initials — never a stock face. A uid that
+                // happened to start with a digit drew a stranger from pravatar.cc
+                // on her profile (found making the tutorial video, 25.11.2026).
+                const uri = avatarUri || null;
                 return uri
                   ? <Image source={{ uri }} style={{ width: 90, height: 90, borderRadius: 45 }} contentFit="cover" />
                   : <T style={s.profileAvatarText}>{cleaner.initials}</T>;
@@ -4132,10 +4134,9 @@ function CleanerCardInner({ cleaner, isSel, onSelect, onProfile, onBook, onChat,
   const shownTypes: string[] = foldServices
     ? [...asked, ...cleaner.types.filter((tp: string) => !asked.includes(tp))].slice(0, 2)
     : (cleaner.types || []);
-  const photoUri = useAvatar(cleaner.uid || cleaner.id, cleaner) ||
-    (!isNaN(parseInt(cleaner.id))
-      ? `https://i.pravatar.cc/150?img=${((parseInt(cleaner.id) - 1) % 70) + 1}`
-      : null);
+  // Her own photo or her initials — never a stock face: a uid starting with a
+  // digit drew a stranger from pravatar.cc on her card (25.11.2026).
+  const photoUri = useAvatar(cleaner.uid || cleaner.id, cleaner) || null;
   return (
     <TouchableOpacity
       style={[s.card, isSel && s.cardSel, highContrast && { backgroundColor: HC.card, borderColor: HC.border, borderWidth: 2 }]}
@@ -8242,7 +8243,7 @@ export default function HomeScreen() {
               <View style={fPills}>
                 {[0, 3, 4, 4.5, 4.8].map(r => (
                   <TouchableOpacity key={r} accessibilityRole="button" accessibilityState={{ selected: filterMinRating === r }} style={fPill(filterMinRating === r)} onPress={() => setFilterMinRating(r)}>
-                    <T style={fPillText(filterMinRating === r)}>{r === 0 ? t.filterReset : `⭐ ${r}+`}</T>
+                    <T style={fPillText(filterMinRating === r)}>{r === 0 ? ((t as any).filterAny ?? t.filterReset) : `⭐ ${r}+`}</T>
                   </TouchableOpacity>
                 ))}
               </View>
@@ -8250,11 +8251,11 @@ export default function HomeScreen() {
 
             {/* מחיר מקסימלי לשעה — מספרים בלבד, כמו באתר */}
             <View>
-              <T style={fLabel}>{t.filterMaxPriceLabel}: {filterMaxPrice === 999 ? t.filterReset : filterMaxPrice}</T>
+              <T style={fLabel}>{t.filterMaxPriceLabel}: {filterMaxPrice === 999 ? ((t as any).filterAny ?? t.filterReset) : filterMaxPrice}</T>
               <View style={fPills}>
                 {[999, 200, 150, 100, 80, 60].map(p => (
                   <TouchableOpacity key={p} accessibilityRole="button" accessibilityState={{ selected: filterMaxPrice === p }} style={fPill(filterMaxPrice === p)} onPress={() => setFilterMaxPrice(p)}>
-                    <T style={fPillText(filterMaxPrice === p)}>{p === 999 ? t.filterReset : String(p)}</T>
+                    <T style={fPillText(filterMaxPrice === p)}>{p === 999 ? ((t as any).filterAny ?? t.filterReset) : String(p)}</T>
                   </TouchableOpacity>
                 ))}
               </View>
