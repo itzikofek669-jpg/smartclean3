@@ -110,7 +110,8 @@ export async function endJob(b: any, me: EndJobCleaner): Promise<{ actualHours: 
         bookingDate: nextDateStr,
         startTime: b.startTime || '',
         busyFrom: (() => { const [h=8,m=0] = (b.startTime||'08:00').split(':').map(Number); const d=new Date(nextDate); d.setHours(h,m,0,0); return d.toISOString(); })(),
-        busyUntil: (() => { const [h=8,m=0] = (b.startTime||'08:00').split(':').map(Number); const d=new Date(nextDate); d.setHours(h+nextHours,m,0,0); return d.toISOString(); })(),
+        // In minutes: setHours dropped the half of a 2.5-hour visit.
+        busyUntil: (() => { const [h=8,m=0] = (b.startTime||'08:00').split(':').map(Number); const d=new Date(nextDate); d.setHours(h, m + Math.round(nextHours * 60), 0, 0); return d.toISOString(); })(),
         recurring: b.recurring,
         // החזרה יורשת את מקור ההזמנה המקורית. בלי זה נוצר מסמך בלי origin,
         // ו-occupiesCleanerTime קרא אותו כעבודה שהמנקה תפסה: השעה ננעלה

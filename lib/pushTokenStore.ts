@@ -38,13 +38,16 @@ export const pushTokenDoc = (token: string) => ({
  * In a transaction: a browser registering between the read and the delete
  * would otherwise lose the token it just wrote.
  */
-export async function clearPhoneToken(uid: string, onlyIf?: string): Promise<void> {
+export async function clearPhoneToken(uid: string, onlyIf?: string, onlyPlatform?: string): Promise<void> {
   const ref = pushTokenRef(uid);
   await runTransaction(db, async (tx) => {
     const cur = await tx.get(ref);
     if (!cur.exists()) return;
     const d = cur.data();
     if (onlyIf !== undefined && d?.token !== onlyIf) return;
+    // No token in hand (notifications switched off since): the stored one is
+    // cleared when it is this kind of phone's — not another device's.
+    if (onlyPlatform !== undefined && d?.platform !== onlyPlatform) return;
     if (d?.webToken) tx.update(ref, { token: deleteField(), platform: deleteField() });
     else tx.delete(ref);
   });

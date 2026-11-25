@@ -6908,6 +6908,14 @@ for (const L of Object.keys(JOB_EXTENSION)) {
 // keys no language had. Applied last, so they win. Kept identical in meaning
 // to the other product's table (scratchpad audit, findings-i18n-*).
 const AUDIT_2211: Record<string, Record<string, string>> = {
+  "loginFillBoth": {"he": "הזינו אימייל וסיסמה", "en": "Enter your email and password", "ru": "Введите email и пароль", "ar": "أدخل البريد الإلكتروني وكلمة المرور", "fr": "Saisissez votre e-mail et votre mot de passe", "hi": "ईमेल और पासवर्ड दर्ज करें", "uk": "Введіть email і пароль"},
+  "freeAddFirst": {"he": "מקום פנוי", "en": "An opening", "ru": "Окно", "ar": "موعد شاغر", "fr": "Un créneau", "hi": "खाली समय", "uk": "Вікно"},
+  // Russian and Ukrainian plurals after a number: "2 часов", "+3 услуг". The
+  // short unit and "ещё {n}" read right for every count (audit 22.11.2026).
+  "hoursUnit": {"ru": "ч.", "uk": "год."},
+  "hoursShort": {"ru": "ч.", "uk": "год."},
+  "freeMore": {"ru": "ещё {n}", "uk": "ще {n}"},
+  "levelToGold": {"ru": "Оценённых заказов до «Золота»: {n}", "uk": "Оцінених замовлень до «Золота»: {n}"},
   // Ofek, 23.11.2026: no "verified" — terms 2.3 say the app does not check or verify providers.
   "onboarding3Title": {"he": "נותני שירות מדורגים", "en": "Rated Service Providers", "ru": "Исполнители с оценками", "ar": "مقدمو خدمة مُقيَّمون", "fr": "Prestataires notés", "hi": "रेटेड सेवा प्रदाता", "uk": "Виконавці з оцінками"},
   "addressAfterApproval": {"uk": "Повна адреса й телефон з'являться після того, як ви підтвердите замовлення"},

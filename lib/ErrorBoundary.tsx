@@ -2,6 +2,7 @@ import { trNow } from './trNow';
 import React, { Component, type ErrorInfo, type ReactNode } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, ScrollView } from 'react-native';
 import { logError } from './logError';
+import { router } from 'expo-router';
 
 /**
  * Catches render-time crashes and shows a recoverable screen.
@@ -62,6 +63,18 @@ export default class ErrorBoundary extends Component<Props, State> {
           accessibilityLabel={trNow('tryAgainBtn')}
         >
           <Text style={s.btnText}>{trNow('tryAgainBtn')}</Text>
+        </TouchableOpacity>
+
+        {/* A crash that comes from the data on this screen comes straight back
+            on "try again": a way to the home screen too (audit 22.11.2026). */}
+        <TouchableOpacity
+          style={[s.btn, { backgroundColor: '#fff', borderWidth: 1.5, borderColor: '#0D4F96' }]}
+          // The navigator is unmounted while this screen shows: remount, then go.
+          onPress={() => { this.reset(); setTimeout(() => { try { router.replace('/home'); } catch { /* no navigator yet */ } }, 0); }}
+          accessibilityRole="button"
+          accessibilityLabel={trNow('backToHome')}
+        >
+          <Text style={[s.btnText, { color: '#0D4F96' }]}>{trNow('backToHome')}</Text>
         </TouchableOpacity>
 
         {__DEV__ && (

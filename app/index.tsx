@@ -1,5 +1,5 @@
 import { isRtlNow } from '../lib/trNow';
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { confirmLangChange } from '../lib/confirmLang';
 import {
   View, Text,  TouchableOpacity, StyleSheet,
@@ -113,8 +113,10 @@ export default function LoginScreen() {
     })();
   }, []);
 
+  const passwordRef = useRef<any>(null);
   const handleLogin = async () => {
-    if (!email.trim() || !password) return Alert.alert(t.error, `${t.emailLabel} & ${t.passwordLabel}`);
+    // A sentence, not "Email & Password" (audit 22.11.2026).
+    if (!email.trim() || !password) return Alert.alert(t.error, (t as any).loginFillBoth ?? `${t.emailLabel} & ${t.passwordLabel}`);
     setLoading(true);
     try {
       await signInWithEmailAndPassword(auth, email.trim(), password);
@@ -180,6 +182,10 @@ export default function LoginScreen() {
               autoCapitalize="none"
               placeholderTextColor={C.sub}
               textAlign={isRtlNow() ? 'right' : 'left'}
+              // Return goes on to the password, and Return there signs in —
+              // both only closed the keyboard (audit 22.11.2026).
+              returnKeyType="next"
+              onSubmitEditing={() => passwordRef.current?.focus()}
             />
           </View>
 
@@ -194,6 +200,9 @@ export default function LoginScreen() {
                 secureTextEntry={!showPass}
                 placeholderTextColor={C.sub}
                 textAlign={isRtlNow() ? 'right' : 'left'}
+                ref={passwordRef}
+                returnKeyType="go"
+                onSubmitEditing={() => { void handleLogin(); }}
               />
               <TouchableOpacity
                 onPress={() => setShowPass(v => !v)}
@@ -216,11 +225,13 @@ export default function LoginScreen() {
           <TouchableOpacity onPress={async () => {
             if (!email.trim()) return Alert.alert(t.error, t.enterEmailFirst);
             try {
-              try { auth.languageCode = 'he'; } catch (_) {}
+              // The reset email in the screen's language, not always Hebrew.
+              try { auth.languageCode = lang; } catch (_) {}
               await sendPasswordResetEmail(auth, email.trim());
               Alert.alert(t.resetSentTitle, t.resetSentMsg);
-            } catch {
-              Alert.alert(t.error, t.emailNotFound);
+            } catch (e: any) {
+              // "Email not found" only when it is: a dropped connection said it too.
+              Alert.alert(t.error, e?.code === 'auth/network-request-failed' ? t.loginErrNetwork : e?.code === 'auth/invalid-email' ? t.loginErrInvalidEmail : t.emailNotFound);
             }
           }} style={{ alignItems: 'flex-end', paddingVertical: 6, marginBottom: 4 }}>
             <T style={{ color: C.blue, fontSize: 13, fontWeight: '600' }}>{t.forgotPasswordBtn}</T>

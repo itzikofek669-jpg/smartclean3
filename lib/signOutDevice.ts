@@ -5,6 +5,7 @@ import Constants from 'expo-constants';
 import { auth, db } from './firebase';
 import { clearPhoneToken } from './pushTokenStore';
 import { logError } from './logError';
+import { Platform } from 'react-native';
 
 const within = <T,>(p: Promise<T>, ms: number): Promise<T> =>
   Promise.race([p, new Promise<T>((_, reject) => setTimeout(() => reject(new Error('timeout')), ms))]);
@@ -28,23 +29,27 @@ export async function signOutOfDevice(): Promise<void> {
         (Constants as any).easConfig?.projectId ??
         Constants.expoConfig?.slug;
       const perm = await Notifications.getPermissionsAsync();
-      if (projectId && perm.status === 'granted') {
-        const token = (await within(Notifications.getExpoPushTokenAsync({ projectId }), 4000))?.data;
-        if (token) {
-          await within(runTransaction(db, async (tx) => {
-            const ref = doc(db, 'users', uid);
-            const cur = await tx.get(ref);
-            if (cur.exists() && cur.data()?.pushToken === token) tx.update(ref, { pushToken: '' });
-          }), 4000);
-          // The private copy too, or the notification server keeps ringing a
-          // phone its owner signed out of. Its own step, best effort: until the
-          // rules opening `pushTokens` are deployed it is refused, and that must
-          // not stop the profile's token being cleared. See lib/pushTokenStore.
-          // Only the phone's token: the website's webToken shares the document.
-          await within(clearPhoneToken(uid, token), 4000)
-            .catch(err => logError('signOutOfDevice:private', err));
-        }
+      const token = projectId && perm.status === 'granted'
+        ? (await within(Notifications.getExpoPushTokenAsync({ projectId }), 4000).catch(() => null))?.data
+        : undefined;
+      if (token) {
+        // The old copy on the profile, its own step: a failure here skipped the
+        // private copy below, and the phone kept ringing (audit 22.11.2026).
+        await within(runTransaction(db, async (tx) => {
+          const ref = doc(db, 'users', uid);
+          const cur = await tx.get(ref);
+          if (cur.exists() && cur.data()?.pushToken === token) tx.update(ref, { pushToken: '' });
+        }), 4000).catch(err => logError('signOutOfDevice:profile', err));
       }
+      // The private copy, or the notification server keeps ringing a phone its
+      // owner signed out of — also when notifications were switched off since,
+      // and there is no token to name: then this kind of phone's. Only the
+      // phone's token: the website's webToken shares the document.
+      // Without a token only when notifications are off here — not when the
+      // token fetch merely failed offline, or another phone's token could go.
+      const clear = token ? clearPhoneToken(uid, token)
+        : perm.status !== 'granted' ? clearPhoneToken(uid, undefined, Platform.OS) : null;
+      if (clear) await within(clear, 4000).catch(err => logError('signOutOfDevice:private', err));
     } catch (err) {
       logError('signOutOfDevice', err);
     }

@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import {
   View, Text,  TouchableOpacity, StyleSheet,
   StatusBar, KeyboardAvoidingView, Platform, Dimensions,
-  Alert, ScrollView, Modal, ActivityIndicator, Animated,
+  Alert, ScrollView, Modal, ActivityIndicator, Animated, Keyboard,
  Image as RNImage } from 'react-native';
 import TextInput from '../lib/DirTextInput';
 import { useAnimatedValue } from '../lib/useAnimatedValue';
@@ -278,6 +278,14 @@ export default function RegisterScreen() {
   const [showPassword, setShowPassword] = useState(false);
   const [role,     setRole]     = useState<'client' | 'cleaner'>('client');
   const [loading,  setLoading]  = useState(false);
+  // The 280-point logo sits outside the scroll: with the keyboard up it left
+  // a sliver for the form and hid the address suggestions (audit 22.11.2026).
+  const [kbOpen, setKbOpen] = useState(false);
+  useEffect(() => {
+    const a = Keyboard.addListener('keyboardDidShow', () => setKbOpen(true));
+    const b = Keyboard.addListener('keyboardDidHide', () => setKbOpen(false));
+    return () => { a.remove(); b.remove(); };
+  }, []);
 
   // Client-specific fields
   const [city,           setCity]           = useState('');
@@ -306,7 +314,8 @@ export default function RegisterScreen() {
             const street  = road ? (houseNo ? `${road} ${houseNo}` : road) : p.display_name.split(',')[0];
             return street && city ? `${street}, ${city}` : p.display_name.split(',').slice(0, 2).join(', ');
           });
-          setAddrSuggestions(results);
+          // Once each: several OSM entries read the same once shortened ("הרצל 10, תל־אביב–יפו" three times).
+          setAddrSuggestions(results.filter((r: string, i: number) => results.indexOf(r) === i));
         } else {
           setAddrSuggestions([]);
         }
@@ -777,7 +786,7 @@ export default function RegisterScreen() {
           </TouchableOpacity>
           <RNImage
             source={require('../assets/images/logo-ui.png')}
-            style={{ width: 280, height: 280, marginBottom: -40 }}
+            style={kbOpen ? { width: 0, height: 0 } : { width: 280, height: 280, marginBottom: -40 }}
             resizeMode="contain"
           />
         </View>

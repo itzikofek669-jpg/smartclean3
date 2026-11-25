@@ -12,7 +12,7 @@ import { canRepost, replacedByEdit, cancelledNotice } from '../.tsbuild/bookingO
 import { urgentBackOut } from '../.tsbuild/urgentRequest.mjs';
 import { startDateOf, endDateOf, bookingHours, DEFAULT_BOOKING_HOURS, sameDayOverlap, bookingHoldsHours } from '../.tsbuild/bookingSlot.mjs';
 import { readCalendarRemoval, extractPushData } from '../.tsbuild/calendarPush.mjs';
-import { isUrgentRequestLive, isUrgentRequestExpired, expiryOf, URGENT_FIRST_START_HOUR, URGENT_LAST_START_HOUR, hourOfTime, urgentStartAllowed, urgentTodayClosed, urgentFirstSlot, urgentEditContext, urgentPushPlan, urgentAlertedAfter, liveUrgentEdit, URGENT_EDIT_WINDOW_MS, urgentAlertOutcome, urgentPushQuiet, URGENT_PUSH_FIRST_HOUR, URGENT_PUSH_LAST_HOUR, urgentExpiresAt, URGENT_TTL_MS } from '../.tsbuild/urgentRequest.mjs';
+import { isUrgentRequestLive, isUrgentRequestExpired, expiryOf, URGENT_FIRST_START_HOUR, URGENT_LAST_START_HOUR, hourOfTime, urgentStartAllowed, urgentTodayClosed, urgentFirstSlot, urgentEditContext, urgentPushPlan, urgentAlertedAfter, liveUrgentEdit, URGENT_EDIT_WINDOW_MS, urgentAlertOutcome, urgentPushQuiet, israelNow, URGENT_PUSH_FIRST_HOUR, URGENT_PUSH_LAST_HOUR, urgentExpiresAt, URGENT_TTL_MS } from '../.tsbuild/urgentRequest.mjs';
 import { splitFields, reconcile, pendingMove, publicCoord, privateKeysFor } from '../.tsbuild/profileFields.mjs';
 import { spreadStacked } from '../.tsbuild/jobUtils.mjs';
 import { pushSilence } from '../.tsbuild/pushState.mjs';
@@ -1919,4 +1919,15 @@ test('the services a search or the filter asked for, in her order', () => {
   assert.deepEqual(servicesAsked(svc, 'ניקיון', ['חלונות']), ['חלונות', 'ניקיון רגיל', 'ניקיון משרדים'], 'the filter first, then the text — a broad word does not fold the chosen one away');
   assert.deepEqual(servicesAsked(svc, 'חיפה', []), [], 'a town asks for no service');
   assert.deepEqual(servicesAsked(svc, '  ', []), [], 'nothing typed');
+});
+
+// Audit 22.11.2026: quiet hours by Israel's clock, whatever the device's zone.
+test('israelNow reads the wall clock in Israel', () => {
+  const winter = israelNow(new Date('2026-11-25T06:30:00Z'));   // UTC+2
+  assert.equal(winter.getHours(), 8);
+  assert.equal(winter.getMinutes(), 30);
+  const summer = israelNow(new Date('2026-07-01T04:59:00Z'));   // UTC+3
+  assert.equal(summer.getHours(), 7);
+  assert.equal(urgentPushQuiet(summer), true);
+  assert.equal(urgentPushQuiet(winter), false);
 });

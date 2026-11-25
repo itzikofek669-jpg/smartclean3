@@ -402,3 +402,23 @@ export function urgentBackOut(
 export function urgentBookingId(requestId: string, cleanerUid: string): string {
   return `${requestId}_${cleanerUid}`;
 }
+
+/**
+ * The wall clock in Israel, as a Date whose local fields read it — for the
+ * quiet-hours check. The device's own clock answered it, so a phone set to
+ * another time zone decided 08:30 in Israel was 06:30, never called the server
+ * and rang nobody (audit 22.11.2026). The server checks Israel time as well.
+ */
+export function israelNow(d: Date = new Date()): Date {
+  try {
+    const parts = new Intl.DateTimeFormat('en-US', {
+      timeZone: 'Asia/Jerusalem', hourCycle: 'h23',
+      year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit',
+    }).formatToParts(d);
+    const get = (type: string) => Number(parts.find((p) => p.type === type)?.value);
+    const r = new Date(get('year'), get('month') - 1, get('day'), get('hour'), get('minute'), get('second'));
+    return Number.isNaN(r.getTime()) ? d : r;
+  } catch {
+    return d;
+  }
+}

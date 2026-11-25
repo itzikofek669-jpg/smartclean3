@@ -48,10 +48,11 @@ const ThemeContext = createContext<ThemeCtx>({
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
   const [dark, setDark] = useState(false);
 
+  // Dark mode has no switch any more, so a "true" saved by an old build could
+  // never be turned off — the map came up dark inside a light screen (audit
+  // 22.11.2026). Cleared, as the website does with its old preference.
   useEffect(() => {
-    SecureStore.getItemAsync('darkMode').then(v => {
-      if (v === 'true') setDark(true);
-    }).catch(() => {});
+    SecureStore.deleteItemAsync('darkMode').catch(() => {});
   }, []);
 
   const toggleDark = () => {

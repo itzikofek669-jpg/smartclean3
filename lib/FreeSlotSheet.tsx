@@ -172,7 +172,8 @@ export default function FreeSlotSheet({ visible, onClose, uid, mine }: {
       >
         <T style={{ fontSize: 12, fontWeight: '900', color: C.textSub, backgroundColor: C.grayBg, borderRadius: 10, paddingHorizontal: 7, overflow: 'hidden' }}>{n + 1}</T>
         <MaterialIcons name="add" size={18} color={C.textSub} />
-        <T style={{ fontSize: 14, fontWeight: '700', color: C.textSub }}>{tt.freeAddAnother ?? 'מקום פנוי נוסף'}</T>
+        {/* "Another" only once there is one: spot 1 with nothing up said "another" (audit 22.11.2026). */}
+        <T style={{ fontSize: 14, fontWeight: '700', color: C.textSub }}>{n === 0 ? (tt.freeAddFirst ?? 'מקום פנוי') : (tt.freeAddAnother ?? 'מקום פנוי נוסף')}</T>
       </TouchableOpacity>
     );
   };

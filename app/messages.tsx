@@ -3,7 +3,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import {
   View, Text, StyleSheet, FlatList, TouchableOpacity, 
   Modal, StatusBar, ActivityIndicator, Alert,
-  ScrollView, KeyboardAvoidingView, BackHandler, Keyboard, Platform,
+  ScrollView, KeyboardAvoidingView, BackHandler, Keyboard, Platform, AppState,
 } from 'react-native';
 import TextInput from '../lib/DirTextInput';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -262,12 +262,19 @@ function InlineChatModal({ chatId, otherUid, otherName, visible, onClose, onDeci
     const q = query(collection(db, 'chats', chatId, 'messages'), orderBy('createdAt', 'asc'));
     const unsub = onSnapshot(q, snap => {
       setMessages(snap.docs.map(d => ({ id: d.id, ...d.data() })));
-      if (myUid) {
+      // Read only with the app in front: Android keeps this listener running
+      // in the background, and a message that came then lost its unread mark
+      // and its badge (audit 22.11.2026).
+      if (myUid && AppState.currentState === 'active') {
         updateDoc(doc(db, 'chats', chatId), { unreadBy: arrayRemove(myUid) }).catch(() => {});
       }
       setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 100);
     });
-    return () => { unsub(); setActiveChat(null); };
+    // Back in front with this chat open: what came meanwhile is read now.
+    const appSub = AppState.addEventListener('change', (st) => {
+      if (st === 'active' && myUid) updateDoc(doc(db, 'chats', chatId), { unreadBy: arrayRemove(myUid) }).catch(() => {});
+    });
+    return () => { unsub(); appSub.remove(); setActiveChat(null); };
   }, [chatId, visible]);
 
   // איפוס מצב בחירה בסגירה
@@ -279,9 +286,13 @@ function InlineChatModal({ chatId, otherUid, otherName, visible, onClose, onDeci
     if (!text.trim() || !chatId) return;
     const msg = text.trim();
     setText('');
+    // One time for the message and the thread, taken before any wait: taken
+    // after the name lookup, a quick second message could land first and the
+    // preview and its push went to the wrong one (audit 22.11.2026).
+    const sentAt = new Date().toISOString();
     try {
       await addDoc(collection(db, 'chats', chatId, 'messages'), {
-        text: msg, fromUid: myUid, createdAt: new Date().toISOString(),
+        text: msg, fromUid: myUid, createdAt: sentAt,
       });
       try {
         const myDoc = await getDoc(doc(db, 'users', myUid));
@@ -289,7 +300,7 @@ function InlineChatModal({ chatId, otherUid, otherName, visible, onClose, onDeci
         await setDoc(doc(db, 'chats', chatId), {
           participants: [myUid, otherUid].sort(),
           lastMessage: msg,
-          lastMessageAt: new Date().toISOString(),
+          lastMessageAt: sentAt,
           lastSenderUid: myUid,
           participantNames: { [myUid]: myName, ...(otherName ? { [otherUid]: otherName } : {}) },
           unreadBy: arrayUnion(otherUid),
@@ -301,7 +312,13 @@ function InlineChatModal({ chatId, otherUid, otherName, visible, onClose, onDeci
         // שכבר נמצא בצ'אט הזה. ראה lib/notify ו-lib/chatPresence.
         await notify({ event: 'message', chatId });
       } catch (_) {}
-    } catch (_) {}
+    } catch (err) {
+      // Not sent (offline, refused, too long): the text comes back and she is
+      // told, as on the website. It was cleared and dropped without a word.
+      logError('messages:send', err);
+      setText(msg);
+      Alert.alert(t.error, (t as any).errNoInternet ?? t.error);
+    }
   };
 
   const sendImage = async () => {

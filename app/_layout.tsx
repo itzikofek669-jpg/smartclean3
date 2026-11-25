@@ -56,6 +56,15 @@ Notifications.setNotificationHandler({
   },
 });
 
+// An alert with no buttons of its own gets "OK" in the app's language. Android
+// draws its default button in English whatever the screen says, so every one of
+// the ~200 single-button alerts ended in "OK" in Hebrew too (audit 22.11.2026).
+{
+  const nativeAlert = Alert.alert.bind(Alert);
+  (Alert as any).alert = (title: string, message?: string, buttons?: any[], options?: any) =>
+    nativeAlert(title, message, buttons && buttons.length ? buttons : [{ text: trNow('okBtn') }], options);
+}
+
 // ── הגדרת ערוץ אנדרואיד עם צליל ─────────────────────────────────────────────
 if (Platform.OS === 'android') {
   Notifications.setNotificationChannelAsync('messages', {

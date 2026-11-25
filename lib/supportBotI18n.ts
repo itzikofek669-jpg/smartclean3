@@ -645,7 +645,11 @@ function replyFor(input: string, ctx: I18nBotCtx, lang: BotLang): I18nBotResp {
     const mine = (ctx.allBookings || []).filter(Boolean);
     switch (topic) {
       case 'myBookings': {
-        const upcoming = mine.filter((b) => LIVE.includes(b.status))
+        // Today and on, not a job from last month nobody closed: the oldest live
+        // booking came first and was shown as her next job (audit 22.11.2026).
+        const now0 = new Date();
+        const todayStr = `${now0.getFullYear()}-${String(now0.getMonth() + 1).padStart(2, '0')}-${String(now0.getDate()).padStart(2, '0')}`;
+        const upcoming = mine.filter((b) => LIVE.includes(b.status) && (!dateOf(b) || dateOf(b) >= todayStr))
           .sort((a, b) => `${dateOf(a)} ${a.startTime || ''}`.localeCompare(`${dateOf(b)} ${b.startTime || ''}`));
         if (!upcoming.length) return { text: t('jobsNone', lang), quickReplies: q(lang, 'getJobs', 'availability', 'menu') };
         const n = upcoming[0];
@@ -659,7 +663,10 @@ function replyFor(input: string, ctx: I18nBotCtx, lang: BotLang): I18nBotResp {
         const done = mine.filter((b) => b.status === 'done');
         // Never below what was agreed: an old close recorded "₪1" (lib/bookingAmount).
         const amount = (b: any) => bookingAmount(b);
-        const ym = new Date().toISOString().slice(0, 7);
+        // This month on the device's calendar: toISOString is UTC, which in
+        // Israel still said last month until 02:00–03:00 on the 1st.
+        const nowM = new Date();
+        const ym = `${nowM.getFullYear()}-${String(nowM.getMonth() + 1).padStart(2, '0')}`;
         const month = done.filter((b) => dateOf(b).startsWith(ym));
         return {
           text: t('earnings', lang, {

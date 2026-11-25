@@ -97,8 +97,8 @@ import {
   stripEmoji, countWords, limitWords, buildFullAddress,
 } from '../lib/jobUtils';
 import { compareCleaners, compareJobs, isAvailableNow, rotationRank } from '../lib/displayOrder';
-import { isUrgentRequestLive, releasedByMe, URGENT_FIRST_START_HOUR, URGENT_LAST_START_HOUR, urgentStartAllowed, urgentTodayClosed, urgentFirstSlot, hourOfTime, urgentEditContext, urgentPushPlan, urgentAlertedAfter, liveUrgentEdit, urgentAlertOutcome, urgentPushQuiet, urgentExpiresAt, expiryOf, slotOf, urgentBackOut, UrgentEditContext } from '../lib/urgentRequest';
-import { sameDayOverlap, bookingHoldsHours, endDateOf } from '../lib/bookingSlot';
+import { isUrgentRequestLive, releasedByMe, URGENT_FIRST_START_HOUR, URGENT_LAST_START_HOUR, urgentStartAllowed, urgentTodayClosed, urgentFirstSlot, hourOfTime, urgentEditContext, urgentPushPlan, urgentAlertedAfter, liveUrgentEdit, urgentAlertOutcome, urgentPushQuiet, israelNow, urgentExpiresAt, expiryOf, slotOf, urgentBackOut, UrgentEditContext } from '../lib/urgentRequest';
+import { sameDayOverlap, bookingHoldsHours, endDateOf, startDateOf } from '../lib/bookingSlot';
 import { unansweredPast } from '../lib/bookingTabs';
 import { claimUpdate, occupiesCleanerTime, pendingSlotMissed, pendingSlotExpired, expiryUpdate, rejectionUpdate, isBoardJobOfferable, busySlotOf, declinedByCleaner } from '../lib/bookingActions';
 import { diaryBusySlots, todayYmd, type DiaryEntry } from '../lib/workDiary';
@@ -3303,7 +3303,7 @@ function BookingModal({ cleaner, visible, onClose, onBookingCreated, prebookData
               </View>
               <View style={{ height: 1, backgroundColor: '#FED7AA' }} />
               <View style={{ flexDirection: 'row-reverse', justifyContent: 'space-between' }}>
-                <T style={{ color: '#6B7280', fontSize: 13 }}>{t.hoursUnit}</T>
+                <T style={{ color: '#6B7280', fontSize: 13 }}>{(t as any).hoursLabel ?? t.hoursUnit}</T>
                 <T style={{ fontWeight: '800', color: '#1C1917', fontSize: 13 }}>⏱️ {bookedDetails.hours} {t.hoursUnit}</T>
               </View>
               <View style={{ height: 1, backgroundColor: '#FED7AA' }} />
@@ -3403,7 +3403,7 @@ function BookingModal({ cleaner, visible, onClose, onBookingCreated, prebookData
               </View>
               <View style={{ height: 1, backgroundColor: '#D1FAE5' }} />
               <View style={{ flexDirection: 'row-reverse', justifyContent: 'space-between', alignItems: 'center' }}>
-                <T style={{ fontSize: 13, color: '#6B7280' }}>{t.hoursUnit}</T>
+                <T style={{ fontSize: 13, color: '#6B7280' }}>{(t as any).hoursLabel ?? t.hoursUnit}</T>
                 <T style={{ fontSize: 13.5, fontWeight: '800', color: '#065F46' }}>⏱️ {bookedDetails.hours} {t.hoursUnit}</T>
               </View>
               <View style={{ height: 1, backgroundColor: '#D1FAE5' }} />
@@ -5514,7 +5514,7 @@ export default function HomeScreen() {
         const plan = urgentPushPlan(ring, editCtx, 500);
         // בין 20:00 ל-08:00 לא מצלצלים לאף אחד (lib/urgentRequest urgentPushQuiet):
         // הבקשה כבר בלוח של כל המנקים, וזה הכל. השרת מחזיק באותו קו לפי שעון ישראל.
-        const quiet = urgentPushQuiet();
+        const quiet = urgentPushQuiet(israelNow());
         const reqDoc = doc(db,'urgentRequests', reqRef.id);
         // מי שכבר קיבל התראה בגרסאות הקודמות נרשם מיד; מי שמקבל עכשיו — רק
         // אחרי שהשרת אישר שצלצל למישהו. פוש שנכשל לא "התריע" לאף אחד, ועריכה
@@ -6383,9 +6383,20 @@ export default function HomeScreen() {
             // עד עכשיו זה לא היה חסר, כי תפיסה מהלוח קפצה ישר ל-confirmed. מרגע
             // שהיא נשארת ממתינה, עבודה כזו יורדת מהלוח, אף מנקה אחרת לא רואה
             // אותה, ואיש לא סוגר אותה לעולם.
+            // And the client is told, as on any release or cancellation — only
+            // their own screen said so before (audit 22.11.2026).
             all.filter(b => pendingSlotMissed(b, uid))
-              .forEach(b => updateDoc(doc(db, 'bookings', b.id), rejectionUpdate(b))
-                .catch(err => logError('home:missedClaim', err)));
+              .forEach(b => {
+                const write = rejectionUpdate(b);
+                // Only news still worth hearing: a cancellation of a slot that
+                // began within the day. A board job back "on the board" after its
+                // hour, or word weeks late, only misleads (review 22.11.2026).
+                const start = startDateOf(b);
+                const recent = !!start && Date.now() - start.getTime() < 24 * 3600000;
+                updateDoc(doc(db, 'bookings', b.id), write)
+                  .then(() => { if (recent && (write as any).open !== true) void notify({ event: 'booking_cancelled', bookingId: b.id }); })
+                  .catch(err => logError('home:missedClaim', err));
+              });
             // בקשה שנשלחה אליה ישירות, או הביקור הבא של עבודה חוזרת, שלא נענתה
             // ומועדה עבר — פגה בשקט. שום סוויפ לא סגר אותה: היא הוצעה לאישור
             // ימים אחרי המועד, ונספרה אצל הלקוח כהזמנה חיה בשעה הזו.
@@ -7026,7 +7037,7 @@ export default function HomeScreen() {
         if (uid && Array.isArray(r.alertedBefore) && r.alertedBefore.includes(uid)) return false;
         // 20:00–08:00: no push, and so no full-screen window either — the request
         // is on her board, where she sees it (lib/urgentRequest urgentPushQuiet).
-        if (urgentPushQuiet()) return false;
+        if (urgentPushQuiet(israelNow())) return false;
         // ומחוץ לשעות שהיא הגדירה להיום — כמו הפוש.
         if (!isOnShiftNow(true, me.availability, me.availabilitySet, new Date())) return false;
         const start = hourOfTime(r.startTime);
@@ -8929,7 +8940,7 @@ export default function HomeScreen() {
                 <T style={{ color: '#B45309', fontSize: 13, fontWeight: '800', textAlign: 'center' }}>⚠️ {urgentMissing}</T>
               )}
               {/* 20:00–08:00: the request goes on the boards, and no phone rings for it. */}
-              {urgentPushQuiet(new Date(nowMs)) && (
+              {urgentPushQuiet(israelNow(new Date(nowMs))) && (
                 <View style={{ backgroundColor: '#EEF2FF', borderWidth: 1, borderColor: '#C7D2FE', borderRadius: 12, paddingHorizontal: 12, paddingVertical: 8 }}>
                   <T style={{ fontSize: 13, color: '#3730A3', lineHeight: 20 }}>
                     {(t as any).urgentAlertQuietHours ?? '🌙 בין 20:00 ל-08:00 לא נשלחות התראות לנותני השירות. הבקשה מופיעה אצלם בלוח באתר ובאפליקציה.'}

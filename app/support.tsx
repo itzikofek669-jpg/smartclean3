@@ -1,4 +1,5 @@
-import { trNow, chevron } from '../lib/trNow';
+import { trNow } from '../lib/trNow';
+import BackIcon from '../lib/BackIcon';
 import { botReplyI18n, botWelcomeI18n, isBotLang, pickRelevantBooking } from '../lib/supportBotI18n';
 import React, { useEffect, useRef, useState } from 'react';
 import {
@@ -1300,7 +1301,8 @@ export default function SupportScreen() {
       {/* Header */}
       <View style={[s.header, flipSide && { flexDirection: 'row-reverse' }]}>
         <TouchableOpacity onPress={() => router.back()} style={s.backBtn}>
-          <T style={s.backBtnText}>{chevron('‹')}</T>
+          {/* The back arrow every other screen draws (lib/BackIcon); ‹ here pointed the other way. */}
+          <BackIcon size={26} color="#fff" />
         </TouchableOpacity>
         <View style={s.headerCenter}>
           <View style={s.headerAvatar}>
@@ -1335,7 +1337,17 @@ export default function SupportScreen() {
         />
 
         {/* Input bar */}
+        {/* Send first, then the field — the order messages.tsx uses, so the
+            button sits where it does in every other chat, in every language
+            (audit 22.11.2026: here it stood on the other side). */}
         <View style={[s.inputBar, insets.bottom > 0 && { paddingBottom: insets.bottom + 10 }]}>
+          <TouchableOpacity
+            style={[s.sendBtn, !input.trim() && { opacity: 0.4 }]}
+            onPress={() => handleSend(input)}
+            disabled={!input.trim()}
+          >
+            <T style={s.sendBtnText} numberOfLines={1}>{(t as any).sendBtn}</T>
+          </TouchableOpacity>
           <TextInput
             style={s.textInput}
             value={input}
@@ -1346,13 +1358,6 @@ export default function SupportScreen() {
             returnKeyType="send"
             multiline={false}
           />
-          <TouchableOpacity
-            style={[s.sendBtn, !input.trim() && { opacity: 0.4 }]}
-            onPress={() => handleSend(input)}
-            disabled={!input.trim()}
-          >
-            <T style={s.sendBtnText} numberOfLines={1}>{(t as any).sendBtn}</T>
-          </TouchableOpacity>
         </View>
       </KeyboardAvoidingView>
     </View>

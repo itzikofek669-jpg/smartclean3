@@ -24,6 +24,7 @@ import AppVersionAdmin from '../lib/AppVersionAdmin';
 import { replacedByEdit } from '../lib/bookingOrigin';
 import { bookingAmount } from '../lib/bookingAmount';
 import { pairRetention, repeatRate, GONE_AFTER_DAYS } from '../lib/retention';
+import { logError } from '../lib/logError';
 
 // ─── Palette ──────────────────────────────────────────────────────────────────
 const C_DEFAULT = {
@@ -188,8 +189,10 @@ export default function AdminScreen() {
 
   // Revenue chart — last 6 months
   const chartData = Array.from({ length: 6 }, (_, i) => {
-    const d = new Date();
-    d.setMonth(d.getMonth() - (5 - i));
+    // The first of the month: on the 29th–31st setMonth on today's date rolled
+    // into the next month, so one month vanished and another came twice.
+    const now = new Date();
+    const d = new Date(now.getFullYear(), now.getMonth() - (5 - i), 1);
     const m = d.getMonth(), y = d.getFullYear();
     const rev = bookings
       .filter(b => {
@@ -220,7 +223,9 @@ export default function AdminScreen() {
     Alert.alert(`${action} משתמש`, `האם ${action} את ${name}?`, [
       { text: 'ביטול', style: 'cancel' },
       { text: action, style: 'destructive', onPress: async () => {
-        await updateDoc(doc(db, 'users', uid), { blocked: !currentlyBlocked });
+        // A refused or offline write said nothing, and the admin took it as done (audit 22.11.2026).
+        try { await updateDoc(doc(db, 'users', uid), { blocked: !currentlyBlocked }); }
+        catch (e) { logError('admin:block', e); Alert.alert('שגיאה', 'הפעולה נכשלה — בדוק את החיבור ונסה שוב'); }
       }},
     ]);
   };
@@ -261,7 +266,8 @@ export default function AdminScreen() {
         // אחרת היא נשארת 'taken' לנצח: מחוץ ללוח של כולם ולא ניתנת לתפיסה.
         let urgentRequestId = '';
         try { urgentRequestId = String((await getDoc(ref)).data()?.urgentRequestId ?? ''); } catch (_) {}
-        await updateDoc(ref, { status: 'cancelled', cancelledBy: 'admin', cancelledAt: new Date().toISOString() });
+        try { await updateDoc(ref, { status: 'cancelled', cancelledBy: 'admin', cancelledAt: new Date().toISOString() }); }
+        catch (e) { logError('admin:cancel', e); Alert.alert('שגיאה', 'הפעולה נכשלה — בדוק את החיבור ונסה שוב'); return; }
         // The server frees the provider's hours now and tells both parties
         // (worker/notify.js booking_cancelled, admin branch). Without it her
         // hour stayed "busy" until her app next ran, and nobody was told.
@@ -316,20 +322,23 @@ export default function AdminScreen() {
     Alert.alert('מחיקת קוד', `למחוק את הקוד "${code}"?`, [
       { text: 'ביטול', style: 'cancel' },
       { text: 'מחק', style: 'destructive', onPress: async () => {
-        await deleteDoc(doc(db, 'promoCodes', id));
+        try { await deleteDoc(doc(db, 'promoCodes', id)); }
+        catch (e) { logError('admin:promo', e); Alert.alert('שגיאה', 'הפעולה נכשלה — בדוק את החיבור ונסה שוב'); }
       }},
     ]);
   };
 
   const handleResolveReport = async (id: string) => {
-    await updateDoc(doc(db, 'reports', id), { resolved: true });
+    try { await updateDoc(doc(db, 'reports', id), { resolved: true }); }
+    catch (e) { logError('admin:report', e); Alert.alert('שגיאה', 'הפעולה נכשלה — בדוק את החיבור ונסה שוב'); }
   };
 
   const handleDeleteReport = (id: string) => {
     Alert.alert('מחיקת דיווח', 'למחוק דיווח זה לצמיתות?', [
       { text: 'ביטול', style: 'cancel' },
       { text: 'מחק', style: 'destructive', onPress: async () => {
-        await deleteDoc(doc(db, 'reports', id));
+        try { await deleteDoc(doc(db, 'reports', id)); }
+        catch (e) { logError('admin:report', e); Alert.alert('שגיאה', 'הפעולה נכשלה — בדוק את החיבור ונסה שוב'); }
       }},
     ]);
   };
@@ -539,7 +548,7 @@ export default function AdminScreen() {
                     <T style={s.recentName}>
                       {b.clientName || 'לקוח'} ← {b.cleanerName || 'נותן שירות'}
                     </T>
-                    <T style={s.recentSub}>{b.date} · ₪{bookingAmount(b)}</T>
+                    <T style={s.recentSub}>{b.bookingDate || b.date} · ₪{bookingAmount(b)}</T>
                   </View>
                   <StatusPill status={b.status} />
                 </View>
@@ -574,7 +583,7 @@ export default function AdminScreen() {
                   isCleaner
                   onBlock={() => handleBlock(c.uid, c.name || 'נותן שירות', !!c.blocked)}
                   onDelete={() => handleDeleteUser(c.uid, c.name || 'נותן שירות', 'cleaner')}
-                  extraBookings={bookings.filter(b => b.cleanerUid === c.uid).length}
+                  extraBookings={bookings.filter(b => (b.cleanerId || b.cleanerUid) === c.uid).length}
                 />
               ))}
           </View>
@@ -643,14 +652,14 @@ export default function AdminScreen() {
                   <View style={{ flex: 1, gap: 3 }}>
                     <View style={{ flexDirection: isRTL ? 'row-reverse' : 'row', alignItems: 'center', gap: 8 }}>
                       <StatusPill status={b.status} />
-                      <T style={s.bookingDate}>{b.date} {b.startTime || ''}</T>
+                      <T style={s.bookingDate}>{b.bookingDate || b.date} {b.startTime || ''}</T>
                     </View>
                     <T style={s.bookingParties}>
                       👤 {b.clientName || 'לקוח'} ← ✨ {b.cleanerName || 'נותן שירות'}
                     </T>
                     <T style={s.bookingSub}>📍 {b.address || b.addrCity}</T>
                     <T style={s.bookingAmount}>
-                      ₪{bookingAmount(b)} · {b.hours} שע׳ · {b.paymentMethod}
+                      ₪{bookingAmount(b)} · {b.hours} שע׳ · {b.payment || b.paymentMethod || ''}
                     </T>
                   </View>
                   {b.status !== 'cancelled' && b.status !== 'done' && (

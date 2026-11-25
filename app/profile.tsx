@@ -197,7 +197,10 @@ function createS(c: AppColors) {
     statusCard:    { alignItems: 'center', gap: 12, backgroundColor: c.blueLight, borderRadius: 16, paddingHorizontal: 16, paddingVertical: 14, marginHorizontal: 16, marginTop: 12 },
     statusTitle:   { fontSize: 15, fontWeight: '800', color: c.textDark },
     statusSub:     { fontSize: 12, color: c.textSub, marginTop: 2 },
-    statusToggle:  { width: 50, height: 28, borderRadius: 14, backgroundColor: c.blueBorder, padding: 3, justifyContent: 'center' },
+    // direction ltr: "on" is the thumb at the right in every language. Under
+    // the mirrored root of an LTR language flex-end was the left, and a live
+    // switch looked off (audit 22.11.2026).
+    statusToggle:  { width: 50, height: 28, borderRadius: 14, backgroundColor: c.blueBorder, padding: 3, justifyContent: 'center', direction: 'ltr' },
     statusToggleOn:{ backgroundColor: c.green, alignItems: 'flex-end' },
     statusThumb:   { width: 22, height: 22, borderRadius: 11, backgroundColor: c.white },
 
@@ -876,6 +879,7 @@ export default function ProfileScreen() {
   const [editLanguages,    setEditLanguages]    = useState<string[]>([]);
   const [editCleanerAddress, setEditCleanerAddress] = useState('');
   const [editServicePricing,setEditServicePricing]= useState<Record<string,string>>({});
+  const loadedPricingRef = useRef<Record<string, string>>({});
   const [editSaving,       setEditSaving]       = useState(false);
   // Payment details (cleaner)
   const [editBitPhone,        setEditBitPhone]        = useState('');
@@ -1045,6 +1049,7 @@ export default function ProfileScreen() {
         // אם אין מחיר לניקיון רגיל — מלא מהמחיר הישן
         if (!spStr['ניקיון רגיל'] && d.price) spStr['ניקיון רגיל'] = String(d.price);
         setEditServicePricing(spStr);
+        loadedPricingRef.current = spStr;
         setEditBitPhone(d.bitPhone || '');
         setEditPayboxLink(d.payboxLink || '');
         setEditBankName(d.bankName || '');
@@ -1073,7 +1078,13 @@ export default function ProfileScreen() {
       // required=false: מנקה ששמור לה מחיר 0 (ההרשמה נופלת ל-0) הייתה נחסמת
       // כאן מלשמור את הפרופיל בכלל — גם כשהיא רק מתקנת טלפון. מחיר שהוקלד
       // עדיין נבדק מול הטווח; מחיר שלא קיים לא חוסם שמירה של שדה אחר.
-      isCleaner ? validatePrice(editServicePricing['ניקיון רגיל'] || Object.values(editServicePricing).find(v => v) || '', false) : null,
+      // Every typed rate, as registration and the website check them: only one
+      // was, so "חלונות" saved at ₪1 or ₪99999 (audit 22.11.2026).
+      // Only rates typed in this edit: an old stored rate from before the checks,
+      // or under a service since renamed, must not block saving a phone fix.
+      ...(isCleaner ? Object.entries(editServicePricing)
+        .filter(([k, v]) => String(v ?? '').trim() !== '' && String(v) !== String(loadedPricingRef.current[k] ?? ''))
+        .map(([, v]) => validatePrice(String(v), false)) : []),
       isCleaner ? validateAge(editAge) : null,
       isCleaner ? validateDistance(editMaxDistance) : null,
     );

@@ -6,6 +6,7 @@ import { doc, getDoc } from 'firebase/firestore';
 import { auth, db } from './firebase';
 import { useLanguage, T, useAppColors } from './LanguageContext';
 import { logError } from './logError';
+import { signOutOfDevice } from './signOutDevice';
 
 /**
  * נועל את האפליקציה למנקה שלא אישר גישה למיקום.
@@ -110,6 +111,11 @@ export default function LocationGate() {
         <T style={[s.linkText, { color: C.blue }]}>
           {tt.locationLockOpenSettings || 'פתיחת ההגדרות'}
         </T>
+      </TouchableOpacity>
+      {/* A way out: the lock covers every screen, the menu with "logout" too
+          (audit 22.11.2026). The website's lock has one. */}
+      <TouchableOpacity style={s.linkBtn} onPress={() => { void signOutOfDevice(); }}>
+        <T style={[s.linkText, { color: C.textSub }]}>{tt.drawerLogout || 'התנתקות'}</T>
       </TouchableOpacity>
     </View>
   );
