@@ -28,6 +28,14 @@ import { levelProgress, LEVELS } from '../lib/retention';
 import { activeFreeSlots } from '../lib/freeSlots';
 import { FREE_TEAL_BG, FREE_TEAL_TEXT } from '../lib/FreeSlotSheet';
 
+/** A city key in the screen's language — own keys only, so typed text such as
+ *  "__proto__" can't come back as an object and crash the render (review 26.11.2026). */
+function cityOf(t: any, x: any): string {
+  const c = t?.cities;
+  return typeof x === 'string' && c && Object.prototype.hasOwnProperty.call(c, x) ? String(c[x]) : (x ?? '');
+}
+
+
 const AGENDA_DAYS = 14;
 const SUMMARY_DAYS = 7;
 
@@ -219,8 +227,11 @@ export default function DiaryScreen() {
   const input = { borderWidth: 1, borderColor: C.blueBorder, borderRadius: 12, paddingHorizontal: 12, paddingVertical: 10, fontSize: 15, color: C.textDark, backgroundColor: C.white, textAlign: 'right' } as const;
 
   return (
-    <View style={{ flex: 1, backgroundColor: C.bg, paddingTop: Platform.OS === 'ios' ? insets.top : (StatusBar.currentHeight || 0) }}>
+    <View style={{ flex: 1, backgroundColor: C.bg }}>
       <StatusBar barStyle="light-content" backgroundColor={C.blueDark} />
+      {/* The strip under the clock in the header's blue: on the page's light
+          background the white clock and battery were invisible (25.11.2026). */}
+      <View style={{ height: Platform.OS === 'ios' ? insets.top : (StatusBar.currentHeight || 0), backgroundColor: C.blueDark }} />
       <View style={{ backgroundColor: C.blueDark, flexDirection: 'row-reverse', alignItems: 'center', paddingHorizontal: 12, paddingVertical: 12, gap: 8 }}>
         <TouchableOpacity accessibilityRole="button" accessibilityLabel={tt.diaryBack ?? 'חזרה'} onPress={() => router.back()} style={{ width: 40, height: 40, alignItems: 'center', justifyContent: 'center' }}>
           <T style={{ fontSize: 26, color: '#fff', fontWeight: '700' }}>{chevron('›')}</T>
@@ -304,7 +315,7 @@ export default function DiaryScreen() {
                   </View>
                   {it.kind !== 'free' && <View style={row}>
                     <T style={{ flex: 1, fontSize: 14, fontWeight: '700', color: C.textDark, textAlign: 'right' }} numberOfLines={1}>
-                      {it.title || '—'}{it.place ? ` · ${it.place}` : ''}
+                      {it.title || '—'}{it.place ? ` · ${cityOf(t, it.place)}` : ''}
                     </T>
                     {it.price != null && <T style={{ fontSize: 14, fontWeight: '800', color: C.blue }}>₪{it.price}</T>}
                   </View>}

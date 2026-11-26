@@ -131,6 +131,14 @@ import { logError } from '../lib/logError';
 import { pendingExtension, bookingAmount, termsBeforeExtension } from '../lib/bookingAmount';
 import { ExtensionAskSheet } from '../lib/JobExtensionUI';
 
+/** A city key in the screen's language — own keys only, so typed text such as
+ *  "__proto__" can't come back as an object and crash the render (review 26.11.2026). */
+function cityOf(t: any, x: any): string {
+  const c = t?.cities;
+  return typeof x === 'string' && c && Object.prototype.hasOwnProperty.call(c, x) ? String(c[x]) : (x ?? '');
+}
+
+
 
 const W = Dimensions.get('window').width;
 const H = Dimensions.get('window').height;
@@ -427,6 +435,15 @@ const LANGS: { code: Lang; label: string; flag: string; nativeName: string }[] =
 
 const NEARBY_KM = 30;
 
+
+// Leaving for another screen from inside a sheet: close it first, then go once
+// it has slid away. Pushed while the sheet was still closing, iOS left its
+// invisible layer over home — back from "ההזמנות שלי" after booking, not one
+// button on home answered (found making the tutorial video, 25.11.2026).
+const SHEET_EXIT_MS = 500;
+function pushAfterSheet(router: { push: (p: any) => void }, path: string) {
+  setTimeout(() => router.push(path as any), SHEET_EXIT_MS);
+}
 
 // ── 200 בוטים מפוזרים בכל הערים בארץ — לפיתוח בלבד ───────────────────────────
 //
@@ -1034,7 +1051,7 @@ function CleanerTraitsSection({ cleaner, s, t }: any) {
   // removed: two editors for one fact means the last screen used silently wins.
   const workDays  = workDaysFromAvailability(cleaner?.availability);
   const place     = cleaner?.cleanerAddress || cleaner?.city;
-  const cityLabel = place ? (t.cities?.[place] || place) : '';
+  const cityLabel = place ? cityOf(t, place) : '';
   const distance  = Number(cleaner?.maxDistance) || 0;
   // Absent means mobile: cleaners predating the flag all travelled to clients.
   const isMobile  = cleaner?.isMobile;
@@ -1829,6 +1846,10 @@ function PostJobModal({ visible, onClose, onPosted, editJob, openJobs, onEditJob
   const [hour, setHour]         = useState(Number.isFinite(ejHour) ? ejHour : defaultSlot.h);
   const [hours, setHours]       = useState(ej && Number(ej.hours) > 0 ? Number(ej.hours) : 2);
   const [isPrivate, setIsPrivate] = useState(ej ? ej.isPrivateHouse !== false : true);
+  // Set from her saved address when the form opens, unless she has already
+  // chosen: a new job always said "בית פרטי", so a client in a flat posted
+  // one as a private house (found making the tutorial video, 25.11.2026).
+  const privateChosenRef = useRef(false);
   const [city, setCity]         = useState<string>(ej ? (ej.address || ej.addrCity || '') : '');
   const [citySugg, setCitySugg] = useState<string[]>([]);
   // Chosen from the same row of amounts as an urgent request, not typed. The
@@ -1891,18 +1912,30 @@ function PostJobModal({ visible, onClose, onPosted, editJob, openJobs, onEditJob
   useEffect(() => {
     if (!visible || ejId) return;
     (async () => {
+      // House or flat: her own profile says first (as the profile screen reads
+      // it, isPrivate before isPrivateHouse); only without one, the saved
+      // address — whose missing flag reads as "flat" (review 25.11.2026).
+      let d: any = null;
+      try { d = await fetchOwnProfile(auth.currentUser?.uid || ''); } catch (_) {}
+      const ownFlag = d?.isPrivate ?? d?.isPrivateHouse;
+      const setOwnType = (fromAddress?: boolean) => {
+        if (privateChosenRef.current) return;
+        if (typeof ownFlag === 'boolean') setIsPrivate(ownFlag);
+        else if (typeof fromAddress === 'boolean') setIsPrivate(fromAddress);
+      };
       try {
         const a = await getSavedAddresses();
         const primary = a.find(x => x.isPrimary) || a[0];
-        if (primary?.address) { setCity(prev => prev || primary.address); return; }
+        if (primary?.address) {
+          setCity(prev => prev || primary.address);
+          setOwnType(primary.isPrivate === true);
+          return;
+        }
       } catch (_) {}
       // גיבוי: כתובת/עיר מהפרופיל (הרשמה)
-      try {
-        const uid = auth.currentUser?.uid || '';
-        const d = await fetchOwnProfile(uid);
-        const fallback = d?.address || d?.cleanerAddress || d?.city;
-        if (fallback) setCity(prev => prev || String(fallback));
-      } catch (_) {}
+      const fallback = d?.address || d?.cleanerAddress || d?.city;
+      if (fallback) setCity(prev => prev || String(fallback));
+      setOwnType();
     })();
   }, [visible, ejId]);
 
@@ -2031,7 +2064,7 @@ function PostJobModal({ visible, onClose, onPosted, editJob, openJobs, onEditJob
       // נשלח: חזרה למסך הראשי, בלי חלון נוסף. לחיצה חוזרת על "ניקיון בזמן שלך"
       // מראה את המודעה ממתינה, עם ✏️ וביטול, כל עוד אף נותן שירות לא לקח אותה.
       onClose();
-      setTypes([]); setCity(''); setCitySugg([]); setBudget(80); setNotes(''); setPhotos([]);
+      setTypes([]); setCity(''); setCitySugg([]); setBudget(80); setNotes(''); setPhotos([]); privateChosenRef.current = false;
       setSvcOpen(false); setTried(false);
     } catch (err: any) {
       if (err?.message === 'JOB_TAKEN') {
@@ -2225,8 +2258,8 @@ function PostJobModal({ visible, onClose, onPosted, editJob, openJobs, onEditJob
           <View style={{ gap: 6 }}>
             <T style={fieldLabel}>{(t as any).propertyTypeLabel ?? 'סוג נכס'}</T>
             <View style={{ flexDirection: 'row-reverse', gap: 8 }}>
-              <TouchableOpacity onPress={() => setIsPrivate(true)} style={{ flex: 1, paddingVertical: 11, borderRadius: 12, borderWidth: 1.5, borderColor: isPrivate ? C.blue : C.blueBorder, backgroundColor: isPrivate ? C.blue : C.white, alignItems: 'center' }}><T style={{ fontSize: 13, fontWeight: '700', color: isPrivate ? '#fff' : C.textDark }}>🏠 {(t as any).privateHouseLabel ?? 'בית פרטי'}</T></TouchableOpacity>
-              <TouchableOpacity onPress={() => setIsPrivate(false)} style={{ flex: 1, paddingVertical: 11, borderRadius: 12, borderWidth: 1.5, borderColor: !isPrivate ? C.blue : C.blueBorder, backgroundColor: !isPrivate ? C.blue : C.white, alignItems: 'center' }}><T style={{ fontSize: 13, fontWeight: '700', color: !isPrivate ? '#fff' : C.textDark }}>🏢 {(t as any).aptBuildingLabel ?? 'דירה'}</T></TouchableOpacity>
+              <TouchableOpacity onPress={() => { privateChosenRef.current = true; setIsPrivate(true); }} style={{ flex: 1, paddingVertical: 11, borderRadius: 12, borderWidth: 1.5, borderColor: isPrivate ? C.blue : C.blueBorder, backgroundColor: isPrivate ? C.blue : C.white, alignItems: 'center' }}><T style={{ fontSize: 13, fontWeight: '700', color: isPrivate ? '#fff' : C.textDark }}>🏠 {(t as any).privateHouseLabel ?? 'בית פרטי'}</T></TouchableOpacity>
+              <TouchableOpacity onPress={() => { privateChosenRef.current = true; setIsPrivate(false); }} style={{ flex: 1, paddingVertical: 11, borderRadius: 12, borderWidth: 1.5, borderColor: !isPrivate ? C.blue : C.blueBorder, backgroundColor: !isPrivate ? C.blue : C.white, alignItems: 'center' }}><T style={{ fontSize: 13, fontWeight: '700', color: !isPrivate ? '#fff' : C.textDark }}>🏢 {(t as any).aptBuildingLabel ?? 'דירה'}</T></TouchableOpacity>
             </View>
           </View>
 
@@ -3358,7 +3391,7 @@ function BookingModal({ cleaner, visible, onClose, onBookingCreated, prebookData
             {/* כפתור ההזמנות שלי */}
             <TouchableOpacity
               style={{ backgroundColor: '#fff', borderRadius: 14, paddingVertical: 11, width: '100%', alignItems: 'center', borderWidth: 1, borderColor: '#D1D5DB' }}
-              onPress={() => { handleClose(); router.push('/profile'); }}
+              onPress={() => { handleClose(); pushAfterSheet(router, '/profile'); }}
             >
               <T style={{ fontSize: 14, fontWeight: '700', color: '#6B7280' }}>{t.viewMyBookings}</T>
             </TouchableOpacity>
@@ -3450,7 +3483,7 @@ function BookingModal({ cleaner, visible, onClose, onBookingCreated, prebookData
             {/* כפתור ההזמנות שלי */}
             <TouchableOpacity
               style={{ backgroundColor: '#2563EB', borderRadius: 14, paddingVertical: 12, paddingHorizontal: 32, width: '100%', alignItems: 'center' }}
-              onPress={() => { handleClose(); router.push('/profile'); }}
+              onPress={() => { handleClose(); pushAfterSheet(router, '/profile'); }}
             >
               <T style={{ fontSize: 16, fontWeight: '900', color: '#fff' }}>{t.viewMyBookings}</T>
             </TouchableOpacity>
@@ -8154,7 +8187,7 @@ export default function HomeScreen() {
         allCleaners={[...staticCleanerOrder, ...realCleaners]}
         cleanersReady={realCleaners.length > 0}
         onBook={(cleaner, prevB) => { setQuickRebookOpen(false); setPrebookData(prevB || null); setBooking(cleaner); }}
-        onHistory={() => { setQuickRebookOpen(false); router.push({ pathname: '/profile', params: { section: 'history' } }); }}
+        onHistory={() => { setQuickRebookOpen(false); setTimeout(() => router.push({ pathname: '/profile', params: { section: 'history' } }), SHEET_EXIT_MS); }}
       />
 
       <Toast msg={toastMsg} visible={toastVisible} type={toastType} />
@@ -8363,7 +8396,7 @@ export default function HomeScreen() {
               return (
                 <>
                   <T style={{ fontSize: 15, color: C.textDark, lineHeight: 24, textAlign: 'right', marginBottom: pics.length || urgentPopupReq.publicNotes ? 10 : 18 }}>
-                    {urgentPopupReq.dateStr || ''} {urgentPopupReq.startTime || ''}{svc ? `${'\n'}🧹 ${svc}` : ''}{'\n'}📍 {urgentPopupReq.address || urgentPopupReq.addrCity || ''}{'\n'}⏱️ {urgentPopupReq.hours || ''} {t.hoursUnit} · ₪{urgentPopupReq.total || ''}
+                    {urgentPopupReq.dateStr || ''} {urgentPopupReq.startTime || ''}{svc ? `${'\n'}🧹 ${svc}` : ''}{'\n'}📍 {urgentPopupReq.address || cityOf(t, urgentPopupReq.addrCity)}{'\n'}⏱️ {urgentPopupReq.hours || ''} {t.hoursUnit} · ₪{urgentPopupReq.total || ''}
                   </T>
                   {/* What the client wrote with the request — it may decide whether she takes it. */}
                   {!!urgentPopupReq.publicNotes && (
@@ -8421,7 +8454,7 @@ export default function HomeScreen() {
                   {!!svc && <T style={{ fontSize: 14, color: C.textDark, textAlign: 'right' }}>{svc}</T>}
                   {(!!b.bookingDate || !!b.startTime) && <T style={{ fontSize: 14, color: C.textDark, textAlign: 'right' }}>📅 {b.bookingDate || ''}{b.startTime ? ` · ${b.startTime}` : ''}</T>}
                   {!!b.hours && <T style={{ fontSize: 14, color: C.textDark, textAlign: 'right' }}>⏱️ {b.hours} {t.hoursUnit || 'שעות'}</T>}
-                  {!!(b.address || b.addrCity) && <T style={{ fontSize: 14, color: C.textDark, textAlign: 'right' }}>📍 {b.address || b.addrCity}</T>}
+                  {!!(b.address || b.addrCity) && <T style={{ fontSize: 14, color: C.textDark, textAlign: 'right' }}>📍 {b.address || cityOf(t, b.addrCity)}</T>}
                   {!!pay && <T style={{ fontSize: 14, color: C.textDark, textAlign: 'right' }}>💳 {pay}</T>}
                   {amount != null && <T style={{ fontSize: 15, fontWeight: '900', color: C.blue, textAlign: 'right' }}>💰 ₪{amount}</T>}
                 </View>
@@ -8550,7 +8583,7 @@ export default function HomeScreen() {
             {/* כפתורים */}
             <TouchableOpacity
               style={{ backgroundColor: '#2563EB', borderRadius: 14, paddingVertical: 15, width: '100%', alignItems: 'center' }}
-              onPress={() => { setConfirmedPopup(null); router.push('/profile'); }}
+              onPress={() => { setConfirmedPopup(null); pushAfterSheet(router, '/profile'); }}
             >
               <Text style={{ fontSize: 15, fontWeight: '900', color: '#fff' }}>{t.viewMyBookings || '📋 ההזמנות שלי'}</Text>
             </TouchableOpacity>

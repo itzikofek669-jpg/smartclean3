@@ -1132,6 +1132,13 @@ export default function SupportScreen() {
   }, []);
 
   // ── Message helpers ────────────────────────────────────────────────────────
+  // A phone with no mail app refuses mailto: — the promise was left to reject
+  // and "contact us" did nothing at all. The address is then shown in the chat
+  // instead, to copy (found making the tutorial video, 25.11.2026).
+  const openMail = (addr: string, subject: string, body: string) => {
+    Linking.openURL(`mailto:${addr}?subject=${subject}&body=${body}`)
+      .catch(() => pushBotMessage(`📧 ${addr}`));
+  };
   const pushBotMessage = (
     text: string,
     quickReplies?: string[],
@@ -1184,7 +1191,7 @@ export default function SupportScreen() {
           const emailAddr = isCleaner ? 'cleaners@amclean.co.il' : 'support@amclean.co.il';
           const subject = encodeURIComponent(`A&M Clean — support request (${isCleaner ? 'provider' : 'client'}, ${botLang})`);
           const body = encodeURIComponent(`${ctx.userName || ''}\n\n`);
-          setTimeout(() => { Linking.openURL(`mailto:${emailAddr}?subject=${subject}&body=${body}`); }, 1200);
+          setTimeout(() => openMail(emailAddr, subject, body), 1200);
         }
         if (resp.navigateTo) {
           const to = resp.navigateTo;
@@ -1246,9 +1253,7 @@ export default function SupportScreen() {
         const body = encodeURIComponent(
           `שלום צוות A&M Clean,\n\nשמי: ${ctx.userName}\nתפקיד: ${roleLabel}\n\nאנא פנו אלי בנוגע לשאלה הבאה:\n\n`
         );
-        setTimeout(() => {
-          Linking.openURL(`mailto:${emailAddr}?subject=${subject}&body=${body}`);
-        }, 1200);
+        setTimeout(() => openMail(emailAddr, subject, body), 1200);
       }
     }, 800 + Math.random() * 400);
   };
@@ -1295,8 +1300,11 @@ export default function SupportScreen() {
 
   // ── Render ─────────────────────────────────────────────────────────────────
   return (
-    <View style={[s.root, { paddingTop: Platform.OS === 'ios' ? insets.top : (StatusBar.currentHeight || 0) }]}>
+    <View style={s.root}>
       <StatusBar barStyle="light-content" backgroundColor={C.blueDark} />
+      {/* The strip under the clock in the header's blue: on the page's light
+          background the white clock and battery were invisible (25.11.2026). */}
+      <View style={{ height: Platform.OS === 'ios' ? insets.top : (StatusBar.currentHeight || 0), backgroundColor: C.blueDark }} />
 
       {/* Header */}
       <View style={[s.header, flipSide && { flexDirection: 'row-reverse' }]}>

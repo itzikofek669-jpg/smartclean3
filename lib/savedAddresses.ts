@@ -198,6 +198,25 @@ export async function upsertStructuredAddress(
 
 /** Compatibility shim for callers holding only a formatted string. */
 export async function upsertAddress(address: string): Promise<void> {
+  const uid = auth.currentUser?.uid;
+  if (!uid || !address.trim()) return;
+  try {
+    const list = await getSavedAddresses();
+    const existing = list.find(a => a.address === address);
+    if (existing) {
+      // Only the string to go by, for an address already saved with its parts:
+      // keep them and mark it used. Merging the blanks below over it wiped its
+      // city, street, floor, flat and house-or-flat on every job she posted,
+      // and the next form read a house as a flat (review 25.11.2026).
+      await persist(uid, withOnePrimary(list.map(a => (a.id === existing.id
+        ? { ...a, lastUsed: new Date().toISOString() }
+        : a))));
+      return;
+    }
+  } catch (err) {
+    logError('savedAddresses:upsert', err);
+    return;
+  }
   await upsertStructuredAddress({
     address, city: '', street: address, floor: '', apt: '', isPrivate: false,
   });

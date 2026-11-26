@@ -75,6 +75,14 @@ import { bookingOrigin, replacedByEdit } from '../lib/bookingOrigin';
 import { bookingBusyWindow, windowsOverlap, CITY_COORDS } from '../lib/jobUtils';
 import { releaseUrgentRequest } from '../lib/urgentRelease';
 
+/** A city key in the screen's language — own keys only, so typed text such as
+ *  "__proto__" can't come back as an object and crash the render (review 26.11.2026). */
+function cityOf(t: any, x: any): string {
+  const c = t?.cities;
+  return typeof x === 'string' && c && Object.prototype.hasOwnProperty.call(c, x) ? String(c[x]) : (x ?? '');
+}
+
+
 
 function createRM(c: AppColors) {
   return StyleSheet.create({
@@ -3097,13 +3105,18 @@ export default function ProfileScreen() {
       </View>
 
       {/* ── מסך טעינה כשמגיעים מפוש דחוף — מכסה את הפרופיל עד שמסך האישור נפתח ── */}
-      <Modal visible={acceptOverlay && !pendingConfirmBooking} transparent={false} animationType="none">
-        <View style={{ flex: 1, backgroundColor: C.blueDark, alignItems: 'center', justifyContent: 'center', gap: 16 }}>
+      {/* A cover, not a Modal: as a Modal it was closing in the same moment the
+          confirm sheet below opened, and iOS presents nothing while another
+          sheet is going away — "קח את העבודה" on an urgent job landed on the
+          profile with no sheet at all (found making the tutorial video,
+          25.11.2026). */}
+      {acceptOverlay && !pendingConfirmBooking && (
+        <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, zIndex: 1000, elevation: 1000, backgroundColor: C.blueDark, alignItems: 'center', justifyContent: 'center', gap: 16 }}>
           <T style={{ fontSize: 44 }}>⚡</T>
           <ActivityIndicator size="large" color="#fff" />
           <T style={{ fontSize: 16, fontWeight: '900', color: '#fff' }}>{trNow('acceptingUrgent')}</T>
         </View>
-      </Modal>
+      )}
 
       {/* ── מסך אישור הזמנה + צ'אט ── */}
       <Modal
@@ -3112,7 +3125,14 @@ export default function ProfileScreen() {
         animationType="slide"
         onRequestClose={() => setPendingConfirmBooking(null)}
       >
-        <SafeAreaView style={{ flex: 1, backgroundColor: C.bg }} edges={['top','left','right']}>
+        {/* Dark clock and battery on this sheet's light header: the screen's
+            white ones were invisible on it (25.11.2026). */}
+        <StatusBar barStyle="dark-content" />
+        {/* No 'top' edge: the header below pads by insets.top itself. The
+            SafeAreaView is usually 0 inside a Modal — but not always, and then
+            the top was counted twice and the sheet opened under a blank band
+            (found making the tutorial video, 26.11.2026). */}
+        <SafeAreaView style={{ flex: 1, backgroundColor: C.bg }} edges={['left','right']}>
           <KeyboardAvoidingView style={{ flex: 1 }} behavior="padding" keyboardVerticalOffset={0}>
 
             {/* ─── Header ─── (insets.top because SafeAreaView is 0 inside a Modal) */}
@@ -3133,8 +3153,8 @@ export default function ProfileScreen() {
                     <T style={{ fontSize: 16, fontWeight: '900', color: C.blue }}>₪{pendingConfirmBooking.total}</T>
                   </View>
                   {pendingConfirmBooking.address
-                    ? <T style={{ fontSize: 13, color: C.textDark }}>📍 {pendingConfirmBooking.address}</T>
-                    : <T style={{ fontSize: 13, color: C.textDark }}>📍 {pendingConfirmBooking.addrCity || ''}{'\n'}<T style={{ fontSize: 12, color: C.textMid }}>🔒 {t.addressAfterApproval}</T></T>}
+                    ? <T style={{ fontSize: 13, color: C.textDark }}>📍 {cityOf(t, pendingConfirmBooking.address)}</T>
+                    : <T style={{ fontSize: 13, color: C.textDark }}>📍 {cityOf(t, pendingConfirmBooking.addrCity)}{'\n'}<T style={{ fontSize: 12, color: C.textMid }}>🔒 {t.addressAfterApproval}</T></T>}
                   {(pendingConfirmBooking.notes || pendingConfirmBooking.publicNotes) ? <T style={{ fontSize: 13, color: C.textDark, backgroundColor: '#FFFBEB', borderWidth: 1, borderColor: '#FDE68A', borderRadius: 10, paddingHorizontal: 10, paddingVertical: 6 }}>📝 {pendingConfirmBooking.notes || pendingConfirmBooking.publicNotes}</T> : null}
                   {/* Outside the days or hours she set — a booking from a build older
                       than that check, or her hours changed since. */}
@@ -3816,7 +3836,7 @@ export default function ProfileScreen() {
                           </View>
                         </View>
                         <T style={{ fontSize: 14, color: C.textDark, fontWeight: '700' }}>👤 {req.clientName}</T>
-                        <T style={{ fontSize: 13, color: C.textDark }}>📍 {req.address || req.addrCity}</T>
+                        <T style={{ fontSize: 13, color: C.textDark }}>📍 {req.address || cityOf(t, req.addrCity)}</T>
                         {req.publicNotes ? <T style={{ fontSize: 13, color: C.textDark, backgroundColor: '#FFFBEB', borderWidth: 1, borderColor: '#FDE68A', borderRadius: 10, paddingHorizontal: 10, paddingVertical: 6 }}>📝 {req.publicNotes}</T> : null}
                         <View style={{ flexDirection: 'row-reverse', gap: 12 }}>
                           <T style={{ fontSize: 12, color: C.textSub }}>📅 {urgentDayLabel(req)} {req.startTime}</T>
